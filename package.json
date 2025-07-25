@@ -1,0 +1,56 @@
+{
+  "name": "whispermac",
+  "version": "1.0.0",
+  "description": "AI-powered dictation for Mac using WhisperLive",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "electron dist/main.js",
+    "dev": "concurrently \"tsc -w\" \"nodemon --exec electron dist/main.js\"",
+    "pack": "electron-builder",
+    "dist": "electron-builder --publish=never"
+  },
+  "dependencies": {
+    "electron": "^25.0.0",
+    "ws": "^8.13.0",
+    "axios": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.0",
+    "typescript": "^5.0.0",
+    "electron-builder": "^24.0.0",
+    "concurrently": "^8.0.0",
+    "nodemon": "^3.0.0"
+  },
+  "build": {
+    "appId": "com.whispermac.app",
+    "productName": "WhisperMac",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "python/**/*",
+      "assets/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
+  }
+}
