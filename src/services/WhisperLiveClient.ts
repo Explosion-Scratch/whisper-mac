@@ -152,9 +152,11 @@ export class WhisperLiveClient {
 
       // TODO: use a more robust way to detect server readiness
       setTimeout(() => {
-        resolved = true;
-        resolve();
-      });
+        if (!resolved) {
+          resolved = true;
+          resolve();
+        }
+      }, 1000); // Increased timeout for server readiness
 
       this.serverProcess.stdout?.on("data", (d) => {
         const msg = d.toString();
@@ -213,7 +215,7 @@ export class WhisperLiveClient {
     this.websocket.on("message", (data) => {
       try {
         const msg = JSON.parse(data.toString());
-        console.log("Received message:", msg);
+        console.log("Received message:", msg); // This can be very noisy
 
         // Handle different message types according to protocol
         if (msg.uid === this.sessionUid) {
@@ -260,7 +262,8 @@ export class WhisperLiveClient {
       }
     });
 
-    this.currentSegments = newSegments;
+    // Merge new segments with existing ones to handle multiple segments
+    this.currentSegments = [...this.currentSegments, ...newSegments];
 
     // Determine status based on segments
     const status: "listening" | "transforming" = newSegments.some(
@@ -269,9 +272,9 @@ export class WhisperLiveClient {
       ? "transforming"
       : "listening";
 
-    // Send update to callback
+    // Send update to callback with all segments
     this.onTranscriptionCallback?.({
-      segments: newSegments,
+      segments: this.currentSegments,
       status,
     });
   }
@@ -288,7 +291,10 @@ export class WhisperLiveClient {
   }
 
   async stopTranscription(): Promise<void> {
-    this.websocket?.close();
+    if (this.websocket?.readyState === WebSocket.OPEN) {
+      this.websocket.send(JSON.stringify({ uid: this.sessionUid, EOS: true }));
+      this.websocket.close();
+    }
     this.websocket = null;
     this.sessionUid = "";
   }

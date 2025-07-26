@@ -3,14 +3,17 @@ export interface TransformationOptions {
   toLowercase?: boolean;
   capitalize?: boolean;
   trim?: boolean;
-  customTransform?: (text: string) => string;
+  customTransform?: (text: string) => Promise<string>;
 }
 
 export class TransformationService {
   /**
    * Transform text according to the specified options
    */
-  transformText(text: string, options: TransformationOptions = {}): string {
+  async transformText(
+    text: string,
+    options: TransformationOptions = {}
+  ): Promise<string> {
     console.log("=== TransformationService.transformText ===");
     console.log("Input text:", text);
     console.log("Options:", options);
@@ -19,23 +22,23 @@ export class TransformationService {
 
     // Apply transformations in order
     if (options.trim !== false) {
-      transformedText = transformedText.trim();
+      transformedText = await this.normalizeWhitespace(transformedText);
     }
 
     if (options.toUppercase) {
-      transformedText = transformedText.toUpperCase();
+      transformedText = await this.toUppercase(transformedText);
     }
 
     if (options.toLowercase) {
-      transformedText = transformedText.toLowerCase();
+      transformedText = await this.toLowercase(transformedText);
     }
 
     if (options.capitalize) {
-      transformedText = this.capitalizeWords(transformedText);
+      transformedText = await this.capitalizeWords(transformedText);
     }
 
     if (options.customTransform) {
-      transformedText = options.customTransform(transformedText);
+      transformedText = await options.customTransform(transformedText);
     }
 
     console.log("Transformed text:", transformedText);
@@ -45,7 +48,7 @@ export class TransformationService {
   /**
    * Transform text to uppercase
    */
-  toUppercase(text: string): string {
+  async toUppercase(text: string): Promise<string> {
     console.log("=== TransformationService.toUppercase ===");
     console.log("Input text:", text);
     const transformed = text.toUpperCase();
@@ -56,7 +59,7 @@ export class TransformationService {
   /**
    * Transform text to lowercase
    */
-  toLowercase(text: string): string {
+  async toLowercase(text: string): Promise<string> {
     console.log("=== TransformationService.toLowercase ===");
     console.log("Input text:", text);
     const transformed = text.toLowerCase();
@@ -67,7 +70,7 @@ export class TransformationService {
   /**
    * Capitalize the first letter of each word
    */
-  capitalizeWords(text: string): string {
+  async capitalizeWords(text: string): Promise<string> {
     console.log("=== TransformationService.capitalizeWords ===");
     console.log("Input text:", text);
 
@@ -83,7 +86,7 @@ export class TransformationService {
   /**
    * Transform text to sentence case (first letter capitalized, rest lowercase)
    */
-  toSentenceCase(text: string): string {
+  async toSentenceCase(text: string): Promise<string> {
     console.log("=== TransformationService.toSentenceCase ===");
     console.log("Input text:", text);
 
@@ -98,7 +101,7 @@ export class TransformationService {
   /**
    * Remove extra whitespace and normalize spacing
    */
-  normalizeWhitespace(text: string): string {
+  async normalizeWhitespace(text: string): Promise<string> {
     console.log("=== TransformationService.normalizeWhitespace ===");
     console.log("Input text:", text);
 
@@ -110,10 +113,10 @@ export class TransformationService {
   /**
    * Apply multiple transformations in sequence
    */
-  applyTransformations(
+  async applyTransformations(
     text: string,
-    transformations: ((text: string) => string)[]
-  ): string {
+    transformations: ((text: string) => Promise<string>)[]
+  ): Promise<string> {
     console.log("=== TransformationService.applyTransformations ===");
     console.log("Input text:", text);
     console.log("Number of transformations:", transformations.length);
@@ -122,7 +125,7 @@ export class TransformationService {
 
     for (let i = 0; i < transformations.length; i++) {
       const transform = transformations[i];
-      transformedText = transform(transformedText);
+      transformedText = await transform(transformedText);
       console.log(`After transformation ${i + 1}:`, transformedText);
     }
 
