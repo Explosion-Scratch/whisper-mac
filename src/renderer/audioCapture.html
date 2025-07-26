@@ -1,58 +1,116 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
-    <head>
-        <title>Audio Capture</title>
-    </head>
-    <body>
-        <script>
-            const { ipcRenderer } = require("electron");
+  <head>
+    <title>Audio Capture</title>
+  </head>
+  <body>
+    Audio capture window
+    <script>
+      let audioContext = null;
+      let mediaStreamSource = null;
+      let processor = null;
+      let stream = null;
+      let buffer = [];
+      let sampleCount = 0;
 
-            let mediaRecorder = null;
-            let stream = null;
+      // Listen for start capture command from main process
+      window.electronAPI.onStartCapture(async () => {
+        try {
+          console.log("Starting audio capture...");
 
-            ipcRenderer.on("start-audio-capture", async () => {
-                try {
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        audio: {
-                            sampleRate: 16000,
-                            channelCount: 1,
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                        },
-                    });
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              sampleRate: 16000,
+              channelCount: 1,
+              echoCancellation: true,
+              noiseSuppression: true,
+            },
+          });
 
-                    mediaRecorder = new MediaRecorder(stream, {
-                        mimeType: "audio/webm;codecs=opus",
-                    });
+          console.log("Got media stream:", stream);
 
-                    mediaRecorder.ondataavailable = (event) => {
-                        if (event.data.size > 0) {
-                            event.data.arrayBuffer().then((buffer) => {
-                                const audioData = new Uint8Array(buffer);
-                                ipcRenderer.send("audio-data", audioData);
-                            });
-                        }
-                    };
+          audioContext = new AudioContext({
+            sampleRate: 16000,
+            latencyHint: "interactive",
+          });
 
-                    // Send audio data every 100ms
-                    mediaRecorder.start(100);
-                    console.log("Audio capture started in renderer");
-                } catch (error) {
-                    console.error("Failed to start audio capture:", error);
-                    ipcRenderer.send("audio-error", error.message);
-                }
-            });
+          console.log("Created audio context");
 
-            ipcRenderer.on("stop-audio-capture", () => {
-                if (mediaRecorder && mediaRecorder.state !== "inactive") {
-                    mediaRecorder.stop();
-                }
-                if (stream) {
-                    stream.getTracks().forEach((track) => track.stop());
-                    stream = null;
-                }
-                console.log("Audio capture stopped in renderer");
-            });
-        </script>
-    </body>
+          // Create media stream source
+          mediaStreamSource = audioContext.createMediaStreamSource(stream);
+
+          // Create script processor for audio processing
+          const bufferSize = 4096;
+          processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+
+          processor.onaudioprocess = (event) => {
+            const inputBuffer = event.inputBuffer;
+            const inputData = inputBuffer.getChannelData(0);
+
+            // Add samples to buffer
+            for (let i = 0; i < inputData.length; i++) {
+              buffer.push(inputData[i]);
+              sampleCount++;
+
+              // Send chunks of 8000 samples (0.5 seconds at 16kHz)
+              if (sampleCount >= 8000) {
+                const chunk = buffer.slice(0, 8000);
+                const float32Array = new Float32Array(chunk);
+
+                console.log(
+                  "Sending audio chunk:",
+                  float32Array.length,
+                  "samples"
+                );
+                window.electronAPI.sendAudioData(float32Array);
+
+                // Remove sent samples from buffer
+                buffer = buffer.slice(8000);
+                sampleCount -= 8000;
+              }
+            }
+          };
+
+          // Connect the audio graph
+          mediaStreamSource.connect(processor);
+          processor.connect(audioContext.destination);
+
+          console.log("Audio capture started in renderer");
+          window.electronAPI.sendAudioCaptureStarted();
+        } catch (error) {
+          console.error("Failed to start audio capture:", error);
+          window.electronAPI.sendAudioError(error.message);
+        }
+      });
+
+      // Listen for stop capture command from main process
+      window.electronAPI.onStopCapture(() => {
+        console.log("Stopping audio capture...");
+
+        if (processor) {
+          processor.disconnect();
+          processor = null;
+        }
+        if (mediaStreamSource) {
+          mediaStreamSource.disconnect();
+          mediaStreamSource = null;
+        }
+        if (audioContext) {
+          audioContext.close();
+          audioContext = null;
+        }
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+          stream = null;
+        }
+
+        // Reset buffer
+        buffer = [];
+        sampleCount = 0;
+
+        console.log("Audio capture stopped in renderer");
+        window.electronAPI.sendAudioCaptureStopped();
+      });
+    </script>
+  </body>
 </html>
