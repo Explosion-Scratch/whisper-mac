@@ -4,16 +4,17 @@
   "description": "AI-powered dictation for Mac using WhisperLive",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-assets.js",
     "start": "electron dist/main.js",
-    "dev": "concurrently \"tsc -w\" \"nodemon --exec electron dist/main.js\"",
+    "dev": "concurrently \"tsc -w\" \"nodemon --exec electron dist/main.js\" \"node scripts/copy-assets.js\"",
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never"
   },
   "dependencies": {
+    "axios": "^1.4.0",
     "electron": "^25.0.0",
-    "ws": "^8.13.0",
-    "axios": "^1.4.0"
+    "open": "^10.2.0",
+    "ws": "^8.13.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

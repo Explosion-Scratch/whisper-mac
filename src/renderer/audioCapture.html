@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Audio Capture</title>
+    </head>
+    <body>
+        <script>
+            const { ipcRenderer } = require("electron");
+
+            let mediaRecorder = null;
+            let stream = null;
+
+            ipcRenderer.on("start-audio-capture", async () => {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            sampleRate: 16000,
+                            channelCount: 1,
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                        },
+                    });
+
+                    mediaRecorder = new MediaRecorder(stream, {
+                        mimeType: "audio/webm;codecs=opus",
+                    });
+
+                    mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            event.data.arrayBuffer().then((buffer) => {
+                                const audioData = new Uint8Array(buffer);
+                                ipcRenderer.send("audio-data", audioData);
+                            });
+                        }
+                    };
+
+                    // Send audio data every 100ms
+                    mediaRecorder.start(100);
+                    console.log("Audio capture started in renderer");
+                } catch (error) {
+                    console.error("Failed to start audio capture:", error);
+                    ipcRenderer.send("audio-error", error.message);
+                }
+            });
+
+            ipcRenderer.on("stop-audio-capture", () => {
+                if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                    mediaRecorder.stop();
+                }
+                if (stream) {
+                    stream.getTracks().forEach((track) => track.stop());
+                    stream = null;
+                }
+                console.log("Audio capture stopped in renderer");
+            });
+        </script>
+    </body>
+</html>

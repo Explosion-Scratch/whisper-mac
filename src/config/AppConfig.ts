@@ -2,11 +2,17 @@ export class AppConfig {
   modelPath: string;
   serverPort: number;
   defaultModel: string;
+  cachePath: string;
 
   constructor() {
     this.modelPath = "";
     this.serverPort = 9090;
     this.defaultModel = "tiny.en";
+    this.cachePath = "";
+  }
+
+  setCachePath(path: string): void {
+    this.cachePath = path;
   }
 
   setModelPath(path: string): void {

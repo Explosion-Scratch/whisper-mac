@@ -50,7 +50,7 @@ export class ModelManager {
       });
 
       process.stderr?.on("data", (data) => {
-        console.error("Model download error:", data.toString());
+        // console.error("Model download error:", data.toString());
       });
 
       process.on("close", (code) => {

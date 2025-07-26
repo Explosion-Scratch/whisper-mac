@@ -37,8 +37,8 @@ class WhisperMacApp {
 
     // Set the model path in config
     const modelsDir = join(__dirname, "../../models");
-    this.config.setModelPath(modelsDir);
-
+    this.config.setModelPath(join(modelsDir, this.config.defaultModel));
+    // this.config.setCachePath(join(__dirname, "cache"));
     // Check and download Whisper tiny model on first launch
     await this.modelManager.ensureModelExists(this.config.defaultModel);
 
