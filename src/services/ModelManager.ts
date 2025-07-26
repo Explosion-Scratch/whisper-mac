@@ -1,6 +1,5 @@
 import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
-import { app } from "electron";
 import { spawn } from "child_process";
 import { AppConfig } from "../config/AppConfig";
 
@@ -11,58 +10,169 @@ export class ModelManager {
     this.config = config;
   }
 
-  private getModelsDir(): string {
-    return this.config.modelPath || join(__dirname, "../../models");
-  }
-
-  private ensureModelsDirectory(): void {
-    const modelsDir = this.getModelsDir();
-    if (!existsSync(modelsDir)) {
-      mkdirSync(modelsDir, { recursive: true });
+  private ensureDataDirectory(): void {
+    if (!existsSync(this.config.dataDir)) {
+      mkdirSync(this.config.dataDir, { recursive: true });
+    }
+    if (!existsSync(this.config.getModelsDir())) {
+      mkdirSync(this.config.getModelsDir(), { recursive: true });
     }
   }
 
-  async ensureModelExists(modelSize: string): Promise<boolean> {
-    this.ensureModelsDirectory();
-    const modelPath = join(this.getModelsDir(), `${modelSize}.pt`);
-    if (existsSync(modelPath)) {
+  private async ensureGitLFS(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // First check if git-lfs is installed
+      const checkProcess = spawn("git", ["lfs", "version"], {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      checkProcess.on("close", (code) => {
+        if (code === 0) {
+          // Git LFS is installed, just run git lfs install
+          const installProcess = spawn("git", ["lfs", "install"], {
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+
+          installProcess.on("close", (installCode) => {
+            if (installCode === 0) {
+              console.log("Git LFS initialized successfully");
+              resolve();
+            } else {
+              console.error("Failed to initialize Git LFS");
+              reject(new Error("Failed to initialize Git LFS"));
+            }
+          });
+
+          installProcess.on("error", (error) => {
+            console.error(`Failed to run git lfs install: ${error.message}`);
+            reject(error);
+          });
+        } else {
+          // Git LFS not installed, install via brew
+          console.log("Git LFS not found, installing via brew...");
+          const brewProcess = spawn("brew", ["install", "git-lfs"], {
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+
+          brewProcess.stdout?.on("data", (data) => {
+            console.log("Brew install output:", data.toString());
+          });
+
+          brewProcess.stderr?.on("data", (data) => {
+            console.log("Brew install progress:", data.toString());
+          });
+
+          brewProcess.on("close", (brewCode) => {
+            if (brewCode === 0) {
+              // Now run git lfs install
+              const installProcess = spawn("git", ["lfs", "install"], {
+                stdio: ["ignore", "pipe", "pipe"],
+              });
+
+              installProcess.on("close", (installCode) => {
+                if (installCode === 0) {
+                  console.log("Git LFS installed and initialized successfully");
+                  resolve();
+                } else {
+                  console.error(
+                    "Failed to initialize Git LFS after installation"
+                  );
+                  reject(
+                    new Error("Failed to initialize Git LFS after installation")
+                  );
+                }
+              });
+
+              installProcess.on("error", (error) => {
+                console.error(
+                  `Failed to run git lfs install: ${error.message}`
+                );
+                reject(error);
+              });
+            } else {
+              console.error("Failed to install Git LFS via brew");
+              reject(new Error("Failed to install Git LFS via brew"));
+            }
+          });
+
+          brewProcess.on("error", (error) => {
+            console.error(`Failed to start brew install: ${error.message}`);
+            reject(error);
+          });
+        }
+      });
+
+      checkProcess.on("error", (error) => {
+        console.error(`Failed to check git lfs version: ${error.message}`);
+        reject(error);
+      });
+    });
+  }
+
+  async ensureModelExists(modelRepoId: string): Promise<boolean> {
+    this.ensureDataDirectory();
+    const modelDir = this.getModelPath(modelRepoId);
+    if (existsSync(modelDir)) {
       return true;
     }
-    return await this.downloadModel(modelSize);
+
+    // Ensure Git LFS is available before cloning
+    await this.ensureGitLFS();
+
+    return await this.cloneModel(modelRepoId);
   }
 
-  private async downloadModel(modelSize: string): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      // Use WhisperLive's downloader
-      const pythonScript = join(__dirname, "../../python/download_model.py");
-      const modelsDir = this.getModelsDir();
+  private getModelPath(modelRepoId: string): string {
+    // Convert repo ID to safe directory name (e.g., "Systran/faster-whisper-tiny.en" -> "Systran--faster-whisper-tiny.en")
+    const safeName = modelRepoId.replace(/\//g, "--");
+    return join(this.config.getModelsDir(), safeName);
+  }
 
-      const process = spawn(
-        "python3",
-        [pythonScript, "--model", modelSize, "--output", modelsDir],
-        {
-          stdio: ["ignore", "pipe", "pipe"],
-        },
+  private async cloneModel(modelRepoId: string): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      const modelDir = this.getModelPath(modelRepoId);
+      const huggingfaceUrl = `https://huggingface.co/${modelRepoId}`;
+
+      console.log(
+        `Cloning HuggingFace model ${modelRepoId} from ${huggingfaceUrl}`
       );
 
+      const process = spawn("git", ["clone", huggingfaceUrl, modelDir], {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
       process.stdout?.on("data", (data) => {
-        console.log("Model download output:", data.toString());
+        console.log("Model clone output:", data.toString());
       });
 
       process.stderr?.on("data", (data) => {
-        // console.error("Model download error:", data.toString());
+        console.log("Model clone progress:", data.toString());
       });
 
       process.on("close", (code) => {
-        const modelPath = join(modelsDir, `${modelSize}.pt`);
-        if (code === 0 && existsSync(modelPath)) {
-          console.log(`Model ${modelSize} downloaded successfully`);
+        if (code === 0 && existsSync(modelDir)) {
+          console.log(
+            `Model ${modelRepoId} cloned successfully to ${modelDir}`
+          );
           resolve(true);
         } else {
-          console.error(`Model download failed with code ${code}`);
-          reject(new Error(`Model download failed with code ${code}`));
+          console.error(`Model clone failed with code ${code}`);
+          reject(new Error(`Model clone failed with code ${code}`));
         }
       });
+
+      process.on("error", (error) => {
+        console.error(`Failed to start git clone: ${error.message}`);
+        reject(error);
+      });
     });
+  }
+
+  getModelDirectory(modelRepoId: string): string {
+    return this.getModelPath(modelRepoId);
+  }
+
+  async downloadModel(modelRepoId: string): Promise<boolean> {
+    return this.cloneModel(modelRepoId);
   }
 }

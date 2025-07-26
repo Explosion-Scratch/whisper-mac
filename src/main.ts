@@ -7,6 +7,7 @@ import {
   ipcMain,
 } from "electron";
 import { join } from "path";
+import { existsSync, mkdirSync } from "fs";
 import { AudioCaptureService } from "./services/AudioCaptureService";
 import { WhisperLiveClient } from "./services/WhisperLiveClient";
 import { TextInjectionService } from "./services/TextInjectionService";
@@ -27,19 +28,23 @@ class WhisperMacApp {
   constructor() {
     this.config = new AppConfig();
     this.audioService = new AudioCaptureService(this.config);
-    this.whisperClient = new WhisperLiveClient(this.config);
-    this.textInjector = new TextInjectionService();
     this.modelManager = new ModelManager(this.config);
+    this.whisperClient = new WhisperLiveClient(this.config, this.modelManager);
+    this.textInjector = new TextInjectionService();
   }
 
   async initialize() {
     await app.whenReady();
 
-    // Set the model path in config
-    const modelsDir = join(__dirname, "../../models");
-    this.config.setModelPath(join(modelsDir, this.config.defaultModel));
-    // this.config.setCachePath(join(__dirname, "cache"));
-    // Check and download Whisper tiny model on first launch
+    // Initialize data directories
+    if (!existsSync(this.config.dataDir)) {
+      mkdirSync(this.config.dataDir, { recursive: true });
+    }
+    if (!existsSync(this.config.getCacheDir())) {
+      mkdirSync(this.config.getCacheDir(), { recursive: true });
+    }
+
+    // Check and download Whisper model on first launch
     await this.modelManager.ensureModelExists(this.config.defaultModel);
 
     // Start WhisperLive server
@@ -63,6 +68,42 @@ class WhisperMacApp {
       await this.stopRecording();
       event.reply("dictation-stopped");
     });
+
+    // Model download handlers
+    ipcMain.on(
+      "download-model",
+      async (event: Electron.IpcMainEvent, modelRepoId: string) => {
+        try {
+          console.log(`Starting download of model: ${modelRepoId}`);
+          event.reply("download-model-progress", {
+            status: "starting",
+            modelRepoId,
+          });
+
+          const success = await this.modelManager.downloadModel(modelRepoId);
+          if (success) {
+            event.reply("download-model-complete", {
+              status: "success",
+              modelRepoId,
+            });
+          } else {
+            event.reply("download-model-complete", {
+              status: "error",
+              modelRepoId,
+              error: "Download failed",
+            });
+          }
+        } catch (error) {
+          console.error("Model download error:", error);
+          event.reply("download-model-complete", {
+            status: "error",
+            modelRepoId,
+            error: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+      }
+    );
+
     // Extend with more handlers as needed
     console.log("IPC Handlers set up");
   }
@@ -145,7 +186,7 @@ class WhisperMacApp {
       () => {
         console.log("CommandOrControl+Option+Space is pressed");
         this.toggleRecording();
-      },
+      }
     );
 
     // Log if registration failed
@@ -155,14 +196,14 @@ class WhisperMacApp {
 
     if (!success2) {
       console.error(
-        "Failed to register CommandOrControl+Option+Space shortcut",
+        "Failed to register CommandOrControl+Option+Space shortcut"
       );
     }
 
     // Log all registered shortcuts
     console.log(
       "Registered shortcuts:",
-      globalShortcut.isRegistered("CommandOrControl+Shift+D"),
+      globalShortcut.isRegistered("CommandOrControl+Shift+D")
     );
   }
 
