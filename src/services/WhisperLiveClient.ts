@@ -2,25 +2,47 @@ import { spawn, ChildProcess } from "child_process";
 import WebSocket from "ws";
 import { join } from "path";
 import { AppConfig } from "../config/AppConfig";
+import { ModelManager } from "./ModelManager";
 import { existsSync } from "fs";
 
 export class WhisperLiveClient {
   private serverProcess: ChildProcess | null = null;
   private websocket: WebSocket | null = null;
   private config: AppConfig;
+  private modelManager: ModelManager;
   private onTranscriptionCallback: ((text: string) => void) | null = null;
 
-  constructor(config: AppConfig) {
+  constructor(config: AppConfig, modelManager: ModelManager) {
     this.config = config;
+    this.modelManager = modelManager;
   }
 
   /* ----------------------------------------------------------
    * 1.  Clone the repo if it isn’t there yet
    * 2.  Start the server with the official run_server.py script
    * ---------------------------------------------------------- */
-  async startServer(modelSize: string): Promise<void> {
-    const repoDir = join(__dirname, "../../WhisperLive"); // sibling to your app
+  async startServer(modelRepoId: string): Promise<void> {
+    const repoDir = this.config.getWhisperLiveDir();
     const runScript = join(repoDir, "run_server.py");
+
+    // Install with pip
+    const runInstall = async (): Promise<void> => {
+      return new Promise((resolve, reject) => {
+        const install = spawn(
+          "pip",
+          ["install", "-r", "requirements/server.txt"],
+          {
+            cwd: repoDir,
+            stdio: "inherit",
+          }
+        );
+        install.on("close", (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`pip install failed with code ${code}`));
+        });
+        install.on("error", reject);
+      });
+    };
 
     // Helper to run scripts/setup.sh
     const runSetup = async (): Promise<void> => {
@@ -41,16 +63,23 @@ export class WhisperLiveClient {
     // 1. Clone once
     if (!existsSync(runScript)) {
       return new Promise((resolve, reject) => {
+        // Ensure the parent directory exists
+        const parentDir = join(repoDir, "..");
+        if (!existsSync(parentDir)) {
+          require("fs").mkdirSync(parentDir, { recursive: true });
+        }
+
         const git = spawn(
           "git",
           ["clone", "https://github.com/collabora/WhisperLive.git", repoDir],
-          { stdio: "inherit" },
+          { stdio: "inherit" }
         );
         git.on("close", async (code) => {
           if (code === 0) {
             try {
+              await runInstall();
               await runSetup();
-              resolve(this._launch(repoDir, modelSize));
+              resolve(this._launch(repoDir, modelRepoId));
             } catch (err) {
               reject(err);
             }
@@ -63,15 +92,18 @@ export class WhisperLiveClient {
     }
 
     // 2. Already cloned – just launch
-    return this._launch(repoDir, modelSize);
+    return this._launch(repoDir, modelRepoId);
   }
 
   /* ----------------------------------------------------------
    * Internal: spawn the server exactly like the README shows
    * ---------------------------------------------------------- */
-  private async _launch(repoDir: string, modelSize: string): Promise<void> {
+  private async _launch(repoDir: string, modelRepoId: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const runScript = join(repoDir, "run_server.py");
+
+      // Get the actual model directory path
+      const modelDir = this.modelManager.getModelDirectory(modelRepoId);
 
       const args = [
         runScript,
@@ -83,18 +115,15 @@ export class WhisperLiveClient {
         "4",
         "--max_connection_time",
         "600",
-        "-c",
-        this.config.cachePath,
+        "--cache_path",
+        this.config.getCacheDir(),
+        "--faster_whisper_custom_model_path",
+        modelDir, // Pass the actual model directory path
       ];
-
-      // Optional: if user picked a custom model path, forward it
-      if (this.config.modelPath) {
-        args.push("-fw", this.config.modelPath);
-      }
 
       console.log(
         "Launching WhisperLive server:",
-        ["python3", ...args].join(" "),
+        ["python3", ...args].join(" ")
       );
 
       this.serverProcess = spawn("python3", args, {
@@ -138,7 +167,7 @@ export class WhisperLiveClient {
    * Everything below is unchanged (WebSocket client logic)
    * ---------------------------------------------------------- */
   async startTranscription(
-    onTranscription: (text: string) => void,
+    onTranscription: (text: string) => void
   ): Promise<void> {
     this.onTranscriptionCallback = onTranscription;
 
@@ -155,7 +184,7 @@ export class WhisperLiveClient {
           model: this.config.defaultModel,
           language: "auto",
           task: "transcribe",
-        }),
+        })
       );
     });
 
