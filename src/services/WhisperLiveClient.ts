@@ -6,13 +6,28 @@ import { ModelManager } from "./ModelManager";
 import { existsSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
 
+export interface TranscriptionSegment {
+  text: string;
+  completed: boolean;
+  start?: number;
+  end?: number;
+}
+
+export interface TranscriptionUpdate {
+  segments: TranscriptionSegment[];
+  status: "listening" | "transforming";
+}
+
 export class WhisperLiveClient {
   private serverProcess: ChildProcess | null = null;
   private websocket: WebSocket | null = null;
   private config: AppConfig;
   private modelManager: ModelManager;
-  private onTranscriptionCallback: ((text: string) => void) | null = null;
+  private onTranscriptionCallback:
+    | ((update: TranscriptionUpdate) => void)
+    | null = null;
   private sessionUid: string = "";
+  private currentSegments: TranscriptionSegment[] = [];
 
   constructor(config: AppConfig, modelManager: ModelManager) {
     this.config = config;
@@ -169,10 +184,11 @@ export class WhisperLiveClient {
    * WebSocket client logic following the protocol specification
    * ---------------------------------------------------------- */
   async startTranscription(
-    onTranscription: (text: string) => void
+    onTranscription: (update: TranscriptionUpdate) => void
   ): Promise<void> {
     this.onTranscriptionCallback = onTranscription;
     this.sessionUid = uuidv4();
+    this.currentSegments = [];
 
     // small delay to let server bind
     await new Promise((r) => setTimeout(r, 1000));
@@ -201,13 +217,9 @@ export class WhisperLiveClient {
 
         // Handle different message types according to protocol
         if (msg.uid === this.sessionUid) {
-          if (msg.type === "transcription" && msg.segments) {
+          if (msg.segments) {
             // Handle transcription segments
-            msg.segments.forEach((segment: any) => {
-              if (segment.completed && segment.text) {
-                this.onTranscriptionCallback?.(segment.text);
-              }
-            });
+            this.updateSegments(msg.segments);
           } else if (msg.language) {
             // Language detection message
             console.log("Detected language:", msg.language);
@@ -231,6 +243,41 @@ export class WhisperLiveClient {
 
     this.websocket.on("error", (err) => console.error("WS error:", err));
     this.websocket.on("close", () => console.log("WS closed"));
+  }
+
+  private updateSegments(serverSegments: any[]): void {
+    // Update our segments based on server response
+    const newSegments: TranscriptionSegment[] = [];
+
+    serverSegments.forEach((segment: any) => {
+      if (segment.text) {
+        newSegments.push({
+          text: segment.text,
+          completed: segment.completed || false,
+          start: segment.start,
+          end: segment.end,
+        });
+      }
+    });
+
+    this.currentSegments = newSegments;
+
+    // Determine status based on segments
+    const status: "listening" | "transforming" = newSegments.some(
+      (s) => s.completed
+    )
+      ? "transforming"
+      : "listening";
+
+    // Send update to callback
+    this.onTranscriptionCallback?.({
+      segments: newSegments,
+      status,
+    });
+  }
+
+  getCurrentSegments(): TranscriptionSegment[] {
+    return this.currentSegments;
   }
 
   sendAudioData(audioData: Float32Array): void {
