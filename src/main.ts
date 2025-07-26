@@ -208,25 +208,47 @@ class WhisperMacApp {
   }
 
   private async toggleRecording() {
+    console.log("=== Toggle recording called ===");
+    console.log("Current recording state:", this.isRecording);
+
     if (this.isRecording) {
+      console.log("Stopping recording...");
       await this.stopRecording();
     } else {
+      console.log("Starting recording...");
       await this.startRecording();
     }
   }
 
   private async startRecording() {
     try {
+      console.log("=== Starting recording process ===");
       this.isRecording = true;
       this.updateTrayIcon("recording");
 
+      console.log("1. Starting audio capture...");
       // Start audio capture
       await this.audioService.startCapture();
 
+      console.log("2. Starting WhisperLive transcription...");
       // Connect to WhisperLive
       await this.whisperClient.startTranscription((text: string) => {
+        console.log("Received transcription:", text);
         this.textInjector.insertText(text);
       });
+
+      console.log("3. Setting up audio data callback...");
+      // Connect audio data from capture service to WhisperLive client
+      this.audioService.setAudioDataCallback((audioData: Float32Array) => {
+        console.log(
+          "Sending audio data to WhisperLive:",
+          audioData.length,
+          "samples"
+        );
+        this.whisperClient.sendAudioData(audioData);
+      });
+
+      console.log("=== Recording started successfully ===");
     } catch (error) {
       console.error("Failed to start recording:", error);
       this.isRecording = false;

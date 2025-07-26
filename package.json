@@ -14,10 +14,12 @@
     "axios": "^1.4.0",
     "electron": "^25.0.0",
     "open": "^10.2.0",
+    "uuid": "^9.0.0",
     "ws": "^8.13.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/uuid": "^9.0.0",
     "@types/ws": "^8.5.0",
     "typescript": "^5.0.0",
     "electron-builder": "^24.0.0",

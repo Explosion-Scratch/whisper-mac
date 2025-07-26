@@ -4,6 +4,7 @@ import { join } from "path";
 import { AppConfig } from "../config/AppConfig";
 import { ModelManager } from "./ModelManager";
 import { existsSync } from "fs";
+import { v4 as uuidv4 } from "uuid";
 
 export class WhisperLiveClient {
   private serverProcess: ChildProcess | null = null;
@@ -11,6 +12,7 @@ export class WhisperLiveClient {
   private config: AppConfig;
   private modelManager: ModelManager;
   private onTranscriptionCallback: ((text: string) => void) | null = null;
+  private sessionUid: string = "";
 
   constructor(config: AppConfig, modelManager: ModelManager) {
     this.config = config;
@@ -18,7 +20,7 @@ export class WhisperLiveClient {
   }
 
   /* ----------------------------------------------------------
-   * 1.  Clone the repo if it isn’t there yet
+   * 1.  Clone the repo if it isn't there yet
    * 2.  Start the server with the official run_server.py script
    * ---------------------------------------------------------- */
   async startServer(modelRepoId: string): Promise<void> {
@@ -164,35 +166,63 @@ export class WhisperLiveClient {
   }
 
   /* ----------------------------------------------------------
-   * Everything below is unchanged (WebSocket client logic)
+   * WebSocket client logic following the protocol specification
    * ---------------------------------------------------------- */
   async startTranscription(
     onTranscription: (text: string) => void
   ): Promise<void> {
     this.onTranscriptionCallback = onTranscription;
+    this.sessionUid = uuidv4();
 
     // small delay to let server bind
     await new Promise((r) => setTimeout(r, 1000));
 
-    this.websocket = new WebSocket(`ws://localhost:${this.config.serverPort}`);
+    this.websocket = new WebSocket(`ws://127.0.0.1:${this.config.serverPort}`);
 
     this.websocket.on("open", () => {
       console.log("Connected to WhisperLive server");
-      this.websocket?.send(
-        JSON.stringify({
-          type: "config",
-          model: this.config.defaultModel,
-          language: "auto",
-          task: "transcribe",
-        })
-      );
+
+      // Send initial configuration message according to protocol
+      const configMessage = {
+        uid: this.sessionUid,
+        language: null, // auto-detect
+        task: "transcribe",
+        model: this.config.defaultModel,
+        use_vad: true,
+      };
+
+      this.websocket?.send(JSON.stringify(configMessage));
     });
 
     this.websocket.on("message", (data) => {
       try {
         const msg = JSON.parse(data.toString());
-        if (msg.type === "transcription" && msg.text) {
-          this.onTranscriptionCallback?.(msg.text);
+        console.log("Received message:", msg);
+
+        // Handle different message types according to protocol
+        if (msg.uid === this.sessionUid) {
+          if (msg.type === "transcription" && msg.segments) {
+            // Handle transcription segments
+            msg.segments.forEach((segment: any) => {
+              if (segment.completed && segment.text) {
+                this.onTranscriptionCallback?.(segment.text);
+              }
+            });
+          } else if (msg.language) {
+            // Language detection message
+            console.log("Detected language:", msg.language);
+          } else if (msg.status === "WAIT") {
+            // Server busy message
+            console.log(
+              "Server busy, estimated wait time:",
+              msg.message,
+              "minutes"
+            );
+          } else if (msg.message === "DISCONNECT") {
+            // Server requests disconnect
+            console.log("Server requested disconnect");
+            this.stopTranscription();
+          }
         }
       } catch (e) {
         console.error("Bad WebSocket message:", e);
@@ -203,8 +233,9 @@ export class WhisperLiveClient {
     this.websocket.on("close", () => console.log("WS closed"));
   }
 
-  sendAudioData(audioData: Uint8Array): void {
+  sendAudioData(audioData: Float32Array): void {
     if (this.websocket?.readyState === WebSocket.OPEN) {
+      // Send raw Float32Array as binary data
       this.websocket.send(audioData);
     }
   }
@@ -212,6 +243,7 @@ export class WhisperLiveClient {
   async stopTranscription(): Promise<void> {
     this.websocket?.close();
     this.websocket = null;
+    this.sessionUid = "";
   }
 
   async stopServer(): Promise<void> {

@@ -7,10 +7,19 @@ export class AudioCaptureService extends EventEmitter {
   private audioWindow: BrowserWindow | null = null;
   private config: AppConfig;
   private isRecording = false;
+  private onAudioDataCallback: ((audioData: Float32Array) => void) | null =
+    null;
 
   constructor(config: AppConfig) {
     super();
     this.config = config;
+  }
+
+  /**
+   * Set callback for audio data processing
+   */
+  setAudioDataCallback(callback: (audioData: Float32Array) => void): void {
+    this.onAudioDataCallback = callback;
   }
 
   async startCapture(): Promise<void> {
@@ -20,22 +29,28 @@ export class AudioCaptureService extends EventEmitter {
         return;
       }
 
+      console.log("Creating audio capture window...");
+
       // Create a hidden window for audio capture
       this.audioWindow = new BrowserWindow({
-        width: 1,
-        height: 1,
-        show: false,
+        width: 100,
+        height: 100,
+        show: true,
         webPreferences: {
-          nodeIntegration: false,
+          nodeIntegration: true,
           contextIsolation: true,
           preload: join(__dirname, "../preload/audioPreload.js"),
         },
       });
 
+      console.log("Loading audio capture HTML...");
+
       // Load a simple HTML file for audio capture
       await this.audioWindow.loadFile(
-        join(__dirname, "../renderer/audioCapture.html"),
+        join(__dirname, "../renderer/audioCapture.html")
       );
+
+      console.log("Sending start capture command...");
 
       // Send start capture command to renderer
       this.audioWindow.webContents.send("start-audio-capture");
@@ -44,26 +59,46 @@ export class AudioCaptureService extends EventEmitter {
       this.audioWindow.webContents.on(
         "ipc-message",
         (event, channel, ...args) => {
+          console.log("Received IPC message:", channel);
+
           if (channel === "audio-data") {
-            this.emit("audioData", args[0]);
+            const audioData = args[0] as Float32Array;
+            console.log("Received audio data:", audioData.length, "samples");
+            this.emit("audioData", audioData);
+
+            // Forward to callback if set
+            if (this.onAudioDataCallback) {
+              this.onAudioDataCallback(audioData);
+            }
           } else if (channel === "audio-error") {
+            console.error("Audio capture error:", args[0]);
             this.emit("error", new Error(args[0]));
+          } else if (channel === "audio-capture-started") {
+            console.log("Audio capture started successfully");
+            this.isRecording = true;
+            this.emit("captureStarted");
+          } else if (channel === "audio-capture-stopped") {
+            console.log("Audio capture stopped successfully");
+            this.isRecording = false;
+            this.emit("captureStopped");
           }
-        },
+        }
       );
 
-      this.isRecording = true;
-      console.log("Audio capture started via renderer process");
+      console.log("Audio capture setup complete");
     } catch (error) {
       let errMsg = "Unknown error";
       if (error instanceof Error) {
         errMsg = error.message;
       }
+      console.error("Failed to start audio capture:", errMsg);
       throw new Error(`Failed to start audio capture: ${errMsg}`);
     }
   }
 
   async stopCapture(): Promise<void> {
+    console.log("Stopping audio capture...");
+
     if (this.audioWindow && !this.audioWindow.isDestroyed()) {
       this.audioWindow.webContents.send("stop-audio-capture");
 
@@ -77,6 +112,7 @@ export class AudioCaptureService extends EventEmitter {
     }
 
     this.isRecording = false;
+    this.onAudioDataCallback = null;
     console.log("Audio capture stopped");
   }
 
