@@ -33,9 +33,9 @@ export class AudioCaptureService extends EventEmitter {
 
       // Create a hidden window for audio capture
       this.audioWindow = new BrowserWindow({
-        width: 100,
-        height: 100,
-        show: true,
+        width: 1,
+        height: 1,
+        show: false,
         webPreferences: {
           nodeIntegration: true,
           contextIsolation: true,

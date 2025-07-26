@@ -1,63 +1,285 @@
-import { execFile } from 'child_process';
-import { join } from 'path';
+import { execFile } from "child_process";
+import { clipboard } from "electron";
+
+export interface TextInsertionOptions {
+  replaceSelection?: boolean;
+  transformText?: (text: string) => string;
+}
 
 export class TextInjectionService {
-  async insertText(text: string): Promise<void> {
+  private accessibilityEnabled: boolean | null = null;
+
+  async insertText(
+    text: string,
+    options: TextInsertionOptions = {}
+  ): Promise<void> {
+    console.log("=== TextInjectionService.insertText ===");
+    console.log("Input text:", text);
+    console.log("Text length:", text.length);
+    console.log("Options:", options);
+
+    // Apply text transformation if provided
+    let finalText = text;
+
     try {
-      // Use AppleScript to insert text into the active application
-      const script = `
-        tell application "System Events"
-          keystroke "${this.escapeText(text)}"
-        end tell
-      `;
-      
-      await this.runAppleScript(script);
+      if (options.transformText) {
+        console.log("Applying text transformation...");
+        finalText = options.transformText(text);
+        console.log("Transformed text:", finalText);
+        console.log("Transformed text length:", finalText.length);
+      }
+
+      // Check accessibility permissions first
+      console.log("Checking accessibility permissions...");
+      const hasAccessibility = await this.checkAccessibilityPermissions();
+      console.log("Accessibility permissions result:", hasAccessibility);
+
+      if (hasAccessibility) {
+        console.log(
+          "Accessibility permissions granted, using keystroke approach..."
+        );
+        // Use simple paste approach - paste will replace selection if any, or insert at cursor
+        console.log("Starting paste operation...");
+        await this.pasteText(finalText);
+        console.log("Paste operation completed successfully");
+      } else {
+        console.log(
+          "Accessibility permissions not granted, using clipboard-only approach..."
+        );
+        // Fallback: just copy to clipboard and notify user
+        await this.copyToClipboardOnly(finalText);
+        console.log("Clipboard-only operation completed");
+      }
+
+      console.log("=== Text insertion completed successfully ===");
     } catch (error) {
-      console.error('Failed to insert text:', error);
-      
-      // Fallback: Copy to clipboard and paste
-      await this.fallbackInsert(text);
+      console.error("=== TextInjectionService.insertText ERROR ===");
+      console.error("Failed to insert text:", error);
+      console.error("Original text:", text);
+      console.error("Final text:", finalText);
+      throw error;
     }
   }
 
-  private escapeText(text: string): string {
-    return text
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"')
-      .replace(/\n/g, '\\n')
-      .replace(/\r/g, '\\r');
+  /**
+   * Check if the application has accessibility permissions
+   */
+  private async checkAccessibilityPermissions(): Promise<boolean> {
+    if (this.accessibilityEnabled !== null) {
+      return this.accessibilityEnabled;
+    }
+
+    console.log("=== TextInjectionService.checkAccessibilityPermissions ===");
+
+    const script = `
+      tell application "System Events"
+        return true
+      end tell
+    `;
+
+    try {
+      await this.runAppleScript(script);
+      console.log("Accessibility permissions are enabled");
+      this.accessibilityEnabled = true;
+      return true;
+    } catch (error) {
+      console.log("Accessibility permissions are not enabled:", error);
+      this.accessibilityEnabled = false;
+      return false;
+    }
   }
 
-  private async runAppleScript(script: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      execFile('osascript', ['-e', script], (error, stdout, stderr) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve();
-        }
-      });
-    });
-  }
+  /**
+   * Copy text to clipboard only (fallback when accessibility is not available)
+   */
+  private async copyToClipboardOnly(text: string): Promise<void> {
+    console.log("=== TextInjectionService.copyToClipboardOnly ===");
+    console.log("Copying text to clipboard only:", text);
 
-  private async fallbackInsert(text: string): Promise<void> {
-    const { clipboard } = require('electron');
+    // Store original clipboard content
     const originalClipboard = clipboard.readText();
-    
-    clipboard.writeText(text);
-    
-    // Send Cmd+V to paste
-    const pasteScript = `
+    console.log("Original clipboard content:", originalClipboard);
+
+    try {
+      // Copy new text to clipboard
+      clipboard.writeText(text);
+      console.log("Text copied to clipboard successfully");
+      console.log("User needs to manually paste (Cmd+V) the text");
+
+      // Show a notification or alert to the user
+      await this.showClipboardNotification();
+    } finally {
+      // Restore original clipboard after a longer delay for manual paste
+      console.log("Scheduling clipboard restoration...");
+      setTimeout(() => {
+        console.log("Restoring original clipboard content...");
+        clipboard.writeText(originalClipboard);
+        console.log("Clipboard restored successfully");
+      }, 5000); // 5 seconds to allow manual paste
+    }
+  }
+
+  /**
+   * Show notification that text is in clipboard
+   */
+  private async showClipboardNotification(): Promise<void> {
+    console.log("=== TextInjectionService.showClipboardNotification ===");
+
+    const script = `
+      display notification "Text copied to clipboard. Press Cmd+V to paste." with title "WhisperMac"
+    `;
+
+    try {
+      await this.runAppleScript(script);
+      console.log("Notification displayed successfully");
+    } catch (error) {
+      console.error("Failed to show notification:", error);
+      // Fallback: just log the message
+      console.log("TEXT COPIED TO CLIPBOARD - PRESS CMD+V TO PASTE");
+    }
+  }
+
+  /**
+   * Show instructions for enabling accessibility permissions
+   */
+  async showAccessibilityInstructions(): Promise<void> {
+    console.log("=== TextInjectionService.showAccessibilityInstructions ===");
+
+    const script = `
+      display dialog "WhisperMac needs accessibility permissions to automatically paste text.
+
+To enable:
+1. Go to System Preferences > Security & Privacy > Privacy > Accessibility
+2. Click the lock icon and enter your password
+3. Add WhisperMac to the list of allowed apps
+4. Restart WhisperMac
+
+Until then, text will be copied to clipboard for manual pasting." buttons {"OK"} default button "OK" with title "Accessibility Permissions Required"
+    `;
+
+    try {
+      await this.runAppleScript(script);
+      console.log("Accessibility instructions displayed successfully");
+    } catch (error) {
+      console.error("Failed to show accessibility instructions:", error);
+      console.log(
+        "ACCESSIBILITY PERMISSIONS REQUIRED - CHECK SYSTEM PREFERENCES"
+      );
+    }
+  }
+
+  /**
+   * Check if accessibility permissions are enabled and show instructions if not
+   */
+  async ensureAccessibilityPermissions(): Promise<boolean> {
+    console.log("=== TextInjectionService.ensureAccessibilityPermissions ===");
+
+    const hasAccessibility = await this.checkAccessibilityPermissions();
+
+    if (!hasAccessibility) {
+      console.log(
+        "Accessibility permissions not enabled, showing instructions..."
+      );
+      await this.showAccessibilityInstructions();
+    }
+
+    return hasAccessibility;
+  }
+
+  /**
+   * Paste text using clipboard
+   */
+  async pasteText(text: string): Promise<void> {
+    console.log("=== TextInjectionService.pasteText ===");
+    console.log("Text to paste:", text);
+    console.log("Text length:", text.length);
+
+    // Store original clipboard content
+    const originalClipboard = clipboard.readText();
+    console.log("Original clipboard content:", originalClipboard);
+    console.log("Original clipboard length:", originalClipboard.length);
+
+    try {
+      console.log("Copying text to clipboard...");
+      // Copy new text to clipboard
+      clipboard.writeText(text);
+      console.log("Text copied to clipboard successfully");
+
+      // Paste the text (will replace selection if any, or insert at cursor)
+      console.log("Executing paste operation...");
+      await this.pasteFromClipboard();
+      console.log("Paste operation completed successfully");
+
+      console.log("Text pasted successfully:", text);
+    } catch (error) {
+      console.error("=== TextInjectionService.pasteText ERROR ===");
+      console.error("Error during paste operation:", error);
+      console.error("Text that failed to paste:", text);
+      throw error;
+    } finally {
+      // Restore original clipboard after a delay
+      console.log("Scheduling clipboard restoration...");
+      setTimeout(() => {
+        console.log("Restoring original clipboard content...");
+        clipboard.writeText(originalClipboard);
+        console.log("Clipboard restored successfully");
+      }, 1000);
+    }
+  }
+
+  private async pasteFromClipboard(): Promise<void> {
+    console.log("=== TextInjectionService.pasteFromClipboard ===");
+
+    const script = `
       tell application "System Events"
         keystroke "v" using command down
       end tell
     `;
-    
-    await this.runAppleScript(pasteScript);
-    
-    // Restore original clipboard after a delay
-    setTimeout(() => {
-      clipboard.writeText(originalClipboard);
-    }, 1000);
+
+    console.log("Executing AppleScript for paste operation...");
+    console.log("AppleScript:", script);
+
+    try {
+      await this.runAppleScript(script);
+      console.log("AppleScript paste operation completed successfully");
+    } catch (error) {
+      console.error("=== TextInjectionService.pasteFromClipboard ERROR ===");
+      console.error("AppleScript paste operation failed:", error);
+      throw error;
+    }
+  }
+
+  private async runAppleScript(script: string): Promise<void> {
+    console.log("=== TextInjectionService.runAppleScript ===");
+    console.log("Script to execute:", script);
+
+    return new Promise((resolve, reject) => {
+      console.log("Spawning osascript process...");
+
+      const process = execFile(
+        "osascript",
+        ["-e", script],
+        (error, stdout, stderr) => {
+          if (error) {
+            console.error("=== TextInjectionService.runAppleScript ERROR ===");
+            console.error("osascript error:", error);
+            console.error("stderr:", stderr);
+            reject(error);
+          } else {
+            console.log("osascript completed successfully");
+            console.log("stdout:", stdout);
+            resolve();
+          }
+        }
+      );
+
+      process.on("error", (error) => {
+        console.error(
+          "=== TextInjectionService.runAppleScript PROCESS ERROR ==="
+        );
+        console.error("Process error:", error);
+        reject(error);
+      });
+    });
   }
 }

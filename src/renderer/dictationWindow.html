@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Dictation</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+          "Helvetica Neue", Arial, sans-serif;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      .dictation-container {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 120px;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      }
+
+      .microphone-icon {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+      }
+
+      .microphone-icon.recording {
+        background: #ff3b30;
+        animation: pulse 1.5s infinite;
+      }
+
+      .microphone-icon.idle {
+        background: #34c759;
+      }
+
+      .microphone-icon svg {
+        width: 12px;
+        height: 12px;
+        fill: white;
+      }
+
+      @keyframes pulse {
+        0% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.1);
+          opacity: 0.8;
+        }
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      .status-text {
+        font-size: 13px;
+        font-weight: 500;
+        color: #1d1d1f;
+      }
+
+      .status-text.listening {
+        color: #007aff;
+      }
+
+      .status-text.transforming {
+        color: #ff9500;
+      }
+
+      .close-button {
+        margin-left: auto;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #ff5f56;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+      }
+
+      .close-button:hover {
+        background: #ff3b30;
+      }
+
+      .close-button svg {
+        width: 8px;
+        height: 8px;
+        fill: white;
+      }
+
+      .text-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .selected-text {
+        background: rgba(0, 122, 255, 0.1);
+        border: 1px solid rgba(0, 122, 255, 0.2);
+        border-radius: 6px;
+        padding: 8px;
+        font-size: 12px;
+        color: #1d1d1f;
+        min-height: 20px;
+        max-height: 40px;
+        overflow-y: auto;
+      }
+
+      .selected-text.empty {
+        color: #8e8e93;
+        font-style: italic;
+      }
+
+      .transcription-container {
+        background: rgba(52, 199, 89, 0.1);
+        border: 1px solid rgba(52, 199, 89, 0.2);
+        border-radius: 6px;
+        padding: 8px;
+        min-height: 20px;
+        max-height: 60px;
+        overflow-y: auto;
+        transition: all 0.3s ease;
+      }
+
+      .transcription-container.empty {
+        color: #8e8e93;
+        font-style: italic;
+      }
+
+      .transcription-container.listening {
+        border-color: rgba(0, 122, 255, 0.4);
+        background: rgba(0, 122, 255, 0.15);
+      }
+
+      .transcription-container.transforming {
+        border-color: rgba(255, 149, 0, 0.4);
+        background: rgba(255, 149, 0, 0.15);
+      }
+
+      .transcription-segment {
+        font-size: 12px;
+        color: #1d1d1f;
+        margin-bottom: 4px;
+        transition: all 0.2s ease;
+      }
+
+      .transcription-segment:last-child {
+        margin-bottom: 0;
+      }
+
+      .transcription-segment.completed {
+        color: #1d1d1f;
+        font-weight: 500;
+      }
+
+      .transcription-segment.in-progress {
+        color: #8e8e93;
+        font-style: italic;
+      }
+
+      .transcription-segment.in-progress::after {
+        content: "▋";
+        animation: blink 1s infinite;
+        margin-left: 2px;
+      }
+
+      @keyframes blink {
+        0%,
+        50% {
+          opacity: 1;
+        }
+        51%,
+        100% {
+          opacity: 0;
+        }
+      }
+
+      /* Dark mode support */
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: rgba(30, 30, 30, 0.95);
+          border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .header {
+          border-bottom-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .status-text {
+          color: #f2f2f7;
+        }
+
+        .status-text.listening {
+          color: #0a84ff;
+        }
+
+        .status-text.transforming {
+          color: #ff9f0a;
+        }
+
+        .selected-text {
+          background: rgba(0, 122, 255, 0.2);
+          border-color: rgba(0, 122, 255, 0.3);
+          color: #f2f2f7;
+        }
+
+        .selected-text.empty {
+          color: #8e8e93;
+        }
+
+        .transcription-container {
+          background: rgba(52, 199, 89, 0.2);
+          border-color: rgba(52, 199, 89, 0.3);
+          color: #f2f2f7;
+        }
+
+        .transcription-container.empty {
+          color: #8e8e93;
+        }
+
+        .transcription-container.listening {
+          border-color: rgba(0, 122, 255, 0.5);
+          background: rgba(0, 122, 255, 0.25);
+        }
+
+        .transcription-container.transforming {
+          border-color: rgba(255, 149, 0, 0.5);
+          background: rgba(255, 149, 0, 0.25);
+        }
+
+        .transcription-segment {
+          color: #f2f2f7;
+        }
+
+        .transcription-segment.completed {
+          color: #f2f2f7;
+        }
+
+        .transcription-segment.in-progress {
+          color: #8e8e93;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="dictation-container">
+      <div class="header">
+        <div class="microphone-icon idle" id="micIcon">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"
+            />
+            <path
+              d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"
+            />
+          </svg>
+        </div>
+        <span class="status-text" id="statusText">Ready to dictate</span>
+        <button class="close-button" id="closeButton">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div class="text-content">
+        <div class="selected-text empty" id="selectedText">
+          No text selected
+        </div>
+        <div class="transcription-container empty" id="transcriptionContainer">
+          <div class="transcription-segment">Listening...</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Initialize UI elements
+      const micIcon = document.getElementById("micIcon");
+      const statusText = document.getElementById("statusText");
+      const selectedText = document.getElementById("selectedText");
+      const transcriptionContainer = document.getElementById(
+        "transcriptionContainer"
+      );
+      const closeButton = document.getElementById("closeButton");
+
+      // State management
+      let isRecording = false;
+      let currentSegments = [];
+      let currentStatus = "listening";
+
+      // Listen for IPC messages from main process
+      window.electronAPI.onInitializeDictation((data) => {
+        console.log("Initializing dictation with data:", data);
+
+        // Set selected text
+        if (data.selectedText && data.selectedText.trim()) {
+          selectedText.textContent = data.selectedText;
+          selectedText.classList.remove("empty");
+        } else {
+          selectedText.textContent = "No text selected";
+          selectedText.classList.add("empty");
+        }
+
+        // Reset transcription
+        resetTranscription();
+      });
+
+      window.electronAPI.onStartRecording(() => {
+        console.log("Recording started");
+        isRecording = true;
+        micIcon.classList.remove("idle");
+        micIcon.classList.add("recording");
+        statusText.textContent = "Listening...";
+        statusText.classList.add("listening");
+        resetTranscription();
+      });
+
+      window.electronAPI.onStopRecording(() => {
+        console.log("Recording stopped");
+        isRecording = false;
+        micIcon.classList.remove("recording");
+        micIcon.classList.add("idle");
+        statusText.textContent = "Processing...";
+        statusText.classList.remove("listening", "transforming");
+      });
+
+      window.electronAPI.onTranscriptionUpdate((update) => {
+        console.log("Transcription update:", update);
+        currentSegments = update.segments;
+        currentStatus = update.status;
+
+        updateTranscriptionDisplay();
+        updateStatusDisplay();
+      });
+
+      window.electronAPI.onDictationComplete((finalText) => {
+        console.log("Dictation complete:", finalText);
+        statusText.textContent = "Complete";
+        statusText.classList.remove("listening", "transforming");
+
+        // Show final text
+        transcriptionContainer.innerHTML = `<div class="transcription-segment completed">${finalText}</div>`;
+        transcriptionContainer.classList.remove(
+          "empty",
+          "listening",
+          "transforming"
+        );
+      });
+
+      window.electronAPI.onDictationClear(() => {
+        console.log("Clearing dictation window");
+        statusText.textContent = "Ready to dictate";
+        statusText.classList.remove("listening", "transforming");
+        resetTranscription();
+        micIcon.classList.remove("recording");
+        micIcon.classList.add("idle");
+        isRecording = false;
+      });
+
+      function resetTranscription() {
+        transcriptionContainer.innerHTML =
+          '<div class="transcription-segment">Listening...</div>';
+        transcriptionContainer.classList.add("empty");
+        transcriptionContainer.classList.remove("listening", "transforming");
+        currentSegments = [];
+        currentStatus = "listening";
+      }
+
+      function updateTranscriptionDisplay() {
+        if (currentSegments.length === 0) {
+          transcriptionContainer.innerHTML =
+            '<div class="transcription-segment">Listening...</div>';
+          transcriptionContainer.classList.add("empty");
+          return;
+        }
+
+        transcriptionContainer.classList.remove("empty");
+
+        const segmentsHtml = currentSegments
+          .map((segment) => {
+            const className = segment.completed ? "completed" : "in-progress";
+            return `<div class="transcription-segment ${className}">${segment.text}</div>`;
+          })
+          .join("");
+
+        transcriptionContainer.innerHTML = segmentsHtml;
+      }
+
+      function updateStatusDisplay() {
+        statusText.classList.remove("listening", "transforming");
+        transcriptionContainer.classList.remove("listening", "transforming");
+
+        if (currentStatus === "listening") {
+          statusText.textContent = "Listening...";
+          statusText.classList.add("listening");
+          transcriptionContainer.classList.add("listening");
+        } else if (currentStatus === "transforming") {
+          statusText.textContent = "Transforming...";
+          statusText.classList.add("transforming");
+          transcriptionContainer.classList.add("transforming");
+        }
+      }
+
+      // Close button handler
+      closeButton.addEventListener("click", () => {
+        window.electronAPI.cancelDictation();
+      });
+
+      // Prevent window from being dragged
+      document.addEventListener("dragstart", (e) => e.preventDefault());
+    </script>
+  </body>
+</html>
