@@ -45,7 +45,7 @@ function downloadSVG(url, dest) {
       .get(url, (response) => {
         if (response.statusCode !== 200) {
           reject(
-            new Error(`Failed to download ${url}: ${response.statusCode}`),
+            new Error(`Failed to download ${url}: ${response.statusCode}`)
           );
           return;
         }
@@ -79,7 +79,7 @@ async function main() {
 
     console.log(`Converting ${svgPath} to ${pngPath}...`);
     execSync(
-      `convert "${svgPath}" -flatten -background white -resize ${SIZE} "${pngPath}"`,
+      `magick "${svgPath}" -flatten -background none -resize ${SIZE} "${pngPath}"`
     );
   }
 

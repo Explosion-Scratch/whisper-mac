@@ -57,12 +57,22 @@
                 const chunk = buffer.slice(0, 8000);
                 const float32Array = new Float32Array(chunk);
 
-                console.log(
-                  "Sending audio chunk:",
-                  float32Array.length,
-                  "samples"
-                );
-                window.electronAPI.sendAudioData(float32Array);
+                // Calculate audio energy (sum of absolute values)
+                let energy = 0;
+                for (let i = 0; i < float32Array.length; i++) {
+                  energy += Math.abs(float32Array[i]);
+                }
+
+                // Only send if energy exceeds threshold (not silent)
+                if (energy > 0.01) {
+                  // Adjust threshold as needed
+                  console.log(
+                    "Sending audio chunk:",
+                    float32Array.length,
+                    "samples"
+                  );
+                  window.electronAPI.sendAudioData(float32Array);
+                }
 
                 // Remove sent samples from buffer
                 buffer = buffer.slice(8000);
