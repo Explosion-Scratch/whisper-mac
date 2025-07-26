@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>WhisperLive Test Client</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 2em;
+            }
+            #transcript {
+                white-space: pre-wrap;
+                border: 1px solid #ccc;
+                padding: 1em;
+                height: 200px;
+                overflow-y: auto;
+            }
+            #status {
+                margin-bottom: 1em;
+                color: #555;
+            }
+            button {
+                padding: 0.5em 1em;
+                font-size: 1em;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>WhisperLive Test Client</h1>
+        <div id="status">Disconnected</div>
+        <button id="startBtn">Start Transcription</button>
+        <button id="stopBtn" disabled>Stop</button>
+        <h2>Transcript</h2>
+        <div id="transcript"></div>
+
+        <script>
+            const WS_URL = "ws://localhost:9090";
+            const UID = "test-client-" + Math.floor(Math.random() * 1e6);
+            const LANGUAGE = "en";
+            const TASK = "transcribe";
+            const MODEL = "tiny";
+
+            let audioContext, micStream, processor;
+            let socket;
+            let transcriptEl = document.getElementById("transcript");
+            let statusEl = document.getElementById("status");
+            let startBtn = document.getElementById("startBtn");
+            let stopBtn = document.getElementById("stopBtn");
+
+            startBtn.onclick = start;
+            stopBtn.onclick = stop;
+
+            async function start() {
+                startBtn.disabled = true;
+                statusEl.textContent = "Connecting…";
+                // 1) Open WebSocket
+                socket = new WebSocket(WS_URL);
+                socket.binaryType = "arraybuffer";
+
+                socket.onopen = () => {
+                    statusEl.textContent = "Connected";
+                    // 2) Send handshake JSON
+                    socket.send(
+                        JSON.stringify({
+                            uid: UID,
+                            language: LANGUAGE,
+                            task: TASK,
+                            model: MODEL,
+                        }),
+                    );
+                    // 3) Start microphone
+                    initAudio();
+                };
+
+                socket.onmessage = (ev) => {
+                    try {
+                        let msg = JSON.parse(ev.data);
+                        // append partial/final transcript
+                        transcriptEl.textContent += msg.text + "\n";
+                        transcriptEl.scrollTop = transcriptEl.scrollHeight;
+                    } catch (e) {
+                        console.error("Invalid JSON from server:", ev.data);
+                    }
+                };
+
+                socket.onerror = (err) => {
+                    console.error("WebSocket error:", err);
+                    statusEl.textContent = "Error";
+                };
+
+                socket.onclose = () => {
+                    statusEl.textContent = "Disconnected";
+                    cleanupAudio();
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                };
+            }
+
+            function stop() {
+                if (socket) {
+                    socket.close();
+                }
+            }
+
+            async function initAudio() {
+                // request mic
+                micStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                });
+                audioContext = new (window.AudioContext ||
+                    window.webkitAudioContext)();
+                let inputSampleRate = audioContext.sampleRate;
+                let source = audioContext.createMediaStreamSource(micStream);
+                // use small buffer for low latency
+                processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+                processor.onaudioprocess = (e) => {
+                    let float32 = e.inputBuffer.getChannelData(0);
+                    // downsample & convert
+                    let pcm16 = encodePCM16(
+                        downsampleBuffer(float32, inputSampleRate, 16000),
+                    );
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send(pcm16.buffer);
+                    }
+                };
+
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                stopBtn.disabled = false;
+            }
+
+            function cleanupAudio() {
+                if (processor) {
+                    processor.disconnect();
+                    processor.onaudioprocess = null;
+                    processor = null;
+                }
+                if (audioContext) {
+                    audioContext.close();
+                    audioContext = null;
+                }
+                if (micStream) {
+                    micStream.getTracks().forEach((t) => t.stop());
+                    micStream = null;
+                }
+            }
+
+            // Downsamples a Float32Array from srcRate to dstRate via simple linear interpolation
+            function downsampleBuffer(buffer, srcRate, dstRate) {
+                if (dstRate === srcRate) return buffer;
+                let ratio = srcRate / dstRate;
+                let len = Math.round(buffer.length / ratio);
+                let out = new Float32Array(len);
+                for (let i = 0; i < len; i++) {
+                    let idx = i * ratio;
+                    let lo = Math.floor(idx);
+                    let hi = Math.min(Math.ceil(idx), buffer.length - 1);
+                    let weight = idx - lo;
+                    out[i] = buffer[lo] * (1 - weight) + buffer[hi] * weight;
+                }
+                return out;
+            }
+
+            // Converts Float32Array [-1..1] to Int16Array
+            function encodePCM16(samples) {
+                let pcm = new Int16Array(samples.length);
+                for (let i = 0; i < samples.length; i++) {
+                    let s = Math.max(-1, Math.min(1, samples[i]));
+                    pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+                }
+                return pcm;
+            }
+        </script>
+    </body>
+</html>

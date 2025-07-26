@@ -1,11 +1,12 @@
 import { EventEmitter } from "events";
+import { BrowserWindow } from "electron";
+import { join } from "path";
 import { AppConfig } from "../config/AppConfig";
 
 export class AudioCaptureService extends EventEmitter {
-  private mediaRecorder: MediaRecorder | null = null;
-  private stream: MediaStream | null = null;
-  private audioChunks: Blob[] = [];
+  private audioWindow: BrowserWindow | null = null;
   private config: AppConfig;
+  private isRecording = false;
 
   constructor(config: AppConfig) {
     super();
@@ -14,28 +15,45 @@ export class AudioCaptureService extends EventEmitter {
 
   async startCapture(): Promise<void> {
     try {
-      // Request microphone permission
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 16000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
+      if (this.audioWindow) {
+        // Already capturing
+        return;
+      }
+
+      // Create a hidden window for audio capture
+      this.audioWindow = new BrowserWindow({
+        width: 1,
+        height: 1,
+        show: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          preload: join(__dirname, "../preload/audioPreload.js"),
         },
       });
 
-      this.mediaRecorder = new MediaRecorder(this.stream, {
-        mimeType: "audio/webm;codecs=opus",
-      });
+      // Load a simple HTML file for audio capture
+      await this.audioWindow.loadFile(
+        join(__dirname, "../renderer/audioCapture.html"),
+      );
 
-      this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          this.audioChunks.push(event.data);
-          this.emit("audioData", event.data);
-        }
-      };
+      // Send start capture command to renderer
+      this.audioWindow.webContents.send("start-audio-capture");
 
-      this.mediaRecorder.start(100); // Collect 100ms chunks
+      // Listen for audio data from renderer
+      this.audioWindow.webContents.on(
+        "ipc-message",
+        (event, channel, ...args) => {
+          if (channel === "audio-data") {
+            this.emit("audioData", args[0]);
+          } else if (channel === "audio-error") {
+            this.emit("error", new Error(args[0]));
+          }
+        },
+      );
+
+      this.isRecording = true;
+      console.log("Audio capture started via renderer process");
     } catch (error) {
       let errMsg = "Unknown error";
       if (error instanceof Error) {
@@ -46,19 +64,23 @@ export class AudioCaptureService extends EventEmitter {
   }
 
   async stopCapture(): Promise<void> {
-    if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
-      this.mediaRecorder.stop();
+    if (this.audioWindow && !this.audioWindow.isDestroyed()) {
+      this.audioWindow.webContents.send("stop-audio-capture");
+
+      // Give it a moment to clean up
+      setTimeout(() => {
+        if (this.audioWindow && !this.audioWindow.isDestroyed()) {
+          this.audioWindow.close();
+        }
+        this.audioWindow = null;
+      }, 100);
     }
 
-    if (this.stream) {
-      this.stream.getTracks().forEach((track) => track.stop());
-      this.stream = null;
-    }
-
-    this.audioChunks = [];
+    this.isRecording = false;
+    console.log("Audio capture stopped");
   }
 
-  getAudioStream(): MediaStream | null {
-    return this.stream;
+  getIsRecording(): boolean {
+    return this.isRecording;
   }
 }
