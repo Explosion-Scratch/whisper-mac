@@ -1,5 +1,5 @@
 import { keyboard, Key } from "@nut-tree-fork/nut-js";
-import { execFile } from "child_process";
+import { clipboard } from "electron";
 
 export interface SelectedTextResult {
   text: string;
@@ -7,32 +7,12 @@ export interface SelectedTextResult {
 }
 
 export class SelectedTextService {
-  private async getClipboardContent(): Promise<string> {
-    return new Promise((resolve, reject) => {
-      execFile("osascript", ["-e", "the clipboard"], (error, stdout) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(stdout.trim());
-        }
-      });
-    });
+  private getClipboardContent(): string {
+    return clipboard.readText();
   }
 
-  private async setClipboardContent(text: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // Escape special characters for AppleScript
-      const escapedText = text.replace(/"/g, '\\"');
-      const script = `set the clipboard to "${escapedText}"`;
-
-      execFile("osascript", ["-e", script], (error) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve();
-        }
-      });
-    });
+  private setClipboardContent(text: string): void {
+    clipboard.writeText(text);
   }
 
   async getSelectedText(): Promise<SelectedTextResult> {
@@ -40,12 +20,12 @@ export class SelectedTextService {
 
     try {
       // Store original clipboard content
-      const originalClipboard = await this.getClipboardContent();
+      const originalClipboard = this.getClipboardContent();
       console.log("Original clipboard content:", originalClipboard);
 
       // Set a unique marker to detect if clipboard changes
       const marker = "1z4*5eiur_45r|uyt}r4";
-      await this.setClipboardContent(marker);
+      this.setClipboardContent(marker);
 
       // Small delay to ensure clipboard is set
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -58,7 +38,7 @@ export class SelectedTextService {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Read the new clipboard content
-      const newClipboard = await this.getClipboardContent();
+      const newClipboard = this.getClipboardContent();
       const trimmedText = newClipboard.trim();
 
       console.log("Clipboard-based result:", {
@@ -75,9 +55,9 @@ export class SelectedTextService {
         newClipboard !== originalClipboard && newClipboard !== marker;
 
       // Restore original clipboard content
-      setTimeout(async () => {
+      setTimeout(() => {
         try {
-          await this.setClipboardContent(originalClipboard);
+          this.setClipboardContent(originalClipboard);
           console.log("Clipboard restored to original content");
         } catch (error) {
           console.error("Failed to restore clipboard:", error);
@@ -85,7 +65,7 @@ export class SelectedTextService {
       }, 200);
 
       return {
-        text: trimmedText,
+        text: clipboardChanged ? trimmedText : "",
         hasSelection: trimmedText.length > 0 && clipboardChanged,
       };
     } catch (error) {
