@@ -9,10 +9,12 @@ import {
 import { TransformationService } from "./TransformationService";
 import { TextInjectionService } from "./TextInjectionService";
 import { SelectedTextService } from "./SelectedTextService";
+import { clipboard } from "electron";
 
 export class SegmentManager extends EventEmitter {
   private segments: Segment[] = [];
   private initialSelectedText: string | null = null; // Store selected text here
+  private originalClipboard: string | null = null; // Store original clipboard content
   private transformationService: TransformationService;
   private textInjectionService: TextInjectionService;
   private selectedTextService: SelectedTextService;
@@ -26,6 +28,10 @@ export class SegmentManager extends EventEmitter {
     this.transformationService = transformationService;
     this.textInjectionService = textInjectionService;
     this.selectedTextService = selectedTextService;
+  }
+
+  setOriginalClipboard(text: string): void {
+    this.originalClipboard = text.trim();
   }
 
   /**
@@ -48,38 +54,56 @@ export class SegmentManager extends EventEmitter {
     end?: number,
     confidence?: number
   ): TranscribedSegment {
+    const trimmedText = text.trim();
     console.log(
-      `[SegmentManager] Attempting to add segment: "${text}" (completed: ${completed})`
+      `[SegmentManager] Attempting to add segment: "${trimmedText}" (completed: ${completed})`
     );
 
-    const segmentKey = `${start}-${end}-${text.trim()}`;
-    const existingSegmentIndex = this.segments.findIndex((s) => {
+    // If a completed segment arrives, delete all in-progress segments.
+    if (completed) {
+      this.segments = this.segments.filter(
+        (s) => s.type === "transcribed" && s.completed
+      );
+      this.segments.push({
+        id: uuidv4(),
+        type: "transcribed",
+        text: trimmedText,
+        completed,
+        start,
+        end,
+        confidence,
+        timestamp: Date.now(),
+      });
+    }
+
+    // If it's a new in-progress segment, clear out all other old ones first.
+    if (!completed) {
+      this.segments = this.segments.filter(
+        (s) => s.type !== "transcribed" || s.completed
+      );
+    }
+
+    // Check for exact duplicates (e.g., re-processing the same completed segment)
+    const segmentKey = `${start}-${end}-${trimmedText}`;
+    const isDuplicate = this.segments.some((s) => {
       if (s.type !== "transcribed") return false;
       const existingKey = `${s.start}-${s.end}-${s.text.trim()}`;
-      return existingKey === segmentKey;
+      return existingKey === segmentKey && s.completed === completed;
     });
 
-    if (existingSegmentIndex !== -1) {
-      const existingSegment = this.segments[
-        existingSegmentIndex
-      ] as TranscribedSegment;
-      if (!existingSegment.completed && completed) {
-        console.log(
-          `[SegmentManager] Updating in-progress segment to completed: "${text}"`
-        );
-        existingSegment.completed = completed;
-        existingSegment.confidence = confidence;
-        this.emit("segment-updated", existingSegment);
-        return existingSegment;
-      }
-      console.log(`[SegmentManager] Skipping duplicate segment: "${text}"`);
-      return existingSegment;
+    if (isDuplicate) {
+      console.log(
+        `[SegmentManager] Skipping duplicate segment: "${trimmedText}"`
+      );
+      return this.segments.find(
+        (s) => s.type === "transcribed" && s.text.trim() === trimmedText
+      ) as TranscribedSegment;
     }
 
     const segment: TranscribedSegment = {
       id: uuidv4(),
       type: "transcribed",
-      text: text.trim(),
+      text: trimmedText,
       completed,
       start,
       end,
@@ -90,7 +114,7 @@ export class SegmentManager extends EventEmitter {
     this.segments.push(segment);
     this.emit("segment-added", segment);
     console.log(
-      `[SegmentManager] Added transcribed segment: "${text}" (completed: ${completed})`
+      `[SegmentManager] Added transcribed segment: "${trimmedText}" (completed: ${completed})`
     );
     return segment;
   }
@@ -186,6 +210,16 @@ export class SegmentManager extends EventEmitter {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       };
+    } finally {
+      // Restore original clipboard after a delay
+      console.log("Scheduling clipboard restoration...");
+      setTimeout(() => {
+        console.log("Restoring original clipboard content...");
+        if (this.originalClipboard) {
+          clipboard.writeText(this.originalClipboard);
+        }
+        console.log("Clipboard restored successfully");
+      }, 1000);
     }
   }
 

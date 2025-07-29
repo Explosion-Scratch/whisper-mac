@@ -4,6 +4,7 @@ import { clipboard } from "electron";
 export interface SelectedTextResult {
   text: string;
   hasSelection: boolean;
+  originalClipboard: string;
 }
 
 export class SelectedTextService {
@@ -57,6 +58,7 @@ export class SelectedTextService {
       let out = {
         text: clipboardChanged ? trimmedText : "",
         hasSelection: trimmedText.length > 0 && clipboardChanged,
+        originalClipboard: originalClipboard,
       };
       console.log("SelectedTextService.getSelectedText output:", out);
       return out;
@@ -64,17 +66,9 @@ export class SelectedTextService {
       console.error("Failed to get selected text:", error);
       return {
         text: "",
+        originalClipboard: originalClipboard,
         hasSelection: false,
       };
-    } finally {
-      // Restore original clipboard content immediately before returning
-      // This eliminates the race condition by removing the setTimeout.
-      try {
-        this.setClipboardContent(originalClipboard);
-        console.log("Clipboard restored to original content");
-      } catch (error) {
-        console.error("Failed to restore clipboard:", error);
-      }
     }
   }
 }
