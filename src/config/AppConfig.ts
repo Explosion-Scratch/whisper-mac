@@ -16,20 +16,22 @@ export class AppConfig {
   dictationWindowHeight: number;
   dictationWindowOpacity: number;
   showDictationWindowAlways: boolean;
+  skipSelectedTextRetrieval: boolean; // New option for faster startup
 
   constructor() {
     this.modelPath = "";
     this.serverPort = 9090;
-    this.defaultModel = "Systran/faster-whisper-tiny.en";
+    this.defaultModel = "Systran/faster-whisper-tiny";
     this.cachePath = "";
     this.dataDir = join(__dirname, "../../.whispermac-data");
 
     // Dictation window defaults
-    this.dictationWindowPosition = "active-app-corner";
+    this.dictationWindowPosition = "screen-corner";
     this.dictationWindowWidth = 300;
     this.dictationWindowHeight = 120;
     this.dictationWindowOpacity = 0.95;
     this.showDictationWindowAlways = false;
+    this.skipSelectedTextRetrieval = false; // Set to true for fastest startup
   }
 
   setCachePath(path: string): void {

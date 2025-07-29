@@ -25,44 +25,98 @@
       }
 
       .dictation-container {
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        min-height: 120px;
-      }
-
-      .header {
+        padding: 12px 16px;
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        gap: 12px;
+        height: 48px;
+        min-height: 48px;
+        max-height: 48px;
       }
 
-      .microphone-icon {
-        width: 20px;
-        height: 20px;
+      .status-icon {
+        width: 24px;
+        height: 24px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
+        flex-shrink: 0;
         transition: all 0.3s ease;
       }
 
-      .microphone-icon.recording {
+      .status-icon.recording {
         background: #ff3b30;
         animation: pulse 1.5s infinite;
       }
 
-      .microphone-icon.idle {
+      .status-icon.idle {
         background: #34c759;
       }
 
-      .microphone-icon svg {
-        width: 12px;
-        height: 12px;
+      .status-icon.transforming {
+        background: #ff9500;
+      }
+
+      .status-icon.complete {
+        background: #34c759;
+      }
+
+      .status-icon svg {
+        width: 14px;
+        height: 14px;
         fill: white;
+      }
+
+      .text-scroll-container {
+        flex: 1;
+        overflow-x: auto;
+        overflow-y: hidden;
+        position: relative;
+        height: 24px;
+        display: flex;
+        align-items: center;
+      }
+
+      .text-content {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        min-width: 100%;
+      }
+
+      .text-segment {
+        font-size: 13px;
+        color: #1d1d1f;
+        font-weight: 400;
+        display: inline-block;
+      }
+
+      .text-segment.selected {
+        color: #007aff;
+        font-weight: 500;
+      }
+
+      .text-segment.transcribed {
+        color: #1d1d1f;
+      }
+
+      .text-segment.in-progress {
+        color: #8e8e93;
+        font-style: italic;
+      }
+
+      .text-segment.in-progress::after {
+        content: "▋";
+        animation: blink 1s infinite;
+        margin-left: 2px;
+      }
+
+      .separator {
+        color: #8e8e93;
+        font-size: 12px;
+        margin: 0 4px;
       }
 
       @keyframes pulse {
@@ -80,127 +134,6 @@
         }
       }
 
-      .status-text {
-        font-size: 13px;
-        font-weight: 500;
-        color: #1d1d1f;
-      }
-
-      .status-text.listening {
-        color: #007aff;
-      }
-
-      .status-text.transforming {
-        color: #ff9500;
-      }
-
-      .close-button {
-        margin-left: auto;
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: #ff5f56;
-        border: none;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s ease;
-      }
-
-      .close-button:hover {
-        background: #ff3b30;
-      }
-
-      .close-button svg {
-        width: 8px;
-        height: 8px;
-        fill: white;
-      }
-
-      .text-content {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      .selected-text {
-        background: rgba(0, 122, 255, 0.1);
-        border: 1px solid rgba(0, 122, 255, 0.2);
-        border-radius: 6px;
-        padding: 8px;
-        font-size: 12px;
-        color: #1d1d1f;
-        min-height: 20px;
-        max-height: 40px;
-        overflow-y: auto;
-      }
-
-      .selected-text.empty {
-        color: #8e8e93;
-        font-style: italic;
-      }
-
-      .transcription-container {
-        background: rgba(52, 199, 89, 0.1);
-        border: 1px solid rgba(52, 199, 89, 0.2);
-        border-radius: 6px;
-        padding: 8px;
-        min-height: 20px;
-        max-height: 60px;
-        overflow-y: auto;
-        transition: all 0.3s ease;
-      }
-
-      .transcription-container.empty {
-        color: #8e8e93;
-        font-style: italic;
-      }
-
-      .transcription-container.listening {
-        border-color: rgba(0, 122, 255, 0.4);
-        background: rgba(0, 122, 255, 0.15);
-      }
-
-      .transcription-container.transforming {
-        border-color: rgba(255, 149, 0, 0.4);
-        background: rgba(255, 149, 0, 0.15);
-      }
-
-      .transcription-segment {
-        font-size: 12px;
-        color: #1d1d1f;
-        margin-bottom: 4px;
-        transition: all 0.2s ease;
-      }
-
-      .transcription-segment:last-child {
-        margin-bottom: 0;
-      }
-
-      .transcription-segment.completed {
-        color: #1d1d1f;
-        font-weight: 500;
-      }
-
-      .transcription-segment.in-progress {
-        color: #8e8e93;
-        font-style: italic;
-      }
-
-      .transcription-segment.in-progress::after {
-        content: "▋";
-        animation: blink 1s infinite;
-        margin-left: 2px;
-      }
-
-      .transcription-segment.selected {
-        color: #007aff;
-        font-weight: 500;
-        font-style: italic;
-      }
-
       @keyframes blink {
         0%,
         50% {
@@ -212,6 +145,30 @@
         }
       }
 
+      .close-button {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #ff5f56;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+      }
+
+      .close-button:hover {
+        background: #ff3b30;
+      }
+
+      .close-button svg {
+        width: 10px;
+        height: 10px;
+        fill: white;
+      }
+
       /* Dark mode support */
       @media (prefers-color-scheme: dark) {
         body {
@@ -219,66 +176,24 @@
           border-color: rgba(255, 255, 255, 0.1);
         }
 
-        .header {
-          border-bottom-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .status-text {
+        .text-segment {
           color: #f2f2f7;
         }
 
-        .status-text.listening {
+        .text-segment.selected {
           color: #0a84ff;
         }
 
-        .status-text.transforming {
-          color: #ff9f0a;
-        }
-
-        .selected-text {
-          background: rgba(0, 122, 255, 0.2);
-          border-color: rgba(0, 122, 255, 0.3);
+        .text-segment.transcribed {
           color: #f2f2f7;
         }
 
-        .selected-text.empty {
+        .text-segment.in-progress {
           color: #8e8e93;
         }
 
-        .transcription-container {
-          background: rgba(52, 199, 89, 0.2);
-          border-color: rgba(52, 199, 89, 0.3);
-          color: #f2f2f7;
-        }
-
-        .transcription-container.empty {
+        .separator {
           color: #8e8e93;
-        }
-
-        .transcription-container.listening {
-          border-color: rgba(0, 122, 255, 0.5);
-          background: rgba(0, 122, 255, 0.25);
-        }
-
-        .transcription-container.transforming {
-          border-color: rgba(255, 149, 0, 0.5);
-          background: rgba(255, 149, 0, 0.25);
-        }
-
-        .transcription-segment {
-          color: #f2f2f7;
-        }
-
-        .transcription-segment.completed {
-          color: #f2f2f7;
-        }
-
-        .transcription-segment.in-progress {
-          color: #8e8e93;
-        }
-
-        .transcription-segment.selected {
-          color: #0a84ff;
         }
       }
     </style>
@@ -286,58 +201,70 @@
   <body>
     <div id="app">
       <div class="dictation-container">
-        <div class="header">
-          <div class="microphone-icon" :class="micIconClass">
-            <svg viewBox="0 0 24 24">
-              <path
-                d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"
-              />
-              <path
-                d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"
-              />
-            </svg>
-          </div>
-          <span class="status-text" :class="statusTextClass"
-            >{{ statusText }}</span
-          >
-          <button class="close-button" @click="handleClose">
-            <svg viewBox="0 0 24 24">
-              <path
-                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-              />
-            </svg>
-          </button>
+        <div class="status-icon" :class="statusIconClass">
+          <svg v-if="currentStatus === 'idle'" viewBox="0 0 24 24">
+            <path
+              d="M12 2C13.1 2 14 2.9 14 4V8C14 9.1 13.1 10 12 10S10 9.1 10 8V4C10 2.9 10.9 2 12 2Z"
+            />
+            <path
+              d="M19 10V12C19 15.87 15.87 19 12 19S5 15.87 5 12V10H7V12C7 14.76 9.24 17 12 17S17 14.76 17 12V10H19Z"
+            />
+          </svg>
+          <svg v-else-if="currentStatus === 'listening'" viewBox="0 0 24 24">
+            <path
+              d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"
+            />
+            <path
+              d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"
+            />
+          </svg>
+          <svg v-else-if="currentStatus === 'transforming'" viewBox="0 0 24 24">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+            />
+          </svg>
+          <svg v-else-if="currentStatus === 'complete'" viewBox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+          </svg>
         </div>
 
-        <div class="text-content">
-          <div class="selected-text" :class="{ empty: !selectedText }">
-            {{ selectedText || 'No text selected' }}
-          </div>
-          <div
-            class="transcription-container"
-            :class="transcriptionContainerClass"
-          >
-            <div
-              v-for="(segment, index) in transcriptionSegments"
-              :key="index"
-              class="transcription-segment"
+        <div class="text-scroll-container" ref="textScrollContainer">
+          <div class="text-content" ref="textContent">
+            <span v-if="selectedText" class="text-segment selected">
+              [Selected: {{ selectedText }}]
+            </span>
+            <span v-if="selectedText && hasTranscription" class="separator"
+              >•</span
+            >
+            <span
+              v-for="(segment, index) in displaySegments"
+              :key="segment.id || index"
+              class="text-segment"
               :class="getSegmentClass(segment)"
             >
               {{ getSegmentDisplayText(segment) }}
-            </div>
-            <div
-              v-if="transcriptionSegments.length === 0"
-              class="transcription-segment"
+            </span>
+            <span
+              v-if="displaySegments.length === 0 && !selectedText"
+              class="text-segment in-progress"
             >
               Listening...
-            </div>
+            </span>
           </div>
         </div>
+
+        <button class="close-button" @click="handleClose">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+            />
+          </svg>
+        </button>
       </div>
     </div>
     <script src="./vue.js"></script>
     <script>
-      const { createApp, ref, computed, onMounted } = Vue;
+      const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
 
       createApp({
         setup() {
@@ -349,29 +276,35 @@
           const finalText = ref("");
 
           // Computed properties
-          const micIconClass = computed(() => ({
-            recording: isRecording.value,
-            idle: !isRecording.value,
-          }));
-
-          const statusTextClass = computed(() => ({
-            listening: currentStatus.value === "listening",
+          const statusIconClass = computed(() => ({
+            recording: currentStatus.value === "listening",
+            idle: currentStatus.value === "idle",
             transforming: currentStatus.value === "transforming",
+            complete: currentStatus.value === "complete",
           }));
 
-          const transcriptionContainerClass = computed(() => ({
-            empty: transcriptionSegments.value.length === 0 && !finalText.value,
-            listening: currentStatus.value === "listening",
-            transforming: currentStatus.value === "transforming",
-          }));
-
-          const statusText = computed(() => {
-            if (finalText.value) return "Complete";
-            if (currentStatus.value === "listening") return "Listening...";
-            if (currentStatus.value === "transforming")
-              return "Transforming...";
-            return "Ready to dictate";
+          const hasTranscription = computed(() => {
+            return transcriptionSegments.value.length > 0 || finalText.value;
           });
+
+          const displaySegments = computed(() => {
+            if (finalText.value) {
+              return [
+                { type: "transcribed", text: finalText.value, completed: true },
+              ];
+            }
+            return transcriptionSegments.value;
+          });
+
+          const textContent = ref(null);
+          const textScrollContainer = ref(null);
+
+          const scrollToEnd = () => {
+            if (textScrollContainer.value) {
+              textScrollContainer.value.scrollLeft =
+                textScrollContainer.value.scrollWidth;
+            }
+          };
 
           // Methods
           const resetTranscription = () => {
@@ -383,21 +316,19 @@
           const getSegmentClass = (segment) => {
             if (segment.type === "selected") return "selected";
             if (segment.type === "transcribed") {
-              return segment.completed ? "completed" : "in-progress";
+              return segment.completed ? "transcribed" : "in-progress";
             }
             if (segment.type === "inprogress") return "in-progress";
             return "";
           };
 
           const getSegmentDisplayText = (segment) => {
-            if (segment.type === "selected") {
-              return `[Selected: ${segment.text}]`;
-            }
             return segment.text;
           };
 
           const handleClose = () => {
-            window.electronAPI.cancelDictation();
+            // Close button now hides and reloads the window instead of closing it
+            window.electronAPI.closeDictationWindow();
           };
 
           // IPC event handlers
@@ -446,6 +377,13 @@
             resetTranscription();
           };
 
+          // Watch for changes and scroll to end
+          watch([displaySegments, selectedText], () => {
+            nextTick(() => {
+              scrollToEnd();
+            });
+          });
+
           // Setup IPC listeners
           onMounted(() => {
             window.electronAPI.onInitializeDictation(initializeDictation);
@@ -468,10 +406,11 @@
             finalText,
 
             // Computed
-            micIconClass,
-            statusTextClass,
-            transcriptionContainerClass,
-            statusText,
+            statusIconClass,
+            hasTranscription,
+            displaySegments,
+            textContent,
+            textScrollContainer,
 
             // Methods
             resetTranscription,

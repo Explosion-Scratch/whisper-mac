@@ -23,11 +23,49 @@ export class DictationWindowService {
     selectedTextResult: SelectedTextResult
   ): Promise<void> {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      // Window already exists, just show it and update with new data
       this.dictationWindow.show();
+
+      // Initialize the window with selected text data
+      this.dictationWindow.webContents.send("initialize-dictation", {
+        selectedText: selectedTextResult.text,
+        hasSelection: selectedTextResult.hasSelection,
+      });
+
       return;
     }
 
-    const position = await this.calculateWindowPosition();
+    // Create new window if pre-loaded one doesn't exist
+    await this.createDictationWindow();
+
+    // Initialize the window with selected text data
+    this.dictationWindow!.webContents.send("initialize-dictation", {
+      selectedText: selectedTextResult.text,
+      hasSelection: selectedTextResult.hasSelection,
+    });
+
+    this.dictationWindow!.showInactive();
+
+    console.log(
+      "Dictation window shown at position:",
+      this.calculateWindowPositionSync()
+    );
+  }
+
+  async preloadWindow(): Promise<void> {
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      // Window already exists
+      return;
+    }
+
+    console.log("Pre-loading dictation window...");
+    await this.createDictationWindow();
+    console.log("Dictation window pre-loaded successfully");
+  }
+
+  private async createDictationWindow(): Promise<void> {
+    // Optimize: Use synchronous position calculation for screen-corner
+    const position = this.calculateWindowPositionSync();
 
     this.dictationWindow = new BrowserWindow({
       width: this.config.dictationWindowWidth,
@@ -58,17 +96,6 @@ export class DictationWindowService {
 
     // Set up window event handlers
     this.setupWindowEventHandlers();
-
-    // Initialize the window with selected text data
-    this.dictationWindow.webContents.send("initialize-dictation", {
-      selectedText: selectedTextResult.text,
-      hasSelection: selectedTextResult.hasSelection,
-    });
-
-    // Show the window with a fade-in effect
-    this.dictationWindow.show();
-
-    console.log("Dictation window shown at position:", position);
   }
 
   private setupWindowEventHandlers(): void {
@@ -98,11 +125,11 @@ export class DictationWindowService {
         switch (channel) {
           case "close-dictation-window":
             console.log("Handling close-dictation-window IPC");
-            this.closeDictationWindow();
+            this.hideAndReloadWindow();
             break;
           case "cancel-dictation":
             console.log("Handling cancel-dictation IPC");
-            this.cancelDictation();
+            this.hideAndReloadWindow();
             break;
           case "minimize-dictation-window":
             console.log("Handling minimize-dictation-window IPC");
@@ -243,6 +270,11 @@ export class DictationWindowService {
     this.currentStatus = "listening";
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.webContents.send("dictation-clear");
+      // Also send an explicit status update to ensure UI reflects the change
+      this.dictationWindow.webContents.send("dictation-transcription-update", {
+        segments: [],
+        status: "listening",
+      });
     }
   }
 
@@ -266,9 +298,30 @@ export class DictationWindowService {
   }
 
   cancelDictation(): void {
-    this.closeDictationWindow();
+    this.hideAndReloadWindow();
     // Emit cancellation event if needed
     console.log("Dictation cancelled by user");
+  }
+
+  hideAndReloadWindow(): void {
+    console.log("=== DictationWindowService.hideAndReloadWindow ===");
+
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      console.log("Hiding dictation window...");
+      this.dictationWindow.hide();
+
+      // Clear current state
+      this.currentSegments = [];
+      this.currentStatus = "listening";
+
+      // Reload the window content
+      console.log("Reloading window content...");
+      this.dictationWindow.webContents.reload();
+
+      console.log("Window hidden and reloaded successfully");
+    } else {
+      console.log("Window is null or already destroyed");
+    }
   }
 
   isWindowOpen(): boolean {
@@ -304,6 +357,28 @@ export class DictationWindowService {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.show();
       this.dictationWindow.focus();
+    }
+  }
+
+  // New synchronous method for screen-corner positioning
+  private calculateWindowPositionSync(): WindowPosition {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } =
+      primaryDisplay.workAreaSize;
+
+    if (this.config.dictationWindowPosition === "screen-corner") {
+      // Position in screen corner (bottom-right) - synchronous
+      return {
+        x: screenWidth - this.config.dictationWindowWidth - 20,
+        y: screenHeight - this.config.dictationWindowHeight - 20,
+      };
+    } else {
+      // For active-app-corner, fall back to screen corner for now
+      // This avoids the AppleScript bottleneck
+      return {
+        x: screenWidth - this.config.dictationWindowWidth - 20,
+        y: screenHeight - this.config.dictationWindowHeight - 20,
+      };
     }
   }
 }

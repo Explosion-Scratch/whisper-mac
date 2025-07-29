@@ -82,7 +82,7 @@ export class SelectedTextService {
     console.log("Original clipboard content:", originalClipboard);
 
     try {
-      // Copy selected text to clipboard
+      // Copy selected text to clipboard - optimized version
       const copyScript = `
 try
 	set textString to "1z4*5eiur_45r|uyt}r4"
@@ -91,7 +91,7 @@ try
 	tell application "System Events" to set theID to bundle identifier of application process 1 whose frontmost = true
 	tell application id theID to activate
 	tell application "System Events" to keystroke "c" using command down
-	delay 0.4
+	delay 0.2
 	set theString to the clipboard as string
 	if theString = textString then error
 	return theString
@@ -103,8 +103,8 @@ end try`;
       console.log("Executing copy command...");
       await this.runAppleScript(copyScript);
 
-      // Give a moment for the copy to complete
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // Reduced delay for faster response
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Read from clipboard
       const selectedText = clipboard.readText();
@@ -126,11 +126,11 @@ end try`;
         hasSelection: trimmedText.length > 0 && clipboardChanged,
       };
     } finally {
-      // Restore original clipboard content
+      // Restore original clipboard content with reduced delay
       setTimeout(() => {
         clipboard.writeText(originalClipboard);
         console.log("Clipboard restored to original content");
-      }, 300);
+      }, 200);
     }
   }
 
