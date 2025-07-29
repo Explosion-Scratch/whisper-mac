@@ -18,11 +18,11 @@ export class SelectedTextService {
   async getSelectedText(): Promise<SelectedTextResult> {
     console.log("=== SelectedTextService.getSelectedText ===");
 
-    try {
-      // Store original clipboard content
-      const originalClipboard = this.getClipboardContent();
-      console.log("Original clipboard content:", originalClipboard);
+    // Store original clipboard content
+    const originalClipboard = this.getClipboardContent();
+    console.log("Original clipboard content:", originalClipboard);
 
+    try {
       // Set a unique marker to detect if clipboard changes
       const marker = "1z4*5eiur_45r|uyt}r4";
       this.setClipboardContent(marker);
@@ -54,26 +54,27 @@ export class SelectedTextService {
       const clipboardChanged =
         newClipboard !== originalClipboard && newClipboard !== marker;
 
-      // Restore original clipboard content
-      setTimeout(() => {
-        try {
-          this.setClipboardContent(originalClipboard);
-          console.log("Clipboard restored to original content");
-        } catch (error) {
-          console.error("Failed to restore clipboard:", error);
-        }
-      }, 200);
-
-      return {
+      let out = {
         text: clipboardChanged ? trimmedText : "",
         hasSelection: trimmedText.length > 0 && clipboardChanged,
       };
+      console.log("SelectedTextService.getSelectedText output:", out);
+      return out;
     } catch (error) {
       console.error("Failed to get selected text:", error);
       return {
         text: "",
         hasSelection: false,
       };
+    } finally {
+      // Restore original clipboard content immediately before returning
+      // This eliminates the race condition by removing the setTimeout.
+      try {
+        this.setClipboardContent(originalClipboard);
+        console.log("Clipboard restored to original content");
+      } catch (error) {
+        console.error("Failed to restore clipboard:", error);
+      }
     }
   }
 }

@@ -64,20 +64,30 @@ export class SegmentManager extends EventEmitter {
 
     // Check for duplicate segments based on content and timing
     const segmentKey = `${start}-${end}-${text.trim()}`;
-    const isDuplicate = this.segments.some((s) => {
+    const existingSegmentIndex = this.segments.findIndex((s) => {
       if (s.type !== "transcribed") return false;
       const existingKey = `${s.start}-${s.end}-${s.text.trim()}`;
       return existingKey === segmentKey;
     });
 
-    if (isDuplicate) {
+    if (existingSegmentIndex !== -1) {
+      const existingSegment = this.segments[
+        existingSegmentIndex
+      ] as TranscribedSegment;
+
+      // If we're updating an in-progress segment to completed, update it
+      if (!existingSegment.completed && completed) {
+        console.log(
+          `[SegmentManager] Updating in-progress segment to completed: "${text}"`
+        );
+        existingSegment.completed = completed;
+        existingSegment.confidence = confidence;
+        this.emit("segment-updated", existingSegment);
+        return existingSegment;
+      }
+
+      // Otherwise, skip duplicate
       console.log(`[SegmentManager] Skipping duplicate segment: "${text}"`);
-      // Return the existing segment
-      const existingSegment = this.segments.find((s) => {
-        if (s.type !== "transcribed") return false;
-        const existingKey = `${s.start}-${s.end}-${s.text.trim()}`;
-        return existingKey === segmentKey;
-      }) as TranscribedSegment;
       return existingSegment;
     }
 
