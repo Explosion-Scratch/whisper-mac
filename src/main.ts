@@ -9,17 +9,15 @@ import {
 import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
 import { AudioCaptureService } from "./services/AudioCaptureService";
-import {
-  WhisperLiveClient,
-  TranscriptionSegment,
-  TranscriptionUpdate,
-} from "./services/WhisperLiveClient";
+import { WhisperLiveClient } from "./services/WhisperLiveClient";
 import { TextInjectionService } from "./services/TextInjectionService";
 import { TransformationService } from "./services/TransformationService";
 import { ModelManager } from "./services/ModelManager";
 import { AppConfig } from "./config/AppConfig";
 import { SelectedTextService } from "./services/SelectedTextService";
 import { DictationWindowService } from "./services/DictationWindowService";
+import { SegmentManager } from "./services/SegmentManager";
+import { Segment, SegmentUpdate } from "./types/SegmentTypes";
 
 class WhisperMacApp {
   private tray: Tray | null = null;
@@ -33,13 +31,10 @@ class WhisperMacApp {
   private config: AppConfig;
   private selectedTextService: SelectedTextService;
   private dictationWindowService: DictationWindowService;
+  private segmentManager: SegmentManager;
 
   // Dictation state
   private isRecording = false;
-  private currentSelectedText = "";
-  private hasSelection = false;
-  private numCompletedAndFlushed = 0;
-  private fullTransformedText = "";
 
   constructor() {
     this.config = new AppConfig();
@@ -50,6 +45,10 @@ class WhisperMacApp {
     this.transformationService = new TransformationService();
     this.selectedTextService = new SelectedTextService();
     this.dictationWindowService = new DictationWindowService(this.config);
+    this.segmentManager = new SegmentManager(
+      this.transformationService,
+      this.textInjector
+    );
   }
 
   async initialize() {
@@ -259,16 +258,19 @@ class WhisperMacApp {
     try {
       console.log("=== Starting dictation process ===");
 
-      // 1. Reset state
-      this.numCompletedAndFlushed = 0;
-      this.fullTransformedText = "";
+      // 1. Clear any existing segments
+      this.segmentManager.clearAllSegments();
 
-      // 2. Get selected text
+      // 2. Get selected text and add as selected segment
       const selectedTextResult =
         await this.selectedTextService.getSelectedText();
-      this.currentSelectedText = selectedTextResult.text;
-      this.hasSelection = selectedTextResult.hasSelection;
       console.log("Selected text result:", selectedTextResult);
+
+      // Add selected text as a segment
+      this.segmentManager.addSelectedSegment(
+        selectedTextResult.text,
+        selectedTextResult.hasSelection
+      );
 
       // 3. Show dictation window
       await this.dictationWindowService.showDictationWindow(selectedTextResult);
@@ -283,8 +285,8 @@ class WhisperMacApp {
       await this.whisperClient.startTranscription(async (update) => {
         // Update dictation window with real-time transcription
         this.dictationWindowService.updateTranscription(update);
-        // Process and inject any newly completed segments ("flush on pause")
-        await this.processNewSegments(update.segments);
+        // Process segments and flush completed ones
+        await this.processSegments(update);
       });
 
       // 6. Connect audio data from capture service to WhisperLive client
@@ -299,28 +301,47 @@ class WhisperMacApp {
     }
   }
 
-  private async processNewSegments(
-    segments: TranscriptionSegment[]
-  ): Promise<void> {
-    const allCompleted = segments.filter((s) => s.completed && s.text?.trim());
+  private async processSegments(update: SegmentUpdate): Promise<void> {
+    // Add new transcribed segments to the segment manager
+    const transcribedSegments = update.segments.filter(
+      (s) => s.type === "transcribed"
+    );
 
-    if (allCompleted.length > this.numCompletedAndFlushed) {
-      const newlyCompleted = allCompleted.slice(this.numCompletedAndFlushed);
-      console.log("New segments to transform and inject:", newlyCompleted);
-
-      const transformed = await Promise.all(
-        newlyCompleted.map((s) =>
-          this.transformationService.toUppercase(s.text)
-        )
-      );
-      const textToInject = transformed.join(" ") + " ";
-
-      if (textToInject.trim()) {
-        await this.textInjector.insertText(textToInject);
-        this.fullTransformedText += textToInject;
+    for (const segment of transcribedSegments) {
+      if (segment.type === "transcribed") {
+        this.segmentManager.addTranscribedSegment(
+          segment.text,
+          segment.completed,
+          segment.start,
+          segment.end,
+          segment.confidence
+        );
       }
+    }
 
-      this.numCompletedAndFlushed = allCompleted.length;
+    // Get all segments for display
+    const allSegments = this.segmentManager.getAllSegments();
+
+    // Update dictation window with all segments
+    this.dictationWindowService.updateTranscription({
+      segments: allSegments,
+      status: update.status,
+    });
+
+    // Flush completed segments if any exist
+    const completedSegments =
+      this.segmentManager.getCompletedTranscribedSegments();
+    if (completedSegments.length > 0) {
+      console.log(`Flushing ${completedSegments.length} completed segments`);
+      const flushResult = await this.segmentManager.flushSegments();
+
+      if (flushResult.success) {
+        console.log(
+          `Successfully flushed ${flushResult.segmentsProcessed} segments`
+        );
+      } else {
+        console.error("Flush failed:", flushResult.error);
+      }
     }
   }
 
@@ -338,38 +359,20 @@ class WhisperMacApp {
       // Give a moment for final server updates
       await new Promise((r) => setTimeout(r, 250));
 
-      const finalSegments = this.whisperClient.getCurrentSegments();
-      const allCompleted = finalSegments.filter(
-        (s) => s.completed && s.text?.trim()
-      );
-      const anyRemaining = finalSegments.slice(allCompleted.length);
+      // Flush all remaining segments (including in-progress ones)
+      const flushResult = await this.segmentManager.flushAllSegments();
 
-      const finalSegmentsToProcess = [
-        ...allCompleted.slice(this.numCompletedAndFlushed),
-        ...anyRemaining,
-      ].filter((s) => s.text?.trim());
-
-      if (finalSegmentsToProcess.length > 0) {
+      if (flushResult.success) {
         console.log(
-          "Flushing remaining segments on stop:",
-          finalSegmentsToProcess
+          `Successfully flushed ${flushResult.segmentsProcessed} segments on stop`
         );
-        const transformed = await Promise.all(
-          finalSegmentsToProcess.map((s) =>
-            this.transformationService.toUppercase(s.text)
-          )
-        );
-        const textToInject = transformed.join(" ");
-
-        if (textToInject.trim()) {
-          await this.textInjector.insertText(textToInject.trim());
-          this.fullTransformedText += " " + textToInject.trim();
-        }
+      } else {
+        console.error("Final flush failed:", flushResult.error);
       }
 
       await this.whisperClient.stopTranscription();
 
-      const finalText = this.fullTransformedText.trim();
+      const finalText = flushResult.transformedText;
       console.log("Final transcription:", finalText);
 
       if (finalText) {
@@ -381,9 +384,8 @@ class WhisperMacApp {
         this.dictationWindowService.closeDictationWindow();
       }
 
-      // Reset state
-      this.currentSelectedText = "";
-      this.hasSelection = false;
+      // Clear all segments
+      this.segmentManager.clearAllSegments();
 
       console.log("=== Dictation stopped successfully ===");
     } catch (error) {
@@ -406,11 +408,8 @@ class WhisperMacApp {
 
     this.dictationWindowService.closeDictationWindow();
 
-    // Reset state
-    this.currentSelectedText = "";
-    this.hasSelection = false;
-    this.numCompletedAndFlushed = 0;
-    this.fullTransformedText = "";
+    // Clear all segments
+    this.segmentManager.clearAllSegments();
 
     console.log("=== Dictation flow cancelled and cleaned up ===");
   }

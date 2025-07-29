@@ -59,11 +59,8 @@ export class AudioCaptureService extends EventEmitter {
       this.audioWindow.webContents.on(
         "ipc-message",
         (event, channel, ...args) => {
-          console.log("Received IPC message:", channel);
-
           if (channel === "audio-data") {
             const audioData = args[0] as Float32Array;
-            console.log("Received audio data:", audioData.length, "samples");
             this.emit("audioData", audioData);
 
             // Forward to callback if set

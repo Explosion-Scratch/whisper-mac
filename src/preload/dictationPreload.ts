@@ -6,10 +6,16 @@ export interface DictationInitData {
 }
 
 export interface TranscriptionSegment {
+  id: string;
+  type: "inprogress" | "transcribed" | "selected";
   text: string;
-  completed: boolean;
+  completed?: boolean;
   start?: number;
   end?: number;
+  timestamp: number;
+  confidence?: number;
+  originalText?: string;
+  hasSelection?: boolean;
 }
 
 export interface TranscriptionUpdate {

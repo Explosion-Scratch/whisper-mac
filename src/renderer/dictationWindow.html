@@ -195,6 +195,12 @@
         margin-left: 2px;
       }
 
+      .transcription-segment.selected {
+        color: #007aff;
+        font-weight: 500;
+        font-style: italic;
+      }
+
       @keyframes blink {
         0%,
         50% {
@@ -270,177 +276,211 @@
         .transcription-segment.in-progress {
           color: #8e8e93;
         }
+
+        .transcription-segment.selected {
+          color: #0a84ff;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="dictation-container">
-      <div class="header">
-        <div class="microphone-icon idle" id="micIcon">
-          <svg viewBox="0 0 24 24">
-            <path
-              d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"
-            />
-            <path
-              d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"
-            />
-          </svg>
+    <div id="app">
+      <div class="dictation-container">
+        <div class="header">
+          <div class="microphone-icon" :class="micIconClass">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"
+              />
+              <path
+                d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"
+              />
+            </svg>
+          </div>
+          <span class="status-text" :class="statusTextClass"
+            >{{ statusText }}</span
+          >
+          <button class="close-button" @click="handleClose">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+              />
+            </svg>
+          </button>
         </div>
-        <span class="status-text" id="statusText">Ready to dictate</span>
-        <button class="close-button" id="closeButton">
-          <svg viewBox="0 0 24 24">
-            <path
-              d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-            />
-          </svg>
-        </button>
-      </div>
 
-      <div class="text-content">
-        <div class="selected-text empty" id="selectedText">
-          No text selected
-        </div>
-        <div class="transcription-container empty" id="transcriptionContainer">
-          <div class="transcription-segment">Listening...</div>
+        <div class="text-content">
+          <div class="selected-text" :class="{ empty: !selectedText }">
+            {{ selectedText || 'No text selected' }}
+          </div>
+          <div
+            class="transcription-container"
+            :class="transcriptionContainerClass"
+          >
+            <div
+              v-for="(segment, index) in transcriptionSegments"
+              :key="index"
+              class="transcription-segment"
+              :class="getSegmentClass(segment)"
+            >
+              {{ getSegmentDisplayText(segment) }}
+            </div>
+            <div
+              v-if="transcriptionSegments.length === 0"
+              class="transcription-segment"
+            >
+              Listening...
+            </div>
+          </div>
         </div>
       </div>
     </div>
-
+    <script src="./vue.js"></script>
     <script>
-      // Initialize UI elements
-      const micIcon = document.getElementById("micIcon");
-      const statusText = document.getElementById("statusText");
-      const selectedText = document.getElementById("selectedText");
-      const transcriptionContainer = document.getElementById(
-        "transcriptionContainer"
-      );
-      const closeButton = document.getElementById("closeButton");
+      const { createApp, ref, computed, onMounted } = Vue;
 
-      // State management
-      let isRecording = false;
-      let currentSegments = [];
-      let currentStatus = "listening";
+      createApp({
+        setup() {
+          // Reactive state
+          const isRecording = ref(false);
+          const currentStatus = ref("idle");
+          const selectedText = ref("");
+          const transcriptionSegments = ref([]);
+          const finalText = ref("");
 
-      // Listen for IPC messages from main process
-      window.electronAPI.onInitializeDictation((data) => {
-        console.log("Initializing dictation with data:", data);
+          // Computed properties
+          const micIconClass = computed(() => ({
+            recording: isRecording.value,
+            idle: !isRecording.value,
+          }));
 
-        // Set selected text
-        if (data.selectedText && data.selectedText.trim()) {
-          selectedText.textContent = data.selectedText;
-          selectedText.classList.remove("empty");
-        } else {
-          selectedText.textContent = "No text selected";
-          selectedText.classList.add("empty");
-        }
+          const statusTextClass = computed(() => ({
+            listening: currentStatus.value === "listening",
+            transforming: currentStatus.value === "transforming",
+          }));
 
-        // Reset transcription
-        resetTranscription();
-      });
+          const transcriptionContainerClass = computed(() => ({
+            empty: transcriptionSegments.value.length === 0 && !finalText.value,
+            listening: currentStatus.value === "listening",
+            transforming: currentStatus.value === "transforming",
+          }));
 
-      window.electronAPI.onStartRecording(() => {
-        console.log("Recording started");
-        isRecording = true;
-        micIcon.classList.remove("idle");
-        micIcon.classList.add("recording");
-        statusText.textContent = "Listening...";
-        statusText.classList.add("listening");
-        resetTranscription();
-      });
+          const statusText = computed(() => {
+            if (finalText.value) return "Complete";
+            if (currentStatus.value === "listening") return "Listening...";
+            if (currentStatus.value === "transforming")
+              return "Transforming...";
+            return "Ready to dictate";
+          });
 
-      window.electronAPI.onStopRecording(() => {
-        console.log("Recording stopped");
-        isRecording = false;
-        micIcon.classList.remove("recording");
-        micIcon.classList.add("idle");
-        statusText.textContent = "Processing...";
-        statusText.classList.remove("listening", "transforming");
-      });
+          // Methods
+          const resetTranscription = () => {
+            transcriptionSegments.value = [];
+            finalText.value = "";
+            currentStatus.value = "listening";
+          };
 
-      window.electronAPI.onTranscriptionUpdate((update) => {
-        console.log("Transcription update:", update);
-        currentSegments = update.segments;
-        currentStatus = update.status;
+          const getSegmentClass = (segment) => {
+            if (segment.type === "selected") return "selected";
+            if (segment.type === "transcribed") {
+              return segment.completed ? "completed" : "in-progress";
+            }
+            if (segment.type === "inprogress") return "in-progress";
+            return "";
+          };
 
-        updateTranscriptionDisplay();
-        updateStatusDisplay();
-      });
+          const getSegmentDisplayText = (segment) => {
+            if (segment.type === "selected") {
+              return `[Selected: ${segment.text}]`;
+            }
+            return segment.text;
+          };
 
-      window.electronAPI.onDictationComplete((finalText) => {
-        console.log("Dictation complete:", finalText);
-        statusText.textContent = "Complete";
-        statusText.classList.remove("listening", "transforming");
+          const handleClose = () => {
+            window.electronAPI.cancelDictation();
+          };
 
-        // Show final text
-        transcriptionContainer.innerHTML = `<div class="transcription-segment completed">${finalText}</div>`;
-        transcriptionContainer.classList.remove(
-          "empty",
-          "listening",
-          "transforming"
-        );
-      });
+          // IPC event handlers
+          const initializeDictation = (data) => {
+            console.log("Initializing dictation with data:", data);
+            selectedText.value = data.selectedText?.trim() || "";
+            resetTranscription();
+          };
 
-      window.electronAPI.onDictationClear(() => {
-        console.log("Clearing dictation window");
-        statusText.textContent = "Ready to dictate";
-        statusText.classList.remove("listening", "transforming");
-        resetTranscription();
-        micIcon.classList.remove("recording");
-        micIcon.classList.add("idle");
-        isRecording = false;
-      });
+          const startRecording = () => {
+            console.log("Recording started");
+            isRecording.value = true;
+            currentStatus.value = "listening";
+            resetTranscription();
+          };
 
-      function resetTranscription() {
-        transcriptionContainer.innerHTML =
-          '<div class="transcription-segment">Listening...</div>';
-        transcriptionContainer.classList.add("empty");
-        transcriptionContainer.classList.remove("listening", "transforming");
-        currentSegments = [];
-        currentStatus = "listening";
-      }
+          const stopRecording = () => {
+            console.log("Recording stopped");
+            isRecording.value = false;
+            currentStatus.value = "processing";
+          };
 
-      function updateTranscriptionDisplay() {
-        if (currentSegments.length === 0) {
-          transcriptionContainer.innerHTML =
-            '<div class="transcription-segment">Listening...</div>';
-          transcriptionContainer.classList.add("empty");
-          return;
-        }
+          const updateTranscription = (update) => {
+            console.log("Transcription update:", update);
+            transcriptionSegments.value = update.segments;
+            currentStatus.value = update.status;
+          };
 
-        transcriptionContainer.classList.remove("empty");
+          const completeDictation = (text) => {
+            console.log("Dictation complete:", text);
+            finalText.value = text;
+            currentStatus.value = "complete";
+            transcriptionSegments.value = [
+              {
+                type: "transcribed",
+                text: text,
+                completed: true,
+              },
+            ];
+          };
 
-        const segmentsHtml = currentSegments
-          .map((segment) => {
-            const className = segment.completed ? "completed" : "in-progress";
-            return `<div class="transcription-segment ${className}">${segment.text}</div>`;
-          })
-          .join("");
+          const clearDictation = () => {
+            console.log("Clearing dictation window");
+            currentStatus.value = "idle";
+            isRecording.value = false;
+            resetTranscription();
+          };
 
-        transcriptionContainer.innerHTML = segmentsHtml;
-      }
+          // Setup IPC listeners
+          onMounted(() => {
+            window.electronAPI.onInitializeDictation(initializeDictation);
+            window.electronAPI.onStartRecording(startRecording);
+            window.electronAPI.onStopRecording(stopRecording);
+            window.electronAPI.onTranscriptionUpdate(updateTranscription);
+            window.electronAPI.onDictationComplete(completeDictation);
+            window.electronAPI.onDictationClear(clearDictation);
 
-      function updateStatusDisplay() {
-        statusText.classList.remove("listening", "transforming");
-        transcriptionContainer.classList.remove("listening", "transforming");
+            // Prevent window from being dragged
+            document.addEventListener("dragstart", (e) => e.preventDefault());
+          });
 
-        if (currentStatus === "listening") {
-          statusText.textContent = "Listening...";
-          statusText.classList.add("listening");
-          transcriptionContainer.classList.add("listening");
-        } else if (currentStatus === "transforming") {
-          statusText.textContent = "Transforming...";
-          statusText.classList.add("transforming");
-          transcriptionContainer.classList.add("transforming");
-        }
-      }
+          return {
+            // State
+            isRecording,
+            currentStatus,
+            selectedText,
+            transcriptionSegments,
+            finalText,
 
-      // Close button handler
-      closeButton.addEventListener("click", () => {
-        window.electronAPI.cancelDictation();
-      });
+            // Computed
+            micIconClass,
+            statusTextClass,
+            transcriptionContainerClass,
+            statusText,
 
-      // Prevent window from being dragged
-      document.addEventListener("dragstart", (e) => e.preventDefault());
+            // Methods
+            resetTranscription,
+            getSegmentClass,
+            getSegmentDisplayText,
+            handleClose,
+          };
+        },
+      }).mount("#app");
     </script>
   </body>
 </html>
