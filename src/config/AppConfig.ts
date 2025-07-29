@@ -18,6 +18,12 @@ export class AppConfig {
   showDictationWindowAlways: boolean;
   skipSelectedTextRetrieval: boolean; // New option for faster startup
 
+  // Text transformation configuration
+  transformToUppercase: boolean;
+  transformToLowercase: boolean;
+  transformCapitalize: boolean;
+  transformTrim: boolean;
+
   constructor() {
     this.modelPath = "";
     this.serverPort = 9090;
@@ -32,6 +38,12 @@ export class AppConfig {
     this.dictationWindowOpacity = 0.95;
     this.showDictationWindowAlways = false;
     this.skipSelectedTextRetrieval = false; // Set to true for fastest startup
+
+    // Text transformation defaults
+    this.transformToUppercase = true; // Default to uppercase transformation
+    this.transformToLowercase = false;
+    this.transformCapitalize = false;
+    this.transformTrim = true;
   }
 
   setCachePath(path: string): void {

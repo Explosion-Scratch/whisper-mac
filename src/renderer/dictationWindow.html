@@ -93,11 +93,6 @@
         display: inline-block;
       }
 
-      .text-segment.selected {
-        color: #007aff;
-        font-weight: 500;
-      }
-
       .text-segment.transcribed {
         color: #1d1d1f;
       }
@@ -180,10 +175,6 @@
           color: #f2f2f7;
         }
 
-        .text-segment.selected {
-          color: #0a84ff;
-        }
-
         .text-segment.transcribed {
           color: #f2f2f7;
         }
@@ -230,12 +221,6 @@
 
         <div class="text-scroll-container" ref="textScrollContainer">
           <div class="text-content" ref="textContent">
-            <span v-if="selectedText" class="text-segment selected">
-              [Selected: {{ selectedText }}]
-            </span>
-            <span v-if="selectedText && hasTranscription" class="separator"
-              >•</span
-            >
             <span
               v-for="(segment, index) in displaySegments"
               :key="segment.id || index"
@@ -245,7 +230,7 @@
               {{ getSegmentDisplayText(segment) }}
             </span>
             <span
-              v-if="displaySegments.length === 0 && !selectedText"
+              v-if="displaySegments.length === 0"
               class="text-segment in-progress"
             >
               Listening...
@@ -271,7 +256,6 @@
           // Reactive state
           const isRecording = ref(false);
           const currentStatus = ref("idle");
-          const selectedText = ref("");
           const transcriptionSegments = ref([]);
           const finalText = ref("");
 
@@ -314,7 +298,6 @@
           };
 
           const getSegmentClass = (segment) => {
-            if (segment.type === "selected") return "selected";
             if (segment.type === "transcribed") {
               return segment.completed ? "transcribed" : "in-progress";
             }
@@ -334,7 +317,6 @@
           // IPC event handlers
           const initializeDictation = (data) => {
             console.log("Initializing dictation with data:", data);
-            selectedText.value = data.selectedText?.trim() || "";
             resetTranscription();
           };
 
@@ -378,7 +360,7 @@
           };
 
           // Watch for changes and scroll to end
-          watch([displaySegments, selectedText], () => {
+          watch([displaySegments], () => {
             nextTick(() => {
               scrollToEnd();
             });
@@ -401,7 +383,6 @@
             // State
             isRecording,
             currentStatus,
-            selectedText,
             transcriptionSegments,
             finalText,
 

@@ -42,12 +42,13 @@ class WhisperMacApp {
     this.modelManager = new ModelManager(this.config);
     this.whisperClient = new WhisperLiveClient(this.config, this.modelManager);
     this.textInjector = new TextInjectionService();
-    this.transformationService = new TransformationService();
+    this.transformationService = new TransformationService(this.config);
     this.selectedTextService = new SelectedTextService();
     this.dictationWindowService = new DictationWindowService(this.config);
     this.segmentManager = new SegmentManager(
       this.transformationService,
-      this.textInjector
+      this.textInjector,
+      this.selectedTextService
     );
   }
 
@@ -283,40 +284,19 @@ class WhisperMacApp {
       const clearTime = Date.now();
       console.log(`Clear segments: ${clearTime - startTime}ms`);
 
-      // 2. Get selected text (optional based on config)
-      let selectedTextResult;
-      if (this.config.skipSelectedTextRetrieval) {
-        console.log("Skipping selected text retrieval for faster startup");
-        selectedTextResult = { text: "", hasSelection: false };
-      } else {
-        const textStartTime = Date.now();
-        selectedTextResult = await this.selectedTextService.getSelectedText();
-        const textEndTime = Date.now();
-        console.log(
-          `Selected text retrieval: ${textEndTime - textStartTime}ms`
-        );
-        console.log("Selected text result:", selectedTextResult);
-      }
-
-      // Add selected text as a segment
-      this.segmentManager.addSelectedSegment(
-        selectedTextResult.text,
-        selectedTextResult.hasSelection
-      );
-
-      // 3. Show dictation window (pre-loaded for instant display)
+      // 2. Show dictation window (pre-loaded for instant display)
       const windowStartTime = Date.now();
-      await this.dictationWindowService.showDictationWindow(selectedTextResult);
+      await this.dictationWindowService.showDictationWindow();
       const windowEndTime = Date.now();
       console.log(`Window display: ${windowEndTime - windowStartTime}ms`);
 
-      // 4. Start recording visuals and audio capture
+      // 3. Start recording visuals and audio capture
       this.isRecording = true;
       this.updateTrayIcon("recording");
       this.dictationWindowService.startRecording();
       await this.audioService.startCapture();
 
-      // 5. Start WhisperLive transcription with real-time updates
+      // 4. Start WhisperLive transcription with real-time updates
       await this.whisperClient.startTranscription(async (update) => {
         // Update dictation window with real-time transcription
         this.dictationWindowService.updateTranscription(update);
@@ -324,7 +304,7 @@ class WhisperMacApp {
         await this.processSegments(update);
       });
 
-      // 6. Connect audio data from capture service to WhisperLive client
+      // 5. Connect audio data from capture service to WhisperLive client
       this.audioService.setAudioDataCallback((audioData: Float32Array) => {
         this.whisperClient.sendAudioData(audioData);
       });
