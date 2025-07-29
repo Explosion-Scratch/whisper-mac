@@ -8,11 +8,11 @@ export interface SelectedTextResult {
 }
 
 export class SelectedTextService {
-  private getClipboardContent(): string {
+  getClipboardContent(): string {
     return clipboard.readText();
   }
 
-  private setClipboardContent(text: string): void {
+  setClipboardContent(text: string): void {
     clipboard.writeText(text);
   }
 

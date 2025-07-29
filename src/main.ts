@@ -289,18 +289,18 @@ class WhisperMacApp {
       // 1. Clear any existing segments and stored selected text
       this.segmentManager.clearAllSegments();
 
-      // 1b. Get selected text ONCE at the start of dictation
-      if (!this.config.skipSelectedTextRetrieval) {
-        console.log("Retrieving selected text...");
-        const selection = await this.selectedTextService.getSelectedText();
-        if (selection.hasSelection) {
-          // Store it in the manager instead of adding a segment
-          this.segmentManager.setInitialSelectedText(selection.text);
-        }
-        if (selection.originalClipboard) {
-          this.segmentManager.setOriginalClipboard(selection.originalClipboard);
-        }
-      }
+      // // 1b. Get selected text ONCE at the start of dictation
+      // if (!this.config.skipSelectedTextRetrieval) {
+      //   console.log("Retrieving selected text...");
+      //   const selection = await this.selectedTextService.getSelectedText();
+      //   if (selection.hasSelection) {
+      //     // Store it in the manager instead of adding a segment
+      //     this.segmentManager.setInitialSelectedText(selection.text);
+      //   }
+      //   if (selection.originalClipboard) {
+      //     this.segmentManager.setOriginalClipboard(selection.originalClipboard);
+      //   }
+      // }
 
       const setupTime = Date.now();
       console.log(`Clear segments & get selection: ${setupTime - startTime}ms`);
