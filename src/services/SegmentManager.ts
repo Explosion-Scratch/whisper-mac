@@ -8,7 +8,7 @@ import {
 } from "../types/SegmentTypes";
 import { TransformationService } from "./TransformationService";
 import { TextInjectionService } from "./TextInjectionService";
-import { SelectedTextService } from "./SelectedTextService";
+import { SelectedTextResult, SelectedTextService } from "./SelectedTextService";
 import { clipboard } from "electron";
 
 export class SegmentManager extends EventEmitter {
@@ -119,6 +119,19 @@ export class SegmentManager extends EventEmitter {
     return segment;
   }
 
+  private async saveState(): Promise<SelectedTextResult> {
+    return await this.selectedTextService.getSelectedText();
+  }
+
+  private async restoreState(state: SelectedTextResult): Promise<void> {
+    if (!this.selectedTextService) {
+      return;
+    }
+    if (state.originalClipboard) {
+      this.selectedTextService.setClipboardContent(state.originalClipboard);
+    }
+  }
+
   /**
    * Processes segments and injects them.
    * On a partial flush (includeInProgress=false), it only processes completed segments.
@@ -127,6 +140,13 @@ export class SegmentManager extends EventEmitter {
   async flushSegments(
     includeInProgress: boolean = false
   ): Promise<FlushResult> {
+    const SAVED_STATE = await this.saveState();
+    const RESTORE_STATE = async () => {
+      console.log("Restoring state");
+      await this.restoreState(SAVED_STATE);
+      console.log("State restored");
+    };
+    console.log("SAVED_STATE", SAVED_STATE);
     try {
       console.log(
         `[SegmentManager] Starting flush operation (includeInProgress: ${includeInProgress})`
@@ -178,7 +198,9 @@ export class SegmentManager extends EventEmitter {
 
       const transformedText = transformResult.transformedText;
       if (transformedText) {
-        await this.textInjectionService.insertText(transformedText + " ");
+        this.textInjectionService
+          .insertText(transformedText + " ")
+          .then(RESTORE_STATE);
         console.log(`[SegmentManager] Injected text: "${transformedText}"`);
       }
 
@@ -210,16 +232,7 @@ export class SegmentManager extends EventEmitter {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       };
-    } finally {
-      // Restore original clipboard after a delay
-      console.log("Scheduling clipboard restoration...");
-      setTimeout(() => {
-        console.log("Restoring original clipboard content...");
-        if (this.originalClipboard) {
-          clipboard.writeText(this.originalClipboard);
-        }
-        console.log("Clipboard restored successfully");
-      }, 1000);
+      RESTORE_STATE();
     }
   }
 

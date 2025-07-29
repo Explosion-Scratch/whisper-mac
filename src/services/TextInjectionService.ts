@@ -76,10 +76,6 @@ export class TextInjectionService {
     console.log("=== TextInjectionService.copyToClipboardOnly ===");
     console.log("Copying text to clipboard only:", text);
 
-    // Store original clipboard content
-    const originalClipboard = clipboard.readText();
-    console.log("Original clipboard content:", originalClipboard);
-
     try {
       // Copy new text to clipboard
       clipboard.writeText(text);
@@ -170,16 +166,11 @@ Until then, text will be copied to clipboard for manual pasting." buttons {"OK"}
     console.log("Text to paste:", text);
     console.log("Text length:", text.length);
 
-    // Store original clipboard content
-    const originalClipboard = clipboard.readText();
-    console.log("Original clipboard content:", originalClipboard);
-    console.log("Original clipboard length:", originalClipboard.length);
-
     try {
       console.log("Copying text to clipboard...");
       // Copy new text to clipboard
       clipboard.writeText(text);
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 50));
       console.log("Text copied to clipboard successfully");
 
       // Paste the text (will replace selection if any, or insert at cursor)
@@ -210,6 +201,8 @@ Until then, text will be copied to clipboard for manual pasting." buttons {"OK"}
 
     try {
       await this.runAppleScript(script);
+      // WAITING FOR PASTE TO COMPLETE
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       console.log("AppleScript paste operation completed successfully");
     } catch (error) {
       console.error("=== TextInjectionService.pasteFromClipboard ERROR ===");
