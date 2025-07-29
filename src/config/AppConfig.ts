@@ -33,8 +33,8 @@ export class AppConfig {
 
     // Dictation window defaults
     this.dictationWindowPosition = "screen-corner";
-    this.dictationWindowWidth = 300;
-    this.dictationWindowHeight = 120;
+    this.dictationWindowWidth = 400;
+    this.dictationWindowHeight = 50;
     this.dictationWindowOpacity = 0.95;
     this.showDictationWindowAlways = false;
     this.skipSelectedTextRetrieval = false; // Set to true for fastest startup
