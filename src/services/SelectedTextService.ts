@@ -19,9 +19,7 @@ export class SelectedTextService {
   async getSelectedText(): Promise<SelectedTextResult> {
     console.log("=== SelectedTextService.getSelectedText ===");
 
-    // Store original clipboard content
     const originalClipboard = this.getClipboardContent();
-    console.log("Original clipboard content:", originalClipboard);
 
     try {
       // Set a unique marker to detect if clipboard changes

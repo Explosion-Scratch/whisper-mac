@@ -196,10 +196,12 @@ export class WhisperLiveClient {
       // Send initial configuration message according to protocol
       const configMessage = {
         uid: this.sessionUid,
-        language: null, // auto-detect
+        language: "en",
         task: "transcribe",
         model: this.config.defaultModel,
         use_vad: true,
+        same_output_threshold: 3,
+        no_speech_thresh: 0.6,
       };
 
       this.websocket?.send(JSON.stringify(configMessage));
