@@ -76,8 +76,27 @@ class WhisperMacApp {
     this.registerGlobalShortcuts();
     this.setupIpcHandlers();
 
+    // Pre-load windows for faster startup
+    console.log("Pre-loading windows for faster startup...");
+    await this.preloadWindows();
+
     // Hide dock icon for menu bar only app
     app.dock?.hide();
+  }
+
+  private async preloadWindows(): Promise<void> {
+    try {
+      // Pre-load dictation window
+      await this.dictationWindowService.preloadWindow();
+
+      // Pre-load audio capture window
+      await this.audioService.preloadWindow();
+
+      console.log("Windows pre-loaded successfully");
+    } catch (error) {
+      console.error("Failed to pre-load windows:", error);
+      // Don't fail the entire initialization if pre-loading fails
+    }
   }
 
   private setupIpcHandlers() {
@@ -181,7 +200,7 @@ class WhisperMacApp {
       {
         label: "Start Dictation",
         click: () => this.toggleRecording(),
-        accelerator: "Cmd+Shift+D",
+        accelerator: "Ctrl+D",
       },
       { type: "separator" },
       {
@@ -208,12 +227,12 @@ class WhisperMacApp {
     globalShortcut.unregisterAll();
 
     // Primary shortcut for dictation
-    const success1 = globalShortcut.register("CommandOrControl+Shift+D", () => {
-      console.log("CommandOrControl+Shift+D is pressed");
+    const success1 = globalShortcut.register("Control+D", () => {
+      console.log("Control+D is pressed");
       this.toggleRecording();
     });
 
-    // Alternative shortcut
+    // Alternative shortcut (keeping one backup)
     const success2 = globalShortcut.register(
       "CommandOrControl+Option+Space",
       () => {
@@ -224,7 +243,7 @@ class WhisperMacApp {
 
     // Log if registration failed
     if (!success1) {
-      console.error("Failed to register CommandOrControl+Shift+D shortcut");
+      console.error("Failed to register Control+D shortcut");
     }
 
     if (!success2) {
@@ -236,7 +255,7 @@ class WhisperMacApp {
     // Log all registered shortcuts
     console.log(
       "Registered shortcuts:",
-      globalShortcut.isRegistered("CommandOrControl+Shift+D")
+      globalShortcut.isRegistered("Control+D")
     );
   }
 
@@ -255,16 +274,29 @@ class WhisperMacApp {
 
   private async startDictation() {
     if (this.isRecording) return;
+    const startTime = Date.now();
     try {
       console.log("=== Starting dictation process ===");
 
       // 1. Clear any existing segments
       this.segmentManager.clearAllSegments();
+      const clearTime = Date.now();
+      console.log(`Clear segments: ${clearTime - startTime}ms`);
 
-      // 2. Get selected text and add as selected segment
-      const selectedTextResult =
-        await this.selectedTextService.getSelectedText();
-      console.log("Selected text result:", selectedTextResult);
+      // 2. Get selected text (optional based on config)
+      let selectedTextResult;
+      if (this.config.skipSelectedTextRetrieval) {
+        console.log("Skipping selected text retrieval for faster startup");
+        selectedTextResult = { text: "", hasSelection: false };
+      } else {
+        const textStartTime = Date.now();
+        selectedTextResult = await this.selectedTextService.getSelectedText();
+        const textEndTime = Date.now();
+        console.log(
+          `Selected text retrieval: ${textEndTime - textStartTime}ms`
+        );
+        console.log("Selected text result:", selectedTextResult);
+      }
 
       // Add selected text as a segment
       this.segmentManager.addSelectedSegment(
@@ -272,8 +304,11 @@ class WhisperMacApp {
         selectedTextResult.hasSelection
       );
 
-      // 3. Show dictation window
+      // 3. Show dictation window (pre-loaded for instant display)
+      const windowStartTime = Date.now();
       await this.dictationWindowService.showDictationWindow(selectedTextResult);
+      const windowEndTime = Date.now();
+      console.log(`Window display: ${windowEndTime - windowStartTime}ms`);
 
       // 4. Start recording visuals and audio capture
       this.isRecording = true;
@@ -294,7 +329,8 @@ class WhisperMacApp {
         this.whisperClient.sendAudioData(audioData);
       });
 
-      console.log("=== Dictation started successfully ===");
+      const totalTime = Date.now() - startTime;
+      console.log(`=== Dictation started successfully in ${totalTime}ms ===`);
     } catch (error) {
       console.error("Failed to start dictation:", error);
       await this.cancelDictationFlow();
@@ -302,7 +338,7 @@ class WhisperMacApp {
   }
 
   private async processSegments(update: SegmentUpdate): Promise<void> {
-    // Add new transcribed segments to the segment manager
+    // Process transcribed segments (completed segments go to segment manager)
     const transcribedSegments = update.segments.filter(
       (s) => s.type === "transcribed"
     );
@@ -319,12 +355,19 @@ class WhisperMacApp {
       }
     }
 
-    // Get all segments for display
+    // Get all segments for display (including in-progress from update)
     const allSegments = this.segmentManager.getAllSegments();
+
+    // Add in-progress segments from the update to the display
+    const inProgressSegments = update.segments.filter(
+      (s) => s.type === "inprogress"
+    );
+
+    const displaySegments = [...allSegments, ...inProgressSegments];
 
     // Update dictation window with all segments
     this.dictationWindowService.updateTranscription({
-      segments: allSegments,
+      segments: displaySegments,
       status: update.status,
     });
 
@@ -339,6 +382,13 @@ class WhisperMacApp {
         console.log(
           `Successfully flushed ${flushResult.segmentsProcessed} segments`
         );
+
+        // After successful flush, reset status to "listening" to indicate ready for more transcription
+        const remainingSegments = this.segmentManager.getAllSegments();
+        this.dictationWindowService.updateTranscription({
+          segments: remainingSegments,
+          status: "listening",
+        });
       } else {
         console.error("Flush failed:", flushResult.error);
       }
@@ -381,7 +431,14 @@ class WhisperMacApp {
           this.dictationWindowService.clearTranscription();
         }, 1500);
       } else {
-        this.dictationWindowService.closeDictationWindow();
+        // Reset status to listening if no final text
+        this.dictationWindowService.updateTranscription({
+          segments: [],
+          status: "listening",
+        });
+        setTimeout(() => {
+          this.dictationWindowService.closeDictationWindow();
+        }, 1000);
       }
 
       // Clear all segments
