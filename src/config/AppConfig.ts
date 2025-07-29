@@ -27,7 +27,7 @@ export class AppConfig {
   constructor() {
     this.modelPath = "";
     this.serverPort = 9090;
-    this.defaultModel = "Systran/faster-whisper-tiny";
+    this.defaultModel = "Systran/faster-whisper-tiny.en";
     this.cachePath = "";
     this.dataDir = join(__dirname, "../../.whispermac-data");
 
