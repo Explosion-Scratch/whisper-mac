@@ -288,8 +288,19 @@ class WhisperMacApp {
 
       // 1. Clear any existing segments
       this.segmentManager.clearAllSegments();
-      const clearTime = Date.now();
-      console.log(`Clear segments: ${clearTime - startTime}ms`);
+
+      // 1b. Get selected text ONCE at the start of dictation
+      if (!this.config.skipSelectedTextRetrieval) {
+        console.log("Retrieving selected text...");
+        const selection = await this.selectedTextService.getSelectedText();
+        if (selection.hasSelection) {
+          this.segmentManager.addSelectedSegment(selection.text, true);
+          console.log(`Added selected text segment: "${selection.text}"`);
+        }
+      }
+
+      const setupTime = Date.now();
+      console.log(`Clear segments & get selection: ${setupTime - startTime}ms`);
 
       // 2. Show dictation window (pre-loaded for instant display)
       const windowStartTime = Date.now();
@@ -325,6 +336,10 @@ class WhisperMacApp {
   }
 
   private async processSegments(update: SegmentUpdate): Promise<void> {
+    // Clear previous in-progress segments from the manager before adding new ones.
+    // This prevents the accumulation of outdated, partial transcriptions.
+    this.segmentManager.clearInProgressSegments();
+
     // Process both transcribed and in-progress segments
     const transcribedSegments = update.segments.filter(
       (s) => s.type === "transcribed"
@@ -380,7 +395,8 @@ class WhisperMacApp {
       this.segmentManager.getCompletedTranscribedSegments();
     if (completedSegments.length > 0) {
       console.log(`Flushing ${completedSegments.length} completed segments`);
-      const flushResult = await this.segmentManager.flushSegments();
+      // A partial flush only processes completed segments, not the selected text.
+      const flushResult = await this.segmentManager.flushSegments(false);
 
       if (flushResult.success) {
         console.log(
@@ -482,15 +498,22 @@ class WhisperMacApp {
         this.segmentManager.getInProgressTranscribedSegments();
       const completedSegments =
         this.segmentManager.getCompletedTranscribedSegments();
+      const selectedSegment = this.segmentManager.getSelectedSegment();
 
-      if (inProgressSegments.length === 0 && completedSegments.length === 0) {
+      if (
+        !selectedSegment &&
+        inProgressSegments.length === 0 &&
+        completedSegments.length === 0
+      ) {
         console.log("No segments found, stopping dictation immediately");
         await this.stopDictation();
         return;
       }
 
       console.log(
-        `Found ${inProgressSegments.length} in-progress and ${completedSegments.length} completed segments`
+        `Found ${inProgressSegments.length} in-progress, ${
+          completedSegments.length
+        } completed, and ${selectedSegment ? 1 : 0} selected segments`
       );
       console.log(
         "=== Finishing current dictation (waiting for completion) ==="
@@ -535,6 +558,16 @@ class WhisperMacApp {
       if (this.finishingTimeout) {
         clearTimeout(this.finishingTimeout);
         this.finishingTimeout = null;
+      }
+
+      if (this.isFinishing) {
+        // If we are still in finishing mode, it means processSegments didn't trigger a final flush.
+        // This can happen if the last utterance doesn't end with a completed segment.
+        // We need to trigger a final flush manually.
+        console.log(
+          "No final completed segment received, performing final flush manually..."
+        );
+        await this.segmentManager.flushAllSegments();
       }
 
       // Reset states

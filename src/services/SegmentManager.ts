@@ -174,84 +174,47 @@ export class SegmentManager extends EventEmitter {
   }
 
   /**
-   * Get current selected text from the system (for transformation step)
-   */
-  async getCurrentSelectedText(): Promise<string> {
-    try {
-      const result = await this.selectedTextService.getSelectedText();
-      return result.text.trim();
-    } catch (error) {
-      console.error(
-        "[SegmentManager] Failed to get current selected text:",
-        error
-      );
-      return "";
-    }
-  }
-
-  /**
-   * Unified flush method that gets selected text during transformation
+   * Unified flush method that uses the manager's internal state.
+   * It no longer fetches selected text.
    */
   async flushSegments(
     includeInProgress: boolean = false
   ): Promise<FlushResult> {
     try {
-      console.log("[SegmentManager] Starting unified flush operation...");
+      console.log("[SegmentManager] Starting flush operation...");
 
-      // Get segments to process
-      let segmentsToProcess: Segment[] = [];
+      // Determine which segments to process based on the manager's state
+      const selectedSegment = this.getSelectedSegment();
+      let transcribedToProcess: TranscribedSegment[];
 
       if (includeInProgress) {
-        // Include all transcribed segments (completed and in-progress)
-        segmentsToProcess = this.segments.filter(
+        // Full flush: get all transcribed segments (completed and in-progress)
+        transcribedToProcess = this.segments.filter(
           (s) => s.type === "transcribed"
-        );
+        ) as TranscribedSegment[];
       } else {
-        // Only completed transcribed segments
-        segmentsToProcess = this.getCompletedTranscribedSegments();
+        // Partial flush: get only completed transcribed segments
+        transcribedToProcess = this.getCompletedTranscribedSegments();
       }
 
-      if (segmentsToProcess.length === 0) {
+      const segmentsToTransform: Segment[] = [];
+      if (selectedSegment) {
+        segmentsToTransform.push(selectedSegment);
+      }
+      segmentsToTransform.push(...transcribedToProcess);
+
+      if (segmentsToTransform.length === 0) {
         console.log("[SegmentManager] No segments to flush");
-        return {
-          transformedText: "",
-          segmentsProcessed: 0,
-          success: true,
-        };
+        return { transformedText: "", segmentsProcessed: 0, success: true };
       }
 
       console.log(
-        `[SegmentManager] Flushing ${segmentsToProcess.length} segments`
+        `[SegmentManager] Flushing ${segmentsToTransform.length} segments`
       );
-
-      // Get current selected text and add it as a segment for transformation
-      const currentSelectedText = await this.getCurrentSelectedText();
-      const allSegmentsForTransformation: Segment[] = [];
-
-      // Add selected text segment if there is selected text
-      if (currentSelectedText) {
-        const selectedSegment: SelectedSegment = {
-          id: uuidv4(),
-          type: "selected",
-          text: currentSelectedText,
-          originalText: currentSelectedText,
-          hasSelection: true,
-          timestamp: Date.now(),
-        };
-        allSegmentsForTransformation.push(selectedSegment);
-        console.log(
-          `[SegmentManager] Added current selected text: "${currentSelectedText}"`
-        );
-      }
-
-      // Add transcribed segments
-      allSegmentsForTransformation.push(...segmentsToProcess);
 
       // Transform all segments using the new unified method
       const transformResult =
-        await this.transformationService.transformSegments(
-          allSegmentsForTransformation
-        );
+        await this.transformationService.transformSegments(segmentsToTransform);
 
       if (!transformResult.success) {
         console.error(
@@ -276,17 +239,18 @@ export class SegmentManager extends EventEmitter {
 
       // Remove the processed segments from state
       if (includeInProgress) {
-        // Clear all segments for full flush
+        // Full flush, clear everything
         this.segments = [];
       } else {
-        // Remove only completed transcribed segments
+        // Partial flush, remove only the completed transcribed segments.
+        // The selected segment and in-progress segments remain.
         this.segments = this.segments.filter(
           (s) => !(s.type === "transcribed" && s.completed)
         );
       }
 
       console.log(
-        `[SegmentManager] Flush completed successfully. Remaining segments: ${this.segments.length}`
+        `[SegmentManager] Flush completed. Remaining segments: ${this.segments.length}`
       );
 
       return {
@@ -306,7 +270,7 @@ export class SegmentManager extends EventEmitter {
   }
 
   /**
-   * Flush all segments (including selected and in-progress) - now uses unified method
+   * Flush all segments (including selected and in-progress)
    */
   async flushAllSegments(): Promise<FlushResult> {
     return this.flushSegments(true);
@@ -321,6 +285,24 @@ export class SegmentManager extends EventEmitter {
     );
     this.segments = [];
     this.emit("segments-cleared");
+  }
+
+  /**
+   * Clear only the in-progress transcribed segments
+   */
+  clearInProgressSegments(): void {
+    const originalCount = this.segments.length;
+    // An in-progress segment is stored as type: 'transcribed' with completed: false
+    this.segments = this.segments.filter(
+      (s) => !(s.type === "transcribed" && s.completed === false)
+    );
+    if (this.segments.length < originalCount) {
+      console.log(
+        `[SegmentManager] Cleared ${
+          originalCount - this.segments.length
+        } old in-progress segments.`
+      );
+    }
   }
 
   /**
