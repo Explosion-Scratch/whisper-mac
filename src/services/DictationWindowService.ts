@@ -2,7 +2,7 @@ import { BrowserWindow, screen, app } from "electron";
 import { join } from "path";
 import { AppConfig } from "../config/AppConfig";
 import { SelectedTextResult } from "./SelectedTextService";
-import { TranscriptionSegment, TranscriptionUpdate } from "./WhisperLiveClient";
+import { Segment, SegmentUpdate } from "../types/SegmentTypes";
 
 export interface WindowPosition {
   x: number;
@@ -12,7 +12,7 @@ export interface WindowPosition {
 export class DictationWindowService {
   private dictationWindow: BrowserWindow | null = null;
   private config: AppConfig;
-  private currentSegments: TranscriptionSegment[] = [];
+  private currentSegments: Segment[] = [];
   private currentStatus: "listening" | "transforming" = "listening";
 
   constructor(config: AppConfig) {
@@ -220,7 +220,7 @@ export class DictationWindowService {
     }
   }
 
-  updateTranscription(update: TranscriptionUpdate): void {
+  updateTranscription(update: SegmentUpdate): void {
     this.currentSegments = update.segments;
     this.currentStatus = update.status;
 
@@ -280,7 +280,7 @@ export class DictationWindowService {
     return this.currentSegments.map((segment) => segment.text).join(" ");
   }
 
-  getCurrentSegments(): TranscriptionSegment[] {
+  getCurrentSegments(): Segment[] {
     return this.currentSegments;
   }
 

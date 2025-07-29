@@ -5,29 +5,22 @@ import { AppConfig } from "../config/AppConfig";
 import { ModelManager } from "./ModelManager";
 import { existsSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
-
-export interface TranscriptionSegment {
-  text: string;
-  completed: boolean;
-  start?: number;
-  end?: number;
-}
-
-export interface TranscriptionUpdate {
-  segments: TranscriptionSegment[];
-  status: "listening" | "transforming";
-}
+import {
+  Segment,
+  TranscribedSegment,
+  InProgressSegment,
+  SegmentUpdate,
+} from "../types/SegmentTypes";
 
 export class WhisperLiveClient {
   private serverProcess: ChildProcess | null = null;
   private websocket: WebSocket | null = null;
   private config: AppConfig;
   private modelManager: ModelManager;
-  private onTranscriptionCallback:
-    | ((update: TranscriptionUpdate) => void)
-    | null = null;
+  private onTranscriptionCallback: ((update: SegmentUpdate) => void) | null =
+    null;
   private sessionUid: string = "";
-  private currentSegments: TranscriptionSegment[] = [];
+  private currentSegments: Segment[] = [];
 
   constructor(config: AppConfig, modelManager: ModelManager) {
     this.config = config;
@@ -186,7 +179,7 @@ export class WhisperLiveClient {
    * WebSocket client logic following the protocol specification
    * ---------------------------------------------------------- */
   async startTranscription(
-    onTranscription: (update: TranscriptionUpdate) => void
+    onTranscription: (update: SegmentUpdate) => void
   ): Promise<void> {
     this.onTranscriptionCallback = onTranscription;
     this.sessionUid = uuidv4();
@@ -248,38 +241,110 @@ export class WhisperLiveClient {
   }
 
   private updateSegments(serverSegments: any[]): void {
-    // Update our segments based on server response
-    const newSegments: TranscriptionSegment[] = [];
+    console.log(
+      `[WhisperLiveClient] Received ${serverSegments.length} segments from server`
+    );
+
+    // Convert server segments to our segment format
+    const newSegments: Segment[] = [];
 
     serverSegments.forEach((segment: any) => {
       if (segment.text) {
-        newSegments.push({
-          text: segment.text,
-          completed: segment.completed || false,
-          start: segment.start,
-          end: segment.end,
-        });
+        const isCompleted = segment.completed || false;
+
+        // Only check for duplicates if this is a completed segment
+        if (isCompleted) {
+          // Create a unique key for this segment based on content and timing
+          const segmentKey = `${segment.start}-${
+            segment.end
+          }-${segment.text.trim()}`;
+
+          // Skip if we've already processed this completed segment
+          if (
+            this.currentSegments.some((s) => {
+              if (s.type !== "transcribed" || !s.completed) return false;
+              const existingKey = `${s.start}-${s.end}-${s.text.trim()}`;
+              return existingKey === segmentKey;
+            })
+          ) {
+            console.log(
+              `[WhisperLiveClient] Skipping duplicate completed segment: "${segment.text.trim()}"`
+            );
+            return;
+          }
+        }
+
+        console.log(
+          `[WhisperLiveClient] Processing new segment: "${segment.text.trim()}" (completed: ${isCompleted})`
+        );
+
+        if (isCompleted) {
+          // Create a TranscribedSegment
+          const transcribedSegment: TranscribedSegment = {
+            id: uuidv4(),
+            type: "transcribed",
+            text: segment.text,
+            completed: true,
+            start: segment.start,
+            end: segment.end,
+            timestamp: Date.now(),
+          };
+          newSegments.push(transcribedSegment);
+        } else {
+          // Create an InProgressSegment
+          const inProgressSegment: InProgressSegment = {
+            id: uuidv4(),
+            type: "inprogress",
+            text: segment.text,
+            completed: false,
+            start: segment.start,
+            end: segment.end,
+            timestamp: Date.now(),
+          };
+          newSegments.push(inProgressSegment);
+        }
       }
     });
 
-    // Merge new segments with existing ones to handle multiple segments
-    this.currentSegments = [...this.currentSegments, ...newSegments];
+    // Only send update if we have new segments
+    if (newSegments.length > 0) {
+      console.log(
+        `[WhisperLiveClient] Sending ${newSegments.length} new segments to callback`
+      );
 
-    // Determine status based on segments
-    const status: "listening" | "transforming" = newSegments.some(
-      (s) => s.completed
-    )
-      ? "transforming"
-      : "listening";
+      // Update our current segments tracking - only track completed segments for deduplication
+      this.currentSegments = serverSegments
+        .filter((segment: any) => segment.completed) // Only track completed segments
+        .map((segment: any) => {
+          return {
+            id: uuidv4(),
+            type: "transcribed" as const,
+            text: segment.text,
+            completed: true,
+            start: segment.start,
+            end: segment.end,
+            timestamp: Date.now(),
+          } as TranscribedSegment;
+        });
 
-    // Send update to callback with all segments
-    this.onTranscriptionCallback?.({
-      segments: this.currentSegments,
-      status,
-    });
+      // Determine status based on segments
+      const status: "listening" | "transforming" = newSegments.some(
+        (s) => s.type === "transcribed" && s.completed
+      )
+        ? "transforming"
+        : "listening";
+
+      // Send update to callback with new segments only
+      this.onTranscriptionCallback?.({
+        segments: newSegments,
+        status,
+      });
+    } else {
+      console.log(`[WhisperLiveClient] No new segments to process`);
+    }
   }
 
-  getCurrentSegments(): TranscriptionSegment[] {
+  getCurrentSegments(): Segment[] {
     return this.currentSegments;
   }
 
