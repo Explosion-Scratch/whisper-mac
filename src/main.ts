@@ -297,6 +297,9 @@ class WhisperMacApp {
           // Store it in the manager instead of adding a segment
           this.segmentManager.setInitialSelectedText(selection.text);
         }
+        if (selection.originalClipboard) {
+          this.segmentManager.setOriginalClipboard(selection.originalClipboard);
+        }
       }
 
       const setupTime = Date.now();
@@ -390,24 +393,24 @@ class WhisperMacApp {
     const completedSegments =
       this.segmentManager.getCompletedTranscribedSegments();
     if (completedSegments.length > 0) {
+      // If we are in finishing mode, the arrival of a completed segment
+      // triggers the final flush and completion.
+      if (this.isFinishing) {
+        console.log(
+          "=== Finishing mode: final segment received, completing dictation ==="
+        );
+        await this.completeDictationAfterFinishing();
+        return; // Exit early, the final flush is handled in completeDictationAfterFinishing
+      }
+
+      // If not finishing, perform a partial flush for continuous dictation.
       console.log(`Flushing ${completedSegments.length} completed segments`);
-      // A partial flush only processes completed segments.
       const flushResult = await this.segmentManager.flushSegments(false);
 
       if (flushResult.success) {
         console.log(
           `Successfully flushed ${flushResult.segmentsProcessed} segments`
         );
-
-        // Check if we're in finishing mode and should complete the dictation
-        if (this.isFinishing) {
-          console.log(
-            "=== Finishing mode: completing dictation after flush ==="
-          );
-          await this.completeDictationAfterFinishing();
-          return; // Exit early since we're done
-        }
-
         // After successful flush, reset status to "listening" to indicate ready for more transcription
         const remainingSegments = this.segmentManager.getAllSegments();
         this.dictationWindowService.updateTranscription({

@@ -88,14 +88,10 @@ export class TextInjectionService {
 
       // Show a notification or alert to the user
       await this.showClipboardNotification();
-    } finally {
-      // Restore original clipboard after a longer delay for manual paste
-      console.log("Scheduling clipboard restoration...");
-      setTimeout(() => {
-        console.log("Restoring original clipboard content...");
-        clipboard.writeText(originalClipboard);
-        console.log("Clipboard restored successfully");
-      }, 5000); // 5 seconds to allow manual paste
+    } catch (error) {
+      console.error("=== TextInjectionService.copyToClipboardOnly ERROR ===");
+      console.error("Failed to copy text to clipboard:", error);
+      throw error;
     }
   }
 
@@ -197,14 +193,6 @@ Until then, text will be copied to clipboard for manual pasting." buttons {"OK"}
       console.error("Error during paste operation:", error);
       console.error("Text that failed to paste:", text);
       throw error;
-    } finally {
-      // Restore original clipboard after a delay
-      console.log("Scheduling clipboard restoration...");
-      setTimeout(() => {
-        console.log("Restoring original clipboard content...");
-        clipboard.writeText(originalClipboard);
-        console.log("Clipboard restored successfully");
-      }, 1000);
     }
   }
 
