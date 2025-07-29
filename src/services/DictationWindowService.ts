@@ -1,7 +1,6 @@
 import { BrowserWindow, screen, app } from "electron";
 import { join } from "path";
 import { AppConfig } from "../config/AppConfig";
-import { SelectedTextResult } from "./SelectedTextService";
 import { Segment, SegmentUpdate } from "../types/SegmentTypes";
 
 export interface WindowPosition {
@@ -19,17 +18,15 @@ export class DictationWindowService {
     this.config = config;
   }
 
-  async showDictationWindow(
-    selectedTextResult: SelectedTextResult
-  ): Promise<void> {
+  async showDictationWindow(): Promise<void> {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
-      // Window already exists, just show it and update with new data
-      this.dictationWindow.show();
+      // Window already exists, just show it
+      this.dictationWindow.showInactive();
 
-      // Initialize the window with selected text data
+      // Initialize the window with empty data (no selected text)
       this.dictationWindow.webContents.send("initialize-dictation", {
-        selectedText: selectedTextResult.text,
-        hasSelection: selectedTextResult.hasSelection,
+        selectedText: "",
+        hasSelection: false,
       });
 
       return;
@@ -38,10 +35,10 @@ export class DictationWindowService {
     // Create new window if pre-loaded one doesn't exist
     await this.createDictationWindow();
 
-    // Initialize the window with selected text data
+    // Initialize the window with empty data (no selected text)
     this.dictationWindow!.webContents.send("initialize-dictation", {
-      selectedText: selectedTextResult.text,
-      hasSelection: selectedTextResult.hasSelection,
+      selectedText: "",
+      hasSelection: false,
     });
 
     this.dictationWindow!.showInactive();
@@ -355,8 +352,7 @@ export class DictationWindowService {
 
   showWindow(): void {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
-      this.dictationWindow.show();
-      this.dictationWindow.focus();
+      this.dictationWindow.showInactive();
     }
   }
 
