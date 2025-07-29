@@ -277,7 +277,29 @@
                 { type: "transcribed", text: finalText.value, completed: true },
               ];
             }
-            return transcriptionSegments.value;
+
+            // Filter segments to only show the last in-progress segment
+            const segments = transcriptionSegments.value;
+            const completedSegments = segments.filter(
+              (segment) => segment.type === "transcribed" && segment.completed
+            );
+
+            // Find the last in-progress segment
+            const lastInProgressSegment = segments
+              .filter(
+                (segment) =>
+                  segment.type === "inprogress" ||
+                  (!segment.completed && segment.type === "transcribed")
+              )
+              .pop();
+
+            // Combine completed segments with the last in-progress segment
+            const result = [...completedSegments];
+            if (lastInProgressSegment) {
+              result.push(lastInProgressSegment);
+            }
+
+            return result;
           });
 
           const textContent = ref(null);

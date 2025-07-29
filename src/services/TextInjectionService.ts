@@ -183,6 +183,7 @@ Until then, text will be copied to clipboard for manual pasting." buttons {"OK"}
       console.log("Copying text to clipboard...");
       // Copy new text to clipboard
       clipboard.writeText(text);
+      await new Promise((resolve) => setTimeout(resolve, 500));
       console.log("Text copied to clipboard successfully");
 
       // Paste the text (will replace selection if any, or insert at cursor)

@@ -325,11 +325,15 @@ class WhisperMacApp {
   }
 
   private async processSegments(update: SegmentUpdate): Promise<void> {
-    // Process transcribed segments (completed segments go to segment manager)
+    // Process both transcribed and in-progress segments
     const transcribedSegments = update.segments.filter(
       (s) => s.type === "transcribed"
     );
+    const inProgressSegments = update.segments.filter(
+      (s) => s.type === "inprogress"
+    );
 
+    // Add transcribed segments to segment manager
     for (const segment of transcribedSegments) {
       if (segment.type === "transcribed") {
         this.segmentManager.addTranscribedSegment(
@@ -342,15 +346,28 @@ class WhisperMacApp {
       }
     }
 
+    // Add in-progress segments to segment manager (they will be marked as not completed)
+    for (const segment of inProgressSegments) {
+      if (segment.type === "inprogress") {
+        this.segmentManager.addTranscribedSegment(
+          segment.text,
+          false, // in-progress segments are not completed
+          segment.start,
+          segment.end,
+          segment.confidence
+        );
+      }
+    }
+
     // Get all segments for display (including in-progress from update)
     const allSegments = this.segmentManager.getAllSegments();
 
     // Add in-progress segments from the update to the display
-    const inProgressSegments = update.segments.filter(
+    const displayInProgressSegments = update.segments.filter(
       (s) => s.type === "inprogress"
     );
 
-    const displaySegments = [...allSegments, ...inProgressSegments];
+    const displaySegments = [...allSegments, ...displayInProgressSegments];
 
     // Update dictation window with all segments
     this.dictationWindowService.updateTranscription({
