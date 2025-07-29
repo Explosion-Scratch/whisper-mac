@@ -1,8 +1,4 @@
-import {
-  Segment,
-  SelectedSegment,
-  TranscribedSegment,
-} from "../types/SegmentTypes";
+import { Segment, TranscribedSegment } from "../types/SegmentTypes";
 import { AppConfig } from "../config/AppConfig";
 
 export interface TransformationOptions {
@@ -11,6 +7,7 @@ export interface TransformationOptions {
   capitalize?: boolean;
   trim?: boolean;
   customTransform?: (text: string) => Promise<string>;
+  prefixText?: string; // New option to prepend selected text
 }
 
 export interface SegmentTransformationResult {
@@ -28,7 +25,7 @@ export class TransformationService {
   }
 
   /**
-   * Transform segments including selected text - this is the main transformation method
+   * Transform segments, optionally prepending a transformed prefix text (the original selection).
    */
   async transformSegments(
     segments: Segment[],
@@ -39,53 +36,36 @@ export class TransformationService {
     console.log("Options:", options);
 
     try {
-      if (segments.length === 0) {
-        console.log("No segments to transform");
-        return {
-          transformedText: "",
-          segmentsProcessed: 0,
-          success: true,
-        };
-      }
-
-      // Separate selected and transcribed segments
-      const selectedSegments = segments.filter(
-        (s) => s.type === "selected"
-      ) as SelectedSegment[];
-      const transcribedSegments = segments.filter(
-        (s) => s.type === "transcribed"
-      ) as TranscribedSegment[];
-
-      console.log(
-        `Processing ${selectedSegments.length} selected segments and ${transcribedSegments.length} transcribed segments`
-      );
-
-      // Build transformation options from config
+      // Build transformation options from config, allowing overrides
       const configOptions: TransformationOptions = {
         toUppercase: this.config.transformToUppercase,
         toLowercase: this.config.transformToLowercase,
         capitalize: this.config.transformCapitalize,
         trim: this.config.transformTrim,
-        ...options, // Allow override of config options
+        ...options,
       };
 
       console.log("Using transformation options:", configOptions);
 
-      // Transform all segments
       const transformedTexts: string[] = [];
+      let segmentsProcessed = 0;
 
-      // Transform selected segments first (they come first in the text)
-      for (const segment of selectedSegments) {
-        if (segment.text.trim()) {
-          const transformed = await this.transformText(
-            segment.text,
-            configOptions
-          );
-          transformedTexts.push(transformed);
+      // 1. Transform the prefix text (original selection) if it exists
+      if (configOptions.prefixText) {
+        const transformedPrefix = await this.transformText(
+          configOptions.prefixText,
+          configOptions
+        );
+        if (transformedPrefix) {
+          transformedTexts.push(transformedPrefix);
         }
       }
 
-      // Transform transcribed segments
+      // 2. Transform the transcribed segments
+      const transcribedSegments = segments.filter(
+        (s) => s.type === "transcribed"
+      ) as TranscribedSegment[];
+
       for (const segment of transcribedSegments) {
         if (segment.text.trim()) {
           const transformed = await this.transformText(
@@ -95,16 +75,17 @@ export class TransformationService {
           transformedTexts.push(transformed);
         }
       }
+      segmentsProcessed = transcribedSegments.length;
 
-      // Join all transformed texts
+      // 3. Join all transformed texts
       const combinedText = transformedTexts.join(" ").trim();
 
       console.log("Combined transformed text:", combinedText);
-      console.log("Total segments processed:", segments.length);
+      console.log("Total segments processed:", segmentsProcessed);
 
       return {
         transformedText: combinedText,
-        segmentsProcessed: segments.length,
+        segmentsProcessed,
         success: true,
       };
     } catch (error) {

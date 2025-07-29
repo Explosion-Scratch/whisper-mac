@@ -286,7 +286,7 @@ class WhisperMacApp {
     try {
       console.log("=== Starting dictation process ===");
 
-      // 1. Clear any existing segments
+      // 1. Clear any existing segments and stored selected text
       this.segmentManager.clearAllSegments();
 
       // 1b. Get selected text ONCE at the start of dictation
@@ -294,8 +294,8 @@ class WhisperMacApp {
         console.log("Retrieving selected text...");
         const selection = await this.selectedTextService.getSelectedText();
         if (selection.hasSelection) {
-          this.segmentManager.addSelectedSegment(selection.text, true);
-          console.log(`Added selected text segment: "${selection.text}"`);
+          // Store it in the manager instead of adding a segment
+          this.segmentManager.setInitialSelectedText(selection.text);
         }
       }
 
@@ -336,10 +336,6 @@ class WhisperMacApp {
   }
 
   private async processSegments(update: SegmentUpdate): Promise<void> {
-    // Clear previous in-progress segments from the manager before adding new ones.
-    // This prevents the accumulation of outdated, partial transcriptions.
-    this.segmentManager.clearInProgressSegments();
-
     // Process both transcribed and in-progress segments
     const transcribedSegments = update.segments.filter(
       (s) => s.type === "transcribed"
@@ -395,7 +391,7 @@ class WhisperMacApp {
       this.segmentManager.getCompletedTranscribedSegments();
     if (completedSegments.length > 0) {
       console.log(`Flushing ${completedSegments.length} completed segments`);
-      // A partial flush only processes completed segments, not the selected text.
+      // A partial flush only processes completed segments.
       const flushResult = await this.segmentManager.flushSegments(false);
 
       if (flushResult.success) {
@@ -498,10 +494,12 @@ class WhisperMacApp {
         this.segmentManager.getInProgressTranscribedSegments();
       const completedSegments =
         this.segmentManager.getCompletedTranscribedSegments();
-      const selectedSegment = this.segmentManager.getSelectedSegment();
+
+      // We check for initialSelectedText in the manager now
+      const selectedText = (this.segmentManager as any).initialSelectedText;
 
       if (
-        !selectedSegment &&
+        !selectedText &&
         inProgressSegments.length === 0 &&
         completedSegments.length === 0
       ) {
@@ -511,9 +509,7 @@ class WhisperMacApp {
       }
 
       console.log(
-        `Found ${inProgressSegments.length} in-progress, ${
-          completedSegments.length
-        } completed, and ${selectedSegment ? 1 : 0} selected segments`
+        `Found ${inProgressSegments.length} in-progress and ${completedSegments.length} completed segments`
       );
       console.log(
         "=== Finishing current dictation (waiting for completion) ==="

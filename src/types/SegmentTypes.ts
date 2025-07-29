@@ -1,4 +1,4 @@
-export type SegmentType = "inprogress" | "transcribed" | "selected";
+export type SegmentType = "inprogress" | "transcribed";
 
 export interface BaseSegment {
   id: string;
@@ -21,13 +21,7 @@ export interface TranscribedSegment extends BaseSegment {
   completed: boolean;
 }
 
-export interface SelectedSegment extends BaseSegment {
-  type: "selected";
-  originalText: string;
-  hasSelection: boolean;
-}
-
-export type Segment = InProgressSegment | TranscribedSegment | SelectedSegment;
+export type Segment = InProgressSegment | TranscribedSegment;
 
 export interface SegmentUpdate {
   segments: Segment[];
