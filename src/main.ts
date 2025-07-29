@@ -35,6 +35,8 @@ class WhisperMacApp {
 
   // Dictation state
   private isRecording = false;
+  private isFinishing = false; // New state to track when we're finishing current dictation
+  private finishingTimeout: NodeJS.Timeout | null = null; // Timeout to prevent getting stuck
 
   constructor() {
     this.config = new AppConfig();
@@ -263,10 +265,15 @@ class WhisperMacApp {
   private async toggleRecording() {
     console.log("=== Toggle dictation called ===");
     console.log("Current recording state:", this.isRecording);
+    console.log("Current finishing state:", this.isFinishing);
 
     if (this.isRecording) {
-      console.log("Stopping dictation...");
-      await this.stopDictation();
+      if (this.isFinishing) {
+        console.log("Already finishing dictation, ignoring toggle...");
+        return;
+      }
+      console.log("Finishing current dictation (waiting for completion)...");
+      await this.finishCurrentDictation();
     } else {
       console.log("Starting dictation...");
       await this.startDictation();
@@ -363,6 +370,15 @@ class WhisperMacApp {
           `Successfully flushed ${flushResult.segmentsProcessed} segments`
         );
 
+        // Check if we're in finishing mode and should complete the dictation
+        if (this.isFinishing) {
+          console.log(
+            "=== Finishing mode: completing dictation after flush ==="
+          );
+          await this.completeDictationAfterFinishing();
+          return; // Exit early since we're done
+        }
+
         // After successful flush, reset status to "listening" to indicate ready for more transcription
         const remainingSegments = this.segmentManager.getAllSegments();
         this.dictationWindowService.updateTranscription({
@@ -380,7 +396,14 @@ class WhisperMacApp {
     try {
       console.log("=== Stopping dictation process ===");
 
+      // Clear the finishing timeout if it exists
+      if (this.finishingTimeout) {
+        clearTimeout(this.finishingTimeout);
+        this.finishingTimeout = null;
+      }
+
       this.isRecording = false;
+      this.isFinishing = false; // Reset finishing state
       this.updateTrayIcon("idle");
       this.dictationWindowService.stopRecording();
 
@@ -431,11 +454,101 @@ class WhisperMacApp {
     }
   }
 
+  private async finishCurrentDictation() {
+    if (!this.isRecording || this.isFinishing) return;
+
+    try {
+      console.log("=== Checking if we should finish current dictation ===");
+
+      // Check if there are any in-progress segments (meaning audio was recorded)
+      const inProgressSegments =
+        this.segmentManager.getInProgressTranscribedSegments();
+      const completedSegments =
+        this.segmentManager.getCompletedTranscribedSegments();
+
+      if (inProgressSegments.length === 0 && completedSegments.length === 0) {
+        console.log("No segments found, stopping dictation immediately");
+        await this.stopDictation();
+        return;
+      }
+
+      console.log(
+        `Found ${inProgressSegments.length} in-progress and ${completedSegments.length} completed segments`
+      );
+      console.log(
+        "=== Finishing current dictation (waiting for completion) ==="
+      );
+
+      // Set finishing state
+      this.isFinishing = true;
+
+      // 1. Stop audio capture immediately (no new audio will be processed)
+      await this.audioService.stopCapture();
+
+      // 2. Hide dictation window
+      this.dictationWindowService.closeDictationWindow();
+
+      // 3. Update tray icon to show we're no longer actively recording
+      this.updateTrayIcon("idle");
+
+      // 4. Set a 10-second timeout to prevent getting stuck
+      this.finishingTimeout = setTimeout(async () => {
+        console.log("=== Finishing timeout reached, forcing completion ===");
+        await this.completeDictationAfterFinishing();
+      }, 10000);
+
+      // Note: We keep transcription running and isRecording=true
+      // The processSegments method will handle completion and injection
+      // when new completed segments arrive
+
+      console.log(
+        "=== Audio stopped, window hidden, waiting for transcription completion ==="
+      );
+    } catch (error) {
+      console.error("Failed to finish current dictation:", error);
+      await this.cancelDictationFlow();
+    }
+  }
+
+  private async completeDictationAfterFinishing() {
+    try {
+      console.log("=== Completing dictation after finishing ===");
+
+      // Clear the finishing timeout if it exists
+      if (this.finishingTimeout) {
+        clearTimeout(this.finishingTimeout);
+        this.finishingTimeout = null;
+      }
+
+      // Reset states
+      this.isRecording = false;
+      this.isFinishing = false;
+
+      // Stop transcription since we're done
+      await this.whisperClient.stopTranscription();
+
+      // Clear all segments since they've been processed
+      this.segmentManager.clearAllSegments();
+
+      console.log("=== Dictation completed successfully after finishing ===");
+    } catch (error) {
+      console.error("Failed to complete dictation after finishing:", error);
+      await this.cancelDictationFlow();
+    }
+  }
+
   private async cancelDictationFlow() {
     console.log("=== Cancelling dictation flow ===");
 
+    // Clear the finishing timeout if it exists
+    if (this.finishingTimeout) {
+      clearTimeout(this.finishingTimeout);
+      this.finishingTimeout = null;
+    }
+
     const wasRecording = this.isRecording;
     this.isRecording = false;
+    this.isFinishing = false; // Reset finishing state
     this.updateTrayIcon("idle");
 
     if (wasRecording) {
