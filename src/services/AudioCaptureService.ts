@@ -28,7 +28,29 @@ export class AudioCaptureService extends EventEmitter {
         // Window already exists, just start capture
         console.log("Using pre-loaded audio capture window...");
         this.audioWindow.webContents.send("start-audio-capture");
-        return;
+        // Wait for confirmation that capture started
+        return new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Audio capture start timeout"));
+          }, 3000);
+
+          const onStarted = () => {
+            clearTimeout(timeout);
+            this.removeListener("captureStarted", onStarted);
+            this.removeListener("error", onError);
+            resolve();
+          };
+
+          const onError = (error: Error) => {
+            clearTimeout(timeout);
+            this.removeListener("captureStarted", onStarted);
+            this.removeListener("error", onError);
+            reject(error);
+          };
+
+          this.once("captureStarted", onStarted);
+          this.once("error", onError);
+        });
       }
 
       // Create new window if pre-loaded one doesn't exist
@@ -36,6 +58,30 @@ export class AudioCaptureService extends EventEmitter {
 
       console.log("Sending start capture command...");
       this.audioWindow!.webContents.send("start-audio-capture");
+
+      // Wait for confirmation that capture started
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Audio capture start timeout"));
+        }, 3000);
+
+        const onStarted = () => {
+          clearTimeout(timeout);
+          this.removeListener("captureStarted", onStarted);
+          this.removeListener("error", onError);
+          resolve();
+        };
+
+        const onError = (error: Error) => {
+          clearTimeout(timeout);
+          this.removeListener("captureStarted", onStarted);
+          this.removeListener("error", onError);
+          reject(error);
+        };
+
+        this.once("captureStarted", onStarted);
+        this.once("error", onError);
+      });
 
       console.log("Audio capture setup complete");
     } catch (error) {

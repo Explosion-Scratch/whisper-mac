@@ -26,15 +26,15 @@ export class SelectedTextService {
       const marker = "1z4*5eiur_45r|uyt}r4";
       this.setClipboardContent(marker);
 
-      // Small delay to ensure clipboard is set
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Reduced delay from 50ms to 20ms
+      await new Promise((resolve) => setTimeout(resolve, 20));
 
       // Copy selected text using keyboard shortcut
       await keyboard.pressKey(Key.LeftCmd, Key.C);
       await keyboard.releaseKey(Key.LeftCmd, Key.C);
 
-      // Wait for clipboard to update
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Reduced delay from 100ms to 50ms
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Read the new clipboard content
       const newClipboard = this.getClipboardContent();

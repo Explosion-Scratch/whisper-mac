@@ -19,7 +19,7 @@ export class TranscriptionClient {
   }
 
   async startServer(modelRepoId: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       if (this.serverProcess) {
         console.log("RealtimeSTT server already running.");
         resolve();
@@ -52,21 +52,10 @@ export class TranscriptionClient {
 
       let resolved = false;
 
-      setTimeout(() => {
-        if (!resolved) {
-          resolve();
-          resolved = true;
-        }
-      }, 1000);
-
       this.serverProcess.stdout?.on("data", (d) => {
         const msg = d.toString();
-        console.log("[RealtimeSTT]", msg);
-        if (
-          !resolved &&
-          msg.includes("[RealtimeSTT]") &&
-          msg.toLowerCase().includes("listening")
-        ) {
+        // console.log("[RealtimeSTT]", msg);
+        if (!resolved && msg.toLowerCase().includes("listening")) {
           resolved = true;
           resolve();
         }
@@ -88,13 +77,36 @@ export class TranscriptionClient {
         if (!resolved) reject(new Error(`Server exited with code ${code}`));
       });
 
+      // Reduced timeout from 20s to 10s
       setTimeout(() => {
         if (!resolved) {
           console.error("RealtimeSTT server startup timeout.");
           reject(new Error("Server startup timeout"));
         }
-      }, 20000);
-    });
+      }, 10000);
+    })
+      .then(() => {
+        // Reduced delay from 6s to 1s
+        return new Promise((r) => setTimeout(r, 1000));
+      })
+      .then(() => {
+        // Make testConnect timeout faster
+        return Promise.race([
+          this.testConnect(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Test connection timeout")), 3000)
+          ),
+        ]);
+      })
+      .then(() => {
+        // Success case - do nothing
+      })
+      .catch((error) => {
+        console.log(
+          "Server startup test connection failed (continuing anyway):",
+          error.message
+        );
+      }) as unknown as Promise<void>;
   }
 
   async startTranscription(
@@ -143,6 +155,29 @@ export class TranscriptionClient {
     if (this.websocket?.readyState === WebSocket.OPEN) {
       this.websocket.send(audioData);
     }
+  }
+
+  async testConnect(): Promise<string> {
+    const websocket = new WebSocket(`ws://127.0.0.1:${this.config.serverPort}`);
+    return new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        websocket.close();
+        reject(new Error("Test connection timeout"));
+      }, 2000);
+
+      websocket.on("open", () => {
+        console.log("Connected to RealtimeSTT server");
+        clearTimeout(timeout);
+        websocket.close();
+        resolve("Connected to RealtimeSTT server");
+      });
+
+      websocket.on("error", (err) => {
+        clearTimeout(timeout);
+        console.error("RealtimeSTT WS error:", err);
+        reject(err);
+      });
+    });
   }
 
   async stopTranscription(): Promise<void> {

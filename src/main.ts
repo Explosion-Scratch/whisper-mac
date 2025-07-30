@@ -68,35 +68,63 @@ class WhisperMacApp {
       mkdirSync(this.config.getCacheDir(), { recursive: true });
     }
 
-    // Check accessibility permissions early
-    console.log("Checking accessibility permissions...");
-    await this.textInjector.ensureAccessibilityPermissions();
+    // Run these operations in parallel to speed up initialization
+    console.log("Starting parallel initialization tasks...");
+    const initTasks = [
+      // Check accessibility permissions early
+      this.textInjector
+        .ensureAccessibilityPermissions()
+        .then(() => {
+          console.log("Accessibility permissions checked");
+        })
+        .catch((error) => {
+          console.error("Failed to check accessibility permissions:", error);
+        }),
 
-    // Check and download Whisper model on first launch
-    await this.modelManager.ensureModelExists(this.config.defaultModel);
+      // Check and download Whisper model on first launch
+      this.modelManager
+        .ensureModelExists(this.config.defaultModel)
+        .then(() => {
+          console.log("Model check completed");
+        })
+        .catch((error) => {
+          console.error("Failed to check model:", error);
+        }),
 
-    // Start WhisperLive server
+      // Pre-load windows for faster startup
+      this.preloadWindows()
+        .then(() => {
+          console.log("Window preloading completed");
+        })
+        .catch((error) => {
+          console.error("Failed to preload windows:", error);
+        }),
+    ];
+
+    // Start WhisperLive server (this needs to be done before we can transcribe)
     await this.transcriptionClient.startServer(this.config.defaultModel);
+
+    // Wait for other initialization tasks to complete
+    await Promise.allSettled(initTasks);
 
     this.createTray();
     this.registerGlobalShortcuts();
     this.setupIpcHandlers();
 
-    // Pre-load windows for faster startup
-    console.log("Pre-loading windows for faster startup...");
-    await this.preloadWindows();
-
     // Hide dock icon for menu bar only app
     app.dock?.hide();
+
+    console.log("Initialization completed");
   }
 
   private async preloadWindows(): Promise<void> {
     try {
-      // Pre-load dictation window
-      await this.dictationWindowService.preloadWindow();
-
-      // Pre-load audio capture window
-      await this.audioService.preloadWindow();
+      // Pre-load windows in parallel for faster startup
+      console.log("Pre-loading windows for faster startup...");
+      await Promise.allSettled([
+        this.dictationWindowService.preloadWindow(),
+        this.audioService.preloadWindow(),
+      ]);
 
       console.log("Windows pre-loaded successfully");
     } catch (error) {
@@ -292,45 +320,39 @@ class WhisperMacApp {
       // 1. Clear any existing segments and stored selected text
       this.segmentManager.clearAllSegments();
 
-      // // 1b. Get selected text ONCE at the start of dictation
-      // if (!this.config.skipSelectedTextRetrieval) {
-      //   console.log("Retrieving selected text...");
-      //   const selection = await this.selectedTextService.getSelectedText();
-      //   if (selection.hasSelection) {
-      //     // Store it in the manager instead of adding a segment
-      //     this.segmentManager.setInitialSelectedText(selection.text);
-      //   }
-      //   if (selection.originalClipboard) {
-      //     this.segmentManager.setOriginalClipboard(selection.originalClipboard);
-      //   }
-      // }
-
-      const setupTime = Date.now();
-      console.log(`Clear segments & get selection: ${setupTime - startTime}ms`);
-
       // 2. Show dictation window (pre-loaded for instant display)
       const windowStartTime = Date.now();
       await this.dictationWindowService.showDictationWindow();
       const windowEndTime = Date.now();
       console.log(`Window display: ${windowEndTime - windowStartTime}ms`);
 
-      // 3. Start recording visuals and audio capture
+      // 3. Start recording visuals and audio capture in parallel
       this.isRecording = true;
       this.updateTrayIcon("recording");
       this.dictationWindowService.startRecording();
-      await this.audioService.startCapture();
 
-      // 4. Start WhisperLive transcription with real-time updates
-      await this.transcriptionClient.startTranscription(
-        async (update: SegmentUpdate) => {
-          // Update dictation window with real-time transcription
-          this.dictationWindowService.updateTranscription(update);
-          // Process segments and flush completed ones
-          await this.processSegments(update);
-        }
-      );
+      // Start audio capture and transcription in parallel
+      const audioStartTime = Date.now();
+      const [audioResult] = await Promise.allSettled([
+        this.audioService.startCapture(),
+        this.transcriptionClient.startTranscription(
+          async (update: SegmentUpdate) => {
+            // Update dictation window with real-time transcription
+            this.dictationWindowService.updateTranscription(update);
+            // Process segments and flush completed ones
+            await this.processSegments(update);
+          }
+        ),
+      ]);
 
-      // 5. Connect audio data from capture service to WhisperLive client
+      const audioEndTime = Date.now();
+      console.log(`Audio setup: ${audioEndTime - audioStartTime}ms`);
+
+      if (audioResult.status === "rejected") {
+        throw new Error(`Failed to start audio capture: ${audioResult.reason}`);
+      }
+
+      // 4. Connect audio data from capture service to WhisperLive client
       this.audioService.setAudioDataCallback((audioData: Float32Array) => {
         this.transcriptionClient.sendAudioData(audioData);
       });
