@@ -9,7 +9,7 @@ import {
 import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
 import { AudioCaptureService } from "./services/AudioCaptureService";
-import { WhisperLiveClient } from "./services/WhisperLiveClient";
+import { TranscriptionClient } from "./services/WhisperLiveClient";
 import { TextInjectionService } from "./services/TextInjectionService";
 import { TransformationService } from "./services/TransformationService";
 import { ModelManager } from "./services/ModelManager";
@@ -17,14 +17,14 @@ import { AppConfig } from "./config/AppConfig";
 import { SelectedTextService } from "./services/SelectedTextService";
 import { DictationWindowService } from "./services/DictationWindowService";
 import { SegmentManager } from "./services/SegmentManager";
-import { Segment, SegmentUpdate } from "./types/SegmentTypes";
+import { SegmentUpdate } from "./types/SegmentTypes";
 
 class WhisperMacApp {
   private tray: Tray | null = null;
   private settingsWindow: BrowserWindow | null = null;
   private modelManagerWindow: BrowserWindow | null = null;
   private audioService: AudioCaptureService;
-  private whisperClient: WhisperLiveClient;
+  private transcriptionClient: TranscriptionClient;
   private textInjector: TextInjectionService;
   private transformationService: TransformationService;
   private modelManager: ModelManager;
@@ -42,7 +42,10 @@ class WhisperMacApp {
     this.config = new AppConfig();
     this.audioService = new AudioCaptureService(this.config);
     this.modelManager = new ModelManager(this.config);
-    this.whisperClient = new WhisperLiveClient(this.config, this.modelManager);
+    this.transcriptionClient = new TranscriptionClient(
+      this.config,
+      this.modelManager
+    );
     this.textInjector = new TextInjectionService();
     this.transformationService = new TransformationService(this.config);
     this.selectedTextService = new SelectedTextService();
@@ -73,7 +76,7 @@ class WhisperMacApp {
     await this.modelManager.ensureModelExists(this.config.defaultModel);
 
     // Start WhisperLive server
-    await this.whisperClient.startServer(this.config.defaultModel);
+    await this.transcriptionClient.startServer(this.config.defaultModel);
 
     this.createTray();
     this.registerGlobalShortcuts();
@@ -318,16 +321,18 @@ class WhisperMacApp {
       await this.audioService.startCapture();
 
       // 4. Start WhisperLive transcription with real-time updates
-      await this.whisperClient.startTranscription(async (update) => {
-        // Update dictation window with real-time transcription
-        this.dictationWindowService.updateTranscription(update);
-        // Process segments and flush completed ones
-        await this.processSegments(update);
-      });
+      await this.transcriptionClient.startTranscription(
+        async (update: SegmentUpdate) => {
+          // Update dictation window with real-time transcription
+          this.dictationWindowService.updateTranscription(update);
+          // Process segments and flush completed ones
+          await this.processSegments(update);
+        }
+      );
 
       // 5. Connect audio data from capture service to WhisperLive client
       this.audioService.setAudioDataCallback((audioData: Float32Array) => {
-        this.whisperClient.sendAudioData(audioData);
+        this.transcriptionClient.sendAudioData(audioData);
       });
 
       const totalTime = Date.now() - startTime;
@@ -455,7 +460,7 @@ class WhisperMacApp {
         console.error("Final flush failed:", flushResult.error);
       }
 
-      await this.whisperClient.stopTranscription();
+      await this.transcriptionClient.stopTranscription();
 
       const finalText = flushResult.transformedText;
       console.log("Final transcription:", finalText);
@@ -574,7 +579,7 @@ class WhisperMacApp {
       this.isFinishing = false;
 
       // Stop transcription since we're done
-      await this.whisperClient.stopTranscription();
+      await this.transcriptionClient.stopTranscription();
 
       // Clear all segments since they've been processed
       this.segmentManager.clearAllSegments();
@@ -602,7 +607,7 @@ class WhisperMacApp {
 
     if (wasRecording) {
       await this.audioService.stopCapture();
-      await this.whisperClient.stopTranscription();
+      await this.transcriptionClient.stopTranscription();
     }
 
     this.dictationWindowService.closeDictationWindow();
@@ -624,7 +629,7 @@ class WhisperMacApp {
   // Clean up when app quits
   cleanup() {
     globalShortcut.unregisterAll();
-    this.whisperClient.stopServer();
+    this.transcriptionClient.stopServer();
   }
 }
 
