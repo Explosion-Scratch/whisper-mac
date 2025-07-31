@@ -55,7 +55,7 @@ export class TranscriptionClient {
       this.serverProcess.stdout?.on("data", (d) => {
         const msg = d.toString();
         // console.log("[RealtimeSTT]", msg);
-        if (!resolved && msg.toLowerCase().includes("listening")) {
+        if (!resolved && msg.toLowerCase().includes("listening on")) {
           resolved = true;
           resolve();
         }
@@ -64,6 +64,11 @@ export class TranscriptionClient {
       this.serverProcess.stderr?.on("data", (d) => {
         const msg = d.toString();
         console.error("[RealtimeSTT]", msg);
+        if (!resolved && msg.includes("listening on")) {
+          resolved = true;
+          resolve();
+          return;
+        }
         if (!resolved && msg.includes("address already in use")) {
           console.warn("Address already in use, assuming server is running.");
           resolved = true;

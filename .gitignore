@@ -2,3 +2,4 @@ models/
 dist/
 .whispermac-data/
 *.pt
+.crush/
