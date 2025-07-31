@@ -153,35 +153,42 @@ export class SegmentManager extends EventEmitter {
       );
 
       let segmentsToProcess: TranscribedSegment[] = [];
-      let prefixText: string | undefined = undefined;
 
       if (includeInProgress) {
-        // FINAL FLUSH: Process all transcribed segments and use the initial selected text.
+        // FINAL FLUSH: Process all transcribed segments
         segmentsToProcess = this.segments.filter(
           (s) => s.type === "transcribed"
         ) as TranscribedSegment[];
-        prefixText = this.initialSelectedText ?? undefined;
       } else {
-        // PARTIAL FLUSH: Process only completed transcribed segments. Do not use prefix.
+        // PARTIAL FLUSH: Process only completed transcribed segments
         segmentsToProcess = this.getCompletedTranscribedSegments();
       }
 
-      if (segmentsToProcess.length === 0 && !prefixText) {
+      if (segmentsToProcess.length === 0) {
         console.log("[SegmentManager] No new segments to flush");
         return { transformedText: "", segmentsProcessed: 0, success: true };
       }
 
       console.log(
-        `[SegmentManager] Flushing ${
-          segmentsToProcess.length
-        } segments with prefix: "${prefixText || ""}"`
+        `[SegmentManager] Flushing ${segmentsToProcess.length} segments`
       );
 
       // Transform all segments
       const transformResult =
-        await this.transformationService.transformSegments(segmentsToProcess, {
-          prefixText,
-        });
+        await this.transformationService.transformSegments(segmentsToProcess);
+
+      if (!transformResult.success) {
+        console.error(
+          "[SegmentManager] Transformation failed:",
+          transformResult.error
+        );
+        return {
+          transformedText: "",
+          segmentsProcessed: 0,
+          success: false,
+          error: transformResult.error,
+        };
+      }
 
       if (!transformResult.success) {
         console.error(

@@ -27,6 +27,12 @@ async def handler(websocket):
     message_queue = asyncio.Queue()
 
     def send_update_sync(segment_type, text, completed):
+        if not completed:
+            logger.info(f"[{uid}] Transcription update: {text}")
+        else:
+            logger.info(f"[{uid}] Final transcription: {text}")
+
+        """Prepares and queues a message for the client."""
         status = "transforming" if completed else "listening"
         segment = {
             "id": str(uuid.uuid4()),
@@ -42,10 +48,12 @@ async def handler(websocket):
         loop.call_soon_threadsafe(message_queue.put_nowait, json.dumps(response))
 
     def on_realtime_update(text):
+        """Callback for in-progress transcription updates."""
         if text.strip():
             send_update_sync("inprogress", text, False)
     
     def on_final_text_callback(text):
+        """Callback for final, completed transcription."""
         if text.strip():
             logger.info(f"[{uid}] Final transcription: '{text}'")
             send_update_sync("transcribed", text, True)
@@ -124,12 +132,12 @@ if __name__ == "__main__":
     
     # RealtimeSTT configuration
     parser.add_argument("--model", type=str, required=True, help="Path to the Whisper model directory")
-    parser.add_argument("--realtime-model", type=str, default="tiny", help="Model for real-time transcription")
+    parser.add_argument("--realtime-model", type=str, default="tiny.en", help="Model for real-time transcription")
     parser.add_argument("--language", type=str, default="en", help="Language code for transcription")
     parser.add_argument("--compute_type", type=str, default="default", help="Computation type (e.g., float16, int8)")
     parser.add_argument("--gpu_device_index", type=int, default=0, help="GPU device index to use")
     parser.add_argument("--device", type=str, default="cuda", choices=["cuda", "cpu"], help="Device to use for computation")
-    parser.add_argument("--silero_sensitivity", type=float, default=0.6, help="Silero VAD sensitivity (0-1)")
+    parser.add_argument("--silero_sensitivity", type=float, default=0.4, help="Silero VAD sensitivity (0-1)")
     parser.add_argument("--webrtc_sensitivity", type=int, default=3, help="WebRTC VAD sensitivity (0-3)")
     parser.add_argument("--post_speech_silence_duration", type=float, default=0.4, help="Seconds of silence to wait for end of speech")
     parser.add_argument("--min_length_of_recording", type=float, default=0.4, help="Minimum seconds of recording length")
