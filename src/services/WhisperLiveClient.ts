@@ -199,6 +199,8 @@ export class TranscriptionClient {
         language: null, // auto-detect
         task: "transcribe",
         model: this.config.defaultModel,
+        no_speech_thresh: 0.1,
+        same_output_threshold: 2,
         use_vad: true,
       };
 

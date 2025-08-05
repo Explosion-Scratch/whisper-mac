@@ -57,7 +57,7 @@ export class AppConfig {
 
     // AI transformation defaults
     this.ai = {
-      enabled: true,
+      enabled: false,
       baseUrl: "https://api.cerebras.ai/v1/chat/completions",
       envKey: "CEREBRAS",
       model: "qwen-3-32b",
@@ -87,8 +87,8 @@ JavaScript code
     : ""
 }
 
-Perform these modifications based on the context, text and transcription given.`,
-      messagePrompt: `<sel>----SELECTION----\n{selection}\n----END SELECTION----\n\n</sel>----ROUGH TRANSCRIPTION----\n{text}\n----END ROUGH TRANSCRIPTION----\n\n----INSTRUCTION---- Now output only the changed text. No explanations or other text. ----END INSTRUCTION---- Changed text: /no_think`,
+Perform these modifications based on the context, selection, and transcription given.`,
+      messagePrompt: `<sel>----SELECTION----\n{selection}\n----END SELECTION----\n\nOperate based on the selection. E.g. make any changes requested, or if the user appears to be saying something new just transform that using context from the selection if needed. Your output replaces the user's current selection.</sel>----ROUGH TRANSCRIPTION----\n{text}\n----END ROUGH TRANSCRIPTION----\n\n----INSTRUCTION---- Now output only the changed text. No explanations or other text. ----END INSTRUCTION---- Changed text:`,
     };
   }
 

@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc && node scripts/copy-assets.js",
     "start": "electron dist/main.js",
-    "dev": "concurrently \"tsc -w\" \"nodemon --exec electron dist/main.js\" \"node scripts/copy-assets.js\"",
+    "dev": "nodemon --exec \"bun run single-dev\" --ignore dist --ignore .whispermac-data",
+    "single-dev": "concurrently --raw -m 1 \"rm -rf dist\"  \"/Users/tjs/.local/bin/killport 9090\" \"bun run build\" \"bun run start\" --names \"cleanup, kill port, build, dev\"",
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never"
   },

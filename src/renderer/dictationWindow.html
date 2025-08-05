@@ -46,20 +46,20 @@
       }
 
       .status-icon.recording {
-        background: #ff3b30;
+        background: #ff9b9b;
         animation: pulse 1.5s infinite;
       }
 
       .status-icon.idle {
-        background: #34c759;
+        background: #8fd4a3;
       }
 
       .status-icon.transforming {
-        background: #ff9500;
+        background: #ffc285;
       }
 
       .status-icon.complete {
-        background: #34c759;
+        background: #8fd4a3;
       }
 
       .status-icon svg {
@@ -76,14 +76,21 @@
         height: 24px;
         display: flex;
         align-items: center;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      .text-scroll-container::-webkit-scrollbar {
+        display: none;
       }
 
       .text-content {
         display: flex;
-        align-items: center;
+        align-items: baseline;
         gap: 8px;
         white-space: nowrap;
         min-width: 100%;
+        line-height: 1.2;
       }
 
       .text-segment {
@@ -91,6 +98,7 @@
         color: #1d1d1f;
         font-weight: 400;
         display: inline-block;
+        line-height: 1.2;
       }
 
       .text-segment.transcribed {
@@ -99,13 +107,15 @@
 
       .text-segment.in-progress {
         color: #8e8e93;
-        font-style: italic;
       }
 
       .text-segment.in-progress::after {
-        content: "▋";
-        animation: blink 1s infinite;
-        margin-left: 2px;
+        content: "|";
+        animation: blink 1.2s ease-in-out infinite;
+        margin-left: 1px;
+        font-weight: 300;
+        vertical-align: baseline;
+        line-height: 1.2;
       }
 
       .separator {
@@ -129,14 +139,36 @@
         }
       }
 
-      @keyframes blink {
-        0%,
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes dash {
+        0% {
+          stroke-dashoffset: 0;
+        }
         50% {
+          stroke-dashoffset: 15.708;
+        }
+        100% {
+          stroke-dashoffset: 31.416;
+        }
+      }
+
+      @keyframes blink {
+        0% {
           opacity: 1;
         }
-        51%,
+        50% {
+          opacity: 0.3;
+        }
         100% {
-          opacity: 0;
+          opacity: 1;
         }
       }
 
@@ -144,7 +176,7 @@
         width: 20px;
         height: 20px;
         border-radius: 50%;
-        background: #ff5f56;
+        background: #ffb3b3;
         border: none;
         cursor: pointer;
         display: flex;
@@ -155,7 +187,7 @@
       }
 
       .close-button:hover {
-        background: #ff3b30;
+        background: #ff9b9b;
       }
 
       .close-button svg {
@@ -210,8 +242,20 @@
             />
           </svg>
           <svg v-else-if="currentStatus === 'transforming'" viewBox="0 0 24 24">
-            <path
-              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              fill="none"
+              stroke="white"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-dasharray="31.416"
+              stroke-dashoffset="0"
+              style="
+                animation: dash 0.4I would let you dress me up as a performative
+                  man. s ease-in-out infinite;
+              "
             />
           </svg>
           <svg v-else-if="currentStatus === 'complete'" viewBox="0 0 24 24">
