@@ -148,16 +148,17 @@
         }
       }
 
-      @keyframes dash {
+      @keyframes fastSpin {
         0% {
-          stroke-dashoffset: 0;
-        }
-        50% {
-          stroke-dashoffset: 15.708;
+          transform: rotate(0deg);
         }
         100% {
-          stroke-dashoffset: 31.416;
+          transform: rotate(360deg);
         }
+      }
+
+      .status-icon.transforming svg {
+        animation: fastSpin 0.6s linear infinite;
       }
 
       @keyframes blink {
@@ -225,41 +226,47 @@
     <div id="app">
       <div class="dictation-container">
         <div class="status-icon" :class="statusIconClass">
-          <svg v-if="currentStatus === 'idle'" viewBox="0 0 24 24">
+          <!-- Microphone icon for idle and listening states using Phosphor -->
+          <svg
+            v-if="currentStatus === 'idle' || currentStatus === 'listening'"
+            viewBox="0 0 256 256"
+          >
             <path
-              d="M12 2C13.1 2 14 2.9 14 4V8C14 9.1 13.1 10 12 10S10 9.1 10 8V4C10 2.9 10.9 2 12 2Z"
-            />
-            <path
-              d="M19 10V12C19 15.87 15.87 19 12 19S5 15.87 5 12V10H7V12C7 14.76 9.24 17 12 17S17 14.76 17 12V10H19Z"
-            />
-          </svg>
-          <svg v-else-if="currentStatus === 'listening'" viewBox="0 0 24 24">
-            <path
-              d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"
-            />
-            <path
-              d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"
+              d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0ZM216,128H200a72,72,0,0,1-144,0H40a8,8,0,0,0,0,16H72v16a8,8,0,0,0,16,0V144h80v16a8,8,0,0,0,16,0V144h32a8,8,0,0,0,0-16Z"
             />
           </svg>
-          <svg v-else-if="currentStatus === 'transforming'" viewBox="0 0 24 24">
+
+          <!-- Loading spinner for transforming state - duo-tone -->
+          <svg
+            v-else-if="currentStatus === 'transforming'"
+            viewBox="0 0 256 256"
+          >
             <circle
-              cx="12"
-              cy="12"
-              r="10"
+              cx="128"
+              cy="128"
+              r="96"
+              fill="none"
+              stroke="rgba(255,255,255,0.3)"
+              stroke-width="16"
+            />
+            <circle
+              cx="128"
+              cy="128"
+              r="96"
               fill="none"
               stroke="white"
-              stroke-width="2"
+              stroke-width="16"
               stroke-linecap="round"
-              stroke-dasharray="31.416"
-              stroke-dashoffset="0"
-              style="
-                animation: dash 0.4I would let you dress me up as a performative
-                  man. s ease-in-out infinite;
-              "
+              stroke-dasharray="150.8"
+              stroke-dashoffset="75.4"
             />
           </svg>
-          <svg v-else-if="currentStatus === 'complete'" viewBox="0 0 24 24">
-            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+
+          <!-- Check icon for complete state using Phosphor -->
+          <svg v-else-if="currentStatus === 'complete'" viewBox="0 0 256 256">
+            <path
+              d="m229.66,77.66-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"
+            />
           </svg>
         </div>
 
@@ -283,9 +290,10 @@
         </div>
 
         <button class="close-button" @click="handleClose">
-          <svg viewBox="0 0 24 24">
+          <!-- X icon using Phosphor -->
+          <svg viewBox="0 0 256 256">
             <path
-              d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+              d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
             />
           </svg>
         </button>
@@ -402,7 +410,19 @@
           const updateTranscription = (update) => {
             console.log("Transcription update:", update);
             transcriptionSegments.value = update.segments;
-            currentStatus.value = update.status;
+            // Show transforming status only during active transformation/injection
+            if (update.status === "transforming") {
+              currentStatus.value = "transforming";
+            } else {
+              // Show loading icon when actively receiving in-progress segments
+              const hasInProgressSegments = update.segments.some(
+                (segment) => segment.type === "inprogress" || !segment.completed
+              );
+              // Show idle microphone icon when only completed segments exist (idle recording state)
+              currentStatus.value = hasInProgressSegments
+                ? "listening"
+                : "idle";
+            }
           };
 
           const completeDictation = (text) => {
