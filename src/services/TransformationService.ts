@@ -1,13 +1,17 @@
 import { Segment, TranscribedSegment } from "../types/SegmentTypes";
 import { AppConfig } from "../config/AppConfig";
+import { SelectedTextResult } from "./SelectedTextService";
 
-export interface TransformationOptions {
-  toUppercase?: boolean;
-  toLowercase?: boolean;
-  capitalize?: boolean;
-  trim?: boolean;
-  customTransform?: (text: string) => Promise<string>;
-  prefixText?: string; // New option to prepend selected text
+export interface AiTransformationConfig {
+  enabled: boolean;
+  prompt: string;
+  baseUrl: string;
+  envKey: string;
+  model: string;
+  maxTokens: number;
+  temperature: number;
+  topP: number;
+  messagePrompt: string;
 }
 
 export interface SegmentTransformationResult {
@@ -25,70 +29,40 @@ export class TransformationService {
   }
 
   /**
-   * Transform segments, optionally prepending a transformed prefix text (the original selection).
+   * Transform segments by combining all text first, then applying transformations
    */
   async transformSegments(
     segments: Segment[],
-    options: TransformationOptions = {}
+    savedState: SelectedTextResult
   ): Promise<SegmentTransformationResult> {
     console.log("=== TransformationService.transformSegments ===");
     console.log("Input segments:", segments);
-    console.log("Options:", options);
 
     try {
-      // Build transformation options from config, allowing overrides
-      const configOptions: TransformationOptions = {
-        toUppercase: this.config.transformToUppercase,
-        toLowercase: this.config.transformToLowercase,
-        capitalize: this.config.transformCapitalize,
-        trim: this.config.transformTrim,
-        ...options,
-      };
-
-      console.log("Using transformation options:", configOptions);
-
-      const transformedTexts: string[] = [];
-      let segmentsProcessed = 0;
-
-      // 1. Transform the prefix text (original selection) if it exists
-      if (configOptions.prefixText) {
-        const transformedPrefix = await this.transformText(
-          configOptions.prefixText,
-          configOptions
-        );
-        if (transformedPrefix) {
-          transformedTexts.push(transformedPrefix);
-        }
-      }
-
-      // 2. Transform the transcribed segments
       const transcribedSegments = segments.filter(
         (s) => s.type === "transcribed"
       ) as TranscribedSegment[];
 
-      for (const segment of transcribedSegments) {
-        if (segment.text.trim()) {
-          const transformed = await this.transformText(
-            segment.text,
-            configOptions
-          );
-          transformedTexts.push(transformed);
-        }
-      }
-      segmentsProcessed = transcribedSegments.length;
+      const combinedText = transcribedSegments
+        .map((segment) => segment.text.trim())
+        .filter((text) => text.length > 0)
+        .join(" ");
 
-      // 3. Join all transformed texts
-      const combinedText = transformedTexts.join(" ").trim();
+      console.log("Combined text before transformation:", combinedText);
 
-      console.log("Combined transformed text:", combinedText);
-      console.log("Total segments processed:", segmentsProcessed);
+      const transformedText = await this.transformText(
+        combinedText,
+        savedState
+      );
+
+      console.log("Final transformed text:", transformedText);
 
       return {
-        transformedText: combinedText,
-        segmentsProcessed,
+        transformedText,
+        segmentsProcessed: transcribedSegments.length,
         success: true,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("=== TransformationService.transformSegments ERROR ===");
       console.error("Failed to transform segments:", error);
       return {
@@ -105,90 +79,60 @@ export class TransformationService {
    */
   private async transformText(
     text: string,
-    options: TransformationOptions = {}
+    savedState: SelectedTextResult
   ): Promise<string> {
     console.log("=== TransformationService.transformText ===");
     console.log("Input text:", text);
-    console.log("Options:", options);
 
     let transformedText = text;
 
-    // Apply transformations in order
-    if (options.trim !== false) {
-      transformedText = await this.normalizeWhitespace(transformedText);
+    if (this.config.ai?.enabled) {
+      transformedText = await this.transformWithAi(
+        transformedText,
+        this.config.ai,
+        savedState
+      );
     }
 
-    if (options.toUppercase) {
-      transformedText = await this.toUppercase(transformedText);
+    const extractedCode = this.extractCode(transformedText);
+    if (extractedCode) {
+      return extractedCode;
     }
 
-    if (options.toLowercase) {
-      transformedText = await this.toLowercase(transformedText);
-    }
-
-    if (options.capitalize) {
-      transformedText = await this.capitalizeWords(transformedText);
-    }
-
-    if (options.customTransform) {
-      transformedText = await options.customTransform(transformedText);
-    }
-
-    console.log("Transformed text:", transformedText);
     return transformedText;
   }
 
   /**
-   * Transform text to uppercase
+   * Extract code block content if it's significantly longer than non-code content
    */
-  async toUppercase(text: string): Promise<string> {
-    console.log("=== TransformationService.toUppercase ===");
-    console.log("Input text:", text);
-    const transformed = text.toUpperCase();
-    console.log("Transformed text:", transformed);
-    return transformed;
-  }
+  private extractCode(text: string): string | null {
+    const codeBlockRegex = /```(\w+)?\s*\n([\s\S]*?)\n```/g;
+    const matches = Array.from(text.matchAll(codeBlockRegex));
 
-  /**
-   * Transform text to lowercase
-   */
-  async toLowercase(text: string): Promise<string> {
-    console.log("=== TransformationService.toLowercase ===");
-    console.log("Input text:", text);
-    const transformed = text.toLowerCase();
-    console.log("Transformed text:", transformed);
-    return transformed;
-  }
+    if (matches.length === 0) {
+      return null;
+    }
 
-  /**
-   * Capitalize the first letter of each word
-   */
-  async capitalizeWords(text: string): Promise<string> {
-    console.log("=== TransformationService.capitalizeWords ===");
-    console.log("Input text:", text);
+    let longestCodeContent = "";
 
-    const transformed = text
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(" ");
+    for (const match of matches) {
+      const codeContent = match[2] || "";
+      if (codeContent.length > longestCodeContent.length) {
+        longestCodeContent = codeContent;
+      }
+    }
 
-    console.log("Transformed text:", transformed);
-    return transformed;
-  }
+    const textWithoutCodeBlocks = text.replace(codeBlockRegex, "");
+    const nonCodeContent = textWithoutCodeBlocks.trim();
 
-  /**
-   * Transform text to sentence case (first letter capitalized, rest lowercase)
-   */
-  async toSentenceCase(text: string): Promise<string> {
-    console.log("=== TransformationService.toSentenceCase ===");
-    console.log("Input text:", text);
+    if (
+      longestCodeContent.length > nonCodeContent.length * 2 &&
+      longestCodeContent.length > 0
+    ) {
+      return longestCodeContent.trim();
+    }
 
-    if (!text) return text;
-
-    const transformed =
-      text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-    console.log("Transformed text:", transformed);
-    return transformed;
+    return null;
   }
 
   /**
@@ -199,30 +143,77 @@ export class TransformationService {
     console.log("Input text:", text);
 
     const transformed = text.replace(/\s+/g, " ").trim();
-    console.log("Transformed text:", transformed);
     return transformed;
   }
 
   /**
-   * Apply multiple transformations in sequence
+   * Transform text using AI API
    */
-  async applyTransformations(
+  private async transformWithAi(
     text: string,
-    transformations: ((text: string) => Promise<string>)[]
+    aiConfig: AiTransformationConfig,
+    savedState: SelectedTextResult
   ): Promise<string> {
-    console.log("=== TransformationService.applyTransformations ===");
+    console.log("=== TransformationService.transformWithAi ===");
     console.log("Input text:", text);
-    console.log("Number of transformations:", transformations.length);
+    console.log("AI Config:", aiConfig);
+    console.log("Saved state:", savedState);
 
-    let transformedText = text;
-
-    for (let i = 0; i < transformations.length; i++) {
-      const transform = transformations[i];
-      transformedText = await transform(transformedText);
-      console.log(`After transformation ${i + 1}:`, transformedText);
+    const apiKey = process.env[`${aiConfig.envKey}_API_KEY`];
+    if (!apiKey) {
+      throw new Error(`API key not found for envKey: ${aiConfig.envKey}`);
     }
 
-    console.log("Final transformed text:", transformedText);
-    return transformedText;
+    let messagePrompt = aiConfig.messagePrompt
+      .replace(/{text}/g, text)
+      .replace(/{selection}/, savedState.text);
+
+    if (!savedState.hasSelection) {
+      messagePrompt = messagePrompt.replace(/<sel>[^<]+<\/sel>/, "");
+    }
+
+    console.log("MESSAGE_PROMPT:", messagePrompt);
+
+    const response = await fetch(aiConfig.baseUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: aiConfig.model,
+        stream: false,
+        max_tokens: aiConfig.maxTokens,
+        temperature: aiConfig.temperature,
+        top_p: aiConfig.topP,
+        messages: [
+          {
+            role: "system",
+            content: aiConfig.prompt,
+          },
+          {
+            role: "user",
+            content: messagePrompt,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI API request failed with status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data.choices || !data.choices[0]?.message?.content) {
+      throw new Error("Invalid AI API response format");
+    }
+
+    let transformed = data.choices[0].message.content.trim();
+    if (transformed.trim().startsWith("<think>")) {
+      transformed = transformed.replace(/<think>[\s\S]*?<\/think>/, "");
+    }
+
+    console.log("AI transformed text:", transformed);
+    return transformed.trim();
   }
 }
