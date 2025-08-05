@@ -175,7 +175,10 @@ export class SegmentManager extends EventEmitter {
 
       // Transform all segments
       const transformResult =
-        await this.transformationService.transformSegments(segmentsToProcess);
+        await this.transformationService.transformSegments(
+          segmentsToProcess,
+          SAVED_STATE
+        );
 
       if (!transformResult.success) {
         console.error(
