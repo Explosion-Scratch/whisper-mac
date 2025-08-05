@@ -7,6 +7,11 @@ export interface SelectedTextResult {
   originalClipboard: string;
 }
 
+export interface ActiveWindowInfo {
+  title: string;
+  appName: string;
+}
+
 export class SelectedTextService {
   getClipboardContent(): string {
     return clipboard.readText();
@@ -14,6 +19,45 @@ export class SelectedTextService {
 
   setClipboardContent(text: string): void {
     clipboard.writeText(text);
+  }
+
+  async getActiveWindowInfo(): Promise<ActiveWindowInfo> {
+    return new Promise((resolve) => {
+      const { execFile } = require("child_process");
+
+      const script = `
+        tell application "System Events"
+          set frontApp to first application process whose frontmost is true
+          set frontWindow to first window of frontApp
+          set windowTitle to name of frontWindow
+          set appName to name of frontApp
+          return windowTitle & "|" & appName
+        end tell
+      `;
+
+      execFile("osascript", ["-e", script], (error: any, stdout: string) => {
+        if (error) {
+          console.error("AppleScript error getting window info:", error);
+          resolve({ title: "", appName: "" });
+          return;
+        }
+
+        try {
+          const parts = stdout.trim().split("|");
+          if (parts.length === 2) {
+            resolve({
+              title: parts[0] || "",
+              appName: parts[1] || "",
+            });
+          } else {
+            resolve({ title: "", appName: "" });
+          }
+        } catch (parseError) {
+          console.error("Failed to parse window info:", parseError);
+          resolve({ title: "", appName: "" });
+        }
+      });
+    });
   }
 
   async getSelectedText(): Promise<SelectedTextResult> {
