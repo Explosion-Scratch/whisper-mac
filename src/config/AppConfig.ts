@@ -65,10 +65,10 @@ export class AppConfig {
       maxTokens: 16382,
       temperature: 0.6,
       topP: 0.95,
-      prompt: `You are an expert text editor based on natural language instructions that the user speaks. The user will speak something (transcribed below) and your job is to polish it and follow any natural language instructions within. Do this based on shared context, the current text on the user's screen, and the transcription of what the user is saying. Output in markdown. Keep the user's wording relatively intact, try to make as few changes as possible unless requested otherwise. Be aware for words and phrases that might sound identical to something else - These were likely transcribed wrong, e.g. "UYUX" probably is "UI/UX", or "Function deep out. Takes weight" means "Function debounce, takes wait". Beware that repetitions are likely the user correcting something previously said, e.g. "QUINN332B QWEN332B" should resolve to "Qwen3-32B". When you're confused think about the context this was said in. Don't use annoying formatting like bold words unless specifically requested. Only output the new changed text. E.g. the user may say "dear boss I want a raise sincerely bob ok fix it" and you could output:
+      prompt: `You are an expert text editor based on natural language instructions that the user speaks. The user will speak something (transcribed below) and your job is to polish it and follow any natural language instructions within. Do this based on shared context, the current text on the user's screen, the transcription of what the user is saying, and the active window/application context. Output in markdown. Keep the user's wording relatively intact, try to make as few changes as possible unless requested otherwise. Be aware for words and phrases that might sound identical to something else - These were likely transcribed wrong, e.g. "UYUX" probably is "UI/UX", or "Function deep out. Takes weight" means "Function debounce, takes wait". Beware that repetitions are likely the user correcting something previously said, e.g. "QUINN332B QWEN332B" should resolve to "Qwen3-32B". When you're confused think about the context this was said in. Don't use annoying formatting like bold words unless specifically requested. Only output the new changed text. E.g. the user may say "dear boss I want a raise sincerely bob ok fix it" and you could output:
 
 ----EXAMPLE----
-Hi [Manager's Name], I hope you're well. I’d like to schedule a brief meeting to discuss the possibility of a salary adjustment based on my contributions and responsibilities. Please let me know a convenient time for you.
+Hi [Manager's Name], I hope you're well. I'd like to schedule a brief meeting to discuss the possibility of a salary adjustment based on my contributions and responsibilities. Please let me know a convenient time for you.
 
 Best regards, Bob
 ----END EXAMPLE----
@@ -87,8 +87,8 @@ JavaScript code
     : ""
 }
 
-Perform these modifications based on the context, selection, and transcription given.`,
-      messagePrompt: `<sel>----SELECTION----\n{selection}\n----END SELECTION----\n\nOperate based on the selection. E.g. make any changes requested, or if the user appears to be saying something new just transform that using context from the selection if needed. Your output replaces the user's current selection.</sel>----ROUGH TRANSCRIPTION----\n{text}\n----END ROUGH TRANSCRIPTION----\n\n----INSTRUCTION---- Now output only the changed text. No explanations or other text. ----END INSTRUCTION---- Changed text:`,
+Perform these modifications based on the context, selection, transcription, and active window/application given.`,
+      messagePrompt: `<sel>----SELECTION----\n{selection}\n----END SELECTION----\n\nOperate based on the selection. E.g. make any changes requested, or if the user appears to be saying something new just transform that using context from the selection if needed. Your output replaces the user's current selection.</sel>----ROUGH TRANSCRIPTION----\n{text}\n----END ROUGH TRANSCRIPTION----\n\n----CONTEXT----\nActive Window: {title}\nApplication: {app}\n----END CONTEXT----\n\n----INSTRUCTION----\nNow output only the changed text. No explanations or other text.\n----END INSTRUCTION----\n\nChanged text:`,
     };
   }
 

@@ -171,9 +171,19 @@ export class TransformationService {
       throw new Error(`API key not found for envKey: ${aiConfig.envKey}`);
     }
 
+    // Get active window information
+    const selectedTextService = new (
+      await import("./SelectedTextService")
+    ).SelectedTextService();
+    const windowInfo = await selectedTextService.getActiveWindowInfo();
+
+    console.log("Active window info:", windowInfo);
+
     let messagePrompt = aiConfig.messagePrompt
       .replace(/{text}/g, text)
-      .replace(/{selection}/, savedState.text);
+      .replace(/{selection}/, savedState.text)
+      .replace(/{title}/g, windowInfo.title)
+      .replace(/{app}/g, windowInfo.appName);
 
     if (!savedState.hasSelection) {
       messagePrompt = messagePrompt.replace(/<sel>[^<]+<\/sel>/, "");
