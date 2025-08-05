@@ -57,7 +57,7 @@ export class AppConfig {
 
     // AI transformation defaults
     this.ai = {
-      enabled: false,
+      enabled: true,
       baseUrl: "https://api.cerebras.ai/v1/chat/completions",
       envKey: "CEREBRAS",
       model: "qwen-3-32b",

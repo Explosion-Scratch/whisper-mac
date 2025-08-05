@@ -1,3 +1,4 @@
+// Electron modules
 import {
   app,
   BrowserWindow,
@@ -6,8 +7,12 @@ import {
   globalShortcut,
   ipcMain,
 } from "electron";
+
+// Node.js utilities
 import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
+
+// Core services
 import { AudioCaptureService } from "./services/AudioCaptureService";
 import { TranscriptionClient } from "./services/WhisperLiveClient";
 import { TextInjectionService } from "./services/TextInjectionService";
@@ -16,6 +21,8 @@ import { ModelManager } from "./services/ModelManager";
 import { AppConfig } from "./config/AppConfig";
 import { SelectedTextService } from "./services/SelectedTextService";
 import { DictationWindowService } from "./services/DictationWindowService";
+
+// Segment management
 import { SegmentManager } from "./services/SegmentManager";
 import { SegmentUpdate } from "./types/SegmentTypes";
 

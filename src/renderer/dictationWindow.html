@@ -87,7 +87,7 @@
       .text-content {
         display: flex;
         align-items: baseline;
-        gap: 8px;
+        gap: 4px;
         white-space: nowrap;
         min-width: 100%;
         line-height: 1.2;
@@ -226,46 +226,50 @@
     <div id="app">
       <div class="dictation-container">
         <div class="status-icon" :class="statusIconClass">
-          <!-- Microphone icon for idle and listening states using Phosphor -->
-          <svg
-            v-if="currentStatus === 'idle' || currentStatus === 'listening'"
-            viewBox="0 0 256 256"
-          >
+          <!-- Microphone icon for idle state using Phosphor -->
+          <svg v-if="currentStatus === 'idle'" viewBox="0 0 256 256">
             <path
-              d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0ZM216,128H200a72,72,0,0,1-144,0H40a8,8,0,0,0,0,16H72v16a8,8,0,0,0,16,0V144h80v16a8,8,0,0,0,16,0V144h32a8,8,0,0,0,0-16Z"
+              fill="currentColor"
+              d="M128 174a46.06 46.06 0 0 0 46-46V64a46 46 0 0 0-92 0v64a46.06 46.06 0 0 0 46 46M94 64a34 34 0 0 1 68 0v64a34 34 0 0 1-68 0Zm40 141.75V240a6 6 0 0 1-12 0v-34.25A78.09 78.09 0 0 1 50 128a6 6 0 0 1 12 0a66 66 0 0 0 132 0a6 6 0 0 1 12 0a78.09 78.09 0 0 1-72 77.75"
             />
           </svg>
 
-          <!-- Loading spinner for transforming state - duo-tone -->
-          <svg
-            v-else-if="currentStatus === 'transforming'"
-            viewBox="0 0 256 256"
-          >
-            <circle
-              cx="128"
-              cy="128"
-              r="96"
-              fill="none"
-              stroke="rgba(255,255,255,0.3)"
-              stroke-width="16"
-            />
-            <circle
-              cx="128"
-              cy="128"
-              r="96"
-              fill="none"
-              stroke="white"
-              stroke-width="16"
-              stroke-linecap="round"
-              stroke-dasharray="150.8"
-              stroke-dashoffset="75.4"
-            />
+          <!-- Microphone icon for listening state using Phosphor -->
+          <svg v-else-if="currentStatus === 'listening'" viewBox="0 0 256 256">
+            <g fill="currentColor">
+              <path
+                d="M168 64v64a40 40 0 0 1-40 40a40 40 0 0 1-40-40V64a40 40 0 0 1 40-40a40 40 0 0 1 40 40"
+                opacity=".2"
+              />
+              <path
+                d="M128 176a48.05 48.05 0 0 0 48-48V64a48 48 0 0 0-96 0v64a48.05 48.05 0 0 0 48 48M96 64a32 32 0 0 1 64 0v64a32 32 0 0 1-64 0Zm40 143.6V240a8 8 0 0 1-16 0v-32.4A80.11 80.11 0 0 1 48 128a8 8 0 0 1 16 0a64 64 0 0 0 128 0a8 8 0 0 1 16 0a80.11 80.11 0 0 1-72 79.6"
+              />
+            </g>
+          </svg>
+
+          <!-- Loading spinner for transforming state -->
+          <svg v-else-if="currentStatus === 'transforming'" viewBox="0 0 24 24">
+            <g fill="none" fill-rule="evenodd">
+              <path
+                d="m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z"
+              />
+              <path
+                fill="currentColor"
+                d="M12 4a8 8 0 1 0 0 16a8 8 0 0 0 0-16M2 12C2 6.477 6.477 2 12 2s10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12"
+                opacity=".1"
+              />
+              <path
+                fill="currentColor"
+                d="M12 4a7.96 7.96 0 0 0-5.533 2.222a1 1 0 1 1-1.384-1.444A9.96 9.96 0 0 1 12 2a1 1 0 1 1 0 2"
+              />
+            </g>
           </svg>
 
           <!-- Check icon for complete state using Phosphor -->
           <svg v-else-if="currentStatus === 'complete'" viewBox="0 0 256 256">
             <path
-              d="m229.66,77.66-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"
+              fill="currentColor"
+              d="m229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69L218.34 66.34a8 8 0 0 1 11.32 11.32"
             />
           </svg>
         </div>
