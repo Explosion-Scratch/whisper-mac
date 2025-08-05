@@ -99,7 +99,7 @@ export class TransformationService {
       return extractedCode;
     }
 
-    return transformedText;
+    return transformedText.trim();
   }
 
   /**
@@ -144,6 +144,13 @@ export class TransformationService {
 
     const transformed = text.replace(/\s+/g, " ").trim();
     return transformed;
+  }
+
+  /**
+   * Remove content between <think> tags and trim the result
+   */
+  private removeThink(text: string): string {
+    return text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   }
 
   /**
@@ -208,12 +215,9 @@ export class TransformationService {
       throw new Error("Invalid AI API response format");
     }
 
-    let transformed = data.choices[0].message.content.trim();
-    if (transformed.trim().startsWith("<think>")) {
-      transformed = transformed.replace(/<think>[\s\S]*?<\/think>/, "");
-    }
+    const transformed = this.removeThink(data.choices[0].message.content);
 
     console.log("AI transformed text:", transformed);
-    return transformed.trim();
+    return transformed;
   }
 }

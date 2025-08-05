@@ -15,6 +15,7 @@ export class SegmentManager extends EventEmitter {
   private segments: Segment[] = [];
   private initialSelectedText: string | null = null; // Store selected text here
   private originalClipboard: string | null = null; // Store original clipboard content
+  private selectedTextResult: SelectedTextResult | null = null; // Store the full selected text result
   private transformationService: TransformationService;
   private textInjectionService: TextInjectionService;
   private selectedTextService: SelectedTextService;
@@ -41,6 +42,16 @@ export class SegmentManager extends EventEmitter {
     this.initialSelectedText = text.trim();
     console.log(
       `[SegmentManager] Set initial selected text: "${this.initialSelectedText}"`
+    );
+  }
+
+  /**
+   * Stores the selected text result for the dictation session.
+   */
+  setSelectedTextResult(result: SelectedTextResult): void {
+    this.selectedTextResult = result;
+    console.log(
+      `[SegmentManager] Set selected text result: ${JSON.stringify(result)}`
     );
   }
 
@@ -120,6 +131,12 @@ export class SegmentManager extends EventEmitter {
   }
 
   private async saveState(): Promise<SelectedTextResult> {
+    // Use stored selected text result if available, otherwise get fresh
+    if (this.selectedTextResult) {
+      console.log("[SegmentManager] Using stored selected text result");
+      return this.selectedTextResult;
+    }
+    console.log("[SegmentManager] Getting fresh selected text");
     return await this.selectedTextService.getSelectedText();
   }
 
@@ -262,6 +279,7 @@ export class SegmentManager extends EventEmitter {
     );
     this.segments = [];
     this.initialSelectedText = null;
+    this.selectedTextResult = null;
     this.emit("segments-cleared");
   }
 
