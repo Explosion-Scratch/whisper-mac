@@ -14,7 +14,10 @@ import { TextInjectionService } from "./services/TextInjectionService";
 import { TransformationService } from "./services/TransformationService";
 import { ModelManager } from "./services/ModelManager";
 import { AppConfig } from "./config/AppConfig";
-import { SelectedTextService } from "./services/SelectedTextService";
+import {
+  SelectedTextResult,
+  SelectedTextService,
+} from "./services/SelectedTextService";
 import { DictationWindowService } from "./services/DictationWindowService";
 import { SegmentManager } from "./services/SegmentManager";
 import { SegmentUpdate } from "./types/SegmentTypes";
@@ -320,7 +323,20 @@ class WhisperMacApp {
       // 1. Clear any existing segments and stored selected text
       this.segmentManager.clearAllSegments();
 
-      // 2. Show dictation window (pre-loaded for instant display)
+      // 2. Get selected text if not disabled
+      let selectedTextResult: SelectedTextResult | null = null;
+      if (!this.config.skipSelectedTextRetrieval) {
+        console.log("=== Retrieving selected text ===");
+        selectedTextResult = await this.selectedTextService.getSelectedText();
+        console.log("Selected text result:", selectedTextResult);
+
+        // Store the selected text result in the segment manager
+        if (selectedTextResult) {
+          this.segmentManager.setSelectedTextResult(selectedTextResult);
+        }
+      }
+
+      // 3. Show dictation window (pre-loaded for instant display)
       const windowStartTime = Date.now();
       await this.dictationWindowService.showDictationWindow();
       const windowEndTime = Date.now();

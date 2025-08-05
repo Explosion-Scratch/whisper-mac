@@ -88,7 +88,7 @@ JavaScript code
 }
 
 Perform these modifications based on the context, text and transcription given.`,
-      messagePrompt: `<sel>----SELECTION----\n{selection}\n----END SELECTION----\n\n</sel>----ROUGH TRANSCRIPTION----\n{text}\n----END ROUGH TRANSCRIPTION----\n\n----INSTRUCTION---- Now output only the changed text. ----END INSTRUCTION---- Changed text:\n\n`,
+      messagePrompt: `<sel>----SELECTION----\n{selection}\n----END SELECTION----\n\n</sel>----ROUGH TRANSCRIPTION----\n{text}\n----END ROUGH TRANSCRIPTION----\n\n----INSTRUCTION---- Now output only the changed text. No explanations or other text. ----END INSTRUCTION---- Changed text: /no_think`,
     };
   }
 
