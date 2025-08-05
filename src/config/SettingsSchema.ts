@@ -183,13 +183,6 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         placeholder: "gpt-4",
       },
       {
-        key: "ai.stream",
-        type: "boolean",
-        label: "Stream Response",
-        description: "Enable streaming responses from AI service",
-        defaultValue: true,
-      },
-      {
         key: "ai.maxTokens",
         type: "number",
         label: "Max Tokens",

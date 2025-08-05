@@ -129,7 +129,6 @@ class SettingsWindow {
         "ai.baseUrl": "ph-link",
         "ai.envKey": "ph-key",
         "ai.model": "ph-brain",
-        "ai.stream": "ph-flow-arrow",
         "ai.maxTokens": "ph-coins",
         "ai.temperature": "ph-thermometer",
         "ai.topP": "ph-target",
