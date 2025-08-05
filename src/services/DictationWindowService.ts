@@ -71,13 +71,14 @@ export class DictationWindowService {
       y: position.y,
       frame: false,
       transparent: true,
-      alwaysOnTop: true,
+      alwaysOnTop: true, // Set to true to make window floating across all desktops
       skipTaskbar: true,
       resizable: false,
       minimizable: false,
       maximizable: false,
       closable: true,
       opacity: this.config.dictationWindowOpacity,
+      movable: true, // Ensure window is movable
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,

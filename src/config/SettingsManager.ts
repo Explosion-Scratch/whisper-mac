@@ -191,7 +191,6 @@ export class SettingsManager {
       ),
       envKey: this.get("ai.envKey", "CEREBRAS"),
       model: this.get("ai.model", "qwen-3-32b"),
-      stream: this.get("ai.stream", true),
       maxTokens: this.get("ai.maxTokens", 16382),
       temperature: this.get("ai.temperature", 0.6),
       topP: this.get("ai.topP", 0.95),
@@ -237,7 +236,6 @@ export class SettingsManager {
     this.set("ai.baseUrl", this.config.ai.baseUrl);
     this.set("ai.envKey", this.config.ai.envKey);
     this.set("ai.model", this.config.ai.model);
-    this.set("ai.stream", this.config.ai.stream);
     this.set("ai.maxTokens", this.config.ai.maxTokens);
     this.set("ai.temperature", this.config.ai.temperature);
     this.set("ai.topP", this.config.ai.topP);

@@ -3,6 +3,12 @@ import { existsSync, mkdirSync } from "fs";
 import { spawn } from "child_process";
 import { AppConfig } from "../config/AppConfig";
 
+export type ModelDownloadProgress = {
+  status: "starting" | "cloning" | "installing" | "complete" | "error";
+  message: string;
+  modelRepoId: string;
+};
+
 export class ModelManager {
   private config: AppConfig;
 
@@ -109,7 +115,10 @@ export class ModelManager {
     });
   }
 
-  async ensureModelExists(modelRepoId: string): Promise<boolean> {
+  async ensureModelExists(
+    modelRepoId: string,
+    onProgress?: (progress: ModelDownloadProgress) => void
+  ): Promise<boolean> {
     this.ensureDataDirectory();
     const modelDir = this.getModelPath(modelRepoId);
     if (existsSync(modelDir)) {
@@ -119,7 +128,7 @@ export class ModelManager {
     // Ensure Git LFS is available before cloning
     await this.ensureGitLFS();
 
-    return await this.cloneModel(modelRepoId);
+    return await this.cloneModel(modelRepoId, onProgress);
   }
 
   private getModelPath(modelRepoId: string): string {
@@ -128,7 +137,10 @@ export class ModelManager {
     return join(this.config.getModelsDir(), safeName);
   }
 
-  private async cloneModel(modelRepoId: string): Promise<boolean> {
+  private async cloneModel(
+    modelRepoId: string,
+    onProgress?: (progress: ModelDownloadProgress) => void
+  ): Promise<boolean> {
     return new Promise((resolve, reject) => {
       const modelDir = this.getModelPath(modelRepoId);
       const huggingfaceUrl = `https://huggingface.co/${modelRepoId}`;
@@ -137,8 +149,20 @@ export class ModelManager {
         `Cloning HuggingFace model ${modelRepoId} from ${huggingfaceUrl}`
       );
 
+      onProgress?.({
+        status: "starting",
+        message: "Preparing to download model...",
+        modelRepoId,
+      });
+
       const process = spawn("git", ["clone", huggingfaceUrl, modelDir], {
         stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      onProgress?.({
+        status: "cloning",
+        message: "Downloading model files...",
+        modelRepoId,
       });
 
       process.stdout?.on("data", (data) => {
@@ -154,15 +178,30 @@ export class ModelManager {
           console.log(
             `Model ${modelRepoId} cloned successfully to ${modelDir}`
           );
+          onProgress?.({
+            status: "complete",
+            message: "Model downloaded successfully",
+            modelRepoId,
+          });
           resolve(true);
         } else {
           console.error(`Model clone failed with code ${code}`);
+          onProgress?.({
+            status: "error",
+            message: `Download failed with code ${code}`,
+            modelRepoId,
+          });
           reject(new Error(`Model clone failed with code ${code}`));
         }
       });
 
       process.on("error", (error) => {
         console.error(`Failed to start git clone: ${error.message}`);
+        onProgress?.({
+          status: "error",
+          message: `Download failed: ${error.message}`,
+          modelRepoId,
+        });
         reject(error);
       });
     });
@@ -172,7 +211,10 @@ export class ModelManager {
     return this.getModelPath(modelRepoId);
   }
 
-  async downloadModel(modelRepoId: string): Promise<boolean> {
-    return this.cloneModel(modelRepoId);
+  async downloadModel(
+    modelRepoId: string,
+    onProgress?: (progress: ModelDownloadProgress) => void
+  ): Promise<boolean> {
+    return this.cloneModel(modelRepoId, onProgress);
   }
 }

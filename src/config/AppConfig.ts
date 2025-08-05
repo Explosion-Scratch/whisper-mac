@@ -9,7 +9,6 @@ export interface AiTransformationConfig {
   baseUrl: string;
   envKey: string;
   model: string;
-  stream: boolean;
   maxTokens: number;
   temperature: number;
   topP: number;
@@ -57,7 +56,6 @@ export class AppConfig {
       baseUrl: "https://api.cerebras.ai/v1/chat/completions",
       envKey: "CEREBRAS",
       model: "qwen-3-32b",
-      stream: true,
       maxTokens: 16382,
       temperature: 0.6,
       topP: 0.95,

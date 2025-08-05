@@ -12,6 +12,17 @@ import {
   SegmentUpdate,
 } from "../types/SegmentTypes";
 
+export type WhisperSetupProgress = {
+  status:
+    | "starting"
+    | "cloning"
+    | "installing"
+    | "launching"
+    | "complete"
+    | "error";
+  message: string;
+};
+
 export class TranscriptionClient {
   private serverProcess: ChildProcess | null = null;
   private websocket: WebSocket | null = null;
@@ -31,7 +42,10 @@ export class TranscriptionClient {
    * 1.  Clone the repo if it isn't there yet
    * 2.  Start the server with the official run_server.py script
    * ---------------------------------------------------------- */
-  async startServer(modelRepoId: string): Promise<void> {
+  async startServer(
+    modelRepoId: string,
+    onProgress?: (progress: WhisperSetupProgress) => void
+  ): Promise<void> {
     const repoDir = this.config.getWhisperLiveDir();
     console.log("repoDir", repoDir);
     const runScript = join(repoDir, "run_server.py");
@@ -39,6 +53,11 @@ export class TranscriptionClient {
     // Install with pip
     const runInstall = async (): Promise<void> => {
       return new Promise((resolve, reject) => {
+        onProgress?.({
+          status: "installing",
+          message: "Installing Whisper dependencies...",
+        });
+
         const install = spawn(
           "pip",
           ["install", "-r", "requirements/server.txt"],
@@ -74,6 +93,11 @@ export class TranscriptionClient {
     // 1. Clone once
     if (!existsSync(runScript)) {
       return new Promise((resolve, reject) => {
+        onProgress?.({
+          status: "cloning",
+          message: "Downloading Whisper server...",
+        });
+
         // Ensure the parent directory exists
         const parentDir = join(repoDir, "..");
         if (!existsSync(parentDir)) {
@@ -95,7 +119,7 @@ export class TranscriptionClient {
             try {
               await runInstall();
               await runSetup();
-              resolve(this._launch(repoDir, modelRepoId));
+              resolve(this._launch(repoDir, modelRepoId, onProgress));
             } catch (err) {
               reject(err);
             }
@@ -108,13 +132,17 @@ export class TranscriptionClient {
     }
 
     // 2. Already cloned – just launch
-    return this._launch(repoDir, modelRepoId);
+    return this._launch(repoDir, modelRepoId, onProgress);
   }
 
   /* ----------------------------------------------------------
    * Internal: spawn the server exactly like the README shows
    * ---------------------------------------------------------- */
-  private async _launch(repoDir: string, modelRepoId: string): Promise<void> {
+  private async _launch(
+    repoDir: string,
+    modelRepoId: string,
+    onProgress?: (progress: WhisperSetupProgress) => void
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const runScript = join(repoDir, "run_server.py");
 
@@ -142,6 +170,11 @@ export class TranscriptionClient {
         ["python3", ...args].join(" ")
       );
 
+      onProgress?.({
+        status: "launching",
+        message: "Starting Whisper server...",
+      });
+
       this.serverProcess = spawn("python3", args, {
         cwd: repoDir,
         stdio: ["ignore", "pipe", "pipe"],
@@ -153,6 +186,10 @@ export class TranscriptionClient {
       setTimeout(() => {
         if (!resolved) {
           resolved = true;
+          onProgress?.({
+            status: "complete",
+            message: "Whisper server ready",
+          });
           resolve();
         }
       }, 1000); // Increased timeout for server readiness
@@ -162,6 +199,10 @@ export class TranscriptionClient {
         console.log("[WhisperLive]", msg);
         if (!resolved && msg.includes("Uvicorn running on")) {
           resolved = true;
+          onProgress?.({
+            status: "complete",
+            message: "Whisper server ready",
+          });
           resolve();
         }
       });
@@ -205,8 +246,8 @@ export class TranscriptionClient {
         language: null, // auto-detect
         task: "transcribe",
         model: this.config.defaultModel,
-        // no_speech_thresh: 0.2,
-        // same_output_threshold: 2,
+        no_speech_thresh: 0.2,
+        same_output_threshold: 5,
         use_vad: true,
       };
 

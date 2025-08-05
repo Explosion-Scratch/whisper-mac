@@ -27,12 +27,14 @@ import { SettingsService } from "./services/SettingsService";
 import { SegmentManager } from "./services/SegmentManager";
 import { SegmentUpdate } from "./types/SegmentTypes";
 
-type SetupStatus = 
+type SetupStatus =
   | "idle"
   | "downloading-models"
   | "setting-up-whisper"
   | "preparing-app"
-  | "checking-permissions";
+  | "checking-permissions"
+  | "starting-server"
+  | "loading-windows";
 
 class WhisperMacApp {
   private tray: Tray | null = null;
@@ -84,7 +86,7 @@ class WhisperMacApp {
 
   private setSetupStatus(status: SetupStatus) {
     this.currentSetupStatus = status;
-    this.setupStatusCallbacks.forEach(callback => callback(status));
+    this.setupStatusCallbacks.forEach((callback) => callback(status));
     this.updateTrayMenu();
   }
 
@@ -102,6 +104,10 @@ class WhisperMacApp {
         return "Preparing app...";
       case "checking-permissions":
         return "Checking permissions...";
+      case "starting-server":
+        return "Starting server...";
+      case "loading-windows":
+        return "Loading windows...";
       case "idle":
       default:
         return "WhisperMac - AI Dictation";
@@ -112,7 +118,7 @@ class WhisperMacApp {
     if (!this.tray) return;
 
     const isSetupInProgress = this.currentSetupStatus !== "idle";
-    
+
     if (isSetupInProgress) {
       // Show status menu during setup
       const statusMenu = Menu.buildFromTemplate([
@@ -186,7 +192,16 @@ class WhisperMacApp {
 
       // Check and download Whisper model on first launch
       this.modelManager
-        .ensureModelExists(this.config.defaultModel)
+        .ensureModelExists(this.config.defaultModel, (progress) => {
+          if (progress.status === "starting" || progress.status === "cloning") {
+            this.setSetupStatus("downloading-models");
+          } else if (
+            progress.status === "complete" ||
+            progress.status === "error"
+          ) {
+            // Don't set to idle here as we still have other tasks running
+          }
+        })
         .then(() => {
           console.log("Model check completed");
         })
@@ -205,8 +220,24 @@ class WhisperMacApp {
     ];
 
     // Start WhisperLive server (this needs to be done before we can transcribe)
-    this.setSetupStatus("setting-up-whisper");
-    await this.transcriptionClient.startServer(this.config.defaultModel);
+    this.setSetupStatus("starting-server");
+    await this.transcriptionClient.startServer(
+      this.config.defaultModel,
+      (progress) => {
+        // Update tray status based on Whisper setup progress
+        if (progress.status === "cloning") {
+          this.setSetupStatus("setting-up-whisper");
+        } else if (progress.status === "installing") {
+          this.setSetupStatus("setting-up-whisper");
+        } else if (progress.status === "launching") {
+          this.setSetupStatus("starting-server");
+        } else if (progress.status === "complete") {
+          // Don't set to idle here as we still have other tasks running
+        } else if (progress.status === "error") {
+          // Don't set to idle here as we still have other tasks running
+        }
+      }
+    );
 
     // Wait for other initialization tasks to complete
     await Promise.allSettled(initTasks);
@@ -227,6 +258,7 @@ class WhisperMacApp {
     try {
       // Pre-load windows in parallel for faster startup
       console.log("Pre-loading windows for faster startup...");
+      this.setSetupStatus("loading-windows");
       await Promise.allSettled([
         this.dictationWindowService.preloadWindow(),
         this.audioService.preloadWindow(),
@@ -273,7 +305,29 @@ class WhisperMacApp {
             modelRepoId,
           });
 
-          const success = await this.modelManager.downloadModel(modelRepoId);
+          const success = await this.modelManager.downloadModel(
+            modelRepoId,
+            (progress) => {
+              // Update tray status based on progress
+              if (progress.status === "starting") {
+                this.setSetupStatus("downloading-models");
+              } else if (progress.status === "cloning") {
+                this.setSetupStatus("downloading-models");
+              } else if (progress.status === "complete") {
+                this.setSetupStatus("idle");
+              } else if (progress.status === "error") {
+                this.setSetupStatus("idle");
+              }
+
+              // Send progress update to renderer
+              event.reply("download-model-progress", {
+                status: progress.status,
+                modelRepoId: progress.modelRepoId,
+                message: progress.message,
+              });
+            }
+          );
+
           if (success) {
             event.reply("download-model-complete", {
               status: "success",
