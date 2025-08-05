@@ -33,6 +33,7 @@ export class TranscriptionClient {
    * ---------------------------------------------------------- */
   async startServer(modelRepoId: string): Promise<void> {
     const repoDir = this.config.getWhisperLiveDir();
+    console.log("repoDir", repoDir);
     const runScript = join(repoDir, "run_server.py");
 
     // Install with pip
@@ -77,6 +78,11 @@ export class TranscriptionClient {
         const parentDir = join(repoDir, "..");
         if (!existsSync(parentDir)) {
           require("fs").mkdirSync(parentDir, { recursive: true });
+        }
+
+        // Remove the target directory if it exists to avoid nested cloning
+        if (existsSync(repoDir)) {
+          require("fs").rmSync(repoDir, { recursive: true, force: true });
         }
 
         const git = spawn(
@@ -199,8 +205,8 @@ export class TranscriptionClient {
         language: null, // auto-detect
         task: "transcribe",
         model: this.config.defaultModel,
-        no_speech_thresh: 0.2,
-        same_output_threshold: 2,
+        // no_speech_thresh: 0.2,
+        // same_output_threshold: 2,
         use_vad: true,
       };
 

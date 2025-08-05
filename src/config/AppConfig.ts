@@ -1,4 +1,4 @@
-import { join } from "path";
+import { join, resolve } from "path";
 import { homedir } from "os";
 
 export type DictationWindowPosition = "active-app-corner" | "screen-corner";
@@ -20,7 +20,6 @@ export class AppConfig {
   modelPath: string;
   serverPort: number;
   defaultModel: string;
-  cachePath: string;
   dataDir: string;
 
   // Dictation window configuration
@@ -29,7 +28,6 @@ export class AppConfig {
   dictationWindowHeight: number;
   dictationWindowOpacity: number;
   showDictationWindowAlways: boolean;
-  skipSelectedTextRetrieval: boolean; // New option for faster startup
 
   // Text transformation configuration
   transformTrim: boolean;
@@ -41,8 +39,7 @@ export class AppConfig {
     this.modelPath = "";
     this.serverPort = 9090;
     this.defaultModel = "Systran/faster-whisper-tiny.en";
-    this.cachePath = "";
-    this.dataDir = join(__dirname, "../../.whispermac-data");
+    this.dataDir = resolve(__dirname, "../../.whispermac-data");
 
     // Dictation window defaults
     this.dictationWindowPosition = "screen-corner";
@@ -50,7 +47,6 @@ export class AppConfig {
     this.dictationWindowHeight = 50;
     this.dictationWindowOpacity = 0.95;
     this.showDictationWindowAlways = false;
-    this.skipSelectedTextRetrieval = false; // Set to true for fastest startup
 
     // Text transformation defaults
     this.transformTrim = true;
@@ -90,10 +86,6 @@ JavaScript code
 Perform these modifications based on the context, selection, transcription, and active window/application given.`,
       messagePrompt: `<sel>----SELECTION----\n{selection}\n----END SELECTION----\n\nOperate based on the selection. E.g. make any changes requested, or if the user appears to be saying something new just transform that using context from the selection if needed. Your output replaces the user's current selection.</sel>----ROUGH TRANSCRIPTION----\n{text}\n----END ROUGH TRANSCRIPTION----\n\n----CONTEXT----\nActive Window: {title}\nApplication: {app}\n----END CONTEXT----\n\n----INSTRUCTION----\nNow output only the changed text. No explanations or other text.\n----END INSTRUCTION----\n\nChanged text:`,
     };
-  }
-
-  setCachePath(path: string): void {
-    this.cachePath = path;
   }
 
   setModelPath(path: string): void {

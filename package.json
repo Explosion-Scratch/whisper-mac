@@ -6,13 +6,14 @@
   "scripts": {
     "build": "tsc && node scripts/copy-assets.js",
     "start": "electron dist/main.js",
-    "dev": "nodemon --exec \"bun run single-dev\" --ignore dist --ignore .whispermac-data",
+    "dev": "nodemon --exec \"bun run single-dev\" --ignore dist --ignore photon --ignore .crush --ignore .whispermac-data",
     "single-dev": "concurrently --raw -m 1 \"rm -rf dist\"  \"/Users/tjs/.local/bin/killport 9090\" \"bun run build\" \"bun run start\" --names \"cleanup, kill port, build, dev\"",
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never"
   },
   "dependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",
+    "@phosphor-icons/web": "^2.1.2",
     "axios": "^1.4.0",
     "copy-paste": "^2.2.0",
     "electron": "^25.0.0",

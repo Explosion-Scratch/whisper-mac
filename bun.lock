@@ -5,6 +5,7 @@
       "name": "whispermac",
       "dependencies": {
         "@nut-tree-fork/nut-js": "^4.2.6",
+        "@phosphor-icons/web": "^2.1.2",
         "axios": "^1.4.0",
         "copy-paste": "^2.2.0",
         "electron": "^25.0.0",
@@ -126,6 +127,8 @@
     "@nut-tree-fork/provider-interfaces": ["@nut-tree-fork/provider-interfaces@4.2.6", "", { "dependencies": { "@nut-tree-fork/shared": "4.2.6" } }, "sha512-brtRegDkLSV0sa5DUAigjWf6hCoamBNPb/hKK9AQlW+j3BxQ/8djaEdEB2cihqUh1ZjEtgPyXRqpCWSdKCX68A=="],
 
     "@nut-tree-fork/shared": ["@nut-tree-fork/shared@4.2.6", "", { "dependencies": { "jimp": "0.22.10", "node-abort-controller": "3.1.1" } }, "sha512-xZaa0YtJt/DDDq/i1vZkabjq8HOWzfhXieMai61cMbYD11J6VhAfhV23ZtQEM02WG7nc2LKjl4UwRnQCteikwA=="],
+
+    "@phosphor-icons/web": ["@phosphor-icons/web@2.1.2", "", {}, "sha512-rPAR9o/bEcp4Cw4DEeZHXf+nlGCMNGkNDRizYHM47NLxz9vvEHp/Tt6FMK1NcWadzw/pFDPnRBGi/ofRya958A=="],
 
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
 
