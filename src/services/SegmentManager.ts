@@ -18,6 +18,7 @@ export class SegmentManager extends EventEmitter {
   private transformationService: TransformationService;
   private textInjectionService: TextInjectionService;
   private selectedTextService: SelectedTextService;
+  private isAccumulatingMode: boolean = false; // New: track if we're in accumulate-only mode
 
   constructor(
     transformationService: TransformationService,
@@ -28,6 +29,15 @@ export class SegmentManager extends EventEmitter {
     this.transformationService = transformationService;
     this.textInjectionService = textInjectionService;
     this.selectedTextService = selectedTextService;
+  }
+
+  setAccumulatingMode(enabled: boolean): void {
+    this.isAccumulatingMode = enabled;
+    console.log(`[SegmentManager] Accumulating mode set to: ${enabled}`);
+  }
+
+  isInAccumulatingMode(): boolean {
+    return this.isAccumulatingMode;
   }
 
   setOriginalClipboard(text: string): void {
@@ -133,44 +143,31 @@ export class SegmentManager extends EventEmitter {
   }
 
   /**
-   * Processes segments and injects them.
-   * On a partial flush (includeInProgress=false), it only processes completed segments.
-   * On a final flush (includeInProgress=true), it includes the initial selected text and all transcribed segments.
+   * Transform and inject all accumulated segments regardless of completion status
+   * Used when manually triggering the transform+inject flow
    */
-  async flushSegments(
-    includeInProgress: boolean = false
-  ): Promise<FlushResult> {
+  async transformAndInjectAllSegments(): Promise<FlushResult> {
     const SAVED_STATE = await this.saveState();
     const RESTORE_STATE = async () => {
       console.log("Restoring state");
       await this.restoreState(SAVED_STATE);
       console.log("State restored");
     };
-    console.log("SAVED_STATE", SAVED_STATE);
+
     try {
-      console.log(
-        `[SegmentManager] Starting flush operation (includeInProgress: ${includeInProgress})`
-      );
+      console.log("[SegmentManager] Transform and inject all segments");
 
-      let segmentsToProcess: TranscribedSegment[] = [];
-
-      if (includeInProgress) {
-        // FINAL FLUSH: Process all transcribed segments
-        segmentsToProcess = this.segments.filter(
-          (s) => s.type === "transcribed"
-        ) as TranscribedSegment[];
-      } else {
-        // PARTIAL FLUSH: Process only completed transcribed segments
-        segmentsToProcess = this.getCompletedTranscribedSegments();
-      }
+      const segmentsToProcess = this.segments.filter(
+        (s) => s.type === "transcribed"
+      ) as TranscribedSegment[];
 
       if (segmentsToProcess.length === 0) {
-        console.log("[SegmentManager] No new segments to flush");
+        console.log("[SegmentManager] No segments to transform and inject");
         return { transformedText: "", segmentsProcessed: 0, success: true };
       }
 
       console.log(
-        `[SegmentManager] Flushing ${segmentsToProcess.length} segments`
+        `[SegmentManager] Transforming and injecting ${segmentsToProcess.length} segments`
       );
 
       // Transform all segments
@@ -193,19 +190,6 @@ export class SegmentManager extends EventEmitter {
         };
       }
 
-      if (!transformResult.success) {
-        console.error(
-          "[SegmentManager] Transformation failed:",
-          transformResult.error
-        );
-        return {
-          transformedText: "",
-          segmentsProcessed: 0,
-          success: false,
-          error: transformResult.error,
-        };
-      }
-
       const transformedText = transformResult.transformedText;
       if (transformedText) {
         this.textInjectionService
@@ -214,19 +198,11 @@ export class SegmentManager extends EventEmitter {
         console.log(`[SegmentManager] Injected text: "${transformedText}"`);
       }
 
-      // Remove the processed segments from state
-      if (includeInProgress) {
-        // This is a full, final flush. Clear everything.
-        this.clearAllSegments();
-      } else {
-        // This is a partial flush. Remove only the processed segments.
-        this.segments = this.segments.filter(
-          (s) => !(s.type === "transcribed" && s.completed)
-        );
-      }
+      // Clear all segments after successful transform+inject
+      this.clearAllSegments();
 
       console.log(
-        `[SegmentManager] Flush completed successfully. Remaining segments: ${this.segments.length}`
+        `[SegmentManager] Transform and inject completed successfully`
       );
 
       return {
@@ -235,7 +211,7 @@ export class SegmentManager extends EventEmitter {
         success: true,
       };
     } catch (error) {
-      console.error("[SegmentManager] Flush failed:", error);
+      console.error("[SegmentManager] Transform and inject failed:", error);
       return {
         transformedText: "",
         segmentsProcessed: 0,
@@ -247,13 +223,6 @@ export class SegmentManager extends EventEmitter {
   }
 
   /**
-   * Flush all segments (including selected and in-progress)
-   */
-  async flushAllSegments(): Promise<FlushResult> {
-    return this.flushSegments(true);
-  }
-
-  /**
    * Clear all segments and stored selected text
    */
   clearAllSegments(): void {
@@ -262,6 +231,7 @@ export class SegmentManager extends EventEmitter {
     );
     this.segments = [];
     this.initialSelectedText = null;
+    this.isAccumulatingMode = false; // Reset accumulating mode when clearing
     this.emit("segments-cleared");
   }
 

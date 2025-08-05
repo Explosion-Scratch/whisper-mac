@@ -320,13 +320,16 @@ class WhisperMacApp {
       // 1. Clear any existing segments and stored selected text
       this.segmentManager.clearAllSegments();
 
-      // 2. Show dictation window (pre-loaded for instant display)
+      // 2. Enable accumulating mode - segments will be displayed but not auto-transformed/injected
+      this.segmentManager.setAccumulatingMode(true);
+
+      // 3. Show dictation window (pre-loaded for instant display)
       const windowStartTime = Date.now();
       await this.dictationWindowService.showDictationWindow();
       const windowEndTime = Date.now();
       console.log(`Window display: ${windowEndTime - windowStartTime}ms`);
 
-      // 3. Start recording visuals and audio capture in parallel
+      // 4. Start recording visuals and audio capture in parallel
       this.isRecording = true;
       this.updateTrayIcon("recording");
       this.dictationWindowService.startRecording();
@@ -352,7 +355,7 @@ class WhisperMacApp {
         throw new Error(`Failed to start audio capture: ${audioResult.reason}`);
       }
 
-      // 4. Connect audio data from capture service to WhisperLive client
+      // 5. Connect audio data from capture service to WhisperLive client
       this.audioService.setAudioDataCallback((audioData: Float32Array) => {
         this.transcriptionClient.sendAudioData(audioData);
       });
@@ -416,38 +419,8 @@ class WhisperMacApp {
       status: update.status,
     });
 
-    // Flush completed segments if any exist
-    const completedSegments =
-      this.segmentManager.getCompletedTranscribedSegments();
-    if (completedSegments.length > 0) {
-      // If we are in finishing mode, the arrival of a completed segment
-      // triggers the final flush and completion.
-      if (this.isFinishing) {
-        console.log(
-          "=== Finishing mode: final segment received, completing dictation ==="
-        );
-        await this.completeDictationAfterFinishing();
-        return; // Exit early, the final flush is handled in completeDictationAfterFinishing
-      }
-
-      // If not finishing, perform a partial flush for continuous dictation.
-      console.log(`Flushing ${completedSegments.length} completed segments`);
-      const flushResult = await this.segmentManager.flushSegments(false);
-
-      if (flushResult.success) {
-        console.log(
-          `Successfully flushed ${flushResult.segmentsProcessed} segments`
-        );
-        // After successful flush, reset status to "listening" to indicate ready for more transcription
-        const remainingSegments = this.segmentManager.getAllSegments();
-        this.dictationWindowService.updateTranscription({
-          segments: remainingSegments,
-          status: "listening",
-        });
-      } else {
-        console.error("Flush failed:", flushResult.error);
-      }
-    }
+    // In accumulating mode - segments are only displayed, never auto-flushed
+    console.log("Segments displayed in accumulating mode - no auto-flush");
   }
 
   private async stopDictation() {
@@ -471,40 +444,20 @@ class WhisperMacApp {
       // Give a moment for final server updates
       await new Promise((r) => setTimeout(r, 250));
 
-      // Flush all remaining segments (including in-progress ones)
-      const flushResult = await this.segmentManager.flushAllSegments();
+      // This should no longer be called with the new flow, but keep as fallback
+      console.log(
+        "=== stopDictation called - this should be rare with new flow ==="
+      );
 
-      if (flushResult.success) {
-        console.log(
-          `Successfully flushed ${flushResult.segmentsProcessed} segments on stop`
-        );
-      } else {
-        console.error("Final flush failed:", flushResult.error);
-      }
+      // Clear all segments without flushing (segments should have been handled in finishCurrentDictation)
+      this.segmentManager.clearAllSegments();
 
       await this.transcriptionClient.stopTranscription();
 
-      const finalText = flushResult.transformedText;
-      console.log("Final transcription:", finalText);
-
-      if (finalText) {
-        this.dictationWindowService.completeDictation(finalText);
-        setTimeout(() => {
-          this.dictationWindowService.clearTranscription();
-        }, 1500);
-      } else {
-        // Reset status to listening if no final text
-        this.dictationWindowService.updateTranscription({
-          segments: [],
-          status: "listening",
-        });
-        setTimeout(() => {
-          this.dictationWindowService.closeDictationWindow();
-        }, 1000);
-      }
-
-      // Clear all segments
-      this.segmentManager.clearAllSegments();
+      // Close the dictation window
+      setTimeout(() => {
+        this.dictationWindowService.closeDictationWindow();
+      }, 1000);
 
       console.log("=== Dictation stopped successfully ===");
     } catch (error) {
@@ -517,32 +470,20 @@ class WhisperMacApp {
     if (!this.isRecording || this.isFinishing) return;
 
     try {
-      console.log("=== Checking if we should finish current dictation ===");
+      console.log("=== Finishing current dictation with transform+inject ===");
 
-      // Check if there are any in-progress segments (meaning audio was recorded)
-      const inProgressSegments =
-        this.segmentManager.getInProgressTranscribedSegments();
-      const completedSegments =
-        this.segmentManager.getCompletedTranscribedSegments();
-
-      // We check for initialSelectedText in the manager now
+      // Check if there are any segments to process
+      const allSegments = this.segmentManager.getAllSegments();
       const selectedText = (this.segmentManager as any).initialSelectedText;
 
-      if (
-        !selectedText &&
-        inProgressSegments.length === 0 &&
-        completedSegments.length === 0
-      ) {
+      if (!selectedText && allSegments.length === 0) {
         console.log("No segments found, stopping dictation immediately");
         await this.stopDictation();
         return;
       }
 
       console.log(
-        `Found ${inProgressSegments.length} in-progress and ${completedSegments.length} completed segments`
-      );
-      console.log(
-        "=== Finishing current dictation (waiting for completion) ==="
+        `Found ${allSegments.length} segments to transform and inject`
       );
 
       // Set finishing state
@@ -551,25 +492,40 @@ class WhisperMacApp {
       // 1. Stop audio capture immediately (no new audio will be processed)
       await this.audioService.stopCapture();
 
-      // 2. Hide dictation window
-      this.dictationWindowService.closeDictationWindow();
+      // 2. Set transforming status in UI and keep window visible
+      this.dictationWindowService.setTransformingStatus();
 
-      // 3. Update tray icon to show we're no longer actively recording
-      this.updateTrayIcon("idle");
+      // 3. Disable accumulating mode so we can transform+inject
+      this.segmentManager.setAccumulatingMode(false);
 
-      // 4. Set a 10-second timeout to prevent getting stuck
-      this.finishingTimeout = setTimeout(async () => {
-        console.log("=== Finishing timeout reached, forcing completion ===");
-        await this.completeDictationAfterFinishing();
-      }, 10000);
-
-      // Note: We keep transcription running and isRecording=true
-      // The processSegments method will handle completion and injection
-      // when new completed segments arrive
-
+      // 4. Transform and inject all accumulated segments (keep UI showing transforming status)
       console.log(
-        "=== Audio stopped, window hidden, waiting for transcription completion ==="
+        "=== Transforming and injecting all accumulated segments ==="
       );
+      const transformResult =
+        await this.segmentManager.transformAndInjectAllSegments();
+
+      // 5. Show completed status briefly before closing window
+      this.dictationWindowService.completeDictation(
+        this.dictationWindowService.getCurrentTranscription()
+      );
+
+      // Brief delay to show completed status
+      await new Promise((r) => setTimeout(r, 500));
+
+      // 6. Hide the dictation window after transform+inject is complete
+      this.dictationWindowService.hideWindow();
+
+      if (transformResult.success) {
+        console.log(
+          `Successfully transformed and injected ${transformResult.segmentsProcessed} segments`
+        );
+      } else {
+        console.error("Transform and inject failed:", transformResult.error);
+      }
+
+      // 7. Complete the dictation flow
+      await this.completeDictationAfterFinishing();
     } catch (error) {
       console.error("Failed to finish current dictation:", error);
       await this.cancelDictationFlow();
@@ -586,25 +542,21 @@ class WhisperMacApp {
         this.finishingTimeout = null;
       }
 
-      if (this.isFinishing) {
-        // If we are still in finishing mode, it means processSegments didn't trigger a final flush.
-        // This can happen if the last utterance doesn't end with a completed segment.
-        // We need to trigger a final flush manually.
-        console.log(
-          "No final completed segment received, performing final flush manually..."
-        );
-        await this.segmentManager.flushAllSegments();
-      }
-
       // Reset states
       this.isRecording = false;
       this.isFinishing = false;
+
+      // Update tray icon to idle
+      this.updateTrayIcon("idle");
 
       // Stop transcription since we're done
       await this.transcriptionClient.stopTranscription();
 
       // Clear all segments since they've been processed
       this.segmentManager.clearAllSegments();
+
+      // Clear the dictation window transcription to reset UI status
+      this.dictationWindowService.clearTranscription();
 
       console.log("=== Dictation completed successfully after finishing ===");
     } catch (error) {
@@ -634,7 +586,7 @@ class WhisperMacApp {
 
     this.dictationWindowService.closeDictationWindow();
 
-    // Clear all segments
+    // Clear all segments (this will also reset accumulating mode)
     this.segmentManager.clearAllSegments();
 
     console.log("=== Dictation flow cancelled and cleaned up ===");

@@ -262,6 +262,15 @@ export class DictationWindowService {
     }
   }
 
+  setTransformingStatus(): void {
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      this.dictationWindow.webContents.send("dictation-transcription-update", {
+        segments: this.currentSegments,
+        status: "transforming",
+      });
+    }
+  }
+
   clearTranscription(): void {
     this.currentSegments = [];
     this.currentStatus = "listening";

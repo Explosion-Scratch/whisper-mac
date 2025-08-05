@@ -199,7 +199,7 @@ export class TranscriptionClient {
         language: null, // auto-detect
         task: "transcribe",
         model: this.config.defaultModel,
-        no_speech_thresh: 0.1,
+        no_speech_thresh: 0.2,
         same_output_threshold: 2,
         use_vad: true,
       };
@@ -329,17 +329,10 @@ export class TranscriptionClient {
           } as TranscribedSegment;
         });
 
-      // Determine status based on segments
-      const status: "listening" | "transforming" = newSegments.some(
-        (s) => s.type === "transcribed" && s.completed
-      )
-        ? "transforming"
-        : "listening";
-
-      // Send update to callback with new segments only
+      // Send update to callback with new segments only (status should always be "listening" from transcription client)
       this.onTranscriptionCallback?.({
         segments: newSegments,
-        status,
+        status: "listening",
       });
     } else {
       console.log(`[WhisperLiveClient] No new segments to process`);
