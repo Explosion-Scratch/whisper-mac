@@ -1,0 +1,41 @@
+import { contextBridge, ipcRenderer, dialog } from "electron";
+
+// Expose protected methods that allow the renderer process to use
+// the ipcRenderer without exposing the entire object
+contextBridge.exposeInMainWorld("electronAPI", {
+  // Settings management
+  getSettingsSchema: () => ipcRenderer.invoke("settings:getSchema"),
+  getSettings: () => ipcRenderer.invoke("settings:get"),
+  saveSettings: (settings: Record<string, any>) =>
+    ipcRenderer.invoke("settings:save", settings),
+  resetAllSettings: () => ipcRenderer.invoke("settings:resetAll"),
+  resetSettingsSection: (sectionId: string) =>
+    ipcRenderer.invoke("settings:resetSection", sectionId),
+
+  // Import/Export
+  importSettings: (filePath: string) =>
+    ipcRenderer.invoke("settings:import", filePath),
+  exportSettings: (filePath: string, settings: Record<string, any>) =>
+    ipcRenderer.invoke("settings:export", filePath, settings),
+
+  // File dialogs
+  showOpenDialog: (options: any) =>
+    ipcRenderer.invoke("dialog:showOpenDialog", options),
+  showSaveDialog: (options: any) =>
+    ipcRenderer.invoke("dialog:showSaveDialog", options),
+
+  // Window management
+  closeSettingsWindow: () => ipcRenderer.invoke("settings:closeWindow"),
+
+  // Listen for settings updates from main process
+  onSettingsUpdated: (callback: (settings: Record<string, any>) => void) => {
+    ipcRenderer.on("settings:updated", (_event, settings) =>
+      callback(settings)
+    );
+  },
+
+  // Remove listeners
+  removeAllListeners: (channel: string) => {
+    ipcRenderer.removeAllListeners(channel);
+  },
+});

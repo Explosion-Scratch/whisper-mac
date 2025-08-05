@@ -21,10 +21,18 @@ import { ModelManager } from "./services/ModelManager";
 import { AppConfig } from "./config/AppConfig";
 import { SelectedTextService } from "./services/SelectedTextService";
 import { DictationWindowService } from "./services/DictationWindowService";
+import { SettingsService } from "./services/SettingsService";
 
 // Segment management
 import { SegmentManager } from "./services/SegmentManager";
 import { SegmentUpdate } from "./types/SegmentTypes";
+
+type SetupStatus = 
+  | "idle"
+  | "downloading-models"
+  | "setting-up-whisper"
+  | "preparing-app"
+  | "checking-permissions";
 
 class WhisperMacApp {
   private tray: Tray | null = null;
@@ -39,6 +47,11 @@ class WhisperMacApp {
   private selectedTextService: SelectedTextService;
   private dictationWindowService: DictationWindowService;
   private segmentManager: SegmentManager;
+  private settingsService: SettingsService;
+
+  // Status management
+  private currentSetupStatus: SetupStatus = "idle";
+  private setupStatusCallbacks: ((status: SetupStatus) => void)[] = [];
 
   // Dictation state
   private isRecording = false;
@@ -47,6 +60,11 @@ class WhisperMacApp {
 
   constructor() {
     this.config = new AppConfig();
+
+    // Initialize settings service first so it can load and apply settings to config
+    this.settingsService = new SettingsService(this.config);
+
+    // Initialize other services with potentially updated config
     this.audioService = new AudioCaptureService(this.config);
     this.modelManager = new ModelManager(this.config);
     this.transcriptionClient = new TranscriptionClient(
@@ -64,8 +82,86 @@ class WhisperMacApp {
     );
   }
 
+  private setSetupStatus(status: SetupStatus) {
+    this.currentSetupStatus = status;
+    this.setupStatusCallbacks.forEach(callback => callback(status));
+    this.updateTrayMenu();
+  }
+
+  private onSetupStatusChange(callback: (status: SetupStatus) => void) {
+    this.setupStatusCallbacks.push(callback);
+  }
+
+  private getStatusMessage(status: SetupStatus): string {
+    switch (status) {
+      case "downloading-models":
+        return "Downloading models...";
+      case "setting-up-whisper":
+        return "Setting up Whisper...";
+      case "preparing-app":
+        return "Preparing app...";
+      case "checking-permissions":
+        return "Checking permissions...";
+      case "idle":
+      default:
+        return "WhisperMac - AI Dictation";
+    }
+  }
+
+  private updateTrayMenu() {
+    if (!this.tray) return;
+
+    const isSetupInProgress = this.currentSetupStatus !== "idle";
+    
+    if (isSetupInProgress) {
+      // Show status menu during setup
+      const statusMenu = Menu.buildFromTemplate([
+        {
+          label: this.getStatusMessage(this.currentSetupStatus),
+          enabled: false,
+        },
+        { type: "separator" },
+        {
+          label: "Quit",
+          click: () => app.quit(),
+        },
+      ]);
+      this.tray.setContextMenu(statusMenu);
+      this.tray.setToolTip(this.getStatusMessage(this.currentSetupStatus));
+    } else {
+      // Show normal menu when ready
+      const contextMenu = Menu.buildFromTemplate([
+        {
+          label: "Start Dictation",
+          click: () => this.toggleRecording(),
+          accelerator: "Ctrl+D",
+        },
+        { type: "separator" },
+        {
+          label: "Settings",
+          click: () => this.showSettings(),
+        },
+        {
+          label: "Download Models",
+          click: () => this.showModelManager(),
+        },
+        { type: "separator" },
+        {
+          label: "Quit",
+          click: () => app.quit(),
+        },
+      ]);
+      this.tray.setContextMenu(contextMenu);
+      this.tray.setToolTip("WhisperMac - AI Dictation");
+    }
+  }
+
   async initialize() {
     await app.whenReady();
+
+    // Create tray immediately to show status during initialization
+    this.createTray();
+    this.setSetupStatus("preparing-app");
 
     // Initialize data directories
     if (!existsSync(this.config.dataDir)) {
@@ -109,17 +205,20 @@ class WhisperMacApp {
     ];
 
     // Start WhisperLive server (this needs to be done before we can transcribe)
+    this.setSetupStatus("setting-up-whisper");
     await this.transcriptionClient.startServer(this.config.defaultModel);
 
     // Wait for other initialization tasks to complete
     await Promise.allSettled(initTasks);
 
-    this.createTray();
     this.registerGlobalShortcuts();
     this.setupIpcHandlers();
 
     // Hide dock icon for menu bar only app
     app.dock?.hide();
+
+    // Set status to idle when everything is ready
+    this.setSetupStatus("idle");
 
     console.log("Initialization completed");
   }
@@ -168,6 +267,7 @@ class WhisperMacApp {
       async (event: Electron.IpcMainEvent, modelRepoId: string) => {
         try {
           console.log(`Starting download of model: ${modelRepoId}`);
+          this.setSetupStatus("downloading-models");
           event.reply("download-model-progress", {
             status: "starting",
             modelRepoId,
@@ -193,6 +293,9 @@ class WhisperMacApp {
             modelRepoId,
             error: error instanceof Error ? error.message : "Unknown error",
           });
+        } finally {
+          // Reset status to idle when download completes (success or failure)
+          this.setSetupStatus("idle");
         }
       }
     );
@@ -202,20 +305,7 @@ class WhisperMacApp {
   }
 
   private showSettings() {
-    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
-      this.settingsWindow.focus();
-      return;
-    }
-    // Create settings window
-    this.settingsWindow = new BrowserWindow({
-      width: 400,
-      height: 600,
-      webPreferences: { nodeIntegration: true },
-    });
-    this.settingsWindow.loadFile("settings.html"); // Or use loadURL if React/Vue
-    this.settingsWindow.on("closed", () => {
-      this.settingsWindow = null;
-    });
+    this.settingsService.openSettingsWindow();
   }
 
   private showModelManager() {
@@ -236,31 +326,7 @@ class WhisperMacApp {
 
   private createTray() {
     this.tray = new Tray(join(__dirname, "../assets/icon-template.png"));
-
-    const contextMenu = Menu.buildFromTemplate([
-      {
-        label: "Start Dictation",
-        click: () => this.toggleRecording(),
-        accelerator: "Ctrl+D",
-      },
-      { type: "separator" },
-      {
-        label: "Settings",
-        click: () => this.showSettings(),
-      },
-      {
-        label: "Download Models",
-        click: () => this.showModelManager(),
-      },
-      { type: "separator" },
-      {
-        label: "Quit",
-        click: () => app.quit(),
-      },
-    ]);
-
-    this.tray.setContextMenu(contextMenu);
-    this.tray.setToolTip("WhisperMac - AI Dictation");
+    this.updateTrayMenu(); // Initial call to set the correct menu
   }
 
   private registerGlobalShortcuts() {
