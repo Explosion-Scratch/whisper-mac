@@ -6,6 +6,7 @@ import {
   Menu,
   globalShortcut,
   ipcMain,
+  nativeImage,
 } from "electron";
 
 // Node.js utilities
@@ -358,6 +359,19 @@ class WhisperMacApp {
     console.log("IPC Handlers set up");
   }
 
+  private cleanupIpcHandlers() {
+    console.log("=== Cleaning up IPC handlers ===");
+
+    // Remove all IPC listeners to prevent memory leaks
+    ipcMain.removeAllListeners("start-dictation");
+    ipcMain.removeAllListeners("stop-dictation");
+    ipcMain.removeAllListeners("cancel-dictation");
+    ipcMain.removeAllListeners("close-dictation-window");
+    ipcMain.removeAllListeners("download-model");
+
+    console.log("=== IPC handlers cleaned up ===");
+  }
+
   private showSettings() {
     this.settingsService.openSettingsWindow();
   }
@@ -378,8 +392,29 @@ class WhisperMacApp {
     });
   }
 
+  /**
+   * Helper to set tray icon and app icon in menu bar.
+   * Loads the image, sets it as a template image, and applies it to both tray and app.
+   */
+  private setTrayIconPath(iconPath: string) {
+    const fullPath = join(__dirname, iconPath);
+    const image = nativeImage.createFromPath(fullPath);
+
+    // Set as template image for macOS menu bar
+    image.setTemplateImage(true);
+
+    // Set tray icon if tray exists
+    if (this.tray) {
+      this.tray.setImage(image);
+    }
+
+    // Set app icon in menu bar (macOS)
+    app.dock?.setIcon(image);
+  }
+
   private createTray() {
     this.tray = new Tray(join(__dirname, "../assets/icon-template.png"));
+    this.setTrayIconPath("../assets/icon-template.png");
     this.updateTrayMenu(); // Initial call to set the correct menu
   }
 
@@ -724,13 +759,84 @@ class WhisperMacApp {
       state === "recording"
         ? "../assets/icon-recording.png"
         : "../assets/icon-template.png";
-    this.tray?.setImage(join(__dirname, iconPath));
+    this.setTrayIconPath(iconPath);
   }
 
   // Clean up when app quits
   cleanup() {
-    globalShortcut.unregisterAll();
-    this.transcriptionClient.stopServer();
+    console.log("=== Starting app cleanup ===");
+
+    // Set a timeout to force quit if cleanup takes too long
+    const cleanupTimeout = setTimeout(() => {
+      console.log("Cleanup timeout reached, forcing app quit...");
+      process.exit(0);
+    }, 5000); // 5 second timeout
+
+    try {
+      // Unregister global shortcuts
+      globalShortcut.unregisterAll();
+
+      // Stop transcription and close WebSocket
+      this.transcriptionClient.stopTranscription();
+
+      // Stop audio capture and close audio window
+      this.audioService.stopCapture();
+
+      // Close dictation window
+      this.dictationWindowService.cleanup();
+
+      // Close settings window
+      this.settingsService.cleanup();
+
+      // Close model manager window if open
+      if (this.modelManagerWindow && !this.modelManagerWindow.isDestroyed()) {
+        this.modelManagerWindow.close();
+        this.modelManagerWindow = null;
+      }
+
+      // Stop WhisperLive server
+      this.transcriptionClient.stopServer();
+
+      // Clear tray
+      if (this.tray) {
+        this.tray.destroy();
+        this.tray = null;
+      }
+
+      // Clear any remaining timeouts
+      if (this.finishingTimeout) {
+        clearTimeout(this.finishingTimeout);
+        this.finishingTimeout = null;
+      }
+
+      // Clean up IPC handlers
+      this.cleanupIpcHandlers();
+
+      // Force close any remaining windows
+      this.forceCloseAllWindows();
+
+      console.log("=== App cleanup completed ===");
+    } catch (error) {
+      console.error("Error during cleanup:", error);
+    } finally {
+      clearTimeout(cleanupTimeout);
+    }
+  }
+
+  private forceCloseAllWindows(): void {
+    console.log("=== Force closing all remaining windows ===");
+
+    const allWindows = BrowserWindow.getAllWindows();
+    console.log(`Found ${allWindows.length} remaining windows`);
+
+    allWindows.forEach((window, index) => {
+      if (!window.isDestroyed()) {
+        console.log(`Force closing window ${index + 1}...`);
+        window.destroy();
+      }
+    });
+
+    console.log("=== All windows force closed ===");
   }
 }
 
@@ -740,6 +846,19 @@ appInstance.initialize();
 // Handle app quit
 app.on("will-quit", () => {
   appInstance.cleanup();
+});
+
+// Handle force quit (Ctrl+C or kill signal)
+process.on("SIGINT", () => {
+  console.log("Received SIGINT, forcing app quit...");
+  appInstance.cleanup();
+  process.exit(0);
+});
+
+process.on("SIGTERM", () => {
+  console.log("Received SIGTERM, forcing app quit...");
+  appInstance.cleanup();
+  process.exit(0);
 });
 
 // Prevent app from quitting when all windows are closed (menu bar app)

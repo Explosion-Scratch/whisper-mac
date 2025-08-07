@@ -1,8 +1,16 @@
 import { resolve } from "path";
+import { readPrompt } from "../helpers/getPrompt";
 
 export interface SettingsField {
   key: string;
-  type: "text" | "number" | "boolean" | "select" | "textarea" | "slider";
+  type:
+    | "text"
+    | "number"
+    | "boolean"
+    | "select"
+    | "textarea"
+    | "slider"
+    | "directory";
   label: string;
   description?: string;
   defaultValue: any;
@@ -217,7 +225,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         type: "textarea",
         label: "System Prompt",
         description: "Instructions for the AI on how to process text",
-        defaultValue: `You are an expert text editor based on natural language instructions that the user speaks. The user will speak something (transcribed below) and your job is to polish it and follow any natural language instructions within. Do this based on shared context, the current text on the user's screen, the transcription of what the user is saying, and the active window/application context. Output in markdown. Keep the user's wording relatively intact, try to make as few changes as possible unless requested otherwise. Be aware for words and phrases that might sound identical to something else - These were likely transcribed wrong, e.g. "UYUX" probably is "UI/UX", or "Function deep out. Takes weight" means "Function debounce, takes wait". Beware that repetitions are likely the user correcting something previously said, e.g. "QUINN332B QWEN332B" should resolve to "Qwen3-32B". When you're confused think about the context this was said in. Don't use annoying formatting like bold words unless specifically requested. Only output the new changed text.`,
+        defaultValue: readPrompt("prompt"),
       },
       {
         key: "ai.messagePrompt",
@@ -225,7 +233,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         label: "Message Template",
         description:
           "Template for formatting messages sent to AI service (use {selection}, {text}, {title}, {app} placeholders)",
-        defaultValue: `<sel>----SELECTION----\n{selection}\n----END SELECTION----\n\nOperate based on the selection. E.g. make any changes requested, or if the user appears to be saying something new just transform that using context from the selection if needed. Your output replaces the user's current selection.</sel>----ROUGH TRANSCRIPTION----\n{text}\n----END ROUGH TRANSCRIPTION----\n\n----CONTEXT----\nActive Window: {title}\nApplication: {app}\n----END CONTEXT----\n\n----INSTRUCTION----\nNow output only the changed text. No explanations or other text.\n----END INSTRUCTION----\n\nChanged text:`,
+        defaultValue: readPrompt("message"),
       },
     ],
   },
@@ -237,11 +245,11 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     fields: [
       {
         key: "dataDir",
-        type: "text",
+        type: "directory",
         label: "Data Directory",
         description: "Directory to store app data and models",
         defaultValue: resolve(__dirname, "../../.whispermac-data"),
-        placeholder: "/path/to/data",
+        placeholder: "Select directory...",
       },
     ],
   },

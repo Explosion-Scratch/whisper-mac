@@ -116,6 +116,7 @@ class SettingsWindow {
         select: "ph-list",
         textarea: "ph-text-align-left",
         slider: "ph-slider-horizontal",
+        directory: "ph-folder",
         // Specific field icons
         serverPort: "ph-globe",
         defaultModel: "ph-brain",
@@ -228,6 +229,26 @@ class SettingsWindow {
           </div>
         `;
         break;
+
+      case "directory":
+        fieldHtml = `
+          <div class="directory-container">
+            <input type="text" 
+                   class="form-control directory-input" 
+                   id="${fieldId}"
+                   value="${this.escapeHtml(value || "")}"
+                   placeholder="${field.placeholder || ""}"
+                   data-key="${field.key}"
+                   readonly>
+            <button type="button" 
+                    class="btn btn-default directory-browse-btn" 
+                    data-key="${field.key}">
+              <i class="ph-duotone ph-folder-open"></i>
+              Browse
+            </button>
+          </div>
+        `;
+        break;
     }
 
     // For boolean fields, don't show the label again since it's in the checkbox container
@@ -284,6 +305,12 @@ class SettingsWindow {
           this.validateField(key);
         });
       }
+    });
+
+    // Handle directory browse buttons
+    document.querySelectorAll(".directory-browse-btn").forEach((button) => {
+      const key = button.dataset.key;
+      button.addEventListener("click", () => this.browseDirectory(key));
     });
   }
 
@@ -409,6 +436,14 @@ class SettingsWindow {
         (!value || value.trim() === "")
       ) {
         error = "This field is required";
+      }
+    } else if (field.type === "directory") {
+      // Directory validation
+      if (value && value.trim() !== "") {
+        // Basic path validation - could be enhanced with actual file system check
+        if (!value.includes("/") && !value.includes("\\")) {
+          error = "Please select a valid directory path";
+        }
       }
     }
 
@@ -559,6 +594,32 @@ class SettingsWindow {
 
   closeWindow() {
     window.electronAPI.closeSettingsWindow();
+  }
+
+  async browseDirectory(key) {
+    try {
+      const result = await window.electronAPI.showDirectoryDialog({
+        title: "Select Directory",
+        buttonLabel: "Select",
+      });
+
+      if (!result.canceled && result.filePaths.length > 0) {
+        const selectedPath = result.filePaths[0];
+        this.setSettingValue(key, selectedPath);
+
+        // Update the input field
+        const fieldId = `field-${key.replace(/\./g, "-")}`;
+        const input = document.getElementById(fieldId);
+        if (input) {
+          input.value = selectedPath;
+        }
+
+        this.validateField(key);
+      }
+    } catch (error) {
+      console.error("Failed to browse directory:", error);
+      this.showStatus("Failed to browse directory", "error");
+    }
   }
 
   escapeHtml(text) {

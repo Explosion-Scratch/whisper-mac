@@ -1,5 +1,13 @@
 import { join } from "path";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  readdirSync,
+  copyFileSync,
+  rmSync,
+} from "fs";
 import {
   AppConfig,
   AiTransformationConfig,
@@ -15,11 +23,25 @@ export class SettingsManager {
   private settingsPath: string;
   private settings: Record<string, any>;
   private config: AppConfig;
+  private previousDataDir: string;
 
   constructor(config: AppConfig) {
     this.config = config;
     this.settingsPath = join(config.dataDir, "settings.json");
     this.settings = this.loadSettings();
+    this.previousDataDir = config.dataDir;
+
+    // Check if we need to migrate data on startup
+    const currentDataDir = this.get<string>("dataDir");
+    if (
+      currentDataDir &&
+      typeof currentDataDir === "string" &&
+      currentDataDir !== this.config.dataDir
+    ) {
+      this.migrateDataDirectory(this.config.dataDir, currentDataDir);
+      this.config.setDataDir(currentDataDir);
+      this.updateSettingsPath();
+    }
   }
 
   private loadSettings(): Record<string, any> {
@@ -30,7 +52,22 @@ export class SettingsManager {
 
         // Merge with defaults to ensure all keys exist
         const defaults = getDefaultSettings();
-        return this.mergeDeep(defaults, loaded);
+        const settings = this.mergeDeep(defaults, loaded);
+
+        // Check if dataDir in loaded settings differs from current config
+        const loadedDataDir = settings.dataDir;
+        if (
+          loadedDataDir &&
+          typeof loadedDataDir === "string" &&
+          loadedDataDir !== this.config.dataDir
+        ) {
+          console.log(
+            `Settings loaded from different data directory: ${loadedDataDir}`
+          );
+          this.previousDataDir = loadedDataDir;
+        }
+
+        return settings;
       }
     } catch (error) {
       console.error("Failed to load settings:", error);
@@ -114,6 +151,16 @@ export class SettingsManager {
     }
 
     current[keys[keys.length - 1]] = value;
+
+    // If dataDir changed, migrate data
+    if (
+      key === "dataDir" &&
+      typeof value === "string" &&
+      value !== this.previousDataDir
+    ) {
+      this.migrateDataDirectory(this.previousDataDir, value);
+      this.previousDataDir = value;
+    }
   }
 
   getAll(): Record<string, any> {
@@ -121,7 +168,19 @@ export class SettingsManager {
   }
 
   setAll(newSettings: Record<string, any>): void {
+    const oldDataDir = this.get<string>("dataDir");
     this.settings = this.mergeDeep(getDefaultSettings(), newSettings);
+
+    // Check if dataDir changed and migrate if necessary
+    const newDataDir = this.get<string>("dataDir");
+    if (
+      newDataDir &&
+      typeof newDataDir === "string" &&
+      newDataDir !== oldDataDir
+    ) {
+      this.migrateDataDirectory(oldDataDir, newDataDir);
+      this.previousDataDir = newDataDir;
+    }
   }
 
   reset(): void {
@@ -207,6 +266,8 @@ export class SettingsManager {
       dataDir !== this.config.dataDir
     ) {
       this.config.setDataDir(dataDir);
+      // Update settings path to new location
+      this.updateSettingsPath();
     }
   }
 
@@ -250,6 +311,23 @@ export class SettingsManager {
     return JSON.stringify(this.settings, null, 2);
   }
 
+  /**
+   * Get the current settings file path
+   */
+  getSettingsPath(): string {
+    return this.settingsPath;
+  }
+
+  /**
+   * Update settings path when data directory changes
+   */
+  private updateSettingsPath(): void {
+    const dataDir = this.get<string>("dataDir");
+    if (dataDir && typeof dataDir === "string") {
+      this.settingsPath = join(dataDir, "settings.json");
+    }
+  }
+
   importSettings(jsonString: string): void {
     try {
       const imported = JSON.parse(jsonString);
@@ -263,6 +341,113 @@ export class SettingsManager {
     } catch (error) {
       console.error("Failed to import settings:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Migrate data from old directory to new directory
+   */
+  private migrateDataDirectory(oldDir: string, newDir: string): void {
+    try {
+      if (!existsSync(oldDir) || oldDir === newDir) {
+        return;
+      }
+
+      console.log(`Migrating data from ${oldDir} to ${newDir}`);
+
+      // Ensure new directory exists
+      if (!existsSync(newDir)) {
+        mkdirSync(newDir, { recursive: true });
+      }
+
+      // Ensure subdirectories exist in new location
+      const subdirs = ["models", "cache", "whisperlive"];
+      subdirs.forEach((subdir) => {
+        const subdirPath = join(newDir, subdir);
+        if (!existsSync(subdirPath)) {
+          mkdirSync(subdirPath, { recursive: true });
+        }
+      });
+
+      // Copy all contents from old directory to new directory
+      this.copyDirectoryRecursive(oldDir, newDir);
+
+      // Verify that the migration was successful by checking if key directories exist
+      const expectedDirs = ["models", "cache", "whisperlive"];
+      const missingDirs = expectedDirs.filter(
+        (dir) => !existsSync(join(newDir, dir))
+      );
+
+      if (missingDirs.length > 0) {
+        console.warn(
+          `Some expected directories are missing in new location: ${missingDirs.join(
+            ", "
+          )}`
+        );
+      }
+
+      // Check if old directory is empty and delete it
+      if (this.isDirectoryEmpty(oldDir)) {
+        try {
+          rmSync(oldDir, { recursive: true, force: true });
+          console.log(`Deleted empty old directory: ${oldDir}`);
+        } catch (deleteError) {
+          console.warn(`Failed to delete old directory: ${deleteError}`);
+        }
+      } else {
+        console.log(`Old directory not empty, keeping: ${oldDir}`);
+      }
+
+      // Update settings path to new location
+      this.updateSettingsPath();
+
+      console.log(`Data migration completed successfully`);
+    } catch (error) {
+      console.error("Failed to migrate data directory:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Copy directory recursively
+   */
+  private copyDirectoryRecursive(source: string, destination: string): void {
+    if (!existsSync(source)) {
+      return;
+    }
+
+    if (!existsSync(destination)) {
+      mkdirSync(destination, { recursive: true });
+    }
+
+    const items = readdirSync(source, { withFileTypes: true });
+
+    for (const item of items) {
+      const sourcePath = join(source, item.name);
+      const destPath = join(destination, item.name);
+
+      if (item.isDirectory()) {
+        this.copyDirectoryRecursive(sourcePath, destPath);
+      } else {
+        copyFileSync(sourcePath, destPath);
+      }
+    }
+  }
+
+  /**
+   * Check if directory is empty
+   */
+  private isDirectoryEmpty(dirPath: string): boolean {
+    if (!existsSync(dirPath)) {
+      return true;
+    }
+
+    try {
+      const items = readdirSync(dirPath);
+      return items.length === 0;
+    } catch (error) {
+      console.error(`Error checking if directory is empty: ${error}`);
+      return false;
     }
   }
 }

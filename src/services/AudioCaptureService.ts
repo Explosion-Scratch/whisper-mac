@@ -156,23 +156,25 @@ export class AudioCaptureService extends EventEmitter {
   }
 
   async stopCapture(): Promise<void> {
-    console.log("Stopping audio capture...");
+    console.log("=== Stopping audio capture ===");
 
-    if (this.audioWindow && !this.audioWindow.isDestroyed()) {
-      this.audioWindow.webContents.send("stop-audio-capture");
-
-      // Give it a moment to clean up
-      setTimeout(() => {
-        if (this.audioWindow && !this.audioWindow.isDestroyed()) {
-          this.audioWindow.close();
-        }
-        this.audioWindow = null;
-      }, 100);
-    }
-
+    // Stop recording state
     this.isRecording = false;
     this.onAudioDataCallback = null;
-    console.log("Audio capture stopped");
+
+    if (this.audioWindow && !this.audioWindow.isDestroyed()) {
+      console.log("Sending stop command to audio window...");
+      this.audioWindow.webContents.send("stop-audio-capture");
+
+      // Give it a moment to clean up audio resources
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      console.log("Closing audio capture window...");
+      this.audioWindow.close();
+      this.audioWindow = null;
+    }
+
+    console.log("=== Audio capture stopped ===");
   }
 
   getIsRecording(): boolean {
