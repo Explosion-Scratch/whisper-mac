@@ -34,26 +34,72 @@ class SettingsWindow {
     const nav = document.getElementById("sectionNav");
     nav.innerHTML = "";
 
-    // Map section icons to phosphor icons
+    // Enhanced icon mapping with better semantic icons
     const iconMap = {
       settings: "ph-gear-six",
       window: "ph-app-window",
       "document-text": "ph-text-aa",
       flash: "ph-lightning",
       cog: "ph-gear",
+      // Additional semantic mappings
+      general: "ph-gear-six",
+      appearance: "ph-palette",
+      audio: "ph-speaker-high",
+      ai: "ph-robot",
+      advanced: "ph-wrench",
+      server: "ph-globe",
+      dictation: "ph-microphone",
+      transformation: "ph-arrows-clockwise",
+      storage: "ph-hard-drive",
+      performance: "ph-gauge",
+      security: "ph-shield-check",
+      network: "ph-wifi",
+      files: "ph-folder",
+      text: "ph-text-aa",
+      model: "ph-brain",
+      api: "ph-link",
+      prompt: "ph-chat-text",
+      data: "ph-database",
+      port: "ph-globe",
+      position: "ph-app-window",
+      size: "ph-resize",
+      opacity: "ph-eye",
+      trim: "ph-scissors",
+      enabled: "ph-toggle-left",
+      url: "ph-link",
+      key: "ph-key",
+      tokens: "ph-coins",
+      temperature: "ph-thermometer",
+      topP: "ph-target",
+      message: "ph-envelope",
+      directory: "ph-folder",
+      // AI Enhancement specific
+      "ai-enhancement": "ph-robot",
+      "ai-enhancement-settings": "ph-robot",
+      "ai-settings": "ph-robot",
+      enhancement: "ph-robot",
+      // Advanced specific
+      "advanced-settings": "ph-wrench",
+      "advanced-options": "ph-wrench",
+      system: "ph-gear-six",
+      preferences: "ph-gear-six",
+      configuration: "ph-gear-six",
     };
 
-    this.schema.forEach((section) => {
+    this.schema.forEach((section, index) => {
       const navItem = document.createElement("a");
       navItem.className = "nav-group-item";
       navItem.dataset.sectionId = section.id;
-      const iconClass = iconMap[section.icon] || "ph-gear";
+      const iconClass =
+        iconMap[section.icon] || iconMap[section.id] || "ph-gear";
       navItem.innerHTML = `
         <i class="icon ph-duotone ${iconClass}"></i>
         ${section.title}
       `;
 
-      navItem.addEventListener("click", () => this.showSection(section.id));
+      navItem.addEventListener("click", () => {
+        this.showSection(section.id);
+      });
       nav.appendChild(navItem);
     });
   }
@@ -62,21 +108,111 @@ class SettingsWindow {
     const form = document.getElementById("settingsForm");
     form.innerHTML = "";
 
-    // Map section icons to phosphor icons
+    // Enhanced icon mapping for fields - using the same mapping as navigation
     const iconMap = {
+      // Field type icons
+      text: "ph-text-aa",
+      number: "ph-hash",
+      boolean: "ph-toggle-left",
+      select: "ph-list",
+      textarea: "ph-text-align-left",
+      slider: "ph-slider-horizontal",
+      directory: "ph-folder",
+      // Specific field icons with better semantic mapping
+      serverPort: "ph-globe",
+      defaultModel: "ph-brain",
+      dictationWindowPosition: "ph-app-window",
+      dictationWindowWidth: "ph-resize-horizontal",
+      dictationWindowHeight: "ph-resize-vertical",
+      dictationWindowOpacity: "ph-eye",
+      showDictationWindowAlways: "ph-eye",
+      transformTrim: "ph-scissors",
+      "ai.enabled": "ph-robot",
+      "ai.baseUrl": "ph-link",
+      "ai.envKey": "ph-key",
+      "ai.model": "ph-brain",
+      "ai.maxTokens": "ph-coins",
+      "ai.temperature": "ph-thermometer",
+      "ai.topP": "ph-target",
+      "ai.prompt": "ph-chat-text",
+      "ai.messagePrompt": "ph-envelope",
+      dataDir: "ph-folder",
+      // Additional semantic mappings
+      port: "ph-globe",
+      model: "ph-brain",
+      url: "ph-link",
+      key: "ph-key",
+      tokens: "ph-coins",
+      temperature: "ph-thermometer",
+      topP: "ph-target",
+      prompt: "ph-chat-text",
+      message: "ph-envelope",
+      enabled: "ph-toggle-left",
+      position: "ph-app-window",
+      width: "ph-resize-horizontal",
+      height: "ph-resize-vertical",
+      opacity: "ph-eye",
+      trim: "ph-scissors",
+      directory: "ph-folder",
+      folder: "ph-folder",
+      file: "ph-file",
+      // Section icons - same as navigation
       settings: "ph-gear-six",
       window: "ph-app-window",
       "document-text": "ph-text-aa",
       flash: "ph-lightning",
       cog: "ph-gear",
+      general: "ph-gear-six",
+      appearance: "ph-palette",
+      audio: "ph-speaker-high",
+      ai: "ph-robot",
+      advanced: "ph-wrench",
+      server: "ph-globe",
+      dictation: "ph-microphone",
+      transformation: "ph-arrows-clockwise",
+      storage: "ph-hard-drive",
+      performance: "ph-gauge",
+      security: "ph-shield-check",
+      network: "ph-wifi",
+      files: "ph-folder",
+      text: "ph-text-aa",
+      model: "ph-brain",
+      api: "ph-link",
+      prompt: "ph-chat-text",
+      data: "ph-database",
+      port: "ph-globe",
+      position: "ph-app-window",
+      size: "ph-resize",
+      opacity: "ph-eye",
+      trim: "ph-scissors",
+      enabled: "ph-toggle-left",
+      url: "ph-link",
+      key: "ph-key",
+      tokens: "ph-coins",
+      temperature: "ph-thermometer",
+      topP: "ph-target",
+      message: "ph-envelope",
+      directory: "ph-folder",
+      // AI Enhancement specific
+      "ai-enhancement": "ph-robot",
+      "ai-enhancement-settings": "ph-robot",
+      "ai-settings": "ph-robot",
+      enhancement: "ph-robot",
+      // Advanced specific
+      "advanced-settings": "ph-wrench",
+      "advanced-options": "ph-wrench",
+      system: "ph-gear-six",
+      preferences: "ph-gear-six",
+      configuration: "ph-gear-six",
     };
 
-    this.schema.forEach((section) => {
+    this.schema.forEach((section, sectionIndex) => {
       const sectionDiv = document.createElement("div");
       sectionDiv.className = "settings-section hidden";
       sectionDiv.id = `section-${section.id}`;
 
-      const iconClass = iconMap[section.icon] || "ph-gear";
+      const iconClass =
+        iconMap[section.icon] || iconMap[section.id] || "ph-gear";
 
       sectionDiv.innerHTML = `
         <div class="section-header">
@@ -91,7 +227,9 @@ class SettingsWindow {
           </div>
         </div>
         <div class="section-fields">
-          ${section.fields.map((field) => this.buildField(field)).join("")}
+          ${section.fields
+            .map((field, fieldIndex) => this.buildField(field, fieldIndex))
+            .join("")}
         </div>
       `;
 
@@ -102,11 +240,11 @@ class SettingsWindow {
     this.bindFieldEvents();
   }
 
-  buildField(field) {
+  buildField(field, fieldIndex) {
     const value = this.getSettingValue(field.key);
     const fieldId = `field-${field.key.replace(/\./g, "-")}`;
 
-    // Get appropriate icon for the field
+    // Enhanced icon mapping for fields
     const getFieldIcon = (field) => {
       const iconMap = {
         // Field type icons
@@ -136,7 +274,28 @@ class SettingsWindow {
         "ai.prompt": "ph-chat-text",
         "ai.messagePrompt": "ph-envelope",
         dataDir: "ph-folder",
+        // Additional semantic mappings
+        port: "ph-globe",
+        model: "ph-brain",
+        url: "ph-link",
+        key: "ph-key",
+        tokens: "ph-coins",
+        temperature: "ph-thermometer",
+        topP: "ph-target",
+        prompt: "ph-chat-text",
+        message: "ph-envelope",
+        enabled: "ph-toggle-left",
+        position: "ph-app-window",
+        width: "ph-resize-horizontal",
+        height: "ph-resize-vertical",
+        opacity: "ph-eye",
+        trim: "ph-scissors",
+        directory: "ph-folder",
+        folder: "ph-folder",
+        file: "ph-file",
       };
+
+      // Try to match by key first, then by type
       return iconMap[field.key] || iconMap[field.type] || "ph-gear";
     };
 
@@ -242,7 +401,8 @@ class SettingsWindow {
                    readonly>
             <button type="button" 
                     class="btn btn-default directory-browse-btn" 
-                    data-key="${field.key}">
+                    data-key="${field.key}"
+                    title="Browse for directory">
               <i class="ph-duotone ph-folder-open"></i>
               Browse
             </button>
@@ -276,7 +436,7 @@ class SettingsWindow {
   }
 
   bindFieldEvents() {
-    // Handle all input changes
+    // Handle all input changes with enhanced feedback
     document.querySelectorAll("[data-key]").forEach((element) => {
       const key = element.dataset.key;
 
@@ -305,45 +465,62 @@ class SettingsWindow {
           this.validateField(key);
         });
       }
+
+      // Simple focus effect
+      element.addEventListener("focus", () => {
+        const formGroup = element.closest(".form-group");
+        if (formGroup) {
+          formGroup.style.borderColor = "var(--color-border-focus)";
+        }
+      });
+
+      element.addEventListener("blur", () => {
+        const formGroup = element.closest(".form-group");
+        if (formGroup) {
+          formGroup.style.borderColor = "";
+        }
+      });
     });
 
     // Handle directory browse buttons
     document.querySelectorAll(".directory-browse-btn").forEach((button) => {
       const key = button.dataset.key;
-      button.addEventListener("click", () => this.browseDirectory(key));
+      button.addEventListener("click", () => {
+        this.browseDirectory(key);
+      });
     });
   }
 
   bindEvents() {
     // Save button
-    document
-      .getElementById("saveBtn")
-      .addEventListener("click", () => this.saveSettings());
+    document.getElementById("saveBtn").addEventListener("click", () => {
+      this.saveSettings();
+    });
 
     // Cancel button
-    document
-      .getElementById("cancelBtn")
-      .addEventListener("click", () => this.cancelChanges());
+    document.getElementById("cancelBtn").addEventListener("click", () => {
+      this.cancelChanges();
+    });
 
     // Reset section button
-    document
-      .getElementById("resetSectionBtn")
-      .addEventListener("click", () => this.resetSection());
+    document.getElementById("resetSectionBtn").addEventListener("click", () => {
+      this.resetSection();
+    });
 
     // Reset all button
-    document
-      .getElementById("resetAllBtn")
-      .addEventListener("click", () => this.resetAll());
+    document.getElementById("resetAllBtn").addEventListener("click", () => {
+      this.resetAll();
+    });
 
     // Import button
-    document
-      .getElementById("importBtn")
-      .addEventListener("click", () => this.importSettings());
+    document.getElementById("importBtn").addEventListener("click", () => {
+      this.importSettings();
+    });
 
     // Export button
-    document
-      .getElementById("exportBtn")
-      .addEventListener("click", () => this.exportSettings());
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      this.exportSettings();
+    });
 
     // Close window on Escape
     document.addEventListener("keydown", (e) => {

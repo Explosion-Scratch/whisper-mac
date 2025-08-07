@@ -165,7 +165,7 @@ class WhisperMacApp {
 
   async initialize() {
     await app.whenReady();
-
+    console.log("App is ready");
     // Create tray immediately to show status during initialization
     this.createTray();
     this.setSetupStatus("preparing-app");
@@ -398,24 +398,42 @@ class WhisperMacApp {
    */
   private setTrayIconPath(iconPath: string) {
     const fullPath = join(__dirname, iconPath);
-    const image = nativeImage.createFromPath(fullPath);
+    console.log("Setting tray icon path:", fullPath);
 
-    // Set as template image for macOS menu bar
-    image.setTemplateImage(true);
+    try {
+      const image = nativeImage.createFromPath(fullPath);
+      console.log("Image created successfully, size:", image.getSize());
 
-    // Set tray icon if tray exists
-    if (this.tray) {
-      this.tray.setImage(image);
+      // Set as template image for macOS menu bar
+      image.setTemplateImage(true);
+
+      // Set tray icon if tray exists
+      if (this.tray) {
+        this.tray.setImage(image);
+        console.log("Tray icon set successfully");
+      } else {
+        console.warn("Tray is null, cannot set icon");
+      }
+
+      // Set app icon in menu bar (macOS)
+      app.dock?.setIcon(image);
+    } catch (error) {
+      console.error("Failed to set tray icon:", error);
     }
-
-    // Set app icon in menu bar (macOS)
-    app.dock?.setIcon(image);
   }
 
   private createTray() {
-    this.tray = new Tray(join(__dirname, "../assets/icon-template.png"));
-    this.setTrayIconPath("../assets/icon-template.png");
-    this.updateTrayMenu(); // Initial call to set the correct menu
+    const iconPath = join(__dirname, "./assets/icon-template.png");
+    console.log("Creating tray with icon path:", iconPath);
+
+    try {
+      this.tray = new Tray(iconPath);
+      console.log("Tray created successfully");
+      this.setTrayIconPath("./assets/icon-template.png");
+      this.updateTrayMenu(); // Initial call to set the correct menu
+    } catch (error) {
+      console.error("Failed to create tray:", error);
+    }
   }
 
   private registerGlobalShortcuts() {
@@ -757,8 +775,8 @@ class WhisperMacApp {
   private updateTrayIcon(state: "idle" | "recording") {
     const iconPath =
       state === "recording"
-        ? "../assets/icon-recording.png"
-        : "../assets/icon-template.png";
+        ? "./assets/icon-recording.png"
+        : "./assets/icon-template.png";
     this.setTrayIconPath(iconPath);
   }
 
