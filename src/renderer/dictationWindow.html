@@ -10,24 +10,30 @@
         box-sizing: border-box;
       }
 
+      html {
+        background: transparent;
+      }
+
       body {
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
           "Helvetica Neue", Arial, sans-serif;
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
+        color-scheme: light dark;
+        background: rgba(250, 250, 252, 0.06);
         border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2),
+          0 2px 10px rgba(0, 0, 0, 0.08);
         overflow: hidden;
         user-select: none;
         -webkit-user-select: none;
-        transition: box-shadow 0.2s ease;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease,
+          background 0.2s ease;
+        background-clip: padding-box;
       }
 
       body:hover {
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15),
-          0 4px 12px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 14px 56px rgba(0, 0, 0, 0.22),
+          0 6px 16px rgba(0, 0, 0, 0.1);
       }
 
       .dictation-container {
@@ -72,23 +78,25 @@
         justify-content: center;
         flex-shrink: 0;
         transition: all 0.3s ease;
+        box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.6),
+          0 1px 2px rgba(0, 0, 0, 0.08);
       }
 
       .status-icon.recording {
-        background: #ff9b9b;
+        background: rgba(255, 59, 48, 0.35);
         animation: pulse 1.5s infinite;
       }
 
       .status-icon.idle {
-        background: #8fd4a3;
+        background: rgba(52, 199, 89, 0.3);
       }
 
       .status-icon.transforming {
-        background: #ffc285;
+        background: rgba(255, 159, 10, 0.35);
       }
 
       .status-icon.complete {
-        background: #8fd4a3;
+        background: rgba(52, 199, 89, 0.35);
       }
 
       .status-icon svg {
@@ -128,6 +136,7 @@
         font-weight: 400;
         display: inline-block;
         line-height: 1.2;
+        text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5);
       }
 
       .text-segment.transcribed {
@@ -151,6 +160,7 @@
         color: #8e8e93;
         font-size: 12px;
         margin: 0 4px;
+        text-shadow: 0 1px 1px rgba(255, 255, 255, 0.4);
       }
 
       @keyframes pulse {
@@ -206,7 +216,7 @@
         width: 20px;
         height: 20px;
         border-radius: 50%;
-        background: #ffb3b3;
+        background: rgba(255, 59, 48, 0.35);
         border: none;
         cursor: pointer;
         display: flex;
@@ -214,10 +224,13 @@
         justify-content: center;
         transition: all 0.2s ease;
         flex-shrink: 0;
+        box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.6),
+          0 1px 2px rgba(0, 0, 0, 0.08);
       }
 
       .close-button:hover {
-        background: #ff9b9b;
+        background: rgba(255, 69, 58, 0.5);
+        transform: translateY(-0.5px);
       }
 
       .close-button svg {
@@ -226,22 +239,27 @@
         fill: white;
       }
 
-      /* Dark mode support */
       @media (prefers-color-scheme: dark) {
         body {
-          background: rgba(30, 30, 30, 0.95);
-          border-color: rgba(255, 255, 255, 0.1);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
-            0 2px 8px rgba(0, 0, 0, 0.2);
+          background: rgba(30, 30, 30, 0.5);
+          border-color: rgba(255, 255, 255, 0.12);
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
+            0 6px 18px rgba(0, 0, 0, 0.3);
+          background-image: linear-gradient(
+            to bottom,
+            rgba(255, 255, 255, 0.06),
+            rgba(255, 255, 255, 0.02)
+          );
         }
 
         body:hover {
-          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4),
-            0 4px 12px rgba(0, 0, 0, 0.25);
+          box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55),
+            0 8px 22px rgba(0, 0, 0, 0.35);
         }
 
         .text-segment {
           color: #f2f2f7;
+          text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
         }
 
         .text-segment.transcribed {
@@ -254,6 +272,22 @@
 
         .separator {
           color: #8e8e93;
+          text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+        }
+      }
+
+      @media (prefers-reduced-transparency: reduce) {
+        body {
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+          background: #f5f5f7;
+          border-color: rgba(0, 0, 0, 0.1);
+        }
+        @media (prefers-color-scheme: dark) {
+          body {
+            background: #1c1c1e;
+            border-color: rgba(255, 255, 255, 0.12);
+          }
         }
       }
     </style>

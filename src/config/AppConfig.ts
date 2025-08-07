@@ -26,7 +26,6 @@ export class AppConfig {
   dictationWindowPosition: DictationWindowPosition;
   dictationWindowWidth: number;
   dictationWindowHeight: number;
-  dictationWindowOpacity: number;
   showDictationWindowAlways: boolean;
 
   // Text transformation configuration
@@ -45,7 +44,6 @@ export class AppConfig {
     this.dictationWindowPosition = "screen-corner";
     this.dictationWindowWidth = 400;
     this.dictationWindowHeight = 50;
-    this.dictationWindowOpacity = 0.95;
     this.showDictationWindowAlways = false;
 
     // Text transformation defaults
