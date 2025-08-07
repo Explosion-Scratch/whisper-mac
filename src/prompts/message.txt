@@ -1,0 +1,20 @@
+<sel>----SELECTION----
+{selection}
+----END SELECTION----
+
+Operate based on the selection. E.g. make any changes requested, or if the user appears to be saying something new just transform that using context from the selection if needed. Your output replaces the user's current selection.
+</sel>
+----ROUGH TRANSCRIPTION----
+{text}
+----END ROUGH TRANSCRIPTION----
+
+----CONTEXT----
+Active Window: {title}
+Application: {app}
+----END CONTEXT----
+
+----INSTRUCTION----
+Now output only the changed text. No explanations or other text.
+----END INSTRUCTION----
+
+Changed text:

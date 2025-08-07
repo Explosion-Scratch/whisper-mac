@@ -134,6 +134,13 @@ export class SettingsService {
       return dialog.showSaveDialog(options);
     });
 
+    ipcMain.handle("dialog:showDirectoryDialog", async (_event, options) => {
+      return dialog.showOpenDialog({
+        ...options,
+        properties: ["openDirectory"],
+      });
+    });
+
     // Close settings window
     ipcMain.handle("settings:closeWindow", () => {
       this.closeSettingsWindow();
@@ -201,6 +208,19 @@ export class SettingsService {
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       this.settingsWindow.close();
     }
+  }
+
+  cleanup(): void {
+    console.log("=== Cleaning up SettingsService ===");
+
+    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+      console.log("Destroying settings window...");
+      this.settingsWindow.destroy();
+    }
+
+    this.settingsWindow = null;
+
+    console.log("=== SettingsService cleanup completed ===");
   }
 
   private loadSettings(): void {

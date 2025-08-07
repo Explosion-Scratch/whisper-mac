@@ -366,6 +366,21 @@ export class DictationWindowService {
     }
   }
 
+  cleanup(): void {
+    console.log("=== Cleaning up DictationWindowService ===");
+
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      console.log("Destroying dictation window...");
+      this.dictationWindow.destroy();
+    }
+
+    this.dictationWindow = null;
+    this.currentSegments = [];
+    this.currentStatus = "listening";
+
+    console.log("=== DictationWindowService cleanup completed ===");
+  }
+
   // New synchronous method for screen-corner positioning
   private calculateWindowPositionSync(): WindowPosition {
     const primaryDisplay = screen.getPrimaryDisplay();

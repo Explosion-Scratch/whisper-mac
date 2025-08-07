@@ -1,12 +1,22 @@
-#!/usr/bin/env bun
-
 const fs = require("fs");
 const path = require("path");
 
-const srcDir = path.join(__dirname, "../src/renderer");
-const distDir = path.join(__dirname, "../dist/renderer");
-const photonSrcDir = path.join(__dirname, "../src/photon");
-const photonDistDir = path.join(__dirname, "../dist/photon");
+const config = {
+  baseSrc: path.join(__dirname, "../src"),
+  baseDist: path.join(__dirname, "../dist"),
+  renderer: {
+    src: path.join(__dirname, "../src/renderer"),
+    dist: path.join(__dirname, "../dist/renderer"),
+  },
+  photon: {
+    src: path.join(__dirname, "../src/photon"),
+    dist: path.join(__dirname, "../dist/photon"),
+  },
+  prompts: {
+    src: path.join(__dirname, "../src/prompts"),
+    dist: path.join(__dirname, "../dist/prompts"),
+  },
+};
 
 const EXTENSIONS = [
   ".html",
@@ -21,13 +31,16 @@ const EXTENSIONS = [
 ];
 
 // Copy renderer files
-if (!fs.existsSync(distDir)) {
-  fs.mkdirSync(distDir, { recursive: true });
+if (!fs.existsSync(config.renderer.dist)) {
+  fs.mkdirSync(config.renderer.dist, { recursive: true });
 }
 
-fs.readdirSync(srcDir).forEach((file) => {
+fs.readdirSync(config.renderer.src).forEach((file) => {
   if (EXTENSIONS.find((ext) => file.endsWith(ext))) {
-    fs.copyFileSync(path.join(srcDir, file), path.join(distDir, file));
+    fs.copyFileSync(
+      path.join(config.renderer.src, file),
+      path.join(config.renderer.dist, file)
+    );
     console.log(`Copied ${file} to dist/renderer`);
   }
 });
@@ -61,4 +74,19 @@ function copyPhotonAssets(srcPath, destPath) {
   });
 }
 
-copyPhotonAssets(photonSrcDir, photonDistDir);
+copyPhotonAssets(config.photon.src, config.photon.dist);
+
+// Copy prompts files
+if (!fs.existsSync(config.prompts.dist)) {
+  fs.mkdirSync(config.prompts.dist, { recursive: true });
+}
+
+fs.readdirSync(config.prompts.src).forEach((file) => {
+  if (file.endsWith(".txt")) {
+    fs.copyFileSync(
+      path.join(config.prompts.src, file),
+      path.join(config.prompts.dist, file)
+    );
+    console.log(`Copied ${file} to dist/prompts`);
+  }
+});

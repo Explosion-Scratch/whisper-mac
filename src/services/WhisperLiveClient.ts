@@ -407,7 +407,40 @@ export class TranscriptionClient {
   }
 
   async stopServer(): Promise<void> {
-    this.serverProcess?.kill("SIGTERM");
-    this.serverProcess = null;
+    console.log("=== Stopping WhisperLive server ===");
+
+    // Close WebSocket connection if open
+    if (this.websocket) {
+      if (this.websocket.readyState === WebSocket.OPEN) {
+        this.websocket.close();
+      }
+      this.websocket = null;
+    }
+
+    // Kill the server process
+    if (this.serverProcess) {
+      console.log("Terminating WhisperLive server process...");
+
+      // Try graceful shutdown first
+      this.serverProcess.kill("SIGTERM");
+
+      // Wait a bit for graceful shutdown
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Force kill if still running
+      if (this.serverProcess && !this.serverProcess.killed) {
+        console.log("Force killing WhisperLive server process...");
+        this.serverProcess.kill("SIGKILL");
+      }
+
+      this.serverProcess = null;
+    }
+
+    // Clear session
+    this.sessionUid = "";
+    this.currentSegments = [];
+    this.onTranscriptionCallback = null;
+
+    console.log("=== WhisperLive server stopped ===");
   }
 }

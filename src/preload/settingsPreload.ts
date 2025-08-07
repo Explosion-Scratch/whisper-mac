@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("dialog:showOpenDialog", options),
   showSaveDialog: (options: any) =>
     ipcRenderer.invoke("dialog:showSaveDialog", options),
+  showDirectoryDialog: (options: any) =>
+    ipcRenderer.invoke("dialog:showDirectoryDialog", options),
 
   // Window management
   closeSettingsWindow: () => ipcRenderer.invoke("settings:closeWindow"),
