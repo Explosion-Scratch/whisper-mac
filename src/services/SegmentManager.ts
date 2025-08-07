@@ -19,6 +19,7 @@ export class SegmentManager extends EventEmitter {
   private textInjectionService: TextInjectionService;
   private selectedTextService: SelectedTextService;
   private isAccumulatingMode: boolean = false; // New: track if we're in accumulate-only mode
+  private ignoreNextCompleted: boolean = false;
 
   constructor(
     transformationService: TransformationService,
@@ -68,6 +69,24 @@ export class SegmentManager extends EventEmitter {
     console.log(
       `[SegmentManager] Attempting to add segment: "${trimmedText}" (completed: ${completed})`
     );
+
+    // One-shot ignore for the next completed segment after a flush
+    if (completed && this.ignoreNextCompleted) {
+      console.log(
+        "[SegmentManager] Ignoring next completed segment post-flush"
+      );
+      this.ignoreNextCompleted = false;
+      return {
+        id: uuidv4(),
+        type: "transcribed",
+        text: trimmedText,
+        completed,
+        start,
+        end,
+        confidence,
+        timestamp: Date.now(),
+      };
+    }
 
     // If a completed segment arrives, delete all in-progress segments.
     if (completed) {
@@ -312,5 +331,17 @@ export class SegmentManager extends EventEmitter {
       completed,
       inProgress,
     };
+  }
+
+  /** Instruct manager to ignore the next completed segment delivered. */
+  ignoreNextCompletedSegment(): void {
+    this.ignoreNextCompleted = true;
+    console.log("[SegmentManager] Will ignore next completed segment");
+  }
+
+  /** Reset the one-shot ignore flag (e.g., when starting a new session). */
+  resetIgnoreNextCompleted(): void {
+    this.ignoreNextCompleted = false;
+    console.log("[SegmentManager] Ignore-next-completed reset");
   }
 }

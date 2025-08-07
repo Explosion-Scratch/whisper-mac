@@ -135,6 +135,14 @@ export class TransformationService {
     return null;
   }
 
+  private async removeChanged(text: string): Promise<string> {
+    const transformed = text
+      .trim()
+      .replace(/^(?:changed|new|replaced)\s*(?:text)\:?\s*/gi, "")
+      .trim();
+    return transformed;
+  }
+
   /**
    * Remove extra whitespace and normalize spacing
    */
@@ -225,8 +233,8 @@ export class TransformationService {
       throw new Error("Invalid AI API response format");
     }
 
-    const transformed = this.removeThink(data.choices[0].message.content);
-
+    let transformed = this.removeThink(data.choices[0].message.content);
+    transformed = await this.removeChanged(transformed);
     console.log("AI transformed text:", transformed);
     return transformed;
   }

@@ -483,6 +483,14 @@ class WhisperMacApp {
         console.log("Already finishing dictation, ignoring toggle...");
         return;
       }
+      // If the window is configured to always be shown, flush segments and continue
+      if (this.config.showDictationWindowAlways) {
+        console.log(
+          "Always-show-window enabled: flushing segments and continuing recording"
+        );
+        await this.flushSegmentsWhileContinuing();
+        return;
+      }
       console.log("Finishing current dictation (waiting for completion)...");
       await this.finishCurrentDictation();
     } else {
@@ -499,6 +507,7 @@ class WhisperMacApp {
 
       // 1. Clear any existing segments and stored selected text
       this.segmentManager.clearAllSegments();
+      this.segmentManager.resetIgnoreNextCompleted();
 
       // 2. Enable accumulating mode - segments will be displayed but not auto-transformed/injected
       this.segmentManager.setAccumulatingMode(true);
@@ -643,6 +652,58 @@ class WhisperMacApp {
     } catch (error) {
       console.error("Failed to stop dictation:", error);
       await this.cancelDictationFlow();
+    }
+  }
+
+  /**
+   * Flushes all accumulated segments (transform and inject) while keeping
+   * the audio capture and transcription running and the window open.
+   * Used when showDictationWindowAlways is enabled and the user presses the shortcut again.
+   */
+  private async flushSegmentsWhileContinuing(): Promise<void> {
+    try {
+      console.log("=== Flushing segments while continuing recording ===");
+
+      // Ensure the dictation window is visible
+      this.dictationWindowService.showWindow();
+
+      // Indicate transforming state in the UI
+      this.dictationWindowService.setTransformingStatus();
+
+      // Determine if there is an in-progress segment right now
+      const hadInProgress =
+        this.segmentManager.getInProgressTranscribedSegments().length > 0;
+
+      // Keep accumulating mode enabled to continue real-time display after flush
+      // Transform and inject all accumulated segments
+      const result = await this.segmentManager.transformAndInjectAllSegments();
+
+      if (result.success) {
+        console.log(
+          `Flushed and injected ${result.segmentsProcessed} segments (continuing)`
+        );
+      } else {
+        console.error("Flush while continuing failed:", result.error);
+      }
+
+      // Clear the dictation window transcription and return to listening state
+      this.dictationWindowService.clearTranscription();
+
+      // Re-enable accumulating mode so new incoming segments are shown without auto-flush
+      this.segmentManager.setAccumulatingMode(true);
+
+      // If there was an in-progress segment at flush time, ignore the next
+      // completed segment (it is the tail completing post-flush)
+      if (hadInProgress) {
+        this.segmentManager.ignoreNextCompletedSegment();
+      }
+
+      // Maintain recording state and tray icon
+      this.isRecording = true;
+      this.isFinishing = false;
+      this.updateTrayIcon("recording");
+    } catch (error) {
+      console.error("Failed to flush segments while continuing:", error);
     }
   }
 
