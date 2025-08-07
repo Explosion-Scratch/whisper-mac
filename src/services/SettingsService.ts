@@ -170,7 +170,7 @@ export class SettingsService {
       minWidth: 600,
       minHeight: 400,
       titleBarStyle: "hidden", // Hide native title bar
-      trafficLightPosition: { x: 5, y: 10 }, // Position traffic light buttons
+      trafficLightPosition: { x: 10, y: 12 }, // Position traffic light buttons
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
