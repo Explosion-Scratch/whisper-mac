@@ -3,3 +3,4 @@ dist/
 .whispermac-data/
 *.pt
 .crush/
+vendor/

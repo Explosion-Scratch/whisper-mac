@@ -4,12 +4,17 @@
   "description": "AI-powered dictation for Mac using WhisperLive",
   "main": "dist/main.js",
   "scripts": {
+    "fullclean": "rm -rf dist .crush .whispermac-data node_modules *.log vendor && bun install",
     "build": "tsc && node scripts/copy-assets.js",
     "start": "electron dist/main.js",
     "dev": "nodemon --exec \"bun run single-dev\" --ignore dist --ignore photon --ignore .crush --ignore .whispermac-data",
     "single-dev": "concurrently --raw -m 1 \"rm -rf dist\"  \"/Users/tjs/.local/bin/killport 9090\" \"bun run build\" \"bun run start\" --names \"cleanup, kill port, build, dev\"",
     "pack": "electron-builder",
-    "dist": "electron-builder --publish=never"
+    "dist": "electron-builder --publish=never",
+    "prep:python": "node scripts/fetch-python.js",
+    "prep:whisperlive": "node scripts/fetch-whisperlive.js",
+    "prep:wheels": "node scripts/fetch-wheels.js",
+    "prep": "bun run prep:python && bun run prep:whisperlive && bun run prep:wheels"
   },
   "dependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",
@@ -40,13 +45,38 @@
     },
     "files": [
       "dist/**/*",
-      "python/**/*",
       "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/python",
+        "to": "python",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "vendor/whisperlive",
+        "to": "whisperlive",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "vendor/wheels",
+        "to": "wheels",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "target": "dmg"
+      "target": "dmg",
+      "artifactName": "${productName}-${version}-mac.${ext}"
     },
+    "win": {},
+    "linux": {},
     "dmg": {
       "contents": [
         {
