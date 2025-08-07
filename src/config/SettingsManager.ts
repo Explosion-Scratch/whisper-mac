@@ -229,10 +229,6 @@ export class SettingsManager {
     ) as DictationWindowPosition;
     this.config.dictationWindowWidth = this.get("dictationWindowWidth", 400);
     this.config.dictationWindowHeight = this.get("dictationWindowHeight", 50);
-    this.config.dictationWindowOpacity = this.get(
-      "dictationWindowOpacity",
-      0.95
-    );
     this.config.showDictationWindowAlways = this.get(
       "showDictationWindowAlways",
       false
@@ -283,7 +279,6 @@ export class SettingsManager {
     this.set("dictationWindowPosition", this.config.dictationWindowPosition);
     this.set("dictationWindowWidth", this.config.dictationWindowWidth);
     this.set("dictationWindowHeight", this.config.dictationWindowHeight);
-    this.set("dictationWindowOpacity", this.config.dictationWindowOpacity);
     this.set(
       "showDictationWindowAlways",
       this.config.showDictationWindowAlways

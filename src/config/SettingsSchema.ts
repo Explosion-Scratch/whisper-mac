@@ -59,15 +59,35 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         description: "Whisper model to use for transcription",
         defaultValue: "Systran/faster-whisper-tiny.en",
         options: [
+          {
+            value: "Systran/faster-whisper-tiny",
+            label: "Tiny (Multilingual)",
+          },
           { value: "Systran/faster-whisper-tiny.en", label: "Tiny (English)" },
+          {
+            value: "Systran/faster-whisper-base",
+            label: "Base (Multilingual)",
+          },
           { value: "Systran/faster-whisper-base.en", label: "Base (English)" },
+          {
+            value: "Systran/faster-whisper-small",
+            label: "Small (Multilingual)",
+          },
           {
             value: "Systran/faster-whisper-small.en",
             label: "Small (English)",
           },
           {
+            value: "Systran/faster-whisper-medium",
+            label: "Medium (Multilingual)",
+          },
+          {
             value: "Systran/faster-whisper-medium.en",
             label: "Medium (English)",
+          },
+          {
+            value: "Systran/faster-whisper-large-v1",
+            label: "Large v1 (Multilingual)",
           },
           {
             value: "Systran/faster-whisper-large-v2",
@@ -118,16 +138,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         max: 200,
         step: 5,
       },
-      {
-        key: "dictationWindowOpacity",
-        type: "slider",
-        label: "Window Opacity",
-        description: "Transparency of the dictation window",
-        defaultValue: 0.95,
-        min: 0.1,
-        max: 1.0,
-        step: 0.05,
-      },
+
       {
         key: "showDictationWindowAlways",
         type: "boolean",

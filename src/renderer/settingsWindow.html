@@ -9,6 +9,10 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/duotone/style.css"
     />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/style.css"
+    />
     <style>
       /* Design System Variables */
       :root {
@@ -77,7 +81,7 @@
         font-size: var(--font-size-md);
         line-height: 1.4;
         color: var(--color-text-primary);
-        background: transparent;
+        background: rgba(255, 255, 255, 0.04);
         overflow: hidden;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
@@ -88,12 +92,12 @@
         height: 100vh;
         display: flex;
         flex-direction: column;
-        background: transparent;
+        background: rgba(255, 255, 255, 0.02);
       }
 
       /* Header */
       .toolbar-header {
-        background: rgba(248, 248, 248, 0.6);
+        background: rgba(248, 248, 248, 0.25);
         border-bottom: 1px solid rgba(0, 0, 0, 0.08);
         -webkit-app-region: drag;
         padding: 0 var(--spacing-md);
@@ -134,7 +138,7 @@
       /* Sidebar */
       .sidebar {
         width: 220px;
-        background: transparent;
+        background: rgba(255, 255, 255, 0.02);
         border-right: 1px solid rgba(0, 0, 0, 0.08);
         overflow-y: auto;
         display: flex;
@@ -256,12 +260,23 @@
         font-size: var(--font-size-sm);
       }
 
+      /* Action buttons styling */
+      .action-btn {
+        cursor: pointer;
+      }
+
+      .action-btn .ph {
+        margin-right: var(--spacing-xs);
+        font-size: var(--font-size-sm);
+      }
+
       /* Main Content */
       .settings-content {
         flex: 1;
         padding: var(--spacing-xl);
         overflow-y: auto;
-        background: rgba(255, 255, 255, 0.7);
+        background: var(--color-bg-primary);
+        border-left: 1px solid var(--color-border-primary);
       }
 
       .settings-section {
@@ -308,7 +323,7 @@
       .form-group {
         margin-bottom: var(--spacing-md);
         padding: var(--spacing-sm);
-        background: var(--color-bg-secondary);
+        background: rgba(255, 255, 255, 0.05);
         border: 1px solid var(--color-border-primary);
         border-radius: var(--radius-md);
         transition: all var(--transition-fast);
@@ -356,7 +371,7 @@
         border: 1px solid var(--color-border-primary);
         border-radius: var(--radius-sm);
         font-size: var(--font-size-md);
-        background: var(--color-bg-primary);
+        background: rgba(255, 255, 255, 0.08);
         transition: all var(--transition-fast);
         font-family: inherit;
       }
@@ -368,7 +383,7 @@
       }
 
       .form-control:disabled {
-        background: var(--color-bg-tertiary);
+        background: rgba(255, 255, 255, 0.06);
         color: var(--color-text-tertiary);
         cursor: not-allowed;
       }
@@ -382,7 +397,7 @@
 
       .directory-input {
         flex: 1;
-        background: var(--color-bg-tertiary);
+        background: rgba(255, 255, 255, 0.06);
         cursor: not-allowed;
       }
 
@@ -466,7 +481,7 @@
         border: 2px solid var(--color-border-primary);
         border-radius: var(--radius-sm);
         appearance: none;
-        background: var(--color-bg-primary);
+        background: rgba(255, 255, 255, 0.08);
         cursor: pointer;
         position: relative;
         transition: all var(--transition-fast);
@@ -498,7 +513,7 @@
         padding: 6px 12px;
         border: 1px solid var(--color-border-primary);
         border-radius: var(--radius-sm);
-        background: var(--color-bg-primary);
+        background: rgba(255, 255, 255, 0.08);
         font-size: var(--font-size-sm);
         font-weight: var(--font-weight-medium);
         cursor: pointer;
@@ -525,7 +540,7 @@
       }
 
       .btn:hover {
-        background: var(--color-bg-secondary);
+        background: rgba(255, 255, 255, 0.12);
         border-color: var(--color-border-secondary);
         transform: translateY(-1px);
         box-shadow: var(--shadow-sm);
@@ -565,7 +580,7 @@
         padding-top: var(--spacing-lg);
         border-top: 1px solid var(--color-border-primary);
         margin-top: var(--spacing-xl);
-        background: var(--color-bg-secondary);
+        background: rgba(255, 255, 255, 0.06);
         padding: var(--spacing-md);
         border-radius: var(--radius-md);
         margin: var(--spacing-xl) 0 0 0;
@@ -666,25 +681,25 @@
         <h1 class="title">Settings</h1>
         <div class="toolbar-actions">
           <button
-            class="btn btn-default btn-icon-only"
+            class="btn btn-default btn-icon-only action-btn"
             id="resetAllBtn"
             title="Reset all settings to defaults"
           >
-            <i class="ph-duotone ph-arrow-clockwise"></i>
+            <i class="ph ph-arrow-clockwise"></i>
           </button>
           <button
-            class="btn btn-default btn-icon-only"
+            class="btn btn-default btn-icon-only action-btn"
             id="importBtn"
             title="Import settings from file"
           >
-            <i class="ph-duotone ph-download-simple"></i>
+            <i class="ph ph-download-simple"></i>
           </button>
           <button
-            class="btn btn-default btn-icon-only"
+            class="btn btn-default btn-icon-only action-btn"
             id="exportBtn"
             title="Export settings to file"
           >
-            <i class="ph-duotone ph-upload-simple"></i>
+            <i class="ph ph-upload-simple"></i>
           </button>
         </div>
       </header>
