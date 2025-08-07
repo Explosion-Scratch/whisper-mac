@@ -11,6 +11,10 @@
     />
     <link
       rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css"
+    />
+    <link
+      rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/style.css"
     />
     <style>
@@ -262,7 +266,10 @@
 
       /* Action buttons styling */
       .action-btn {
-        cursor: pointer;
+        cursor: pointer !important;
+        display: grid !important;
+        place-items: center !important;
+        background: var(--color-bg-primary) !important;
       }
 
       .action-btn .ph {
