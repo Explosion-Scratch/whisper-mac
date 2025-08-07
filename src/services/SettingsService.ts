@@ -169,12 +169,17 @@ export class SettingsService {
       height: 600,
       minWidth: 600,
       minHeight: 400,
+      transparent: true,
+      backgroundColor: "#00000000",
+      vibrancy: "under-window",
+      visualEffectState: "followWindow",
       titleBarStyle: "hidden", // Hide native title bar
       trafficLightPosition: { x: 10, y: 12 }, // Position traffic light buttons
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
         preload: join(__dirname, "../preload/settingsPreload.js"),
+        backgroundThrottling: false, // Prevent background throttling for better vibrancy
       },
       show: false, // Don't show until ready-to-show
     });
