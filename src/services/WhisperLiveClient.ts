@@ -3,8 +3,9 @@ import WebSocket from "ws";
 import { join } from "path";
 import { AppConfig } from "../config/AppConfig";
 import { ModelManager } from "./ModelManager";
-import { existsSync } from "fs";
+import { existsSync, readdirSync, cpSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
+import { app } from "electron";
 import {
   Segment,
   TranscribedSegment,
@@ -38,6 +39,83 @@ export class TranscriptionClient {
     this.modelManager = modelManager;
   }
 
+  /**
+   * Resolve the Python interpreter to use. Use embedded python
+   */
+  private resolvePythonInterpreter(): string {
+    const explicitPath = process.env.WHISPERMAC_PYTHON;
+    if (explicitPath && explicitPath.length > 0) return explicitPath;
+
+    const devCandidates = [
+      join(process.cwd(), "vendor", "python", "bin", "python"),
+      join(process.cwd(), "vendor", "python", "bin", "python3"),
+    ];
+    for (const p of devCandidates) {
+      if (existsSync(p)) return p;
+    }
+
+    const base = process.resourcesPath;
+    const archSuffix = `darwin-${process.arch}`;
+    const packagedCandidates: string[] = [
+      join(base, "python", "bin", "python3"),
+      join(base, "python", "python3"),
+      join(base, "python", archSuffix, "bin", "python3"),
+      join(base, "python", archSuffix, "bin", "python"),
+    ];
+    for (const p of packagedCandidates) {
+      if (existsSync(p)) return p;
+    }
+
+    throw new Error(
+      "Embedded Python not found. Run 'bun run prep:python' before building, or ensure vendor/python exists."
+    );
+  }
+
+  /**
+   * Ensure a dedicated virtual environment exists under userData to keep packages writable in production.
+   */
+  private async ensureVenv(
+    pythonPath: string,
+    repoDir: string
+  ): Promise<string> {
+    const venvDir = join(this.config.getCacheDir(), "python-venv");
+    const venvPython =
+      process.platform === "win32"
+        ? join(venvDir, "Scripts", "python.exe")
+        : join(venvDir, "bin", "python");
+
+    if (!existsSync(venvPython)) {
+      await new Promise<void>((resolve, reject) => {
+        const proc = spawn(pythonPath, ["-m", "venv", venvDir], {
+          stdio: "inherit",
+        });
+        proc.on("close", (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`venv creation failed with code ${code}`));
+        });
+        proc.on("error", reject);
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        const proc = spawn(
+          venvPython,
+          ["-m", "pip", "install", "-r", "requirements/server.txt"],
+          {
+            cwd: repoDir,
+            stdio: "inherit",
+          }
+        );
+        proc.on("close", (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`pip install failed with code ${code}`));
+        });
+        proc.on("error", reject);
+      });
+    }
+
+    return venvPython;
+  }
+
   /* ----------------------------------------------------------
    * 1.  Clone the repo if it isn't there yet
    * 2.  Start the server with the official run_server.py script
@@ -50,27 +128,68 @@ export class TranscriptionClient {
     console.log("repoDir", repoDir);
     const runScript = join(repoDir, "run_server.py");
 
-    // Install with pip
-    const runInstall = async (): Promise<void> => {
+    // Install with pip using the resolved interpreter
+    const runInstall = async (pythonPath: string): Promise<void> => {
       return new Promise((resolve, reject) => {
         onProgress?.({
           status: "installing",
           message: "Installing Whisper dependencies...",
         });
 
-        const install = spawn(
-          "pip",
-          ["install", "-r", "requirements/server.txt"],
-          {
+        const ensure = spawn(pythonPath, ["-m", "ensurepip", "--upgrade"], {
+          stdio: "inherit",
+        });
+        ensure.on("close", (code) => {
+          if (code !== 0) {
+            console.warn("ensurepip failed or unavailable; continuing...");
+          }
+          runPip();
+        });
+        ensure.on("error", () => runPip());
+
+        const runPip = () => {
+          const platformKey = `darwin-${process.arch}`;
+          const wheelsDir = ((): string | null => {
+            const devPath = join(
+              process.cwd(),
+              "vendor",
+              "wheels",
+              platformKey
+            );
+            const prodPath = join(process.resourcesPath, "wheels", platformKey);
+            const candidate = existsSync(devPath) ? devPath : prodPath;
+            if (existsSync(candidate)) {
+              try {
+                const files = readdirSync(candidate);
+                if (files.some((f) => f.endsWith(".whl"))) return candidate;
+              } catch {}
+            }
+            return null;
+          })();
+
+          const pipArgs = wheelsDir
+            ? [
+                "-m",
+                "pip",
+                "install",
+                "--no-index",
+                "--find-links",
+                wheelsDir,
+                "-r",
+                "requirements/server.txt",
+              ]
+            : ["-m", "pip", "install", "-r", "requirements/server.txt"];
+
+          const install = spawn(pythonPath, pipArgs, {
             cwd: repoDir,
             stdio: "inherit",
-          }
-        );
-        install.on("close", (code) => {
-          if (code === 0) resolve();
-          else reject(new Error(`pip install failed with code ${code}`));
-        });
-        install.on("error", reject);
+          });
+          install.on("close", (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`pip install failed with code ${code}`));
+          });
+          install.on("error", reject);
+        };
       });
     };
 
@@ -78,6 +197,14 @@ export class TranscriptionClient {
     const runSetup = async (): Promise<void> => {
       return new Promise((resolve, reject) => {
         const setupScript = join(repoDir, "scripts", "setup.sh");
+        const shouldRun =
+          existsSync(setupScript) &&
+          process.platform === "linux" &&
+          process.env.WHISPERMAC_RUN_SETUP !== "0";
+        if (!shouldRun) {
+          resolve();
+          return;
+        }
         const setup = spawn("bash", [setupScript], {
           cwd: repoDir,
           stdio: "inherit",
@@ -90,7 +217,7 @@ export class TranscriptionClient {
       });
     };
 
-    // 1. Clone once
+    // 1. Ensure server sources exist: prefer bundled snapshot, otherwise clone
     if (!existsSync(runScript)) {
       return new Promise((resolve, reject) => {
         onProgress?.({
@@ -104,9 +231,28 @@ export class TranscriptionClient {
           require("fs").mkdirSync(parentDir, { recursive: true });
         }
 
-        // Remove the target directory if it exists to avoid nested cloning
-        if (existsSync(repoDir)) {
-          require("fs").rmSync(repoDir, { recursive: true, force: true });
+        // Try to use bundled snapshot first
+        try {
+          const packagedSnapshot = join(process.resourcesPath, "whisperlive");
+          if (existsSync(packagedSnapshot)) {
+            if (existsSync(repoDir)) {
+              require("fs").rmSync(repoDir, { recursive: true, force: true });
+            }
+            cpSync(packagedSnapshot, repoDir, { recursive: true });
+            (async () => {
+              try {
+                const pythonPath = this.resolvePythonInterpreter();
+                await runInstall(pythonPath);
+                await runSetup();
+                resolve(this._launch(repoDir, modelRepoId, onProgress));
+              } catch (err) {
+                reject(err);
+              }
+            })();
+            return;
+          }
+        } catch {
+          // fall back to git
         }
 
         const git = spawn(
@@ -117,7 +263,8 @@ export class TranscriptionClient {
         git.on("close", async (code) => {
           if (code === 0) {
             try {
-              await runInstall();
+              const pythonPath = this.resolvePythonInterpreter();
+              await runInstall(pythonPath);
               await runSetup();
               resolve(this._launch(repoDir, modelRepoId, onProgress));
             } catch (err) {
@@ -165,9 +312,10 @@ export class TranscriptionClient {
         modelDir, // Pass the actual model directory path
       ];
 
+      const basePython = this.resolvePythonInterpreter();
       console.log(
         "Launching WhisperLive server:",
-        ["python3", ...args].join(" ")
+        [basePython, ...args].join(" ")
       );
 
       onProgress?.({
@@ -175,50 +323,66 @@ export class TranscriptionClient {
         message: "Starting Whisper server...",
       });
 
-      this.serverProcess = spawn("python3", args, {
-        cwd: repoDir,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      // Always use isolated venv for consistency
+      const useIsolated = true;
 
-      let resolved = false;
-
-      // TODO: use a more robust way to detect server readiness
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          onProgress?.({
-            status: "complete",
-            message: "Whisper server ready",
-          });
-          resolve();
+      const launchWith = async (): Promise<string> => {
+        if (useIsolated) {
+          return await this.ensureVenv(basePython, repoDir);
         }
-      }, 1000); // Increased timeout for server readiness
+        return basePython;
+      };
 
-      this.serverProcess.stdout?.on("data", (d) => {
-        const msg = d.toString();
-        console.log("[WhisperLive]", msg);
-        if (!resolved && msg.includes("Uvicorn running on")) {
-          resolved = true;
-          onProgress?.({
-            status: "complete",
-            message: "Whisper server ready",
+      launchWith()
+        .then((pythonBin) => {
+          this.serverProcess = spawn(pythonBin, args, {
+            cwd: repoDir,
+            stdio: ["ignore", "pipe", "pipe"],
           });
-          resolve();
-        }
-      });
 
-      this.serverProcess.stderr?.on("data", (d) => {
-        console.error("[WhisperLive]", d.toString());
-      });
+          let resolved = false;
 
-      this.serverProcess.on("exit", (code) => {
-        console.log("WhisperLive server exited with code", code);
-        if (!resolved) reject(new Error(`Server exited with code ${code}`));
-      });
+          // TODO: use a more robust way to detect server readiness
+          setTimeout(() => {
+            if (!resolved) {
+              resolved = true;
+              onProgress?.({
+                status: "complete",
+                message: "Whisper server ready",
+              });
+              resolve();
+            }
+          }, 1000);
 
-      setTimeout(() => {
-        if (!resolved) reject(new Error("Server startup timeout"));
-      }, 30_000);
+          this.serverProcess?.stdout?.on("data", (d) => {
+            const msg = d.toString();
+            console.log("[WhisperLive]", msg);
+            if (!resolved && msg.includes("Uvicorn running on")) {
+              resolved = true;
+              onProgress?.({
+                status: "complete",
+                message: "Whisper server ready",
+              });
+              resolve();
+            }
+          });
+
+          this.serverProcess?.stderr?.on("data", (d) => {
+            console.error("[WhisperLive]", d.toString());
+          });
+
+          this.serverProcess?.on("exit", (code) => {
+            console.log("WhisperLive server exited with code", code);
+            if (!resolved) reject(new Error(`Server exited with code ${code}`));
+          });
+
+          setTimeout(() => {
+            if (!resolved) reject(new Error("Server startup timeout"));
+          }, 30_000);
+        })
+        .catch((err) => {
+          reject(err);
+        });
     });
   }
 
