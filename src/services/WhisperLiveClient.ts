@@ -167,14 +167,15 @@ export class TranscriptionClient {
         const runPip = () => {
           const platformKey = `darwin-${process.arch}`;
           const wheelsDir = ((): string | null => {
+            // Prefer packaged wheelhouse; fall back to dev wheelhouse when running unpackaged
+            const prodPath = join(process.resourcesPath, "wheels", platformKey);
             const devPath = join(
               process.cwd(),
               "vendor",
               "wheels",
               platformKey
             );
-            const prodPath = join(process.resourcesPath, "wheels", platformKey);
-            const candidate = existsSync(devPath) ? devPath : prodPath;
+            const candidate = existsSync(prodPath) ? prodPath : devPath;
             if (existsSync(candidate)) {
               try {
                 const files = readdirSync(candidate);
