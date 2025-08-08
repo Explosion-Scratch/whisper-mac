@@ -240,6 +240,7 @@ export class SettingsManager {
     // AI settings
     const aiConfig: AiTransformationConfig = {
       enabled: this.get("ai.enabled", true),
+      writingStyle: this.get("ai.writingStyle", this.config.ai.writingStyle),
       baseUrl: this.get(
         "ai.baseUrl",
         "https://api.cerebras.ai/v1/chat/completions"
@@ -289,6 +290,7 @@ export class SettingsManager {
 
     // AI settings
     this.set("ai.enabled", this.config.ai.enabled);
+    this.set("ai.writingStyle", this.config.ai.writingStyle);
     this.set("ai.baseUrl", this.config.ai.baseUrl);
     this.set("ai.envKey", this.config.ai.envKey);
     this.set("ai.model", this.config.ai.model);

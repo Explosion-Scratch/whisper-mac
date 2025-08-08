@@ -14,7 +14,17 @@
     "prep:python": "node scripts/fetch-python.js",
     "prep:whisperlive": "node scripts/fetch-whisperlive.js",
     "prep:wheels": "node scripts/fetch-wheels.js",
-    "prep": "bun run prep:python && bun run prep:whisperlive && bun run prep:wheels"
+    "prep": "bun run prep:python && bun run prep:whisperlive && bun run prep:wheels",
+    "icons": "node scripts/generate-icons.js",
+    "prep:python:arm64": "ARCH=arm64 node scripts/fetch-python.js",
+    "prep:python:x64": "ARCH=x64 node scripts/fetch-python.js",
+    "prep:wheels:arm64": "ARCH=arm64 node scripts/fetch-wheels.js",
+    "prep:wheels:x64": "ARCH=x64 node scripts/fetch-wheels.js",
+    "stage:python:arm64": "ARCH=arm64 node scripts/stage-python-arch.js",
+    "stage:python:x64": "ARCH=x64 node scripts/stage-python-arch.js",
+    "build:mac:arm64": "bun run build && bun run icons && bun run prep:whisperlive && bun run prep:python:arm64 && bun run prep:wheels:arm64 && bun run stage:python:arm64 && electron-builder --mac --arm64 --publish=never",
+    "build:mac:x64": "bun run build && bun run icons && bun run prep:whisperlive && bun run prep:python:x64 && bun run prep:wheels:x64 && bun run stage:python:x64 && electron-builder --mac --x64 --publish=never",
+    "build:mac:all": "bun run build && bun run build:mac:arm64 && bun run build:mac:x64"
   },
   "dependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",
@@ -73,7 +83,8 @@
     "mac": {
       "category": "public.app-category.productivity",
       "target": "dmg",
-      "artifactName": "${productName}-${version}-mac.${ext}"
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
+      "icon": "build/icons/WhisperMac.icns"
     },
     "win": {},
     "linux": {},
