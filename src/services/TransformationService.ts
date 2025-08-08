@@ -4,6 +4,7 @@ import { SelectedTextResult } from "./SelectedTextService";
 
 export interface AiTransformationConfig {
   enabled: boolean;
+  writingStyle: string;
   prompt: string;
   baseUrl: string;
   envKey: string;
@@ -199,6 +200,12 @@ export class TransformationService {
 
     console.log("MESSAGE_PROMPT:", messagePrompt);
 
+    // Inject writing style into system prompt
+    const systemPrompt = aiConfig.prompt.replace(
+      /{writing_style}/g,
+      aiConfig.writingStyle || ""
+    );
+
     const response = await fetch(aiConfig.baseUrl, {
       method: "POST",
       headers: {
@@ -214,7 +221,7 @@ export class TransformationService {
         messages: [
           {
             role: "system",
-            content: aiConfig.prompt,
+            content: systemPrompt,
           },
           {
             role: "user",

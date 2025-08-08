@@ -46,9 +46,26 @@ export class TranscriptionClient {
     const explicitPath = process.env.WHISPERMAC_PYTHON;
     if (explicitPath && explicitPath.length > 0) return explicitPath;
 
+    const archKey = process.arch === "arm64" ? "arm64" : "x64";
     const devCandidates = [
-      join(process.cwd(), "vendor", "python", "bin", "python"),
+      join(
+        process.cwd(),
+        "vendor",
+        "python",
+        `darwin-${archKey}`,
+        "bin",
+        "python3"
+      ),
+      join(
+        process.cwd(),
+        "vendor",
+        "python",
+        `darwin-${archKey}`,
+        "bin",
+        "python"
+      ),
       join(process.cwd(), "vendor", "python", "bin", "python3"),
+      join(process.cwd(), "vendor", "python", "bin", "python"),
     ];
     for (const p of devCandidates) {
       if (existsSync(p)) return p;
@@ -57,10 +74,10 @@ export class TranscriptionClient {
     const base = process.resourcesPath;
     const archSuffix = `darwin-${process.arch}`;
     const packagedCandidates: string[] = [
-      join(base, "python", "bin", "python3"),
-      join(base, "python", "python3"),
       join(base, "python", archSuffix, "bin", "python3"),
       join(base, "python", archSuffix, "bin", "python"),
+      join(base, "python", "bin", "python3"),
+      join(base, "python", "python3"),
     ];
     for (const p of packagedCandidates) {
       if (existsSync(p)) return p;
@@ -167,18 +184,25 @@ export class TranscriptionClient {
             return null;
           })();
 
-          const pipArgs = wheelsDir
-            ? [
-                "-m",
-                "pip",
-                "install",
-                "--no-index",
-                "--find-links",
-                wheelsDir,
-                "-r",
-                "requirements/server.txt",
-              ]
-            : ["-m", "pip", "install", "-r", "requirements/server.txt"];
+          if (!wheelsDir) {
+            reject(
+              new Error(
+                "Wheelhouse not found. Ensure wheels are prepared at build time (bun run prep:wheels:[arch])."
+              )
+            );
+            return;
+          }
+
+          const pipArgs = [
+            "-m",
+            "pip",
+            "install",
+            "--no-index",
+            "--find-links",
+            wheelsDir,
+            "-r",
+            "requirements/server.txt",
+          ];
 
           const install = spawn(pythonPath, pipArgs, {
             cwd: repoDir,
