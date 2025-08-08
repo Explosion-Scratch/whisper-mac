@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { spawnSync } = require("child_process");
 
 function rimraf(p) {
   try {
@@ -19,15 +20,22 @@ function main() {
     throw new Error(`Embedded Python for ${arch} not found at ${marker}`);
   }
 
-  // Ensure only the target arch is present at top-level for packaging simplicity
-  // Keep both arch folders, but also mirror selected arch files into top-level for dev/electron-builder compatibility
-  const topBin = path.join(vendorRoot, "bin");
-  if (fs.existsSync(topBin)) rimraf(topBin);
-  fs.mkdirSync(topBin, { recursive: true });
+  // Clean previously staged top-level files (avoid copy-into-self issues)
+  for (const name of ["bin", "lib", "include", "share", "Resources"]) {
+    const p = path.join(vendorRoot, name);
+    if (fs.existsSync(p)) rimraf(p);
+  }
 
-  // Symlink is risky for packaging; copy instead
-  fs.cpSync(archDir + "/", vendorRoot + "/", { recursive: true });
-  console.log(`Staged Python ${arch} into vendor/python for packaging`);
+  // Use rsync for robust directory copy from the arch dir into vendorRoot
+  const res = spawnSync("rsync", ["-a", archDir + "/", vendorRoot + "/"], {
+    stdio: "inherit",
+  });
+  if (res.status !== 0) {
+    throw new Error("Failed to stage Python using rsync");
+  }
+  console.log(
+    `Staged Python ${arch} into vendor/python top-level for packaging`
+  );
 }
 
 main();

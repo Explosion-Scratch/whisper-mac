@@ -75,6 +75,17 @@ function archToTriplet(arch) {
     : null;
 }
 
+function createTempDir() {
+  const result = spawnSync("mktemp", ["-d", "python-download-XXXXXX"], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    throw new Error("Failed to create temporary directory with mktemp");
+  }
+  return result.stdout.trim();
+}
+
 async function fetchPythonForArch(arch) {
   const triplet = archToTriplet(arch);
   if (!triplet) throw new Error(`Unsupported arch: ${arch}`);
@@ -129,8 +140,7 @@ async function fetchPythonForArch(arch) {
     );
   }
 
-  const tmpDir = path.join(process.cwd(), ".crush", "python-download");
-  mkdirSync(tmpDir, { recursive: true });
+  const tmpDir = createTempDir();
   const archivePath = path.join(tmpDir, asset.name);
   console.log(`Downloading ${asset.name} ...`);
   await download(asset.browser_download_url, archivePath);
@@ -145,10 +155,49 @@ async function fetchPythonForArch(arch) {
     throw new Error(`Unexpected archive layout: ${asset.name}`);
   }
 
+  // Clean and copy fresh to avoid stale partials
+  if (existsSync(archDir)) {
+    rmSync(archDir, { recursive: true, force: true });
+  }
   mkdirSync(archDir, { recursive: true });
   console.log(`Copying Python to ${archDir} ...`);
-  cpSync(extractedPythonDir + "/", archDir + "/", { recursive: true });
+  // Prefer rsync with -L to dereference symlinks and avoid links back to the
+  // temporary extraction directory. Fall back to fs.cpSync with dereference
+  // when rsync isn't available.
+  const tryRsync = (() => {
+    try {
+      const r = spawnSync("rsync", ["--version"]);
+      return r.status === 0;
+    } catch {
+      return false;
+    }
+  })();
+
+  if (tryRsync) {
+    const res = spawnSync(
+      "rsync",
+      ["-aL", extractedPythonDir + "/", archDir + "/"],
+      {
+        stdio: "inherit",
+      }
+    );
+    if (res.status !== 0)
+      throw new Error("rsync failed while copying Python payload");
+  } else {
+    try {
+      cpSync(extractedPythonDir + "/", archDir + "/", {
+        recursive: true,
+        dereference: true,
+      });
+    } catch (e) {
+      // Older Node versions may not support dereference; attempt a simple copy
+      cpSync(extractedPythonDir + "/", archDir + "/", { recursive: true });
+    }
+  }
   console.log(`Embedded Python prepared at ${archDir}`);
+
+  // Clean up temporary directory
+  rmSync(tmpDir, { recursive: true, force: true });
 }
 
 async function main() {
@@ -162,17 +211,7 @@ async function main() {
     await fetchPythonForArch(arch);
   }
 
-  // For local development convenience, mirror host arch into vendor/python
-  const hostArch = process.arch === "arm64" ? "arm64" : "x64";
-  const vendorDir = path.join(process.cwd(), "vendor");
-  const rootDir = path.join(vendorDir, "python");
-  const archDir = path.join(rootDir, `darwin-${hostArch}`);
-  const activeDir = path.join(rootDir, "bin");
-  if (!existsSync(path.join(rootDir, "bin"))) {
-    // Copy files from archDir into rootDir (flatten arch)
-    cpSync(archDir + "/", rootDir + "/", { recursive: true });
-    console.log(`Set default embedded Python to host arch at ${rootDir}`);
-  }
+  // Do not mirror into top-level here; staging is handled per-target by stage-python-arch.js
 }
 
 main().catch((e) => {
