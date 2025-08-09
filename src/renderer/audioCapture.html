@@ -69,8 +69,9 @@
                   energy += Math.abs(float32Array[i]);
                 }
 
+                console.log("Energy:", energy);
                 // Only send if energy exceeds threshold (not silent)
-                if (energy > 0.05) {
+                if (energy > 35) {
                   // Adjust threshold as needed
                   console.log(
                     "Sending audio chunk:",
