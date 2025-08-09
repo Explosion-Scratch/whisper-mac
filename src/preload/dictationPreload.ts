@@ -55,6 +55,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("dictation-clear", callback);
   },
 
+  onError: (callback: (payload: any) => void) => {
+    ipcRenderer.on("error:data", (_e, payload) => callback(payload));
+  },
+
   // Senders to main process
   closeDictationWindow: () => {
     ipcRenderer.send("close-dictation-window");
@@ -89,6 +93,7 @@ declare global {
       ) => void;
       onDictationComplete: (callback: (finalText: string) => void) => void;
       onDictationClear: (callback: () => void) => void;
+      onError: (callback: (payload: any) => void) => void;
       closeDictationWindow: () => void;
       cancelDictation: () => void;
       minimizeWindow: () => void;

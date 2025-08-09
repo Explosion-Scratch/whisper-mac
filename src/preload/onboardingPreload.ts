@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
   saveApiKey: (apiKey: string) =>
     ipcRenderer.invoke("onboarding:saveApiKey", { apiKey }),
   runSetup: () => ipcRenderer.invoke("onboarding:runSetup"),
+  onError: (callback: (payload: any) => void) => {
+    ipcRenderer.on("error:data", (_e, payload) => callback(payload));
+  },
   onProgress: (cb: (payload: any) => void) =>
     ipcRenderer.on("onboarding:progress", (_e, p) => cb(p)),
   onLog: (cb: (payload: any) => void) =>

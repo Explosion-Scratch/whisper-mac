@@ -13,6 +13,7 @@ export type SetupStatus =
 export class TrayService {
   private tray: Tray | null = null;
   private trayMenu: Menu | null = null;
+  private currentStatus: SetupStatus = "idle";
 
   constructor(
     private readonly trayIconIdleRelPath: string,
@@ -30,7 +31,15 @@ export class TrayService {
     this.setTrayIcon(this.trayIconIdleRelPath);
     this.setDockIconToAppIcon();
     this.tray.setIgnoreDoubleClickEvents(true);
-    this.tray.on("click", () => this.onLeftClick());
+    this.tray.on("click", () => {
+      if (this.currentStatus !== "idle") {
+        try {
+          if (this.trayMenu) this.tray?.popUpContextMenu(this.trayMenu);
+        } catch (e) {}
+        return;
+      }
+      this.onLeftClick();
+    });
     this.tray.on("right-click", () => {
       try {
         if (this.trayMenu) this.tray?.popUpContextMenu(this.trayMenu);
@@ -40,6 +49,7 @@ export class TrayService {
 
   updateTrayMenu(status: SetupStatus) {
     if (!this.tray) return;
+    this.currentStatus = status;
     const isSetupInProgress = status !== "idle";
     if (isSetupInProgress) {
       const statusMenu = Menu.buildFromTemplate([

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Error</title>
+    <link rel="stylesheet" href="../photon/dist/css/photon.css" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+      :root {
+        --bg: rgba(255, 255, 255, 0.2);
+        --fg: #111;
+        --muted: #555;
+        --border: rgba(0, 0, 0, 0.08);
+        --panel-bg: rgba(255, 255, 255, 0.3);
+        --danger-a: #ff3b30;
+        --danger-b: #ff8a80;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: rgba(30, 30, 33, 0.2);
+          --fg: #f2f2f2;
+          --muted: #a2a2a7;
+          --border: rgba(255, 255, 255, 0.08);
+          --panel-bg: rgba(30, 30, 33, 0.3);
+          --danger-a: #ff453a;
+          --danger-b: #ffb3ad;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "Segoe UI", Roboto, sans-serif;
+        color: var(--fg);
+      }
+      .container {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: var(--panel-bg);
+        -webkit-backdrop-filter: saturate(160%) blur(30px);
+        backdrop-filter: saturate(160%) blur(30px);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+      }
+      header {
+        height: 24px;
+        -webkit-app-region: drag;
+        display: flex;
+        justify-content: flex-end;
+      }
+      .close-button {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #ff5f57;
+        border: none;
+        -webkit-app-region: no-drag;
+        cursor: pointer;
+        margin-top: 6px;
+        margin-right: 6px;
+      }
+      .content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 20px;
+        padding: 20px;
+      }
+      .icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        color: var(--danger-a);
+        background: linear-gradient(
+          135deg,
+          rgba(255, 59, 48, 0.12),
+          rgba(255, 138, 128, 0.12)
+        );
+      }
+      .icon i {
+        font-size: 40px;
+      }
+      .text-content {
+        max-width: 300px;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 8px 0;
+        font-weight: 600;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.4;
+      }
+      .actions {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 24px;
+      }
+      .btn {
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.85);
+        transition: background 0.15s ease, transform 0.1s ease,
+          box-shadow 0.15s ease;
+        cursor: pointer;
+        min-width: 80px;
+      }
+      .btn:hover {
+        background: #fff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
+      }
+      .btn:active {
+        transform: translateY(0);
+      }
+      .btn-danger {
+        background: linear-gradient(180deg, var(--danger-a), var(--danger-b));
+        color: #fff;
+        border: none;
+      }
+      .btn-danger:hover {
+        background: linear-gradient(180deg, var(--danger-a), var(--danger-b));
+        opacity: 0.9;
+      }
+      @media (prefers-color-scheme: dark) {
+        .btn {
+          background: rgba(255, 255, 255, 0.08);
+          color: var(--fg);
+        }
+        .btn:hover {
+          background: rgba(255, 255, 255, 0.15);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <button class="close-button" id="close-button"></button>
+      </header>
+      <main>
+        <div class="content">
+          <div class="icon" aria-hidden="true">
+            <i class="ph-duotone ph-warning-octagon"></i>
+          </div>
+          <div class="text-content">
+            <h1 id="title">Error</h1>
+            <p id="description">Something went wrong.</p>
+          </div>
+          <div class="actions" id="actions"></div>
+        </div>
+      </main>
+    </div>
+    <script>
+      const actionsEl = document.getElementById("actions");
+      const titleEl = document.getElementById("title");
+      const descEl = document.getElementById("description");
+      const closeButton = document.getElementById("close-button");
+
+      // Close button functionality
+      closeButton.addEventListener("click", () => {
+        window.errorAPI.act("ok");
+      });
+
+      function renderActions(list) {
+        actionsEl.innerHTML = "";
+        const items = Array.isArray(list) && list.length ? list : ["ok"];
+        items.forEach((a) => {
+          const btn = document.createElement("button");
+          btn.className = "btn" + (a === "quit" ? " btn-danger" : "");
+          btn.textContent = a === "quit" ? "Quit" : "OK";
+          btn.addEventListener("click", () => window.errorAPI.act(a));
+          actionsEl.appendChild(btn);
+        });
+      }
+
+      window.errorAPI.onData((p) => {
+        if (p?.title) titleEl.textContent = p.title;
+        if (p?.description != null && p.description !== "") {
+          descEl.textContent = p.description;
+          descEl.style.display = "";
+        } else {
+          descEl.style.display = "none";
+        }
+        renderActions(p?.actions);
+      });
+
+      // initial default state
+      renderActions(["ok"]);
+    </script>
+  </body>
+</html>

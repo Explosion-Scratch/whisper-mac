@@ -108,7 +108,7 @@ export class AudioCaptureService extends EventEmitter {
   private async createAudioWindow(): Promise<void> {
     console.log("Creating audio capture window...");
 
-    const SHOW = true;
+    const SHOW = false;
     // Create a hidden window for audio capture
     this.audioWindow = new BrowserWindow({
       width: SHOW ? 100 : 1,

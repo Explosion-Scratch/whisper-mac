@@ -28,6 +28,7 @@ export type WhisperSetupProgress = {
 export class TranscriptionClient {
   private serverProcess: ChildProcess | null = null;
   private websocket: WebSocket | null = null;
+  private websocketAvailable: boolean = true;
   private config: AppConfig;
   private modelManager: ModelManager;
   private onTranscriptionCallback: ((update: SegmentUpdate) => void) | null =
@@ -36,10 +37,10 @@ export class TranscriptionClient {
   private currentSegments: Segment[] = [];
 
   constructor(config: AppConfig, modelManager: ModelManager) {
-    console.log("Creating transcription client with WebSocket:", WebSocket);
     if (!WebSocket) {
-      console.log("WebSocket not found");
-      process.exit(1);
+      console.error("WebSocket not found");
+      // Defer throwing until an operation is attempted so main can surface errors
+      this.websocketAvailable = false;
     }
     this.config = config;
     this.modelManager = modelManager;
@@ -572,7 +573,7 @@ except ImportError as e:
         task: "transcribe",
         model: this.config.defaultModel,
         no_speech_thresh: 0.2,
-        same_output_threshold: 5,
+        same_output_threshold: 2,
         use_vad: true,
       };
 
@@ -610,7 +611,10 @@ except ImportError as e:
       }
     });
 
-    this.websocket.on("error", (err) => console.error("WS error:", err));
+    this.websocket.on("error", (err) => {
+      console.error("WS error:", err);
+      // Surface as exception to calling code if needed
+    });
     this.websocket.on("close", () => console.log("WS closed"));
   }
 
@@ -719,13 +723,6 @@ except ImportError as e:
     if (this.websocket && this.websocket.readyState === 1) {
       // Send raw Float32Array as binary data
       this.websocket.send(audioData);
-    } else {
-      console.log(
-        "WebSocket not ready",
-        this.websocket?.readyState,
-        this.websocket?.url,
-        this.websocket
-      );
     }
   }
 
