@@ -35,6 +35,8 @@ export class TranscriptionClient {
     null;
   private sessionUid: string = "";
   private currentSegments: Segment[] = [];
+  // Optional error callback set by consumers
+  public onError?: (err: any) => void;
 
   constructor(config: AppConfig, modelManager: ModelManager) {
     if (!WebSocket) {
@@ -613,9 +615,26 @@ except ImportError as e:
 
     this.websocket.on("error", (err) => {
       console.error("WS error:", err);
-      // Surface as exception to calling code if needed
+      // Notify consumer if provided
+      try {
+        this.onError?.(err);
+      } catch (e) {}
     });
-    this.websocket.on("close", () => console.log("WS closed"));
+
+    this.websocket.on("close", (code, reason) => {
+      console.log("WS closed", { code, reason: reason?.toString() });
+      if (code !== 1000) {
+        // abnormal closure
+        const err = new Error(
+          `WebSocket closed unexpectedly (code=${code}) ${
+            reason ? reason.toString() : ""
+          }`
+        );
+        try {
+          this.onError?.(err);
+        } catch (e) {}
+      }
+    });
   }
 
   private updateSegments(serverSegments: any[]): void {

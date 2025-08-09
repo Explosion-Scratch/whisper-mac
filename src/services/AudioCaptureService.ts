@@ -90,6 +90,10 @@ export class AudioCaptureService extends EventEmitter {
         errMsg = error.message;
       }
       console.error("Failed to start audio capture:", errMsg);
+      // Emit an error event for consumers and rethrow
+      try {
+        this.emit("error", new Error(errMsg));
+      } catch {}
       throw new Error(`Failed to start audio capture: ${errMsg}`);
     }
   }
