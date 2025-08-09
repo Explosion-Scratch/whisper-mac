@@ -1,6 +1,7 @@
 import { join, resolve } from "path";
 import { homedir } from "os";
 import { readPrompt } from "../helpers/getPrompt";
+import { app } from "electron";
 
 export type DictationWindowPosition = "active-app-corner" | "screen-corner";
 
@@ -39,7 +40,11 @@ export class AppConfig {
     this.modelPath = "";
     this.serverPort = 9090;
     this.defaultModel = "Systran/faster-whisper-tiny.en";
-    this.dataDir = resolve(__dirname, "../../.whispermac-data");
+
+    // Use Electron's user data directory instead of custom .whispermac-data
+    this.dataDir = app
+      ? app.getPath("userData")
+      : resolve(__dirname, "../../.whispermac-data");
 
     // Dictation window defaults
     this.dictationWindowPosition = "screen-corner";

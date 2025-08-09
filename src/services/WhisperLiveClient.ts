@@ -580,14 +580,14 @@ export class TranscriptionClient {
   }
 
   sendAudioData(audioData: Float32Array): void {
-    if (this.websocket?.readyState === WebSocket.OPEN) {
+    if (this.websocket && this.websocket.readyState === 1) {
       // Send raw Float32Array as binary data
       this.websocket.send(audioData);
     }
   }
 
   async stopTranscription(): Promise<void> {
-    if (this.websocket?.readyState === WebSocket.OPEN) {
+    if (this.websocket && this.websocket.readyState === 1) {
       this.websocket.send(JSON.stringify({ uid: this.sessionUid, EOS: true }));
       this.websocket.close();
     }

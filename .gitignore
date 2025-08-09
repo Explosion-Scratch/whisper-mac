@@ -1,6 +1,7 @@
 models/
 dist/
-.whispermac-data/
 *.pt
 .crush/
 vendor/
+release/
+build/

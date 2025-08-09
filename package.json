@@ -4,10 +4,11 @@
   "description": "AI-powered dictation for Mac using WhisperLive",
   "main": "dist/main.js",
   "scripts": {
-    "fullclean": "rm -rf dist .crush .whispermac-data node_modules *.log vendor && bun install",
+    "fullclean": "rm -rf dist .crush *.log vendor release build && bun install",
+    "clear:userdata": "rm -rf \"$HOME/Library/Application Support/WhisperMac\" \"$HOME/Library/Application Support/whispermac\" .whispermac-data",
     "build": "tsc && node scripts/copy-assets.js",
     "start": "electron dist/main.js",
-    "dev": "nodemon --exec \"bun run single-dev\" --ignore dist --ignore photon --ignore .crush --ignore .whispermac-data",
+    "dev": "nodemon --exec \"bun run single-dev\" --ignore dist --ignore photon --ignore .crush",
     "single-dev": "concurrently --raw -m 1 \"rm -rf dist\"  \"/Users/tjs/.local/bin/killport 9090\" \"bun run build\" \"bun run start\" --names \"cleanup, kill port, build, dev\"",
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never",
@@ -31,7 +32,7 @@
     "@phosphor-icons/web": "^2.1.2",
     "axios": "^1.4.0",
     "copy-paste": "^2.2.0",
-    "electron": "^25.0.0",
+    "keytar": "^7.9.0",
     "open": "^10.2.0",
     "sharp": "^0.34.3",
     "uuid": "^9.0.0",
@@ -39,10 +40,11 @@
   },
   "devDependencies": {
     "@types/copy-paste": "^2.1.0",
-    "@types/node": "^20.0.0",
+    "@types/node": "^24.2.1",
     "@types/uuid": "^9.0.0",
     "@types/ws": "^8.5.0",
     "concurrently": "^8.0.0",
+    "electron": "^25.0.0",
     "electron-builder": "^24.0.0",
     "nodemon": "^3.0.0",
     "typescript": "^5.0.0"
@@ -55,7 +57,9 @@
     },
     "files": [
       "dist/**/*",
-      "assets/**/*"
+      "assets/**/*",
+      "node_modules/**/*",
+      "package.json"
     ],
     "extraResources": [
       {
@@ -82,7 +86,7 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "target": "dmg",
+      "target": "dir",
       "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
       "icon": "build/icons/WhisperMac.icns"
     },

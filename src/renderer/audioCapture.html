@@ -36,6 +36,12 @@
 
           console.log("Created audio context");
 
+          if (audioContext.state === "suspended") {
+            try {
+              await audioContext.resume();
+            } catch {}
+          }
+
           // Create media stream source
           mediaStreamSource = audioContext.createMediaStreamSource(stream);
 
@@ -83,7 +89,9 @@
 
           // Connect the audio graph
           mediaStreamSource.connect(processor);
-          processor.connect(audioContext.destination);
+          try {
+            processor.connect(audioContext.destination);
+          } catch {}
 
           console.log("Audio capture started in renderer");
           window.electronAPI.sendAudioCaptureStarted();
