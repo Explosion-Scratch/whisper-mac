@@ -29,6 +29,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Window management
   closeSettingsWindow: () => ipcRenderer.invoke("settings:closeWindow"),
 
+  // AI provider utilities
+  validateApiKeyAndListModels: (baseUrl: string, apiKey: string) =>
+    ipcRenderer.invoke("ai:validateKeyAndListModels", { baseUrl, apiKey }),
+  saveApiKeySecure: (apiKey: string) =>
+    ipcRenderer.invoke("settings:saveApiKey", { apiKey }),
+
+  // Model management helpers
+  listDownloadedModels: () => ipcRenderer.invoke("models:listDownloaded"),
+  deleteModels: (repoIds: string[]) =>
+    ipcRenderer.invoke("models:delete", repoIds),
+
   // Listen for settings updates from main process
   onSettingsUpdated: (callback: (settings: Record<string, any>) => void) => {
     ipcRenderer.on("settings:updated", (_event, settings) =>

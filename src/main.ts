@@ -1,13 +1,5 @@
 // Electron modules
-import {
-  app,
-  BrowserWindow,
-  Tray,
-  Menu,
-  globalShortcut,
-  ipcMain,
-  nativeImage,
-} from "electron";
+import { app, BrowserWindow, globalShortcut, ipcMain, dialog } from "electron";
 
 // Node.js utilities
 import { join } from "path";
@@ -26,6 +18,10 @@ import { SettingsService } from "./services/SettingsService";
 
 // Segment management
 import { SegmentManager } from "./services/SegmentManager";
+import {
+  TrayService,
+  SetupStatus as TraySetupStatus,
+} from "./services/TrayService";
 import { SegmentUpdate } from "./types/SegmentTypes";
 
 type SetupStatus =
@@ -38,7 +34,7 @@ type SetupStatus =
   | "loading-windows";
 
 class WhisperMacApp {
-  private tray: Tray | null = null;
+  private trayService: TrayService | null = null;
   private settingsWindow: BrowserWindow | null = null;
   private onboardingWindow: BrowserWindow | null = null;
   private modelManagerWindow: BrowserWindow | null = null;
@@ -52,6 +48,11 @@ class WhisperMacApp {
   private dictationWindowService: DictationWindowService;
   private segmentManager: SegmentManager;
   private settingsService: SettingsService;
+
+  // Icon paths
+  private readonly trayIconIdleRelPath = "../assets/icon-template.png";
+  private readonly trayIconRecordingRelPath = "../assets/icon-recording.png";
+  private readonly dockIconRelPath = "../assets/icon.png";
 
   // Status management
   private currentSetupStatus: SetupStatus = "idle";
@@ -89,7 +90,7 @@ class WhisperMacApp {
   private setSetupStatus(status: SetupStatus) {
     this.currentSetupStatus = status;
     this.setupStatusCallbacks.forEach((callback) => callback(status));
-    this.updateTrayMenu();
+    this.trayService?.updateTrayMenu(status as TraySetupStatus);
   }
 
   private onSetupStatusChange(callback: (status: SetupStatus) => void) {
@@ -116,60 +117,45 @@ class WhisperMacApp {
     }
   }
 
-  private updateTrayMenu() {
-    if (!this.tray) return;
-
-    const isSetupInProgress = this.currentSetupStatus !== "idle";
-
-    if (isSetupInProgress) {
-      // Show status menu during setup
-      const statusMenu = Menu.buildFromTemplate([
-        {
-          label: this.getStatusMessage(this.currentSetupStatus),
-          enabled: false,
-        },
-        { type: "separator" },
-        {
-          label: "Quit",
-          click: () => app.quit(),
-        },
-      ]);
-      this.tray.setContextMenu(statusMenu);
-      this.tray.setToolTip(this.getStatusMessage(this.currentSetupStatus));
-    } else {
-      // Show normal menu when ready
-      const contextMenu = Menu.buildFromTemplate([
-        {
-          label: "Start Dictation",
-          click: () => this.toggleRecording(),
-          accelerator: "Ctrl+D",
-        },
-        { type: "separator" },
-        {
-          label: "Settings",
-          click: () => this.showSettings(),
-        },
-        {
-          label: "Download Models",
-          click: () => this.showModelManager(),
-        },
-        { type: "separator" },
-        {
-          label: "Quit",
-          click: () => app.quit(),
-        },
-      ]);
-      this.tray.setContextMenu(contextMenu);
-      this.tray.setToolTip("WhisperMac - AI Dictation");
-    }
-  }
-
   async initialize() {
     await app.whenReady();
     console.log("App is ready");
     // Create tray immediately to show status during initialization
-    this.createTray();
+    this.trayService = new TrayService(
+      this.trayIconIdleRelPath,
+      this.trayIconRecordingRelPath,
+      this.dockIconRelPath,
+      (s) => this.getStatusMessage(s as SetupStatus),
+      () => this.toggleRecording(),
+      () => this.showSettings(),
+      () => this.showModelManager()
+    );
+    this.trayService.createTray();
+    // Toggle dock visibility based on settings window visibility
+    try {
+      this.settingsService.onWindowVisibilityChange((visible) => {
+        try {
+          if (visible) {
+            this.trayService?.showDock(true);
+          } else {
+            const onboardingVisible = !!(
+              this.onboardingWindow &&
+              !this.onboardingWindow.isDestroyed() &&
+              // isVisible may not exist on closed windows, guard it
+              (this.onboardingWindow as any).isVisible &&
+              (this.onboardingWindow as any).isVisible()
+            );
+            if (!onboardingVisible) this.trayService?.showDock(false);
+          }
+        } catch (e) {}
+      });
+    } catch (e) {}
     this.setSetupStatus("preparing-app");
+
+    // Best-effort cleanup of stale embedded python servers
+    try {
+      await this.transcriptionClient.killStaleEmbeddedPythonProcesses();
+    } catch {}
 
     // Initialize data directories
     if (!existsSync(this.config.dataDir)) {
@@ -186,7 +172,9 @@ class WhisperMacApp {
     if (isFirstRun) {
       this.openOnboardingWindow();
       this.setupOnboardingIpc();
-      this.updateTrayMenu();
+      this.trayService?.updateTrayMenu(
+        this.currentSetupStatus as TraySetupStatus
+      );
       return; // Defer regular initialization until onboarding completes
     }
 
@@ -234,23 +222,27 @@ class WhisperMacApp {
 
     // Start WhisperLive server (this needs to be done before we can transcribe)
     this.setSetupStatus("starting-server");
-    await this.transcriptionClient.startServer(
-      this.config.defaultModel,
-      (progress) => {
-        // Update tray status based on Whisper setup progress
-        if (progress.status === "cloning") {
-          this.setSetupStatus("setting-up-whisper");
-        } else if (progress.status === "installing") {
-          this.setSetupStatus("setting-up-whisper");
-        } else if (progress.status === "launching") {
-          this.setSetupStatus("starting-server");
-        } else if (progress.status === "complete") {
-          // Don't set to idle here as we still have other tasks running
-        } else if (progress.status === "error") {
-          // Don't set to idle here as we still have other tasks running
+    try {
+      await this.transcriptionClient.startServer(
+        this.config.defaultModel,
+        (progress) => {
+          // Update tray status based on Whisper setup progress
+          if (progress.status === "cloning") {
+            this.setSetupStatus("setting-up-whisper");
+          } else if (progress.status === "installing") {
+            this.setSetupStatus("setting-up-whisper");
+          } else if (progress.status === "launching") {
+            this.setSetupStatus("starting-server");
+          }
         }
+      );
+    } catch (e: any) {
+      if (e && e.code === "PORT_IN_USE") {
+        await this.showPortInUseError(this.config.serverPort);
+      } else {
+        console.error("Failed to start server:", e);
       }
-    );
+    }
 
     // Wait for other initialization tasks to complete
     await Promise.allSettled(initTasks);
@@ -258,8 +250,10 @@ class WhisperMacApp {
     this.registerGlobalShortcuts();
     this.setupIpcHandlers();
 
-    // Hide dock icon for menu bar only app
-    app.dock?.hide();
+    // By default keep the app as a menu-bar-only app (hide dock) unless onboarding or settings are visible
+    try {
+      this.trayService?.showDock(false);
+    } catch (e) {}
 
     // Set status to idle when everything is ready
     this.setSetupStatus("idle");
@@ -382,6 +376,11 @@ class WhisperMacApp {
       return ok;
     });
 
+    ipcMain.handle("onboarding:resetAccessibilityCache", () => {
+      this.textInjector.resetAccessibilityCache();
+      return true;
+    });
+
     ipcMain.handle("onboarding:setModel", (_e, modelRepoId: string) => {
       this.config.setDefaultModel(modelRepoId);
       this.settingsService
@@ -423,6 +422,9 @@ class WhisperMacApp {
     ipcMain.handle("onboarding:runSetup", async (event) => {
       // Chain model ensure + server start, emitting progress to renderer
       try {
+        const sendLog = (line: string) =>
+          event.sender.send("onboarding:log", { line });
+
         await this.modelManager.ensureModelExists(
           this.config.defaultModel,
           (p) => {
@@ -432,7 +434,8 @@ class WhisperMacApp {
               percent:
                 p.status === "cloning" ? 40 : p.status === "complete" ? 60 : 20,
             });
-          }
+          },
+          sendLog
         );
 
         event.sender.send("onboarding:progress", {
@@ -441,20 +444,28 @@ class WhisperMacApp {
           percent: 70,
         });
 
-        await this.transcriptionClient.startServer(
-          this.config.defaultModel,
-          (progress) => {
-            let percent = 70;
-            if (progress.status === "installing") percent = 80;
-            else if (progress.status === "launching") percent = 90;
-            else if (progress.status === "complete") percent = 100;
-            event.sender.send("onboarding:progress", {
-              status: progress.status,
-              message: progress.message,
-              percent,
-            });
+        try {
+          await this.transcriptionClient.startServer(
+            this.config.defaultModel,
+            (progress) => {
+              let percent = 70;
+              if (progress.status === "installing") percent = 80;
+              else if (progress.status === "launching") percent = 90;
+              else if (progress.status === "complete") percent = 100;
+              event.sender.send("onboarding:progress", {
+                status: progress.status,
+                message: progress.message,
+                percent,
+              });
+            },
+            sendLog
+          );
+        } catch (e: any) {
+          if (e && e.code === "PORT_IN_USE") {
+            await this.showPortInUseError(this.config.serverPort);
           }
-        );
+          throw e;
+        }
 
         event.sender.send("onboarding:progress", {
           status: "complete",
@@ -498,12 +509,34 @@ class WhisperMacApp {
     ];
 
     this.setSetupStatus("starting-server");
-    await this.transcriptionClient.startServer(this.config.defaultModel);
+    try {
+      await this.transcriptionClient.startServer(this.config.defaultModel);
+    } catch (e: any) {
+      if (e && e.code === "PORT_IN_USE") {
+        await this.showPortInUseError(this.config.serverPort);
+      } else {
+        console.error("Failed to start server:", e);
+      }
+    }
     await Promise.allSettled(initTasks);
     this.registerGlobalShortcuts();
     this.setupIpcHandlers();
-    app.dock?.hide();
+    // Keep the dock icon visible after onboarding and ensure icon is set
     this.setSetupStatus("idle");
+  }
+
+  private async showPortInUseError(port: number): Promise<void> {
+    try {
+      await dialog.showMessageBox({
+        type: "error",
+        title: "Port In Use",
+        message: `Port ${port} is already in use`,
+        detail:
+          'The Whisper server could not start because the configured port is already in use. Open Settings → General and change "Server Port", then try again.',
+        buttons: ["OK"],
+        defaultId: 0,
+      });
+    } catch {}
   }
 
   private openOnboardingWindow(): void {
@@ -531,10 +564,22 @@ class WhisperMacApp {
     this.onboardingWindow.loadFile(
       join(__dirname, "./renderer/onboarding.html")
     );
-    this.onboardingWindow.once("ready-to-show", () =>
-      this.onboardingWindow?.show()
-    );
-    this.onboardingWindow.on("closed", () => (this.onboardingWindow = null));
+    this.onboardingWindow.once("ready-to-show", () => {
+      this.onboardingWindow?.show();
+      try {
+        // Ensure dock is visible while onboarding is open
+        app.dock?.show();
+      } catch (e) {}
+    });
+
+    this.onboardingWindow.on("closed", () => {
+      this.onboardingWindow = null;
+      try {
+        // If settings window is not visible, hide the dock again
+        const settingsVisible = this.settingsService.isWindowVisible();
+        if (!settingsVisible) app.dock?.hide();
+      } catch (e) {}
+    });
   }
 
   private cleanupIpcHandlers() {
@@ -574,43 +619,37 @@ class WhisperMacApp {
    * Helper to set tray icon and app icon in menu bar.
    * Loads the image, sets it as a template image, and applies it to both tray and app.
    */
-  private setTrayIconPath(iconPath: string) {
-    const fullPath = join(__dirname, iconPath);
-    console.log("Setting tray icon path:", fullPath);
-
+  private handleTrayClick() {
     try {
-      const image = nativeImage.createFromPath(fullPath);
-      console.log("Image created successfully, size:", image.getSize());
-
-      // Set as template image for macOS menu bar
-      image.setTemplateImage(true);
-
-      // Set tray icon if tray exists
-      if (this.tray) {
-        this.tray.setImage(image);
-        console.log("Tray icon set successfully");
-      } else {
-        console.warn("Tray is null, cannot set icon");
+      const settings = this.settingsService.getCurrentSettings();
+      const isOnboardingComplete = !!settings?.onboardingComplete;
+      if (!isOnboardingComplete) {
+        this.openOnboardingWindow();
+        return;
       }
-
-      // Set app icon in menu bar (macOS)
-      app.dock?.setIcon(image);
-    } catch (error) {
-      console.error("Failed to set tray icon:", error);
+      // When onboarding is complete, toggle dictation on click
+      this.toggleRecording();
+    } catch (e) {
+      console.error("Error handling tray click:", e);
     }
   }
 
-  private createTray() {
-    const iconPath = join(__dirname, "./assets/icon-template.png");
-    console.log("Creating tray with icon path:", iconPath);
-
+  /**
+   * Handle clicks on the Dock icon (macOS activate event).
+   * - If onboarding hasn't completed, show onboarding
+   * - If any windows are visible, show/focus them
+   * - Otherwise, open the dictation window
+   */
+  public handleDockClick() {
     try {
-      this.tray = new Tray(iconPath);
-      console.log("Tray created successfully");
-      this.setTrayIconPath("./assets/icon-template.png");
-      this.updateTrayMenu(); // Initial call to set the correct menu
-    } catch (error) {
-      console.error("Failed to create tray:", error);
+      const settings = this.settingsService.getCurrentSettings();
+      this.trayService?.handleDockClick(
+        () => !settings?.onboardingComplete,
+        () => this.openOnboardingWindow(),
+        () => this.dictationWindowService.showDictationWindow()
+      );
+    } catch (e) {
+      console.error("Error handling dock click:", e);
     }
   }
 
@@ -698,7 +737,7 @@ class WhisperMacApp {
 
       // 4. Start recording visuals and audio capture in parallel
       this.isRecording = true;
-      this.updateTrayIcon("recording");
+      this.trayService?.updateTrayIcon("recording");
       this.dictationWindowService.startRecording();
 
       // Start audio capture and transcription in parallel
@@ -803,7 +842,7 @@ class WhisperMacApp {
 
       this.isRecording = false;
       this.isFinishing = false; // Reset finishing state
-      this.updateTrayIcon("idle");
+      this.trayService?.updateTrayIcon("idle");
       this.dictationWindowService.stopRecording();
 
       await this.audioService.stopCapture();
@@ -966,7 +1005,7 @@ class WhisperMacApp {
       this.isFinishing = false;
 
       // Update tray icon to idle
-      this.updateTrayIcon("idle");
+      this.trayService?.updateTrayIcon("idle");
 
       // Stop transcription since we're done
       await this.transcriptionClient.stopTranscription();
@@ -1012,11 +1051,8 @@ class WhisperMacApp {
   }
 
   private updateTrayIcon(state: "idle" | "recording") {
-    const iconPath =
-      state === "recording"
-        ? "./assets/icon-recording.png"
-        : "./assets/icon-template.png";
-    this.setTrayIconPath(iconPath);
+    // Backwards compatibility with older calls; delegate to tray service
+    this.trayService?.updateTrayIcon(state);
   }
 
   // Clean up when app quits
@@ -1055,10 +1091,7 @@ class WhisperMacApp {
       this.transcriptionClient.stopServer();
 
       // Clear tray
-      if (this.tray) {
-        this.tray.destroy();
-        this.tray = null;
-      }
+      this.trayService?.destroy();
 
       // Clear any remaining timeouts
       if (this.finishingTimeout) {
@@ -1133,7 +1166,10 @@ app.on("before-quit", (event: Electron.Event) => {
 
 // Handle app activation (macOS)
 app.on("activate", () => {
-  // On macOS it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  // We don't need this for a menu bar app, but keeping it for completeness
+  // Handle Dock icon clicks: delegate to appInstance
+  try {
+    appInstance.handleDockClick();
+  } catch (e) {
+    console.error("Failed to handle dock activate:", e);
+  }
 });
