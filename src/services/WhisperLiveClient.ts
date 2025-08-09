@@ -623,7 +623,7 @@ except ImportError as e:
 
     this.websocket.on("close", (code, reason) => {
       console.log("WS closed", { code, reason: reason?.toString() });
-      if (code !== 1000) {
+      if (code !== 1005) {
         // abnormal closure
         const err = new Error(
           `WebSocket closed unexpectedly (code=${code}) ${

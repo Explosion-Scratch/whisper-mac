@@ -662,7 +662,7 @@ class WhisperMacApp {
     try {
       await this.showError({
         title: "Port in use",
-        description: `Port ${port} is already in use. Open Settings → General and change “Server Port”, then try again.`,
+        description: `Port ${port} is already in use. Open Settings → Advanced and change “Server Port”, then try again.`,
         actions: ["ok"],
       });
     } catch {}

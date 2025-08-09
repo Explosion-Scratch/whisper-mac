@@ -54,21 +54,6 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     icon: "settings",
     fields: [
       {
-        key: "serverPort",
-        type: "number",
-        label: "Server Port",
-        description: "Port for the WhisperLive server",
-        defaultValue: 9090,
-        min: 1024,
-        max: 65535,
-        validation: (value) => {
-          if (value < 1024 || value > 65535) {
-            return "Port must be between 1024 and 65535";
-          }
-          return null;
-        },
-      },
-      {
         key: "defaultModel",
         type: "select",
         label: "Default Model",
@@ -271,8 +256,23 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     id: "advanced",
     title: "Advanced",
     description: "Advanced configuration options",
-    icon: "cog",
+    icon: "slider",
     fields: [
+      {
+        key: "serverPort",
+        type: "number",
+        label: "Server Port",
+        description: "Port for the WhisperLive server",
+        defaultValue: 9090,
+        min: 1024,
+        max: 65535,
+        validation: (value) => {
+          if (value < 1024 || value > 65535) {
+            return "Port must be between 1024 and 65535";
+          }
+          return null;
+        },
+      },
       {
         key: "dataDir",
         type: "directory",

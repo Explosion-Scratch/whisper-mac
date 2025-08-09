@@ -25,13 +25,16 @@ export class SettingsService {
     // Get settings schema
     ipcMain.handle("settings:getSchema", () => {
       // Strip out validation functions since they can't be serialized through IPC
-      const serializableSchema = SETTINGS_SCHEMA.map((section) => ({
-        ...section,
-        fields: section.fields.map((field) => {
-          const { validation, ...serializableField } = field;
-          return serializableField;
-        }),
-      }));
+      // Also hide internal sections such as onboarding from the UI
+      const serializableSchema = SETTINGS_SCHEMA
+        .filter((section) => section.id !== "onboarding")
+        .map((section) => ({
+          ...section,
+          fields: section.fields.map((field) => {
+            const { validation, ...serializableField } = field;
+            return serializableField;
+          }),
+        }));
       return serializableSchema;
     });
 
@@ -201,7 +204,14 @@ export class SettingsService {
 
   openSettingsWindow(): void {
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
-      this.settingsWindow.focus();
+      try {
+        if (this.settingsWindow.isMinimized()) {
+          this.settingsWindow.restore();
+        }
+        // Ensure hidden window is shown on reopen
+        this.settingsWindow.show();
+        this.settingsWindow.focus();
+      } catch {}
       return;
     }
 
