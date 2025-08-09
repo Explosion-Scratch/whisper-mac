@@ -913,10 +913,7 @@ class WhisperMacApp {
         return;
       }
 
-      // 5. Connect audio data from capture service to WhisperLive client
-      this.audioService.setAudioDataCallback((audioData: Float32Array) => {
-        this.transcriptionClient.sendAudioData(audioData);
-      });
+      // Audio forwarding is handled globally via ipcMain 'audio-data' handler to avoid duplicate sends
 
       const totalTime = Date.now() - startTime;
       console.log(`=== Dictation started successfully in ${totalTime}ms ===`);
@@ -1011,6 +1008,7 @@ class WhisperMacApp {
       // This should no longer be called with the new flow, but keep as fallback
       console.log(
         "=== stopDictation called - this should be rare with new flow ==="
+
       );
 
       // Clear all segments without flushing (segments should have been handled in finishCurrentDictation)
@@ -1108,20 +1106,25 @@ class WhisperMacApp {
       // 1. Stop audio capture immediately (no new audio will be processed)
       await this.audioService.stopCapture();
 
-      // 2. Set transforming status in UI and keep window visible
+      // 2. Set transforming status in UI immediately to give user feedback
       this.dictationWindowService.setTransformingStatus();
 
-      // 3. Disable accumulating mode so we can transform+inject
+      // 3. Wait a bit longer for in-progress segments to complete
+      // This gives the WhisperLive server time to finish processing any audio that was sent
+      console.log("Waiting for in-progress segments to complete...");
+      await new Promise((r) => setTimeout(r, 1000));
+
+      // 4. Disable accumulating mode so we can transform+inject
       this.segmentManager.setAccumulatingMode(false);
 
-      // 4. Transform and inject all accumulated segments (keep UI showing transforming status)
+      // 5. Transform and inject all accumulated segments (keep UI showing transforming status)
       console.log(
         "=== Transforming and injecting all accumulated segments ==="
       );
       const transformResult =
         await this.segmentManager.transformAndInjectAllSegments();
 
-      // 5. Show completed status briefly before closing window
+      // 6. Show completed status briefly before closing window
       this.dictationWindowService.completeDictation(
         this.dictationWindowService.getCurrentTranscription()
       );
@@ -1129,7 +1132,7 @@ class WhisperMacApp {
       // Brief delay to show completed status
       await new Promise((r) => setTimeout(r, 500));
 
-      // 6. Hide the dictation window after transform+inject is complete
+      // 7. Hide the dictation window after transform+inject is complete
       this.dictationWindowService.hideWindow();
 
       if (transformResult.success) {
@@ -1140,7 +1143,7 @@ class WhisperMacApp {
         console.error("Transform and inject failed:", transformResult.error);
       }
 
-      // 7. Complete the dictation flow
+      // 8. Complete the dictation flow
       await this.completeDictationAfterFinishing();
     } catch (error) {
       console.error("Failed to finish current dictation:", error);

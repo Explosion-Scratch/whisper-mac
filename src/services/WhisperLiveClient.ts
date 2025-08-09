@@ -574,8 +574,8 @@ except ImportError as e:
         language: null, // auto-detect
         task: "transcribe",
         model: this.config.defaultModel,
-        no_speech_thresh: 0.2,
-        same_output_threshold: 2,
+        // no_speech_thresh: 0.2,
+        same_output_threshold: 4,
         use_vad: true,
       };
 
