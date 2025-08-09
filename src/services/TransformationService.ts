@@ -7,7 +7,6 @@ export interface AiTransformationConfig {
   writingStyle: string;
   prompt: string;
   baseUrl: string;
-  envKey: string;
   model: string;
   maxTokens: number;
   temperature: number;
@@ -179,14 +178,13 @@ export class TransformationService {
     try {
       const { SecureStorageService } = await import("./SecureStorageService");
       const secure = new SecureStorageService();
-      apiKey = (await secure.getApiKey(aiConfig.envKey)) || undefined;
-    } catch (e) {
-      // fallthrough
-    }
-    if (!apiKey) apiKey = process.env[`${aiConfig.envKey}_API_KEY`];
-    if (!apiKey) {
-      throw new Error(`API key not found for envKey: ${aiConfig.envKey}`);
-    }
+      apiKey = (await secure.getApiKey()) || undefined;
+    } catch (e) {}
+    if (!apiKey) apiKey = process.env["AI_API_KEY"];
+    if (!apiKey)
+      throw new Error(
+        "AI API key not found. Please set it in onboarding or settings."
+      );
 
     // Get active window information
     const selectedTextService = new (

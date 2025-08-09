@@ -212,14 +212,6 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         placeholder: "https://api.example.com/v1/chat/completions",
       },
       {
-        key: "ai.envKey",
-        type: "text",
-        label: "Environment Variable",
-        description: "Name of environment variable containing API key",
-        defaultValue: "CEREBRAS",
-        placeholder: "API_KEY",
-      },
-      {
         key: "ai.model",
         type: "text",
         label: "Model Name",

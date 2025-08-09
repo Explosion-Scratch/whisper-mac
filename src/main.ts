@@ -372,12 +372,10 @@ class WhisperMacApp {
   }
 
   private setupOnboardingIpc() {
-    ipcMain.handle("onboarding:getInitialState", () => {
-      return {
-        ai: this.config.ai,
-        model: this.config.defaultModel,
-      };
-    });
+    ipcMain.handle("onboarding:getInitialState", () => ({
+      ai: this.config.ai,
+      model: this.config.defaultModel,
+    }));
 
     ipcMain.handle("onboarding:checkAccessibility", async () => {
       const ok = await this.textInjector.ensureAccessibilityPermissions();
@@ -400,26 +398,24 @@ class WhisperMacApp {
 
     ipcMain.handle(
       "onboarding:setAiProvider",
-      (_e, payload: { baseUrl: string; envKey: string; model: string }) => {
-        const { baseUrl, envKey, model } = payload;
+      (_e, payload: { baseUrl: string; model: string }) => {
+        const { baseUrl, model } = payload;
         this.settingsService.getSettingsManager().set("ai.baseUrl", baseUrl);
-        this.settingsService.getSettingsManager().set("ai.envKey", envKey);
         this.settingsService.getSettingsManager().set("ai.model", model);
         this.settingsService.getSettingsManager().saveSettings();
         this.config.ai.baseUrl = baseUrl;
-        this.config.ai.envKey = envKey;
         this.config.ai.model = model;
       }
     );
 
     ipcMain.handle(
       "onboarding:saveApiKey",
-      async (_e, payload: { envKey: string; apiKey: string }) => {
+      async (_e, payload: { apiKey: string }) => {
         const { SecureStorageService } = await import(
           "./services/SecureStorageService"
         );
         const secure = new SecureStorageService();
-        await secure.setApiKey(payload.envKey, payload.apiKey);
+        await secure.setApiKey(payload.apiKey);
         return { success: true };
       }
     );
