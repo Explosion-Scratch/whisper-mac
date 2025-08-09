@@ -1,0 +1,11 @@
+node_modules/
+**/node_modules/**
+**/*.log
+.git
+.github
+README.md
+src/
+scripts/
+*.ts
+*.map
+.whispermac-data

@@ -28,7 +28,7 @@ export class ModelManager {
   private async ensureGitLFS(onLog?: (line: string) => void): Promise<void> {
     return new Promise((resolve, reject) => {
       // First check if git-lfs is installed
-      const checkProcess = spawn("git", ["lfs", "version"], {
+      const checkProcess = spawn("git", ["lfs", "--version"], {
         stdio: ["ignore", "pipe", "pipe"],
       });
 
@@ -124,8 +124,15 @@ export class ModelManager {
             }
           });
 
-          brewProcess.on("error", (error) => {
-            console.error(`Failed to start brew install: ${error.message}`);
+          brewProcess.on("error", (error: any) => {
+            if ((error && (error as any).code) === "ENOENT") {
+              const msg =
+                "Homebrew not found. Please install Git LFS manually (brew install git-lfs or see https://git-lfs.com/).";
+              console.error(msg);
+              reject(new Error(msg));
+              return;
+            }
+            console.error(`Failed to start brew install: ${error?.message || error}`);
             reject(error);
           });
         }
@@ -256,6 +263,17 @@ export class ModelManager {
     onProgress?: (progress: ModelDownloadProgress) => void,
     onLog?: (line: string) => void
   ): Promise<boolean> {
+    // Ensure Git LFS is available for manual downloads as well
+    try {
+      await this.ensureGitLFS(onLog);
+    } catch (err) {
+      console.error("Git LFS check failed (manual download):", err);
+      throw new Error(
+        `Required Git LFS is missing or failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
     return this.cloneModel(modelRepoId, onProgress, onLog);
   }
 

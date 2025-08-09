@@ -67,6 +67,7 @@ class WhisperMacApp {
   private isRecording = false;
   private isFinishing = false; // New state to track when we're finishing current dictation
   private finishingTimeout: NodeJS.Timeout | null = null; // Timeout to prevent getting stuck
+  private pendingToggle = false; // Defer first toggle until setup completes
 
   constructor() {
     this.config = new AppConfig();
@@ -91,6 +92,13 @@ class WhisperMacApp {
       this.selectedTextService
     );
     this.errorService = new ErrorWindowService();
+
+    this.onSetupStatusChange((status) => {
+      if (status === "idle" && this.pendingToggle) {
+        this.pendingToggle = false;
+        this.toggleRecording();
+      }
+    });
   }
 
   private setSetupStatus(status: SetupStatus) {
@@ -794,6 +802,11 @@ class WhisperMacApp {
     // Primary shortcut for dictation
     const success1 = globalShortcut.register("Control+D", () => {
       console.log("Control+D is pressed");
+      if (this.currentSetupStatus !== "idle") {
+        this.pendingToggle = true;
+        console.log("App not idle yet; deferring toggle until ready");
+        return;
+      }
       this.toggleRecording();
     });
 
@@ -802,6 +815,11 @@ class WhisperMacApp {
       "CommandOrControl+Option+Space",
       () => {
         console.log("CommandOrControl+Option+Space is pressed");
+        if (this.currentSetupStatus !== "idle") {
+          this.pendingToggle = true;
+          console.log("App not idle yet; deferring toggle until ready");
+          return;
+        }
         this.toggleRecording();
       }
     );
@@ -1008,7 +1026,6 @@ class WhisperMacApp {
       // This should no longer be called with the new flow, but keep as fallback
       console.log(
         "=== stopDictation called - this should be rare with new flow ==="
-
       );
 
       // Clear all segments without flushing (segments should have been handled in finishCurrentDictation)
