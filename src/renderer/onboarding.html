@@ -134,13 +134,13 @@
     </style>
   </head>
   <body>
-    <div class="container">
+    <div id="app" class="container">
       <header>
         <div class="title">Welcome</div>
       </header>
       <main>
         <div id="slides" class="slides">
-          <section class="slide" data-step="intro">
+          <section class="slide" data-step="intro" v-if="idx === 0">
             <h1>Welcome to WhisperMac</h1>
             <p class="micro">
               Dictate anywhere on macOS. This quick setup will enable
@@ -154,24 +154,26 @@
             </div>
           </section>
 
-          <section class="slide" data-step="accessibility">
+          <section class="slide" data-step="accessibility" v-if="idx === 1">
             <h1>Accessibility permission</h1>
             <p class="micro">
               We need Accessibility to paste the transcribed text automatically.
             </p>
             <div class="row">
-              <button id="checkAccessBtn" class="btn">Check permission</button>
-              <span id="accessStatus" class="hint">Not checked yet</span>
+              <button id="checkAccessBtn" class="btn" @click="checkAccess">
+                Check permission
+              </button>
+              <span id="accessStatus" class="hint">{{ accessStatus }}</span>
             </div>
           </section>
 
-          <section class="slide" data-step="model">
+          <section class="slide" data-step="model" v-if="idx === 2">
             <h1>Choose a Whisper model</h1>
             <p class="micro">
               We recommend Tiny (English) for best speed. You can change later.
             </p>
             <div class="row">
-              <select id="modelSelect" class="select">
+              <select id="modelSelect" class="select" v-model="modelSelect">
                 <option value="Systran/faster-whisper-tiny.en">
                   Tiny (English) — recommended
                 </option>
@@ -194,31 +196,40 @@
             </div>
           </section>
 
-          <section class="slide" data-step="ai">
+          <section class="slide" data-step="ai" v-if="idx === 3">
             <h1>Enable AI polishing?</h1>
             <div class="toggle">
-              <input id="aiEnabled" type="checkbox" />
+              <input id="aiEnabled" type="checkbox" v-model="aiEnabled" />
               <label for="aiEnabled"
                 >Use AI to clean up and format dictation</label
               >
             </div>
-            <div id="aiConfig" class="card" style="display: none">
+            <div id="aiConfig" class="card" v-show="aiEnabled">
               <div class="row">
                 <input
                   id="aiBaseUrl"
                   class="input"
                   placeholder="API Base URL"
+                  v-model="aiBaseUrl"
                 />
-                <input id="aiModel" class="input" placeholder="Model" />
+                <input
+                  id="aiModel"
+                  class="input"
+                  placeholder="Model"
+                  v-model="aiModel"
+                />
               </div>
               <div class="row">
                 <input
                   id="aiApiKey"
                   class="input"
                   placeholder="Paste API key (stored securely)"
+                  v-model="aiApiKey"
                 />
-                <button id="saveKeyBtn" class="btn">Save key</button>
-                <span id="keyStatus" class="hint"></span>
+                <button id="saveKeyBtn" class="btn" @click="saveKey">
+                  Save key
+                </button>
+                <span id="keyStatus" class="hint">{{ keyStatus }}</span>
               </div>
               <p class="hint micro">
                 Defaults: Cerebras endpoint with key name CEREBRAS and model
@@ -227,128 +238,155 @@
             </div>
           </section>
 
-          <section class="slide" data-step="setup">
+          <section class="slide" data-step="setup" v-if="idx === 4">
             <h1>Ready to set up</h1>
             <p class="micro">
               This will download the model and prepare Python dependencies.
             </p>
-            <div class="progress"><div id="progressBar" class="bar"></div></div>
-            <div id="progressText" class="hint micro">Idle</div>
+            <div class="progress">
+              <div
+                id="progressBar"
+                class="bar"
+                :style="{ width: Math.max(0, Math.min(100, progressPercent)) + '%' }"
+              ></div>
+            </div>
+            <div id="progressText" class="hint micro">{{ progressText }}</div>
             <div class="row">
-              <button id="runSetupBtn" class="btn btn-primary">Setup</button>
+              <button
+                id="runSetupBtn"
+                class="btn btn-primary"
+                @click="runSetup"
+              >
+                Setup
+              </button>
             </div>
           </section>
         </div>
         <div class="controls">
-          <button id="prevBtn" class="btn">Back</button>
+          <button
+            id="prevBtn"
+            class="btn"
+            @click="prev"
+            :style="{ visibility: idx === 0 ? 'hidden' : 'visible' }"
+          >
+            Back
+          </button>
           <div class="row">
-            <button id="nextBtn" class="btn btn-primary">Next</button>
+            <button id="nextBtn" class="btn btn-primary" @click="next">
+              {{ nextLabel }}
+            </button>
           </div>
         </div>
       </main>
     </div>
 
+    <script src="./vue.js"></script>
     <script>
-      const slides = Array.from(document.querySelectorAll(".slide"));
-      let idx = 0;
-      const prevBtn = document.getElementById("prevBtn");
-      const nextBtn = document.getElementById("nextBtn");
-      const accessBtn = document.getElementById("checkAccessBtn");
-      const accessStatus = document.getElementById("accessStatus");
+      const { createApp, ref, computed, onMounted } = Vue;
+      createApp({
+        setup() {
+          const idx = ref(0);
+          const accessStatus = ref("Not checked yet");
+          const aiEnabled = ref(false);
+          const aiBaseUrl = ref("");
+          const aiModel = ref("");
+          const aiApiKey = ref("");
+          const keyStatus = ref("");
+          const modelSelect = ref("Systran/faster-whisper-tiny.en");
+          const progressText = ref("Idle");
+          const progressPercent = ref(0);
 
-      const aiEnabled = document.getElementById("aiEnabled");
-      const aiConfig = document.getElementById("aiConfig");
-      const aiBaseUrl = document.getElementById("aiBaseUrl");
-      const aiModel = document.getElementById("aiModel");
-      const aiApiKey = document.getElementById("aiApiKey");
-      const saveKeyBtn = document.getElementById("saveKeyBtn");
-      const keyStatus = document.getElementById("keyStatus");
-      const modelSelect = document.getElementById("modelSelect");
-      const progressBar = document.getElementById("progressBar");
-      const progressText = document.getElementById("progressText");
-      const runSetupBtn = document.getElementById("runSetupBtn");
+          const nextLabel = computed(() =>
+            idx.value === 4 ? "Finish" : "Next"
+          );
 
-      function render() {
-        slides.forEach((s, i) => {
-          s.style.transform = `translateX(${(i - idx) * 100}%)`;
-        });
-        prevBtn.style.visibility = idx === 0 ? "hidden" : "visible";
-        nextBtn.textContent = idx === slides.length - 1 ? "Finish" : "Next";
-      }
-      render();
+          const init = async () => {
+            const initState = await window.onboardingAPI.getInitialState();
+            aiBaseUrl.value = initState.ai.baseUrl || "";
+            aiModel.value = initState.ai.model || "";
+            aiEnabled.value = !!initState.ai.enabled;
+            modelSelect.value = initState.model || modelSelect.value;
+          };
 
-      async function init() {
-        const init = await window.onboardingAPI.getInitialState();
-        aiBaseUrl.value = init.ai.baseUrl;
-        aiModel.value = init.ai.model;
-        aiEnabled.checked = init.ai.enabled;
-        aiConfig.style.display = aiEnabled.checked ? "block" : "none";
-      }
-      init();
+          const prev = () => {
+            if (idx.value > 0) idx.value -= 1;
+          };
 
-      prevBtn.onclick = () => {
-        if (idx > 0) {
-          idx--;
-          render();
-        }
-      };
-      nextBtn.onclick = async () => {
-        if (idx === 2) {
-          // model step index
-          await window.onboardingAPI.setModel(modelSelect.value);
-        }
-        if (idx === 3) {
-          // ai step
-          await window.onboardingAPI.setAiEnabled(aiEnabled.checked);
-          if (aiEnabled.checked) {
-            await window.onboardingAPI.setAiProvider(
-              aiBaseUrl.value,
-              aiModel.value
-            );
-          }
-        }
-        if (idx < slides.length - 1) {
-          idx++;
-          render();
-        } else {
-          await window.onboardingAPI.complete();
-        }
-      };
+          const next = async () => {
+            if (idx.value === 2) {
+              await window.onboardingAPI.setModel(modelSelect.value);
+            }
+            if (idx.value === 3) {
+              await window.onboardingAPI.setAiEnabled(aiEnabled.value);
+              if (aiEnabled.value) {
+                await window.onboardingAPI.setAiProvider(
+                  aiBaseUrl.value,
+                  aiModel.value
+                );
+              }
+            }
+            if (idx.value < 4) {
+              idx.value += 1;
+            } else {
+              await window.onboardingAPI.complete();
+            }
+          };
 
-      accessBtn.onclick = async () => {
-        accessStatus.textContent = "Checking...";
-        const ok = await window.onboardingAPI.checkAccessibility();
-        accessStatus.textContent = ok
-          ? "Enabled"
-          : "Instructions shown. Please enable and return.";
-      };
+          const checkAccess = async () => {
+            accessStatus.value = "Checking...";
+            const ok = await window.onboardingAPI.checkAccessibility();
+            accessStatus.value = ok
+              ? "Enabled"
+              : "Instructions shown. Please enable and return.";
+          };
 
-      aiEnabled.onchange = () => {
-        aiConfig.style.display = aiEnabled.checked ? "block" : "none";
-      };
+          const saveKey = async () => {
+            keyStatus.value = "Saving...";
+            try {
+              await window.onboardingAPI.saveApiKey(aiApiKey.value);
+              keyStatus.value = "Saved to Keychain";
+              aiApiKey.value = "";
+            } catch (e) {
+              keyStatus.value = "Failed to save key";
+            }
+          };
 
-      saveKeyBtn.onclick = async () => {
-        keyStatus.textContent = "Saving...";
-        try {
-          await window.onboardingAPI.saveApiKey(aiApiKey.value);
-          keyStatus.textContent = "Saved to Keychain";
-          aiApiKey.value = "";
-        } catch (e) {
-          keyStatus.textContent = "Failed to save key";
-        }
-      };
+          const runSetup = async () => {
+            progressText.value = "Starting...";
+            await window.onboardingAPI.runSetup();
+          };
 
-      runSetupBtn.onclick = async () => {
-        progressText.textContent = "Starting...";
-        await window.onboardingAPI.runSetup();
-      };
+          onMounted(() => {
+            init();
+            window.onboardingAPI.onProgress((p) => {
+              progressText.value = p.message || p.status || "";
+              if (p.percent != null) {
+                const pct = Math.max(0, Math.min(100, p.percent));
+                progressPercent.value = pct;
+              }
+            });
+          });
 
-      window.onboardingAPI.onProgress((p) => {
-        progressText.textContent = p.message || p.status;
-        if (p.percent != null) {
-          progressBar.style.width = Math.max(0, Math.min(100, p.percent)) + "%";
-        }
-      });
+          return {
+            idx,
+            accessStatus,
+            aiEnabled,
+            aiBaseUrl,
+            aiModel,
+            aiApiKey,
+            keyStatus,
+            modelSelect,
+            progressText,
+            progressPercent,
+            nextLabel,
+            prev,
+            next,
+            checkAccess,
+            saveKey,
+            runSetup,
+          };
+        },
+      }).mount("#app");
     </script>
   </body>
 </html>
