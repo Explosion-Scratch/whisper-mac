@@ -255,6 +255,26 @@ class WhisperMacApp {
             actions: ["ok"],
           });
         }),
+      // Early check for WebSocket availability via TranscriptionClient
+      (async () => {
+        try {
+          // If the transcription client indicates WebSocket is missing, surface it
+          // by attempting to start and immediately stop a connection check.
+          // We won't actually launch the server here; instead, check client state.
+          const wsMissing = !(this.transcriptionClient as any)
+            .websocketAvailable;
+          if (wsMissing) {
+            await this.showError({
+              title: "WebSocket unavailable",
+              description:
+                "The WebSocket library is missing or unusable. Networking features will be disabled.",
+              actions: ["ok"],
+            });
+          }
+        } catch (err) {
+          // Non-fatal
+        }
+      })(),
     ];
 
     // Start WhisperLive server (this needs to be done before we can transcribe)
@@ -288,6 +308,36 @@ class WhisperMacApp {
         });
       }
     }
+
+    // Listen for websocket/transcription errors from transcription client
+    try {
+      (this.transcriptionClient as any).onError = (err: any) => {
+        console.error("Transcription client error:", err);
+        this.showError({
+          title: "Transcription error",
+          description:
+            err && (err.message || err.toString())
+              ? err.message || err.toString()
+              : "WebSocket connection failed",
+          actions: ["ok"],
+        });
+      };
+    } catch {}
+
+    // Listen for audio capture errors
+    try {
+      (this.audioService as any).on("error", (err: any) => {
+        console.error("Audio service error event:", err);
+        this.showError({
+          title: "Audio capture error",
+          description:
+            err && err.message
+              ? err.message
+              : String(err || "Unknown audio error"),
+          actions: ["ok"],
+        });
+      });
+    } catch {}
 
     // Wait for other initialization tasks to complete
     await Promise.allSettled(initTasks);

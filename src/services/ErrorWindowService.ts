@@ -40,8 +40,8 @@ export class ErrorWindowService {
 
   private async createWindow(): Promise<void> {
     this.window = new BrowserWindow({
-      width: 460,
-      height: 260,
+      width: 400,
+      height: 320,
       resizable: false,
       transparent: true,
       backgroundColor: "#00000000",

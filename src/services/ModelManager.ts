@@ -150,7 +150,17 @@ export class ModelManager {
     }
 
     // Ensure Git LFS is available before cloning
-    await this.ensureGitLFS(onLog);
+    try {
+      await this.ensureGitLFS(onLog);
+    } catch (err) {
+      console.error("Git LFS check failed:", err);
+      // Surface a clearer error for caller
+      throw new Error(
+        `Required Git LFS is missing or failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
 
     return await this.cloneModel(modelRepoId, onProgress, onLog);
   }

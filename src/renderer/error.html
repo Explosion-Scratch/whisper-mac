@@ -47,23 +47,6 @@
         border-radius: 12px;
         padding: 14px;
       }
-      header {
-        height: 24px;
-        -webkit-app-region: drag;
-        display: flex;
-        justify-content: flex-end;
-      }
-      .close-button {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        background: #ff5f57;
-        border: none;
-        -webkit-app-region: no-drag;
-        cursor: pointer;
-        margin-top: 6px;
-        margin-right: 6px;
-      }
       .content {
         flex: 1;
         display: flex;
@@ -152,9 +135,6 @@
   </head>
   <body>
     <div class="container">
-      <header>
-        <button class="close-button" id="close-button"></button>
-      </header>
       <main>
         <div class="content">
           <div class="icon" aria-hidden="true">
@@ -172,12 +152,6 @@
       const actionsEl = document.getElementById("actions");
       const titleEl = document.getElementById("title");
       const descEl = document.getElementById("description");
-      const closeButton = document.getElementById("close-button");
-
-      // Close button functionality
-      closeButton.addEventListener("click", () => {
-        window.errorAPI.act("ok");
-      });
 
       function renderActions(list) {
         actionsEl.innerHTML = "";
