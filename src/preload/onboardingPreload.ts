@@ -20,3 +20,9 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
     ipcRenderer.on("onboarding:log", (_e, p) => cb(p)),
   complete: () => ipcRenderer.invoke("onboarding:complete"),
 });
+
+// Also expose the AI key validation used by onboarding UI
+contextBridge.exposeInMainWorld("electronAPI", {
+  validateApiKeyAndListModels: (baseUrl: string, apiKey: string) =>
+    ipcRenderer.invoke("ai:validateKeyAndListModels", { baseUrl, apiKey }),
+});

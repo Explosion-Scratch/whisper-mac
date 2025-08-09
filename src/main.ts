@@ -360,6 +360,38 @@ class WhisperMacApp {
         }
       }
     );
+    // Audio capture handlers
+    ipcMain.on("audio-data", (_event, audioData: Float32Array) => {
+      try {
+        if (this.transcriptionClient) {
+          this.transcriptionClient.sendAudioData(audioData);
+        }
+      } catch (e) {
+        console.error("Failed to forward audio data:", e);
+      }
+    });
+
+    ipcMain.on("audio-error", (_event, error: string) => {
+      console.error("Audio capture error:", error);
+      try {
+        // Surface error to audio service listeners if present
+        (this.audioService as any).emit?.("error", new Error(error));
+      } catch {}
+    });
+
+    ipcMain.on("audio-capture-started", () => {
+      console.log("Audio capture started (IPC)");
+      try {
+        (this.audioService as any).emit?.("captureStarted");
+      } catch {}
+    });
+
+    ipcMain.on("audio-capture-stopped", () => {
+      console.log("Audio capture stopped (IPC)");
+      try {
+        (this.audioService as any).emit?.("captureStopped");
+      } catch {}
+    });
 
     // Extend with more handlers as needed
     console.log("IPC Handlers set up");
@@ -591,6 +623,11 @@ class WhisperMacApp {
     ipcMain.removeAllListeners("cancel-dictation");
     ipcMain.removeAllListeners("close-dictation-window");
     ipcMain.removeAllListeners("download-model");
+    // Remove audio IPC listeners
+    ipcMain.removeAllListeners("audio-data");
+    ipcMain.removeAllListeners("audio-error");
+    ipcMain.removeAllListeners("audio-capture-started");
+    ipcMain.removeAllListeners("audio-capture-stopped");
 
     console.log("=== IPC handlers cleaned up ===");
   }
