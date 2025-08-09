@@ -278,9 +278,10 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         type: "directory",
         label: "Data Directory",
         description: "Directory to store app data and models",
-        defaultValue: app
-          ? app.getPath("userData")
-          : resolve(__dirname, "../../.whispermac-data"),
+        defaultValue:
+          app && !process.env.USE_LOCAL_DATA_DIR
+            ? app.getPath("userData")
+            : resolve(__dirname, "../../.whispermac-data"),
         placeholder: "Select directory...",
       },
     ],

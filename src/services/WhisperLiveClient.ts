@@ -1,6 +1,6 @@
 import { spawn, ChildProcess } from "child_process";
 import { createServer } from "net";
-import WebSocket from "ws";
+import * as WebSocket from "ws";
 import { join } from "path";
 import { AppConfig } from "../config/AppConfig";
 import { ModelManager } from "./ModelManager";
@@ -36,6 +36,11 @@ export class TranscriptionClient {
   private currentSegments: Segment[] = [];
 
   constructor(config: AppConfig, modelManager: ModelManager) {
+    console.log("Creating transcription client with WebSocket:", WebSocket);
+    if (!WebSocket) {
+      console.log("WebSocket not found");
+      process.exit(1);
+    }
     this.config = config;
     this.modelManager = modelManager;
   }
@@ -91,18 +96,39 @@ export class TranscriptionClient {
 
   /**
    * Ensure a dedicated virtual environment exists under userData to keep packages writable in production.
+   *
+   * The virtual environment is stored in the app's cache directory and should persist between app launches.
+   * This method checks if the venv exists and is valid (can import required packages) before recreating it.
+   *
+   * Location: ~/Library/Application Support/WhisperMac/cache/python-venv/
    */
   private async ensureVenv(
     pythonPath: string,
     repoDir: string
   ): Promise<string> {
     const venvDir = join(this.config.getCacheDir(), "python-venv");
-    const venvPython =
-      process.platform === "win32"
-        ? join(venvDir, "Scripts", "python.exe")
-        : join(venvDir, "bin", "python");
+    const venvPython = join(venvDir, "bin", "python");
 
-    if (!existsSync(venvPython)) {
+    // Check if virtual environment exists and is valid
+    const venvExists = existsSync(venvPython);
+    const venvValid =
+      venvExists && (await this.isVenvValid(venvPython, repoDir));
+
+    if (!venvValid) {
+      console.log(
+        "Virtual environment not found or invalid, creating new one..."
+      );
+
+      // Remove existing venv if it exists but is invalid
+      if (venvExists) {
+        try {
+          const { rmSync } = require("fs");
+          rmSync(venvDir, { recursive: true, force: true });
+        } catch (error) {
+          console.warn("Failed to remove existing venv:", error);
+        }
+      }
+
       await new Promise<void>((resolve, reject) => {
         const proc = spawn(pythonPath, ["-m", "venv", venvDir], {
           stdio: "inherit",
@@ -129,20 +155,92 @@ export class TranscriptionClient {
         });
         proc.on("error", reject);
       });
+    } else {
+      console.log("Using existing virtual environment");
     }
 
     return venvPython;
   }
 
-  /* ----------------------------------------------------------
-   * 1.  Clone the repo if it isn't there yet
-   * 2.  Start the server with the official run_server.py script
-   * ---------------------------------------------------------- */
+  /**
+   * Check if the virtual environment is valid by testing if it can import required packages
+   */
+  private async isVenvValid(
+    venvPython: string,
+    repoDir: string
+  ): Promise<boolean> {
+    try {
+      // Test if the virtual environment can import key packages
+      const testScript = `
+import sys
+try:
+    import faster_whisper
+    print("VENV_VALID")
+except ImportError as e:
+    print(f"VENV_INVALID: {e}")
+    sys.exit(1)
+`;
+
+      return new Promise<boolean>((resolve) => {
+        const proc = spawn(venvPython, ["-c", testScript], {
+          cwd: repoDir,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+
+        let output = "";
+        proc.stdout?.on("data", (d) => {
+          output += d.toString();
+        });
+
+        proc.on("close", (code) => {
+          console.log("Venv test output:", output);
+          resolve(code === 0 && output.includes("VENV_VALID"));
+        });
+
+        proc.on("error", () => {
+          console.log("Venv test error", output);
+          resolve(false);
+        });
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check the status of the virtual environment and log details
+   */
+  private async checkVenvStatus(): Promise<void> {
+    const venvDir = join(this.config.getCacheDir(), "python-venv");
+    const venvPython =
+      process.platform === "win32"
+        ? join(venvDir, "Scripts", "python.exe")
+        : join(venvDir, "bin", "python");
+
+    console.log("=== Virtual Environment Status ===");
+    console.log("Venv directory:", venvDir);
+    console.log("Venv Python path:", venvPython);
+    console.log("Venv exists:", existsSync(venvPython));
+
+    if (existsSync(venvPython)) {
+      console.log(
+        "Venv directory contents:",
+        require("fs").readdirSync(venvDir)
+      );
+    }
+    console.log("=== End Virtual Environment Status ===");
+  }
+
   async startServer(
     modelRepoId: string,
     onProgress?: (progress: WhisperSetupProgress) => void,
     onLog?: (line: string) => void
   ): Promise<void> {
+    console.log("=== Starting WhisperLive server ===");
+
+    // Check virtual environment status for debugging
+    await this.checkVenvStatus();
+
     // Best-effort cleanup of stale embedded python servers before starting
     await this.killStaleEmbeddedPythonProcesses();
 
@@ -157,8 +255,17 @@ export class TranscriptionClient {
       throw error;
     }
     const repoDir = this.config.getWhisperLiveDir();
-    console.log("repoDir", repoDir);
+    console.log("WhisperLive directory:", repoDir);
     const runScript = join(repoDir, "run_server.py");
+
+    // Check if server script exists
+    if (!existsSync(runScript)) {
+      console.log("Server script not found, will clone WhisperLive repository");
+    } else {
+      console.log(
+        "Server script found, using existing WhisperLive installation"
+      );
+    }
 
     // Install with pip using the resolved interpreter
     const runInstall = async (pythonPath: string): Promise<void> => {
@@ -444,14 +551,16 @@ export class TranscriptionClient {
   async startTranscription(
     onTranscription: (update: SegmentUpdate) => void
   ): Promise<void> {
+    console.log("Starting transcription");
     this.onTranscriptionCallback = onTranscription;
     this.sessionUid = uuidv4();
     this.currentSegments = [];
 
     // small delay to let server bind
     await new Promise((r) => setTimeout(r, 1000));
-
+    console.log("Connecting....", this.config.serverPort);
     this.websocket = new WebSocket(`ws://127.0.0.1:${this.config.serverPort}`);
+    console.log("Connected to WhisperLive server", this.websocket);
 
     this.websocket.on("open", () => {
       console.log("Connected to WhisperLive server");
@@ -610,6 +719,13 @@ export class TranscriptionClient {
     if (this.websocket && this.websocket.readyState === 1) {
       // Send raw Float32Array as binary data
       this.websocket.send(audioData);
+    } else {
+      console.log(
+        "WebSocket not ready",
+        this.websocket?.readyState,
+        this.websocket?.url,
+        this.websocket
+      );
     }
   }
 
@@ -618,6 +734,7 @@ export class TranscriptionClient {
       this.websocket.send(JSON.stringify({ uid: this.sessionUid, EOS: true }));
       this.websocket.close();
     }
+    console.log("Stopped transcription, setting websocket to null");
     this.websocket = null;
     this.sessionUid = "";
   }
@@ -627,9 +744,10 @@ export class TranscriptionClient {
 
     // Close WebSocket connection if open
     if (this.websocket) {
-      if (this.websocket.readyState === WebSocket.OPEN) {
+      if (this.websocket.readyState === 1) {
         this.websocket.close();
       }
+      console.log("Stopping whisperlive websocket, setting websocket to null");
       this.websocket = null;
     }
 

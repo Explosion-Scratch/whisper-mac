@@ -5,3 +5,4 @@ dist/
 vendor/
 release/
 build/
+.whispermac-data
