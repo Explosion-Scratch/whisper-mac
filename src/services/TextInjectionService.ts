@@ -121,23 +121,83 @@ export class TextInjectionService {
       display dialog "WhisperMac needs accessibility permissions to automatically paste text.
 
 To enable:
-1. Go to System Preferences > Security & Privacy > Privacy > Accessibility
-2. Click the lock icon and enter your password
-3. Add WhisperMac to the list of allowed apps
-4. Restart WhisperMac
+1. Click 'Open System Preferences' below
+2. Go to Privacy & Security > Accessibility
+3. Click the lock icon and enter your password
+4. Add WhisperMac to the list of allowed apps
+5. Return to this window and click 'Check Permission'
 
-Until then, text will be copied to clipboard for manual pasting." buttons {"OK"} default button "OK" with title "Accessibility Permissions Required"
+The app will automatically detect when permissions are enabled." buttons {"Open System Preferences", "OK"} default button "Open System Preferences" with title "Accessibility Permissions Required"
     `;
 
     try {
-      await this.runAppleScript(script);
+      const result = await this.runAppleScriptWithResult(script);
       console.log("Accessibility instructions displayed successfully");
+
+      // If user clicked "Open System Preferences", open it
+      if (result && result.includes("Open System Preferences")) {
+        await this.openSystemPreferences();
+      }
     } catch (error) {
       console.error("Failed to show accessibility instructions:", error);
       console.log(
         "ACCESSIBILITY PERMISSIONS REQUIRED - CHECK SYSTEM PREFERENCES"
       );
     }
+  }
+
+  private async openSystemPreferences(): Promise<void> {
+    console.log("=== TextInjectionService.openSystemPreferences ===");
+
+    const script = `
+      tell application "System Preferences"
+        activate
+        set current pane to pane id "com.apple.preference.security"
+      end tell
+    `;
+
+    try {
+      await this.runAppleScript(script);
+      console.log("System Preferences opened successfully");
+    } catch (error) {
+      console.error("Failed to open System Preferences:", error);
+    }
+  }
+
+  private async runAppleScriptWithResult(script: string): Promise<string> {
+    console.log("=== TextInjectionService.runAppleScriptWithResult ===");
+    console.log("Script to execute:", script);
+
+    return new Promise((resolve, reject) => {
+      console.log("Spawning osascript process...");
+
+      const process = execFile(
+        "osascript",
+        ["-e", script],
+        (error, stdout, stderr) => {
+          if (error) {
+            console.error(
+              "=== TextInjectionService.runAppleScriptWithResult ERROR ==="
+            );
+            console.error("osascript error:", error);
+            console.error("stderr:", stderr);
+            reject(error);
+          } else {
+            console.log("osascript completed successfully");
+            console.log("stdout:", stdout);
+            resolve(stdout.trim());
+          }
+        }
+      );
+
+      process.on("error", (error) => {
+        console.error(
+          "=== TextInjectionService.runAppleScriptWithResult PROCESS ERROR ==="
+        );
+        console.error("Process error:", error);
+        reject(error);
+      });
+    });
   }
 
   /**
@@ -156,6 +216,14 @@ Until then, text will be copied to clipboard for manual pasting." buttons {"OK"}
     }
 
     return hasAccessibility;
+  }
+
+  /**
+   * Reset the accessibility permission cache to force a fresh check
+   */
+  resetAccessibilityCache(): void {
+    console.log("=== TextInjectionService.resetAccessibilityCache ===");
+    this.accessibilityEnabled = null;
   }
 
   /**

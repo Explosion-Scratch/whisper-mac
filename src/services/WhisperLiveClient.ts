@@ -1,4 +1,5 @@
 import { spawn, ChildProcess } from "child_process";
+import { createServer } from "net";
 import WebSocket from "ws";
 import { join } from "path";
 import { AppConfig } from "../config/AppConfig";
@@ -139,8 +140,22 @@ export class TranscriptionClient {
    * ---------------------------------------------------------- */
   async startServer(
     modelRepoId: string,
-    onProgress?: (progress: WhisperSetupProgress) => void
+    onProgress?: (progress: WhisperSetupProgress) => void,
+    onLog?: (line: string) => void
   ): Promise<void> {
+    // Best-effort cleanup of stale embedded python servers before starting
+    await this.killStaleEmbeddedPythonProcesses();
+
+    // Ensure port is available before doing any heavy setup
+    const desiredPort = this.config.serverPort;
+    const portOk = await this.isPortAvailable(desiredPort);
+    if (!portOk) {
+      const error = new Error(
+        `Whisper server port ${desiredPort} is already in use. Update the port in Settings and try again.`
+      );
+      (error as any).code = "PORT_IN_USE";
+      throw error;
+    }
     const repoDir = this.config.getWhisperLiveDir();
     console.log("repoDir", repoDir);
     const runScript = join(repoDir, "run_server.py");
@@ -154,8 +169,10 @@ export class TranscriptionClient {
         });
 
         const ensure = spawn(pythonPath, ["-m", "ensurepip", "--upgrade"], {
-          stdio: "inherit",
+          stdio: ["ignore", "pipe", "pipe"],
         });
+        ensure.stdout?.on("data", (d) => onLog?.(d.toString()));
+        ensure.stderr?.on("data", (d) => onLog?.(d.toString()));
         ensure.on("close", (code) => {
           if (code !== 0) {
             console.warn("ensurepip failed or unavailable; continuing...");
@@ -207,8 +224,10 @@ export class TranscriptionClient {
 
           const install = spawn(pythonPath, pipArgs, {
             cwd: repoDir,
-            stdio: "inherit",
+            stdio: ["ignore", "pipe", "pipe"],
           });
+          install.stdout?.on("data", (d) => onLog?.(d.toString()));
+          install.stderr?.on("data", (d) => onLog?.(d.toString()));
           install.on("close", (code) => {
             if (code === 0) resolve();
             else reject(new Error(`pip install failed with code ${code}`));
@@ -232,8 +251,10 @@ export class TranscriptionClient {
         }
         const setup = spawn("bash", [setupScript], {
           cwd: repoDir,
-          stdio: "inherit",
+          stdio: ["ignore", "pipe", "pipe"],
         });
+        setup.stdout?.on("data", (d) => onLog?.(d.toString()));
+        setup.stderr?.on("data", (d) => onLog?.(d.toString()));
         setup.on("close", (code) => {
           if (code === 0) resolve();
           else reject(new Error(`setup.sh failed with code ${code}`));
@@ -283,15 +304,17 @@ export class TranscriptionClient {
         const git = spawn(
           "git",
           ["clone", "https://github.com/collabora/WhisperLive.git", repoDir],
-          { stdio: "inherit" }
+          { stdio: ["ignore", "pipe", "pipe"] }
         );
+        git.stdout?.on("data", (d) => onLog?.(d.toString()));
+        git.stderr?.on("data", (d) => onLog?.(d.toString()));
         git.on("close", async (code) => {
           if (code === 0) {
             try {
               const pythonPath = this.resolvePythonInterpreter();
               await runInstall(pythonPath);
               await runSetup();
-              resolve(this._launch(repoDir, modelRepoId, onProgress));
+              resolve(this._launch(repoDir, modelRepoId, onProgress, onLog));
             } catch (err) {
               reject(err);
             }
@@ -304,7 +327,7 @@ export class TranscriptionClient {
     }
 
     // 2. Already cloned – just launch
-    return this._launch(repoDir, modelRepoId, onProgress);
+    return this._launch(repoDir, modelRepoId, onProgress, onLog);
   }
 
   /* ----------------------------------------------------------
@@ -313,7 +336,8 @@ export class TranscriptionClient {
   private async _launch(
     repoDir: string,
     modelRepoId: string,
-    onProgress?: (progress: WhisperSetupProgress) => void
+    onProgress?: (progress: WhisperSetupProgress) => void,
+    onLog?: (line: string) => void
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const runScript = join(repoDir, "run_server.py");
@@ -382,6 +406,7 @@ export class TranscriptionClient {
           this.serverProcess?.stdout?.on("data", (d) => {
             const msg = d.toString();
             console.log("[WhisperLive]", msg);
+            onLog?.(msg);
             if (!resolved && msg.includes("Uvicorn running on")) {
               resolved = true;
               onProgress?.({
@@ -393,7 +418,9 @@ export class TranscriptionClient {
           });
 
           this.serverProcess?.stderr?.on("data", (d) => {
-            console.error("[WhisperLive]", d.toString());
+            const msg = d.toString();
+            console.error("[WhisperLive]", msg);
+            onLog?.(msg);
           });
 
           this.serverProcess?.on("exit", (code) => {
@@ -631,5 +658,52 @@ export class TranscriptionClient {
     this.onTranscriptionCallback = null;
 
     console.log("=== WhisperLive server stopped ===");
+  }
+
+  /**
+   * Attempt to terminate any lingering WhisperLive server processes that were
+   * started by this app's embedded Python. This targets the specific
+   * run_server.py path under the app's WhisperLive directory to avoid killing
+   * unrelated Python processes on the system.
+   */
+  async killStaleEmbeddedPythonProcesses(): Promise<void> {
+    try {
+      const repoDir = this.config.getWhisperLiveDir();
+      const runScript = join(repoDir, "run_server.py");
+
+      // Only supported on Unix-like platforms; silently no-op elsewhere
+      if (process.platform === "darwin" || process.platform === "linux") {
+        await new Promise<void>((resolve) => {
+          const proc = require("child_process").spawn("pkill", [
+            "-f",
+            runScript,
+          ]);
+          proc.on("close", () => resolve());
+          proc.on("error", () => resolve());
+        });
+      }
+    } catch {
+      // Best-effort cleanup; ignore errors
+    }
+  }
+
+  /**
+   * Check if a TCP port is available on localhost.
+   */
+  private isPortAvailable(port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const server = createServer();
+      server.once("error", (err: any) => {
+        if (err && (err.code === "EADDRINUSE" || err.code === "EACCES")) {
+          resolve(false);
+        } else {
+          resolve(false);
+        }
+      });
+      server.once("listening", () => {
+        server.close(() => resolve(true));
+      });
+      server.listen(port, "127.0.0.1");
+    });
   }
 }

@@ -304,6 +304,26 @@ class SettingsWindow {
 
     switch (field.type) {
       case "text":
+        // Special-case inline API key input to enable validation before saving
+        if (field.key === "ai.baseUrl") {
+          // Add a sibling inline API key field to be read during save
+          fieldHtml = `
+            <input type="text" 
+                   class="form-control" 
+                   id="${fieldId}"
+                   value="${this.escapeHtml(value || "")}"
+                   placeholder="${field.placeholder || ""}"
+                   data-key="${field.key}">
+            <div class="form-group" style="margin-top:8px;">
+              <label for="aiApiKeyInline">
+                <i class="ph-duotone ph-key" style="margin-right: 6px; font-size: 14px;"></i>
+                API Key (not stored in settings; saved securely after validation)
+              </label>
+              <input type="password" class="form-control" id="aiApiKeyInline" placeholder="Paste API Key to validate & save securely">
+            </div>
+          `;
+          break;
+        }
         fieldHtml = `
           <input type="text" 
                  class="form-control" 
@@ -460,9 +480,48 @@ class SettingsWindow {
           this.validateField(key);
         });
       } else {
-        element.addEventListener("input", () => {
+        element.addEventListener("input", async () => {
+          const oldValue = this.getSettingValue(key);
           this.setSettingValue(key, element.value);
           this.validateField(key);
+
+          // Intercept defaultModel changes to prompt deletion of old models
+          if (key === "defaultModel" && element.value !== oldValue) {
+            try {
+              const models = await window.electronAPI.listDownloadedModels();
+              // Exclude newly selected model
+              const toConsider = (models || []).filter(
+                (m) => m.repoId !== element.value
+              );
+              if (toConsider.length > 0) {
+                const list = toConsider
+                  .map((m) => {
+                    const fmt = (n) => {
+                      const units = ["B", "KB", "MB", "GB"];
+                      let i = 0;
+                      let v = n;
+                      while (v >= 1024 && i < units.length - 1) {
+                        v /= 1024;
+                        i++;
+                      }
+                      return `${v.toFixed(1)} ${units[i]}`;
+                    };
+                    return `${m.repoId} — ${fmt(m.sizeBytes)}`;
+                  })
+                  .join("\n");
+                const confirmDelete = window.confirm(
+                  `Switch model to "${element.value}"?\n\nDelete previously downloaded models to save space?\n\n${list}`
+                );
+                if (confirmDelete) {
+                  await window.electronAPI.deleteModels(
+                    toConsider.map((m) => m.repoId)
+                  );
+                }
+              }
+            } catch (e) {
+              // non-fatal
+            }
+          }
         });
       }
 
@@ -659,13 +718,83 @@ class SettingsWindow {
     }
 
     try {
+      // If AI is enabled and an API base URL and key are provided, validate first
+      const aiEnabled = this.getSettingValue("ai.enabled");
+      const baseUrl = this.getSettingValue("ai.baseUrl");
+      const modelKey = "ai.model";
+
+      const saveBtn = document.getElementById("saveBtn");
+      const originalSaveHtml = saveBtn.innerHTML;
+      const setSaving = (saving) => {
+        if (saving) {
+          saveBtn.disabled = true;
+          saveBtn.innerHTML =
+            '<span class="spinner" style="width:14px;height:14px;border:2px solid rgba(255,255,255,0.6); border-top-color:#fff; border-radius:50%; display:inline-block; margin-right:8px; vertical-align:-2px; animation: spin 0.9s linear infinite"></span>Saving...';
+        } else {
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = originalSaveHtml;
+        }
+      };
+
+      setSaving(true);
+
+      // Attempt to fetch API key from a transient input in the form if present
+      const apiKeyInput = document.querySelector("#aiApiKeyInline");
+      const apiKey = apiKeyInput ? apiKeyInput.value : "";
+
+      let modelsFromProvider = null;
+      if (aiEnabled && baseUrl && apiKey) {
+        const result = await window.electronAPI.validateApiKeyAndListModels(
+          baseUrl,
+          apiKey
+        );
+        if (!result?.success) {
+          setSaving(false);
+          this.showStatus(
+            `API key validation failed: ${result?.error || "Unknown error"}`,
+            "error"
+          );
+          return;
+        }
+        modelsFromProvider = result.models || [];
+        // Save key securely now that it's validated
+        try {
+          await window.electronAPI.saveApiKeySecure(apiKey);
+        } catch {}
+        if (apiKeyInput) apiKeyInput.value = "";
+        // Replace model field with a select built from models
+        this.replaceModelFieldWithDropdown(modelsFromProvider);
+      }
+
       await window.electronAPI.saveSettings(this.settings);
       this.originalSettings = JSON.parse(JSON.stringify(this.settings));
       this.showStatus("Settings saved successfully", "success");
+      setSaving(false);
     } catch (error) {
       console.error("Failed to save settings:", error);
       this.showStatus("Failed to save settings", "error");
+      const saveBtn = document.getElementById("saveBtn");
+      if (saveBtn) saveBtn.disabled = false;
     }
+  }
+
+  replaceModelFieldWithDropdown(models) {
+    // Find the ai.model field in schema and convert its type/options for this session
+    const section = this.schema.find((s) => s.id === "ai");
+    if (!section) return;
+    const field = section.fields.find((f) => f.key === "ai.model");
+    if (!field) return;
+    field.type = "select";
+    field.options = models.map((m) => ({ value: m.id, label: m.name || m.id }));
+    // If the current setting is not in the list, set the first model
+    const current = this.getSettingValue("ai.model");
+    const hasCurrent = field.options.some((o) => o.value === current);
+    if (!hasCurrent && field.options.length > 0) {
+      this.setSettingValue("ai.model", field.options[0].value);
+    }
+    // Rebuild just the AI section to reflect the dropdown
+    this.rebuildForm();
+    this.showSection("ai");
   }
 
   cancelChanges() {

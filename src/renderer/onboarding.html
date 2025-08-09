@@ -5,14 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Welcome to WhisperMac</title>
     <link rel="stylesheet" href="../photon/dist/css/photon.css" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
       :root {
-        --bg: #fff;
-        --fg: #222;
-        --muted: #666;
-        --primary: #111;
+        --bg: #ffffff;
+        --fg: #222222;
+        --muted: #666666;
+        --primary: #111111;
         --accent: #007aff;
+        --accent-hover: #2795ff; /* lighter accent for primary hover */
         --border: #e6e6e6;
+        --panel-bg: rgba(255, 255, 255, 0.38); /* more translucent */
+        --card-bg: rgba(255, 255, 255, 0.82);
+        --log-bg: rgba(255, 255, 255, 0.8);
       }
       * {
         box-sizing: border-box;
@@ -27,7 +32,10 @@
         height: 100vh;
         display: flex;
         flex-direction: column;
-        background: rgba(255, 255, 255, 0.9);
+        background: var(--panel-bg);
+        -webkit-backdrop-filter: saturate(160%) blur(30px);
+        backdrop-filter: saturate(160%) blur(30px);
+        border: 1px solid rgba(255, 255, 255, 0.28);
       }
       header {
         height: 44px;
@@ -51,18 +59,53 @@
       .slide {
         flex: 0 0 100%;
         padding: 24px;
+        display: grid;
+        place-items: center;
+        overflow: auto;
+      }
+      .content {
+        width: 100%;
+        max-width: 440px;
+        margin: 0 auto;
         display: flex;
         flex-direction: column;
         gap: 12px;
-        overflow: auto;
+        align-items: center;
+        text-align: center;
       }
       h1 {
         font-size: 18px;
-        margin: 0 0 4px;
+        margin: 0;
       }
       p {
         color: var(--muted);
         margin: 0;
+      }
+      .step-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 12px;
+      }
+      /* Smaller, cleaner icons for onboarding steps (no background / shadow)
+         Welcome screen uses the separate `hero-logo` image instead. */
+      .step-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        color: var(--accent);
+        font-size: 32px;
+      }
+      .step-icon .icon {
+        font-size: 32px;
+        line-height: 1;
       }
       .controls {
         display: flex;
@@ -74,33 +117,82 @@
         padding: 6px 10px;
         border: 1px solid var(--border);
         border-radius: 6px;
-        background: #fff;
+        background: rgba(255, 255, 255, 0.9);
         font-size: 12px;
         cursor: pointer;
+        transition: background 0.15s ease, transform 0.1s ease,
+          box-shadow 0.15s ease;
+      }
+      .btn[disabled] {
+        opacity: 0.5;
+        cursor: default;
+        box-shadow: none;
+        transform: none;
+      }
+      .btn:hover {
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+      }
+      .btn:active {
+        transform: translateY(1px);
       }
       .btn-primary {
         background: var(--accent);
         color: #fff;
         border-color: var(--accent);
       }
+      .btn-primary:hover {
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
+        box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
+      }
       .row {
         display: flex;
         gap: 8px;
         align-items: center;
+        justify-content: center;
       }
       .card {
         border: 1px solid var(--border);
         border-radius: 8px;
-        padding: 12px;
-        background: #fff;
+        padding: 16px;
+        background: var(--card-bg);
+        transition: border-color 0.15s ease;
+      }
+      .card:hover {
+        border-color: rgba(0, 0, 0, 0.12);
       }
       .select,
       .input {
-        width: 260px;
-        padding: 6px 8px;
+        width: 100%;
+        padding: 8px 10px;
         border: 1px solid var(--border);
-        border-radius: 6px;
+        border-radius: 8px;
+        font-size: 13px;
+        background: #fff;
+      }
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        width: 100%;
+      }
+      .form-row {
+        display: flex;
+        gap: 10px;
+        width: 100%;
+        align-items: center;
+        justify-content: center;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        text-align: left;
+      }
+      .label {
         font-size: 12px;
+        color: var(--muted);
       }
       .hint {
         font-size: 12px;
@@ -124,12 +216,89 @@
         gap: 8px;
       }
       .micro {
-        opacity: 0.8;
-        transition: opacity 0.2s ease, transform 0.2s ease;
+        opacity: 0.9;
+        transition: opacity 0.2s ease;
       }
       .micro:hover {
         opacity: 1;
-        transform: translateY(-1px);
+      }
+      .hero-logo {
+        width: 56px;
+        height: 56px;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05),
+          0 2px 10px rgba(0, 0, 0, 0.06) inset;
+        user-select: none;
+      }
+      .spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(0, 0, 0, 0.1);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .logs {
+        width: 100%;
+        max-width: 560px;
+        height: 120px;
+        margin: 8px auto 0;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--log-bg);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", monospace;
+        font-size: 11px;
+        line-height: 1.4;
+        color: #444;
+        overflow: auto;
+        text-align: left;
+      }
+      .logs-line {
+        white-space: pre-wrap;
+      }
+
+      /* Dark mode */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b0b0c;
+          --fg: #ececec;
+          --muted: #a2a2a7;
+          --primary: #ffffff;
+          --border: rgba(255, 255, 255, 0.12);
+          --panel-bg: rgba(30, 30, 33, 0.28);
+          --card-bg: rgba(22, 22, 24, 0.6);
+          --log-bg: rgba(18, 18, 20, 0.6);
+        }
+        body {
+          color-scheme: dark;
+          color: var(--fg);
+        }
+        .container {
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .btn {
+          background: rgba(255, 255, 255, 0.06);
+          color: var(--fg);
+        }
+        .btn:hover {
+          background: rgba(255, 255, 255, 0.12);
+        }
+        .select,
+        .input {
+          background: rgba(255, 255, 255, 0.06);
+          color: var(--fg);
+          border-color: var(--border);
+        }
+        .progress {
+          background: rgba(255, 255, 255, 0.08);
+        }
       }
     </style>
   </head>
@@ -141,124 +310,214 @@
       <main>
         <div id="slides" class="slides">
           <section class="slide" data-step="intro" v-if="idx === 0">
-            <h1>Welcome to WhisperMac</h1>
-            <p class="micro">
-              Dictate anywhere on macOS. This quick setup will enable
-              accessibility permissions, pick a Whisper model, and optionally
-              enable AI polishing.
-            </p>
-            <div class="card">
-              <div class="hint">
-                You can change all settings later in Settings.
+            <div class="content">
+              <div class="step-header">
+                <!-- Use the app icon image for the welcome screen -->
+                <img
+                  class="hero-logo"
+                  src="../../assets/icon.png"
+                  alt="WhisperMac"
+                />
+                <h1>Welcome to WhisperMac</h1>
+              </div>
+              <p class="micro">
+                Dictate anywhere on macOS. This quick setup will enable
+                accessibility permissions, pick a Whisper model, and optionally
+                enable AI polishing.
+              </p>
+              <div class="card">
+                <div class="hint">
+                  You can change all settings later in Settings.
+                </div>
               </div>
             </div>
           </section>
 
           <section class="slide" data-step="accessibility" v-if="idx === 1">
-            <h1>Accessibility permission</h1>
-            <p class="micro">
-              We need Accessibility to paste the transcribed text automatically.
-            </p>
-            <div class="row">
-              <button id="checkAccessBtn" class="btn" @click="checkAccess">
-                Check permission
-              </button>
-              <span id="accessStatus" class="hint">{{ accessStatus }}</span>
+            <div class="content">
+              <div class="step-header">
+                <span class="step-icon"
+                  ><i class="ph-duotone ph-shield-check"></i
+                ></span>
+                <h1>Accessibility permission</h1>
+              </div>
+              <p class="micro">
+                We need Accessibility to paste the transcribed text
+                automatically.
+              </p>
+              <div class="row">
+                <button
+                  id="checkAccessBtn"
+                  class="btn"
+                  @click="checkAccess"
+                  :disabled="isCheckingAccess"
+                >
+                  Check permission
+                </button>
+                <div
+                  v-if="isCheckingAccess"
+                  class="spinner"
+                  aria-hidden="true"
+                ></div>
+                <span
+                  id="accessStatus"
+                  class="hint"
+                  :style="{ color: accessStatus === 'Enabled' ? '#28a745' : '#dc3545' }"
+                  >{{ accessStatus }}</span
+                >
+              </div>
+              <div class="card" v-if="accessStatus !== 'Enabled'">
+                <div class="hint">
+                  <strong>Required:</strong> Accessibility permissions must be
+                  enabled to automatically paste transcribed text. The app will
+                  check for permissions every few seconds.
+                </div>
+              </div>
             </div>
           </section>
 
           <section class="slide" data-step="model" v-if="idx === 2">
-            <h1>Choose a Whisper model</h1>
-            <p class="micro">
-              We recommend Tiny (English) for best speed. You can change later.
-            </p>
-            <div class="row">
-              <select id="modelSelect" class="select" v-model="modelSelect">
-                <option value="Systran/faster-whisper-tiny.en">
-                  Tiny (English) — recommended
-                </option>
-                <option value="Systran/faster-whisper-tiny">
-                  Tiny (Multilingual)
-                </option>
-                <option value="Systran/faster-whisper-base.en">
-                  Base (English)
-                </option>
-                <option value="Systran/faster-whisper-base">
-                  Base (Multilingual)
-                </option>
-                <option value="Systran/faster-whisper-small.en">
-                  Small (English)
-                </option>
-                <option value="Systran/faster-whisper-small">
-                  Small (Multilingual)
-                </option>
-              </select>
+            <div class="content">
+              <div class="step-header">
+                <span class="step-icon"
+                  ><i class="ph-duotone ph-download-simple"></i
+                ></span>
+                <h1>Choose a Whisper model</h1>
+              </div>
+              <p class="micro">
+                We recommend Tiny (English) for best speed. You can change
+                later.
+              </p>
+              <div class="row" style="width: 100%">
+                <select id="modelSelect" class="select" v-model="modelSelect">
+                  <option value="Systran/faster-whisper-tiny.en">
+                    Tiny (English) — recommended
+                  </option>
+                  <option value="Systran/faster-whisper-tiny">
+                    Tiny (Multilingual)
+                  </option>
+                  <option value="Systran/faster-whisper-base.en">
+                    Base (English)
+                  </option>
+                  <option value="Systran/faster-whisper-base">
+                    Base (Multilingual)
+                  </option>
+                  <option value="Systran/faster-whisper-small.en">
+                    Small (English)
+                  </option>
+                  <option value="Systran/faster-whisper-small">
+                    Small (Multilingual)
+                  </option>
+                </select>
+              </div>
             </div>
           </section>
 
           <section class="slide" data-step="ai" v-if="idx === 3">
-            <h1>Enable AI polishing?</h1>
-            <div class="toggle">
-              <input id="aiEnabled" type="checkbox" v-model="aiEnabled" />
-              <label for="aiEnabled"
-                >Use AI to clean up and format dictation</label
-              >
-            </div>
-            <div id="aiConfig" class="card" v-show="aiEnabled">
-              <div class="row">
-                <input
-                  id="aiBaseUrl"
-                  class="input"
-                  placeholder="API Base URL"
-                  v-model="aiBaseUrl"
-                />
-                <input
-                  id="aiModel"
-                  class="input"
-                  placeholder="Model"
-                  v-model="aiModel"
-                />
+            <div class="content">
+              <div class="step-header">
+                <span class="step-icon"
+                  ><i class="ph-duotone ph-sparkle"></i
+                ></span>
+                <h1>Enable AI polishing?</h1>
               </div>
-              <div class="row">
-                <input
-                  id="aiApiKey"
-                  class="input"
-                  placeholder="Paste API key (stored securely)"
-                  v-model="aiApiKey"
-                />
-                <button id="saveKeyBtn" class="btn" @click="saveKey">
-                  Save key
-                </button>
-                <span id="keyStatus" class="hint">{{ keyStatus }}</span>
+              <div class="toggle">
+                <input id="aiEnabled" type="checkbox" v-model="aiEnabled" />
+                <label for="aiEnabled"
+                  >Use AI to clean up and format dictation</label
+                >
               </div>
-              <p class="hint micro">
-                Defaults: Cerebras endpoint with key name CEREBRAS and model
-                qwen-3-32b.
-              </p>
+              <div id="aiConfig" class="card" v-show="aiEnabled">
+                <div class="form-grid">
+                  <div class="field">
+                    <div class="label">API Base URL</div>
+                    <input
+                      id="aiBaseUrl"
+                      class="input"
+                      placeholder="e.g. https://api.example.com/v1"
+                      v-model="aiBaseUrl"
+                    />
+                  </div>
+                  <div class="field">
+                    <div class="label">Model</div>
+                    <select id="aiModelSelect" class="select" v-model="aiModel">
+                      <option v-for="m in aiModels" :key="m.id" :value="m.id">
+                        {{ m.name || m.id }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+                <div
+                  class="form-row"
+                  style="
+                    margin-top: 8px;
+                    display: flex;
+                    gap: 10px;
+                    align-items: center;
+                  "
+                >
+                  <div class="field" style="flex: 1">
+                    <div class="label">API Key</div>
+                    <input
+                      id="aiApiKey"
+                      class="input"
+                      placeholder="Paste your API key (stored securely)"
+                      v-model="aiApiKey"
+                    />
+                  </div>
+                  <button
+                    id="saveKeyBtn"
+                    class="btn btn-primary"
+                    @click="saveKey"
+                    style="margin-top: 24px"
+                  >
+                    <span
+                      v-if="savingKey"
+                      class="spinner"
+                      aria-hidden="true"
+                    ></span>
+                    <span v-else>Save Key</span>
+                  </button>
+                </div>
+                <div class="hint" style="margin-top: 6px">{{ keyStatus }}</div>
+              </div>
             </div>
           </section>
 
           <section class="slide" data-step="setup" v-if="idx === 4">
-            <h1>Ready to set up</h1>
-            <p class="micro">
-              This will download the model and prepare Python dependencies.
-            </p>
-            <div class="progress">
-              <div
-                id="progressBar"
-                class="bar"
-                :style="{ width: Math.max(0, Math.min(100, progressPercent)) + '%' }"
-              ></div>
-            </div>
-            <div id="progressText" class="hint micro">{{ progressText }}</div>
-            <div class="row">
-              <button
-                id="runSetupBtn"
-                class="btn btn-primary"
-                @click="runSetup"
-              >
-                Setup
-              </button>
+            <div class="content">
+              <div class="step-header">
+                <span class="step-icon"
+                  ><i class="ph-duotone ph-gear-six"></i
+                ></span>
+                <h1>Ready to set up</h1>
+              </div>
+              <p class="micro">
+                This will download the model and prepare Python dependencies.
+              </p>
+              <div class="progress">
+                <div
+                  id="progressBar"
+                  class="bar"
+                  :style="{ width: Math.max(0, Math.min(100, progressPercent)) + '%' }"
+                ></div>
+              </div>
+              <div id="progressText" class="hint micro">{{ progressText }}</div>
+              <div class="logs" v-show="logs.length">
+                <div class="logs-line" v-for="(line, i) in logs" :key="i">
+                  {{ line }}
+                </div>
+              </div>
+              <div class="row">
+                <button
+                  id="runSetupBtn"
+                  class="btn btn-primary"
+                  @click="runSetup"
+                  :disabled="setupStarted"
+                >
+                  Setup
+                </button>
+              </div>
             </div>
           </section>
         </div>
@@ -267,12 +526,17 @@
             id="prevBtn"
             class="btn"
             @click="prev"
-            :style="{ visibility: idx === 0 ? 'hidden' : 'visible' }"
+            :disabled="idx === 0 || setupStarted"
           >
             Back
           </button>
           <div class="row">
-            <button id="nextBtn" class="btn btn-primary" @click="next">
+            <button
+              id="nextBtn"
+              class="btn btn-primary"
+              @click="next"
+              :disabled="!canProceed"
+            >
               {{ nextLabel }}
             </button>
           </div>
@@ -282,23 +546,42 @@
 
     <script src="./vue.js"></script>
     <script>
-      const { createApp, ref, computed, onMounted } = Vue;
+      const { createApp, ref, computed, onMounted, nextTick } = Vue;
       createApp({
         setup() {
           const idx = ref(0);
           const accessStatus = ref("Not checked yet");
+          const isCheckingAccess = ref(false);
           const aiEnabled = ref(false);
           const aiBaseUrl = ref("");
           const aiModel = ref("");
+          const aiModels = ref([]);
           const aiApiKey = ref("");
           const keyStatus = ref("");
+          const savingKey = ref(false);
           const modelSelect = ref("Systran/faster-whisper-tiny.en");
           const progressText = ref("Idle");
           const progressPercent = ref(0);
+          const logs = ref([]);
+          const setupStarted = ref(false);
+          const setupDone = ref(false);
 
           const nextLabel = computed(() =>
             idx.value === 4 ? "Finish" : "Next"
           );
+
+          const canProceed = computed(() => {
+            // On accessibility step (idx === 1), check if permissions are enabled
+            if (idx.value === 1) {
+              return accessStatus.value === "Enabled";
+            }
+            // On setup step (idx === 4), check if setup is done
+            if (idx.value === 4) {
+              return setupDone.value;
+            }
+            // All other steps can proceed
+            return true;
+          });
 
           const init = async () => {
             const initState = await window.onboardingAPI.getInitialState();
@@ -309,10 +592,24 @@
           };
 
           const prev = () => {
+            if (setupStarted.value) return;
             if (idx.value > 0) idx.value -= 1;
           };
 
           const next = async () => {
+            // Check accessibility permissions before allowing progression from step 1
+            if (idx.value === 1) {
+              // Reset cache to ensure we get fresh results
+              await window.onboardingAPI.resetAccessibilityCache();
+              const hasAccess = await window.onboardingAPI.checkAccessibility();
+              if (!hasAccess) {
+                accessStatus.value =
+                  "Please enable accessibility permissions first";
+                return;
+              }
+            }
+
+            if (idx.value === 4 && !setupDone.value) return;
             if (idx.value === 2) {
               await window.onboardingAPI.setModel(modelSelect.value);
             }
@@ -333,55 +630,128 @@
           };
 
           const checkAccess = async () => {
+            isCheckingAccess.value = true;
             accessStatus.value = "Checking...";
+            // Reset cache to ensure we get fresh results
+            await window.onboardingAPI.resetAccessibilityCache();
             const ok = await window.onboardingAPI.checkAccessibility();
             accessStatus.value = ok
               ? "Enabled"
               : "Instructions shown. Please enable and return.";
+            isCheckingAccess.value = false;
+          };
+
+          const startAccessibilityMonitoring = () => {
+            // Check accessibility status every 2 seconds when on the accessibility step
+            const interval = setInterval(async () => {
+              if (idx.value === 1 && !isCheckingAccess.value) {
+                // Reset cache to ensure we get fresh results
+                await window.onboardingAPI.resetAccessibilityCache();
+                const ok = await window.onboardingAPI.checkAccessibility();
+                if (ok && accessStatus.value !== "Enabled") {
+                  accessStatus.value = "Enabled";
+                } else if (!ok && accessStatus.value === "Enabled") {
+                  accessStatus.value =
+                    "Instructions shown. Please enable and return.";
+                }
+              }
+            }, 2000);
+
+            // Clean up interval when component is unmounted
+            return () => clearInterval(interval);
           };
 
           const saveKey = async () => {
-            keyStatus.value = "Saving...";
             try {
+              savingKey.value = true;
+              keyStatus.value = "Validating...";
+              // Validate key by calling provider /models via settings bridge
+              const result =
+                await window.electronAPI.validateApiKeyAndListModels(
+                  aiBaseUrl.value,
+                  aiApiKey.value
+                );
+              if (!result?.success) {
+                keyStatus.value = `Validation failed: ${
+                  result?.error || "Unknown error"
+                }`;
+                savingKey.value = false;
+                return;
+              }
+              aiModels.value = result.models || [];
+              if (aiModels.value.length && !aiModel.value) {
+                aiModel.value = aiModels.value[0].id;
+              }
               await window.onboardingAPI.saveApiKey(aiApiKey.value);
               keyStatus.value = "Saved to Keychain";
               aiApiKey.value = "";
             } catch (e) {
               keyStatus.value = "Failed to save key";
+            } finally {
+              savingKey.value = false;
             }
           };
 
           const runSetup = async () => {
             progressText.value = "Starting...";
+            setupStarted.value = true;
             await window.onboardingAPI.runSetup();
           };
 
           onMounted(() => {
             init();
+
+            // Start accessibility monitoring
+            const cleanupMonitoring = startAccessibilityMonitoring();
+
             window.onboardingAPI.onProgress((p) => {
               progressText.value = p.message || p.status || "";
               if (p.percent != null) {
                 const pct = Math.max(0, Math.min(100, p.percent));
                 progressPercent.value = pct;
               }
+              if (p.status === "complete") {
+                setupDone.value = true;
+              }
             });
+            window.onboardingAPI.onLog((payload) => {
+              if (!payload || !payload.line) return;
+              logs.value.push(payload.line);
+              nextTick(() => {
+                const el = document.querySelector(".logs");
+                if (el) el.scrollTop = el.scrollHeight;
+              });
+            });
+
+            // Clean up monitoring on unmount
+            return () => {
+              cleanupMonitoring();
+            };
           });
 
           return {
             idx,
             accessStatus,
+            isCheckingAccess,
             aiEnabled,
             aiBaseUrl,
             aiModel,
+            aiModels,
             aiApiKey,
             keyStatus,
+            savingKey,
             modelSelect,
             progressText,
             progressPercent,
+            logs,
+            setupStarted,
+            setupDone,
             nextLabel,
+            canProceed,
             prev,
             next,
             checkAccess,
+            startAccessibilityMonitoring,
             saveKey,
             runSetup,
           };

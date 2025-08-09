@@ -5,7 +5,7 @@
   "main": "dist/main.js",
   "scripts": {
     "fullclean": "rm -rf dist .crush *.log vendor release build && bun install",
-    "clear:userdata": "rm -rf \"$HOME/Library/Application Support/WhisperMac\" \"$HOME/Library/Application Support/whispermac\" .whispermac-data",
+    "clear:userdata": "rm -rf \"$HOME/Library/Application Support/WhisperMac\" \"$HOME/Library/Application Support/Electron\" \"$HOME/Library/Application Support/whispermac\" \"$HOME/Library/Application Support/electron\" .whispermac-data",
     "build": "tsc && node scripts/copy-assets.js",
     "start": "electron dist/main.js",
     "dev": "nodemon --exec \"bun run single-dev\" --ignore dist --ignore photon --ignore .crush",

@@ -7,6 +7,8 @@ import { SETTINGS_SCHEMA } from "../config/SettingsSchema";
 
 export class SettingsService {
   private settingsWindow: BrowserWindow | null = null;
+  private windowVisibilityCallbacks: Set<(visible: boolean) => void> =
+    new Set();
   private settingsManager: SettingsManager;
   private config: AppConfig;
 
@@ -145,6 +147,45 @@ export class SettingsService {
     ipcMain.handle("settings:closeWindow", () => {
       this.closeSettingsWindow();
     });
+
+    // AI key validation and models listing
+    ipcMain.handle(
+      "ai:validateKeyAndListModels",
+      async (_event, payload: { baseUrl: string; apiKey: string }) => {
+        const { baseUrl, apiKey } = payload || { baseUrl: "", apiKey: "" };
+        const { AiProviderService } = await import(
+          "../services/AiProviderService"
+        );
+        const svc = new AiProviderService();
+        return svc.validateAndListModels(baseUrl, apiKey);
+      }
+    );
+
+    // Save API key securely from settings
+    ipcMain.handle(
+      "settings:saveApiKey",
+      async (_e, payload: { apiKey: string }) => {
+        const { SecureStorageService } = await import(
+          "../services/SecureStorageService"
+        );
+        const secure = new SecureStorageService();
+        await secure.setApiKey(payload.apiKey);
+        return { success: true };
+      }
+    );
+
+    // Model management helpers
+    ipcMain.handle("models:listDownloaded", async () => {
+      const { ModelManager } = await import("./ModelManager");
+      const mgr = new ModelManager(this.config);
+      return mgr.listDownloadedModels();
+    });
+    ipcMain.handle("models:delete", async (_e, repoIds: string[]) => {
+      const { ModelManager } = await import("./ModelManager");
+      const mgr = new ModelManager(this.config);
+      for (const id of repoIds || []) mgr.deleteModel(id);
+      return { success: true };
+    });
   }
 
   private broadcastSettingsUpdate(): void {
@@ -192,11 +233,13 @@ export class SettingsService {
     // Show window when ready
     this.settingsWindow.once("ready-to-show", () => {
       this.settingsWindow?.show();
+      this.emitWindowVisibility(true);
     });
 
     // Clean up when window is closed
     this.settingsWindow.on("closed", () => {
       this.settingsWindow = null;
+      this.emitWindowVisibility(false);
     });
 
     // Handle window close button
@@ -205,6 +248,7 @@ export class SettingsService {
       if (process.platform === "darwin") {
         event.preventDefault();
         this.settingsWindow?.hide();
+        this.emitWindowVisibility(false);
       }
     });
   }
@@ -213,6 +257,34 @@ export class SettingsService {
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       this.settingsWindow.close();
     }
+  }
+
+  /**
+   * Register a callback to be notified when the settings window visibility changes.
+   * Returns an unsubscribe function.
+   */
+  onWindowVisibilityChange(callback: (visible: boolean) => void): () => void {
+    this.windowVisibilityCallbacks.add(callback);
+    return () => this.windowVisibilityCallbacks.delete(callback);
+  }
+
+  private emitWindowVisibility(visible: boolean) {
+    this.windowVisibilityCallbacks.forEach((cb) => {
+      try {
+        cb(visible);
+      } catch (e) {}
+    });
+  }
+
+  /**
+   * Returns whether the settings window is currently visible.
+   */
+  isWindowVisible(): boolean {
+    return !!(
+      this.settingsWindow &&
+      !this.settingsWindow.isDestroyed() &&
+      this.settingsWindow.isVisible()
+    );
   }
 
   cleanup(): void {
@@ -240,6 +312,44 @@ export class SettingsService {
   // Method to get current settings (useful for other services)
   getCurrentSettings(): Record<string, any> {
     return this.settingsManager.getAll();
+  }
+
+  /** Utility to ensure at least one Whisper model exists. */
+  ensureDefaultModelGuard(modelManager: {
+    listDownloadedModels: () => any[];
+  }): {
+    ok: boolean;
+    message?: string;
+  } {
+    const downloaded = modelManager.listDownloadedModels();
+    if (!downloaded || downloaded.length === 0) {
+      return {
+        ok: false,
+        message:
+          "At least one transcription model must be downloaded for the app to work.",
+      };
+    }
+    return { ok: true };
+  }
+
+  /**
+   * Before changing the default model, prompt about deleting older models.
+   * The caller should present a dialog to the user with names and sizes and then call deleteModelsIfConfirmed.
+   */
+  formatDownloadedModelsForPrompt(
+    models: Array<{ repoId: string; sizeBytes: number }>
+  ): string {
+    const fmt = (n: number) => {
+      const units = ["B", "KB", "MB", "GB"];
+      let i = 0;
+      let v = n;
+      while (v >= 1024 && i < units.length - 1) {
+        v /= 1024;
+        i++;
+      }
+      return `${v.toFixed(1)} ${units[i]}`;
+    };
+    return models.map((m) => `${m.repoId} — ${fmt(m.sizeBytes)}`).join("\n");
   }
 
   // Method to listen for settings changes

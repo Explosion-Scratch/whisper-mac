@@ -1,5 +1,5 @@
 import { join } from "path";
-import { existsSync, mkdirSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, statSync, rmSync } from "fs";
 import { spawn } from "child_process";
 import { AppConfig } from "../config/AppConfig";
 
@@ -25,11 +25,18 @@ export class ModelManager {
     }
   }
 
-  private async ensureGitLFS(): Promise<void> {
+  private async ensureGitLFS(onLog?: (line: string) => void): Promise<void> {
     return new Promise((resolve, reject) => {
       // First check if git-lfs is installed
       const checkProcess = spawn("git", ["lfs", "version"], {
         stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      checkProcess.stdout?.on("data", (data) => {
+        onLog?.(data.toString());
+      });
+      checkProcess.stderr?.on("data", (data) => {
+        onLog?.(data.toString());
       });
 
       checkProcess.on("close", (code) => {
@@ -37,6 +44,13 @@ export class ModelManager {
           // Git LFS is installed, just run git lfs install
           const installProcess = spawn("git", ["lfs", "install"], {
             stdio: ["ignore", "pipe", "pipe"],
+          });
+
+          installProcess.stdout?.on("data", (data) => {
+            onLog?.(data.toString());
+          });
+          installProcess.stderr?.on("data", (data) => {
+            onLog?.(data.toString());
           });
 
           installProcess.on("close", (installCode) => {
@@ -62,10 +76,12 @@ export class ModelManager {
 
           brewProcess.stdout?.on("data", (data) => {
             console.log("Brew install output:", data.toString());
+            onLog?.(data.toString());
           });
 
           brewProcess.stderr?.on("data", (data) => {
             console.log("Brew install progress:", data.toString());
+            onLog?.(data.toString());
           });
 
           brewProcess.on("close", (brewCode) => {
@@ -73,6 +89,13 @@ export class ModelManager {
               // Now run git lfs install
               const installProcess = spawn("git", ["lfs", "install"], {
                 stdio: ["ignore", "pipe", "pipe"],
+              });
+
+              installProcess.stdout?.on("data", (data) => {
+                onLog?.(data.toString());
+              });
+              installProcess.stderr?.on("data", (data) => {
+                onLog?.(data.toString());
               });
 
               installProcess.on("close", (installCode) => {
@@ -117,7 +140,8 @@ export class ModelManager {
 
   async ensureModelExists(
     modelRepoId: string,
-    onProgress?: (progress: ModelDownloadProgress) => void
+    onProgress?: (progress: ModelDownloadProgress) => void,
+    onLog?: (line: string) => void
   ): Promise<boolean> {
     this.ensureDataDirectory();
     const modelDir = this.getModelPath(modelRepoId);
@@ -126,9 +150,9 @@ export class ModelManager {
     }
 
     // Ensure Git LFS is available before cloning
-    await this.ensureGitLFS();
+    await this.ensureGitLFS(onLog);
 
-    return await this.cloneModel(modelRepoId, onProgress);
+    return await this.cloneModel(modelRepoId, onProgress, onLog);
   }
 
   private getModelPath(modelRepoId: string): string {
@@ -139,7 +163,8 @@ export class ModelManager {
 
   private async cloneModel(
     modelRepoId: string,
-    onProgress?: (progress: ModelDownloadProgress) => void
+    onProgress?: (progress: ModelDownloadProgress) => void,
+    onLog?: (line: string) => void
   ): Promise<boolean> {
     return new Promise((resolve, reject) => {
       const modelDir = this.getModelPath(modelRepoId);
@@ -166,11 +191,15 @@ export class ModelManager {
       });
 
       process.stdout?.on("data", (data) => {
-        console.log("Model clone output:", data.toString());
+        const line = data.toString();
+        console.log("Model clone output:", line);
+        onLog?.(line);
       });
 
       process.stderr?.on("data", (data) => {
-        console.log("Model clone progress:", data.toString());
+        const line = data.toString();
+        console.log("Model clone progress:", line);
+        onLog?.(line);
       });
 
       process.on("close", (code) => {
@@ -202,6 +231,7 @@ export class ModelManager {
           message: `Download failed: ${error.message}`,
           modelRepoId,
         });
+        onLog?.(String(error.message || error));
         reject(error);
       });
     });
@@ -213,8 +243,64 @@ export class ModelManager {
 
   async downloadModel(
     modelRepoId: string,
-    onProgress?: (progress: ModelDownloadProgress) => void
+    onProgress?: (progress: ModelDownloadProgress) => void,
+    onLog?: (line: string) => void
   ): Promise<boolean> {
-    return this.cloneModel(modelRepoId, onProgress);
+    return this.cloneModel(modelRepoId, onProgress, onLog);
+  }
+
+  /** List downloaded models and their sizes (in bytes). */
+  listDownloadedModels(): Array<{
+    repoId: string;
+    dirPath: string;
+    sizeBytes: number;
+  }> {
+    const modelsDir = this.config.getModelsDir();
+    if (!existsSync(modelsDir)) return [];
+    const entries = readdirSync(modelsDir, { withFileTypes: true });
+    const result: Array<{
+      repoId: string;
+      dirPath: string;
+      sizeBytes: number;
+    }> = [];
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const dirPath = join(modelsDir, entry.name);
+      const repoId = entry.name.replace(/--/g, "/");
+      result.push({
+        repoId,
+        dirPath,
+        sizeBytes: this.getDirectorySize(dirPath),
+      });
+    }
+    return result;
+  }
+
+  deleteModel(repoId: string): void {
+    const dir = this.getModelDirectory(repoId);
+    try {
+      if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+    } catch (e) {
+      console.error("Failed to delete model directory:", dir, e);
+    }
+  }
+
+  private getDirectorySize(dirPath: string): number {
+    try {
+      let total = 0;
+      const stack: string[] = [dirPath];
+      while (stack.length) {
+        const current = stack.pop() as string;
+        const items = readdirSync(current, { withFileTypes: true });
+        for (const item of items) {
+          const p = join(current, item.name);
+          if (item.isDirectory()) stack.push(p);
+          else total += statSync(p).size;
+        }
+      }
+      return total;
+    } catch (e) {
+      return 0;
+    }
   }
 }
