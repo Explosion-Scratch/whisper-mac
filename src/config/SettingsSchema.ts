@@ -1,5 +1,6 @@
 import { resolve } from "path";
 import { readPrompt } from "../helpers/getPrompt";
+import { app } from "electron";
 
 export interface SettingsField {
   key: string;
@@ -31,6 +32,21 @@ export interface SettingsSection {
 }
 
 export const SETTINGS_SCHEMA: SettingsSection[] = [
+  {
+    id: "onboarding",
+    title: "Onboarding",
+    description: "First-run setup flags",
+    icon: "settings",
+    fields: [
+      {
+        key: "onboardingComplete",
+        type: "boolean",
+        label: "Onboarding Complete",
+        description: "Internal flag to skip the welcome flow",
+        defaultValue: false,
+      },
+    ],
+  },
   {
     id: "general",
     title: "General",
@@ -270,7 +286,9 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         type: "directory",
         label: "Data Directory",
         description: "Directory to store app data and models",
-        defaultValue: resolve(__dirname, "../../.whispermac-data"),
+        defaultValue: app
+          ? app.getPath("userData")
+          : resolve(__dirname, "../../.whispermac-data"),
         placeholder: "Select directory...",
       },
     ],

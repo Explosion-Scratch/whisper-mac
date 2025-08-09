@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Welcome to WhisperMac</title>
+    <link rel="stylesheet" href="../photon/dist/css/photon.css" />
+    <style>
+      :root {
+        --bg: #fff;
+        --fg: #222;
+        --muted: #666;
+        --primary: #111;
+        --accent: #007aff;
+        --border: #e6e6e6;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "Segoe UI", Roboto, sans-serif;
+        color: var(--fg);
+      }
+      .container {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: rgba(255, 255, 255, 0.9);
+      }
+      header {
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        -webkit-app-region: drag;
+      }
+      main {
+        flex: 1;
+        display: grid;
+        grid-template-rows: 1fr auto;
+      }
+      .slides {
+        display: flex;
+        height: 100%;
+        overflow: hidden;
+        position: relative;
+      }
+      .slide {
+        flex: 0 0 100%;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow: auto;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+      p {
+        color: var(--muted);
+        margin: 0;
+      }
+      .controls {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-top: 1px solid var(--border);
+      }
+      .btn {
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #fff;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .card {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fff;
+      }
+      .select,
+      .input {
+        width: 260px;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 12px;
+      }
+      .hint {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .progress {
+        height: 6px;
+        background: #f2f2f2;
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .bar {
+        height: 100%;
+        width: 0%;
+        background: var(--accent);
+        transition: width 0.2s ease;
+      }
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .micro {
+        opacity: 0.8;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+      }
+      .micro:hover {
+        opacity: 1;
+        transform: translateY(-1px);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <div class="title">Welcome</div>
+      </header>
+      <main>
+        <div id="slides" class="slides">
+          <section class="slide" data-step="intro">
+            <h1>Welcome to WhisperMac</h1>
+            <p class="micro">
+              Dictate anywhere on macOS. This quick setup will enable
+              accessibility permissions, pick a Whisper model, and optionally
+              enable AI polishing.
+            </p>
+            <div class="card">
+              <div class="hint">
+                You can change all settings later in Settings.
+              </div>
+            </div>
+          </section>
+
+          <section class="slide" data-step="accessibility">
+            <h1>Accessibility permission</h1>
+            <p class="micro">
+              We need Accessibility to paste the transcribed text automatically.
+            </p>
+            <div class="row">
+              <button id="checkAccessBtn" class="btn">Check permission</button>
+              <span id="accessStatus" class="hint">Not checked yet</span>
+            </div>
+          </section>
+
+          <section class="slide" data-step="model">
+            <h1>Choose a Whisper model</h1>
+            <p class="micro">
+              We recommend Tiny (English) for best speed. You can change later.
+            </p>
+            <div class="row">
+              <select id="modelSelect" class="select">
+                <option value="Systran/faster-whisper-tiny.en">
+                  Tiny (English) — recommended
+                </option>
+                <option value="Systran/faster-whisper-tiny">
+                  Tiny (Multilingual)
+                </option>
+                <option value="Systran/faster-whisper-base.en">
+                  Base (English)
+                </option>
+                <option value="Systran/faster-whisper-base">
+                  Base (Multilingual)
+                </option>
+                <option value="Systran/faster-whisper-small.en">
+                  Small (English)
+                </option>
+                <option value="Systran/faster-whisper-small">
+                  Small (Multilingual)
+                </option>
+              </select>
+            </div>
+          </section>
+
+          <section class="slide" data-step="ai">
+            <h1>Enable AI polishing?</h1>
+            <div class="toggle">
+              <input id="aiEnabled" type="checkbox" />
+              <label for="aiEnabled"
+                >Use AI to clean up and format dictation</label
+              >
+            </div>
+            <div id="aiConfig" class="card" style="display: none">
+              <div class="row">
+                <input
+                  id="aiBaseUrl"
+                  class="input"
+                  placeholder="API Base URL"
+                />
+                <input id="aiModel" class="input" placeholder="Model" />
+                <input
+                  id="aiEnvKey"
+                  class="input"
+                  placeholder="Provider Key Name (e.g. CEREBRAS)"
+                />
+              </div>
+              <div class="row">
+                <input
+                  id="aiApiKey"
+                  class="input"
+                  placeholder="Paste API key (stored securely)"
+                />
+                <button id="saveKeyBtn" class="btn">Save key</button>
+                <span id="keyStatus" class="hint"></span>
+              </div>
+              <p class="hint micro">
+                Defaults: Cerebras endpoint with key name CEREBRAS and model
+                qwen-3-32b.
+              </p>
+            </div>
+          </section>
+
+          <section class="slide" data-step="setup">
+            <h1>Ready to set up</h1>
+            <p class="micro">
+              This will download the model and prepare Python dependencies.
+            </p>
+            <div class="progress"><div id="progressBar" class="bar"></div></div>
+            <div id="progressText" class="hint micro">Idle</div>
+            <div class="row">
+              <button id="runSetupBtn" class="btn btn-primary">Setup</button>
+            </div>
+          </section>
+        </div>
+        <div class="controls">
+          <button id="prevBtn" class="btn">Back</button>
+          <div class="row">
+            <button id="nextBtn" class="btn btn-primary">Next</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const slides = Array.from(document.querySelectorAll(".slide"));
+      let idx = 0;
+      const prevBtn = document.getElementById("prevBtn");
+      const nextBtn = document.getElementById("nextBtn");
+      const accessBtn = document.getElementById("checkAccessBtn");
+      const accessStatus = document.getElementById("accessStatus");
+
+      const aiEnabled = document.getElementById("aiEnabled");
+      const aiConfig = document.getElementById("aiConfig");
+      const aiBaseUrl = document.getElementById("aiBaseUrl");
+      const aiModel = document.getElementById("aiModel");
+      const aiEnvKey = document.getElementById("aiEnvKey");
+      const aiApiKey = document.getElementById("aiApiKey");
+      const saveKeyBtn = document.getElementById("saveKeyBtn");
+      const keyStatus = document.getElementById("keyStatus");
+      const modelSelect = document.getElementById("modelSelect");
+      const progressBar = document.getElementById("progressBar");
+      const progressText = document.getElementById("progressText");
+      const runSetupBtn = document.getElementById("runSetupBtn");
+
+      function render() {
+        slides.forEach((s, i) => {
+          s.style.transform = `translateX(${(i - idx) * 100}%)`;
+        });
+        prevBtn.style.visibility = idx === 0 ? "hidden" : "visible";
+        nextBtn.textContent = idx === slides.length - 1 ? "Finish" : "Next";
+      }
+      render();
+
+      async function init() {
+        const init = await window.onboardingAPI.getInitialState();
+        aiBaseUrl.value = init.ai.baseUrl;
+        aiModel.value = init.ai.model;
+        aiEnvKey.value = init.ai.envKey;
+        aiEnabled.checked = init.ai.enabled;
+        aiConfig.style.display = aiEnabled.checked ? "block" : "none";
+      }
+      init();
+
+      prevBtn.onclick = () => {
+        if (idx > 0) {
+          idx--;
+          render();
+        }
+      };
+      nextBtn.onclick = async () => {
+        if (idx === 2) {
+          // model step index
+          await window.onboardingAPI.setModel(modelSelect.value);
+        }
+        if (idx === 3) {
+          // ai step
+          await window.onboardingAPI.setAiEnabled(aiEnabled.checked);
+          if (aiEnabled.checked) {
+            await window.onboardingAPI.setAiProvider(
+              aiBaseUrl.value,
+              aiEnvKey.value,
+              aiModel.value
+            );
+          }
+        }
+        if (idx < slides.length - 1) {
+          idx++;
+          render();
+        } else {
+          await window.onboardingAPI.complete();
+        }
+      };
+
+      accessBtn.onclick = async () => {
+        accessStatus.textContent = "Checking...";
+        const ok = await window.onboardingAPI.checkAccessibility();
+        accessStatus.textContent = ok
+          ? "Enabled"
+          : "Instructions shown. Please enable and return.";
+      };
+
+      aiEnabled.onchange = () => {
+        aiConfig.style.display = aiEnabled.checked ? "block" : "none";
+      };
+
+      saveKeyBtn.onclick = async () => {
+        keyStatus.textContent = "Saving...";
+        try {
+          await window.onboardingAPI.saveApiKey(aiEnvKey.value, aiApiKey.value);
+          keyStatus.textContent = "Saved to Keychain";
+          aiApiKey.value = "";
+        } catch (e) {
+          keyStatus.textContent = "Failed to save key";
+        }
+      };
+
+      runSetupBtn.onclick = async () => {
+        progressText.textContent = "Starting...";
+        await window.onboardingAPI.runSetup();
+      };
+
+      window.onboardingAPI.onProgress((p) => {
+        progressText.textContent = p.message || p.status;
+        if (p.percent != null) {
+          progressBar.style.width = Math.max(0, Math.min(100, p.percent)) + "%";
+        }
+      });
+    </script>
+  </body>
+</html>

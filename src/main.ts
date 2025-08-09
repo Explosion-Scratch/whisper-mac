@@ -40,6 +40,7 @@ type SetupStatus =
 class WhisperMacApp {
   private tray: Tray | null = null;
   private settingsWindow: BrowserWindow | null = null;
+  private onboardingWindow: BrowserWindow | null = null;
   private modelManagerWindow: BrowserWindow | null = null;
   private audioService: AudioCaptureService;
   private transcriptionClient: TranscriptionClient;
@@ -178,7 +179,18 @@ class WhisperMacApp {
       mkdirSync(this.config.getCacheDir(), { recursive: true });
     }
 
-    // Run these operations in parallel to speed up initialization
+    // On first run show onboarding flow before heavy setup
+    const settings = this.settingsService.getCurrentSettings();
+    const isFirstRun = !settings?.onboardingComplete;
+
+    if (isFirstRun) {
+      this.openOnboardingWindow();
+      this.setupOnboardingIpc();
+      this.updateTrayMenu();
+      return; // Defer regular initialization until onboarding completes
+    }
+
+    // Run operations in parallel when not first run
     console.log("Starting parallel initialization tasks...");
     const initTasks = [
       // Check accessibility permissions early
@@ -357,6 +369,176 @@ class WhisperMacApp {
 
     // Extend with more handlers as needed
     console.log("IPC Handlers set up");
+  }
+
+  private setupOnboardingIpc() {
+    ipcMain.handle("onboarding:getInitialState", () => {
+      return {
+        ai: this.config.ai,
+        model: this.config.defaultModel,
+      };
+    });
+
+    ipcMain.handle("onboarding:checkAccessibility", async () => {
+      const ok = await this.textInjector.ensureAccessibilityPermissions();
+      return ok;
+    });
+
+    ipcMain.handle("onboarding:setModel", (_e, modelRepoId: string) => {
+      this.config.setDefaultModel(modelRepoId);
+      this.settingsService
+        .getSettingsManager()
+        .set("defaultModel", modelRepoId);
+      this.settingsService.getSettingsManager().saveSettings();
+    });
+
+    ipcMain.handle("onboarding:setAiEnabled", (_e, enabled: boolean) => {
+      this.settingsService.getSettingsManager().set("ai.enabled", enabled);
+      this.settingsService.getSettingsManager().saveSettings();
+      this.config.ai.enabled = enabled;
+    });
+
+    ipcMain.handle(
+      "onboarding:setAiProvider",
+      (_e, payload: { baseUrl: string; envKey: string; model: string }) => {
+        const { baseUrl, envKey, model } = payload;
+        this.settingsService.getSettingsManager().set("ai.baseUrl", baseUrl);
+        this.settingsService.getSettingsManager().set("ai.envKey", envKey);
+        this.settingsService.getSettingsManager().set("ai.model", model);
+        this.settingsService.getSettingsManager().saveSettings();
+        this.config.ai.baseUrl = baseUrl;
+        this.config.ai.envKey = envKey;
+        this.config.ai.model = model;
+      }
+    );
+
+    ipcMain.handle(
+      "onboarding:saveApiKey",
+      async (_e, payload: { envKey: string; apiKey: string }) => {
+        const { SecureStorageService } = await import(
+          "./services/SecureStorageService"
+        );
+        const secure = new SecureStorageService();
+        await secure.setApiKey(payload.envKey, payload.apiKey);
+        return { success: true };
+      }
+    );
+
+    ipcMain.handle("onboarding:runSetup", async (event) => {
+      // Chain model ensure + server start, emitting progress to renderer
+      try {
+        await this.modelManager.ensureModelExists(
+          this.config.defaultModel,
+          (p) => {
+            event.sender.send("onboarding:progress", {
+              status: p.status,
+              message: p.message,
+              percent:
+                p.status === "cloning" ? 40 : p.status === "complete" ? 60 : 20,
+            });
+          }
+        );
+
+        event.sender.send("onboarding:progress", {
+          status: "starting-server",
+          message: "Starting Whisper server...",
+          percent: 70,
+        });
+
+        await this.transcriptionClient.startServer(
+          this.config.defaultModel,
+          (progress) => {
+            let percent = 70;
+            if (progress.status === "installing") percent = 80;
+            else if (progress.status === "launching") percent = 90;
+            else if (progress.status === "complete") percent = 100;
+            event.sender.send("onboarding:progress", {
+              status: progress.status,
+              message: progress.message,
+              percent,
+            });
+          }
+        );
+
+        event.sender.send("onboarding:progress", {
+          status: "complete",
+          message: "Setup complete",
+          percent: 100,
+        });
+
+        return { success: true };
+      } catch (e: any) {
+        event.sender.send("onboarding:progress", {
+          status: "error",
+          message: e?.message || "Setup failed",
+        });
+        return { success: false, error: e?.message };
+      }
+    });
+
+    ipcMain.handle("onboarding:complete", async () => {
+      // Mark onboarding complete and continue normal init
+      this.settingsService.getSettingsManager().set("onboardingComplete", true);
+      this.settingsService.getSettingsManager().saveSettings();
+      this.onboardingWindow?.close();
+      this.onboardingWindow = null;
+      // Continue normal init
+      this.initializeAfterOnboarding();
+    });
+  }
+
+  private async initializeAfterOnboarding() {
+    // Continue with normal init steps after onboarding
+    this.setSetupStatus("preparing-app");
+
+    if (!existsSync(this.config.dataDir))
+      mkdirSync(this.config.dataDir, { recursive: true });
+    if (!existsSync(this.config.getCacheDir()))
+      mkdirSync(this.config.getCacheDir(), { recursive: true });
+
+    const initTasks = [
+      this.textInjector.ensureAccessibilityPermissions().catch(() => {}),
+      this.preloadWindows().catch(() => {}),
+    ];
+
+    this.setSetupStatus("starting-server");
+    await this.transcriptionClient.startServer(this.config.defaultModel);
+    await Promise.allSettled(initTasks);
+    this.registerGlobalShortcuts();
+    this.setupIpcHandlers();
+    app.dock?.hide();
+    this.setSetupStatus("idle");
+  }
+
+  private openOnboardingWindow(): void {
+    if (this.onboardingWindow && !this.onboardingWindow.isDestroyed()) {
+      this.onboardingWindow.focus();
+      return;
+    }
+    this.onboardingWindow = new BrowserWindow({
+      width: 600,
+      height: 520,
+      resizable: false,
+      transparent: true,
+      backgroundColor: "#00000000",
+      vibrancy: "under-window",
+      titleBarStyle: "hidden",
+      trafficLightPosition: { x: 10, y: 12 },
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: join(__dirname, "./preload/onboardingPreload.js"),
+        backgroundThrottling: false,
+      },
+      show: false,
+    });
+    this.onboardingWindow.loadFile(
+      join(__dirname, "./renderer/onboarding.html")
+    );
+    this.onboardingWindow.once("ready-to-show", () =>
+      this.onboardingWindow?.show()
+    );
+    this.onboardingWindow.on("closed", () => (this.onboardingWindow = null));
   }
 
   private cleanupIpcHandlers() {

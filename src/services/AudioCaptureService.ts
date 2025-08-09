@@ -32,7 +32,7 @@ export class AudioCaptureService extends EventEmitter {
         return new Promise((resolve, reject) => {
           const timeout = setTimeout(() => {
             reject(new Error("Audio capture start timeout"));
-          }, 3000);
+          }, 8000);
 
           const onStarted = () => {
             clearTimeout(timeout);
@@ -63,7 +63,7 @@ export class AudioCaptureService extends EventEmitter {
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Audio capture start timeout"));
-        }, 3000);
+        }, 8000);
 
         const onStarted = () => {
           clearTimeout(timeout);

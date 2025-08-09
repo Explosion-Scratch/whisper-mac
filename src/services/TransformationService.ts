@@ -175,7 +175,15 @@ export class TransformationService {
     console.log("AI Config:", aiConfig);
     console.log("Saved state:", savedState);
 
-    const apiKey = process.env[`${aiConfig.envKey}_API_KEY`];
+    let apiKey: string | undefined;
+    try {
+      const { SecureStorageService } = await import("./SecureStorageService");
+      const secure = new SecureStorageService();
+      apiKey = (await secure.getApiKey(aiConfig.envKey)) || undefined;
+    } catch (e) {
+      // fallthrough
+    }
+    if (!apiKey) apiKey = process.env[`${aiConfig.envKey}_API_KEY`];
     if (!apiKey) {
       throw new Error(`API key not found for envKey: ${aiConfig.envKey}`);
     }
