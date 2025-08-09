@@ -19,6 +19,10 @@ import { SettingsService } from "./services/SettingsService";
 // Segment management
 import { SegmentManager } from "./services/SegmentManager";
 import {
+  ErrorWindowService,
+  ErrorPayload,
+} from "./services/ErrorWindowService";
+import {
   TrayService,
   SetupStatus as TraySetupStatus,
 } from "./services/TrayService";
@@ -48,6 +52,7 @@ class WhisperMacApp {
   private dictationWindowService: DictationWindowService;
   private segmentManager: SegmentManager;
   private settingsService: SettingsService;
+  private errorService: ErrorWindowService;
 
   // Icon paths
   private readonly trayIconIdleRelPath = "../assets/icon-template.png";
@@ -85,6 +90,7 @@ class WhisperMacApp {
       this.textInjector,
       this.selectedTextService
     );
+    this.errorService = new ErrorWindowService();
   }
 
   private setSetupStatus(status: SetupStatus) {
@@ -120,6 +126,25 @@ class WhisperMacApp {
   async initialize() {
     await app.whenReady();
     console.log("App is ready");
+
+    // Global error handlers
+    process.on("uncaughtException", (err: any) => {
+      console.error("Uncaught exception:", err);
+      this.showError({
+        title: "Unexpected error",
+        description: err?.message || String(err),
+        actions: ["ok", "quit"],
+      });
+    });
+    process.on("unhandledRejection", (reason: any) => {
+      console.error("Unhandled rejection:", reason);
+      this.showError({
+        title: "Unexpected error",
+        description:
+          (reason && (reason.message || reason.toString())) || "Unknown error",
+        actions: ["ok", "quit"],
+      });
+    });
     // Create tray immediately to show status during initialization
     this.trayService = new TrayService(
       this.trayIconIdleRelPath,
@@ -208,6 +233,12 @@ class WhisperMacApp {
         })
         .catch((error) => {
           console.error("Failed to check model:", error);
+          this.showError({
+            title: "Model check failed",
+            description:
+              error instanceof Error ? error.message : "Unknown error",
+            actions: ["ok"],
+          });
         }),
 
       // Pre-load windows for faster startup
@@ -217,6 +248,12 @@ class WhisperMacApp {
         })
         .catch((error) => {
           console.error("Failed to preload windows:", error);
+          this.showError({
+            title: "Failed to prepare UI",
+            description:
+              error instanceof Error ? error.message : "Unknown error",
+            actions: ["ok"],
+          });
         }),
     ];
 
@@ -241,6 +278,14 @@ class WhisperMacApp {
         await this.showPortInUseError(this.config.serverPort);
       } else {
         console.error("Failed to start server:", e);
+        // Use non-blocking error surface to avoid halting init
+        this.showError({
+          title: "Failed to start server",
+          description:
+            (e && (e.message || e.toString())) ||
+            "Unknown error while starting Whisper server.",
+          actions: ["ok"],
+        });
       }
     }
 
@@ -378,6 +423,11 @@ class WhisperMacApp {
         // Surface error to audio service listeners if present
         (this.audioService as any).emit?.("error", new Error(error));
       } catch {}
+      this.showError({
+        title: "Audio capture error",
+        description: error,
+        actions: ["ok"],
+      });
     });
 
     ipcMain.on("audio-capture-started", () => {
@@ -560,14 +610,10 @@ class WhisperMacApp {
 
   private async showPortInUseError(port: number): Promise<void> {
     try {
-      await dialog.showMessageBox({
-        type: "error",
-        title: "Port In Use",
-        message: `Port ${port} is already in use`,
-        detail:
-          'The Whisper server could not start because the configured port is already in use. Open Settings → General and change "Server Port", then try again.',
-        buttons: ["OK"],
-        defaultId: 0,
+      await this.showError({
+        title: "Port in use",
+        description: `Port ${port} is already in use. Open Settings → General and change “Server Port”, then try again.`,
+        actions: ["ok"],
       });
     } catch {}
   }
@@ -780,7 +826,7 @@ class WhisperMacApp {
 
       // Start audio capture and transcription in parallel
       const audioStartTime = Date.now();
-      const [audioResult] = await Promise.allSettled([
+      const [audioResult, transcriptionResult] = await Promise.allSettled([
         this.audioService.startCapture(),
         this.transcriptionClient.startTranscription(
           async (update: SegmentUpdate) => {
@@ -799,6 +845,24 @@ class WhisperMacApp {
         throw new Error(`Failed to start audio capture: ${audioResult.reason}`);
       }
 
+      if (transcriptionResult && transcriptionResult.status === "rejected") {
+        const reason =
+          (transcriptionResult as PromiseRejectionEvent & any).reason ||
+          transcriptionResult?.reason;
+        console.error("Failed to start transcription:", reason);
+        // Clean up and surface a user-friendly error
+        await this.cancelDictationFlow();
+        await this.showError({
+          title: "Transcription failed",
+          description:
+            reason instanceof Error
+              ? reason.message
+              : String(reason || "Unknown error starting transcription"),
+          actions: ["ok"],
+        });
+        return;
+      }
+
       // 5. Connect audio data from capture service to WhisperLive client
       this.audioService.setAudioDataCallback((audioData: Float32Array) => {
         this.transcriptionClient.sendAudioData(audioData);
@@ -809,6 +873,12 @@ class WhisperMacApp {
     } catch (error) {
       console.error("Failed to start dictation:", error);
       await this.cancelDictationFlow();
+      await this.showError({
+        title: "Could not start dictation",
+        description:
+          error instanceof Error ? error.message : "Unknown error occurred.",
+        actions: ["ok"],
+      });
     }
   }
 
@@ -1125,6 +1195,9 @@ class WhisperMacApp {
         this.modelManagerWindow = null;
       }
 
+      // Close error window
+      this.errorService.cleanup();
+
       // Stop WhisperLive server
       this.transcriptionClient.stopServer();
 
@@ -1148,6 +1221,24 @@ class WhisperMacApp {
       console.error("Error during cleanup:", error);
     } finally {
       clearTimeout(cleanupTimeout);
+    }
+  }
+
+  public async showError(payload: ErrorPayload): Promise<void> {
+    try {
+      await this.errorService.show(payload);
+    } catch (e) {
+      // Fallback dialog if window fails
+      try {
+        await dialog.showMessageBox({
+          type: "error",
+          title: payload.title || "Error",
+          message: payload.title || "Error",
+          detail: payload.description || "",
+          buttons: ["OK"],
+          defaultId: 0,
+        });
+      } catch {}
     }
   }
 

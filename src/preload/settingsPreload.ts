@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // AI provider utilities
   validateApiKeyAndListModels: (baseUrl: string, apiKey: string) =>
     ipcRenderer.invoke("ai:validateKeyAndListModels", { baseUrl, apiKey }),
+  onError: (callback: (payload: any) => void) => {
+    ipcRenderer.on("error:data", (_e, payload) => callback(payload));
+  },
   saveApiKeySecure: (apiKey: string) =>
     ipcRenderer.invoke("settings:saveApiKey", { apiKey }),
 

@@ -15,6 +15,7 @@ const assetsDistDir = path.join(__dirname, "../dist/assets");
 const EXTENSIONS = [
   ".html",
   ".js",
+  ".ts",
   ".css",
   ".png",
   ".svg",
