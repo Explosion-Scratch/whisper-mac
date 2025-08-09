@@ -2,6 +2,7 @@
   "name": "whispermac",
   "version": "1.0.0",
   "description": "AI-powered dictation for Mac using WhisperLive",
+  "author": "Explosion Scratch",
   "main": "dist/main.js",
   "scripts": {
     "fullclean": "rm -rf dist .crush *.log vendor release build && bun install",
@@ -25,20 +26,19 @@
     "stage:python:x64": "ARCH=x64 node scripts/stage-python-arch.js",
     "build:mac:arm64": "bun run build && bun run icons && bun run prep:whisperlive && bun run prep:python:arm64 && bun run prep:wheels:arm64 && bun run stage:python:arm64 && electron-builder --mac --arm64 --publish=never",
     "build:mac:x64": "bun run build && bun run icons && bun run prep:whisperlive && bun run prep:python:x64 && bun run prep:wheels:x64 && bun run stage:python:x64 && electron-builder --mac --x64 --publish=never",
-    "build:mac:all": "bun run build && bun run build:mac:arm64 && bun run build:mac:x64"
+    "build:mac:all": "bun run build && bun run build:mac:arm64 && bun run build:mac:x64",
+    "pack:prod": "NODE_ENV=production bun install && electron-builder --dir"
   },
   "dependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",
-    "@phosphor-icons/web": "^2.1.2",
     "axios": "^1.4.0",
     "copy-paste": "^2.2.0",
     "keytar": "^7.9.0",
-    "open": "^10.2.0",
-    "sharp": "^0.34.3",
     "uuid": "^9.0.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {
+    "sharp": "^0.34.3",
     "@types/copy-paste": "^2.1.0",
     "@types/node": "^24.2.1",
     "@types/uuid": "^9.0.0",
@@ -58,9 +58,10 @@
     "files": [
       "dist/**/*",
       "assets/**/*",
-      "node_modules/**/*",
       "package.json"
     ],
+    "asar": true,
+    "compression": "maximum",
     "extraResources": [
       {
         "from": "vendor/python",
@@ -72,13 +73,6 @@
       {
         "from": "vendor/whisperlive",
         "to": "whisperlive",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "vendor/wheels",
-        "to": "wheels",
         "filter": [
           "**/*"
         ]
