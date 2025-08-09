@@ -245,7 +245,6 @@ export class SettingsManager {
         "ai.baseUrl",
         "https://api.cerebras.ai/v1/chat/completions"
       ),
-      envKey: this.get("ai.envKey", "CEREBRAS"),
       model: this.get("ai.model", "qwen-3-32b"),
       maxTokens: this.get("ai.maxTokens", 16382),
       temperature: this.get("ai.temperature", 0.6),
@@ -292,7 +291,6 @@ export class SettingsManager {
     this.set("ai.enabled", this.config.ai.enabled);
     this.set("ai.writingStyle", this.config.ai.writingStyle);
     this.set("ai.baseUrl", this.config.ai.baseUrl);
-    this.set("ai.envKey", this.config.ai.envKey);
     this.set("ai.model", this.config.ai.model);
     this.set("ai.maxTokens", this.config.ai.maxTokens);
     this.set("ai.temperature", this.config.ai.temperature);

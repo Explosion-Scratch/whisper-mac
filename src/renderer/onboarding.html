@@ -210,11 +210,6 @@
                   placeholder="API Base URL"
                 />
                 <input id="aiModel" class="input" placeholder="Model" />
-                <input
-                  id="aiEnvKey"
-                  class="input"
-                  placeholder="Provider Key Name (e.g. CEREBRAS)"
-                />
               </div>
               <div class="row">
                 <input
@@ -265,7 +260,6 @@
       const aiConfig = document.getElementById("aiConfig");
       const aiBaseUrl = document.getElementById("aiBaseUrl");
       const aiModel = document.getElementById("aiModel");
-      const aiEnvKey = document.getElementById("aiEnvKey");
       const aiApiKey = document.getElementById("aiApiKey");
       const saveKeyBtn = document.getElementById("saveKeyBtn");
       const keyStatus = document.getElementById("keyStatus");
@@ -287,7 +281,6 @@
         const init = await window.onboardingAPI.getInitialState();
         aiBaseUrl.value = init.ai.baseUrl;
         aiModel.value = init.ai.model;
-        aiEnvKey.value = init.ai.envKey;
         aiEnabled.checked = init.ai.enabled;
         aiConfig.style.display = aiEnabled.checked ? "block" : "none";
       }
@@ -310,7 +303,6 @@
           if (aiEnabled.checked) {
             await window.onboardingAPI.setAiProvider(
               aiBaseUrl.value,
-              aiEnvKey.value,
               aiModel.value
             );
           }
@@ -338,7 +330,7 @@
       saveKeyBtn.onclick = async () => {
         keyStatus.textContent = "Saving...";
         try {
-          await window.onboardingAPI.saveApiKey(aiEnvKey.value, aiApiKey.value);
+          await window.onboardingAPI.saveApiKey(aiApiKey.value);
           keyStatus.textContent = "Saved to Keychain";
           aiApiKey.value = "";
         } catch (e) {

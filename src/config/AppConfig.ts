@@ -10,7 +10,6 @@ export interface AiTransformationConfig {
   writingStyle: string;
   prompt: string;
   baseUrl: string;
-  envKey: string;
   model: string;
   maxTokens: number;
   temperature: number;
@@ -61,7 +60,6 @@ export class AppConfig {
       writingStyle:
         'I type all lowercase without punctuation except for exclamation points in messaging apps like instagram or imessage. Emails should be very concise, don\'t make them flowery. I frequently dictate instructions like "Set menu bar icon in electron" and in these instances I want you to simply correct and fix grammar or interpret the request but not fulfill it, e.g. you\'d respond "Set menu bar icon in Electron". Only if I explicitly ask you should you fulfill a request I\'m dictating, or when selected text is provided.',
       baseUrl: "https://api.cerebras.ai/v1/chat/completions",
-      envKey: "CEREBRAS",
       model: "qwen-3-32b",
       maxTokens: 16382,
       temperature: 0.6,

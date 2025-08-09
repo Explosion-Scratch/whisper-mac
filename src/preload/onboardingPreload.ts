@@ -7,10 +7,10 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
     ipcRenderer.invoke("onboarding:setModel", modelRepoId),
   setAiEnabled: (enabled: boolean) =>
     ipcRenderer.invoke("onboarding:setAiEnabled", enabled),
-  setAiProvider: (baseUrl: string, envKey: string, model: string) =>
-    ipcRenderer.invoke("onboarding:setAiProvider", { baseUrl, envKey, model }),
-  saveApiKey: (envKey: string, apiKey: string) =>
-    ipcRenderer.invoke("onboarding:saveApiKey", { envKey, apiKey }),
+  setAiProvider: (baseUrl: string, model: string) =>
+    ipcRenderer.invoke("onboarding:setAiProvider", { baseUrl, model }),
+  saveApiKey: (apiKey: string) =>
+    ipcRenderer.invoke("onboarding:saveApiKey", { apiKey }),
   runSetup: () => ipcRenderer.invoke("onboarding:runSetup"),
   onProgress: (cb: (payload: any) => void) =>
     ipcRenderer.on("onboarding:progress", (_e, p) => cb(p)),
