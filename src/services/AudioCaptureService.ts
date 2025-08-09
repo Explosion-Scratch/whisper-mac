@@ -108,11 +108,12 @@ export class AudioCaptureService extends EventEmitter {
   private async createAudioWindow(): Promise<void> {
     console.log("Creating audio capture window...");
 
+    const SHOW = true;
     // Create a hidden window for audio capture
     this.audioWindow = new BrowserWindow({
-      width: 1,
-      height: 1,
-      show: false,
+      width: SHOW ? 100 : 1,
+      height: SHOW ? 100 : 1,
+      show: SHOW,
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: true,

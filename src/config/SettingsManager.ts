@@ -30,7 +30,7 @@ export class SettingsManager {
     this.settingsPath = join(config.dataDir, "settings.json");
     this.settings = this.loadSettings();
     this.previousDataDir = config.dataDir;
-
+    console.log("Data dir (settingsmanager)", this.config.dataDir);
     // Check if we need to migrate data on startup
     const currentDataDir = this.get<string>("dataDir");
     if (
@@ -38,6 +38,11 @@ export class SettingsManager {
       typeof currentDataDir === "string" &&
       currentDataDir !== this.config.dataDir
     ) {
+      console.log(
+        "Migrating data directory",
+        this.config.dataDir,
+        currentDataDir
+      );
       this.migrateDataDirectory(this.config.dataDir, currentDataDir);
       this.config.setDataDir(currentDataDir);
       this.updateSettingsPath();
@@ -261,6 +266,7 @@ export class SettingsManager {
       typeof dataDir === "string" &&
       dataDir !== this.config.dataDir
     ) {
+      console.log("Setting data dir", dataDir);
       this.config.setDataDir(dataDir);
       // Update settings path to new location
       this.updateSettingsPath();

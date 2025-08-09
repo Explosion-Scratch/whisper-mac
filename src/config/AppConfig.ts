@@ -41,9 +41,10 @@ export class AppConfig {
     this.defaultModel = "Systran/faster-whisper-tiny.en";
 
     // Use Electron's user data directory instead of custom .whispermac-data
-    this.dataDir = app
-      ? app.getPath("userData")
-      : resolve(__dirname, "../../.whispermac-data");
+    this.dataDir =
+      app && !process.env.USE_LOCAL_DATA_DIR
+        ? app.getPath("userData")
+        : resolve(__dirname, "../../.whispermac-data");
 
     // Dictation window defaults
     this.dictationWindowPosition = "screen-corner";

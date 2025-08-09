@@ -362,6 +362,7 @@ class WhisperMacApp {
     );
     // Audio capture handlers
     ipcMain.on("audio-data", (_event, audioData: Float32Array) => {
+      console.log("Audio data received", audioData.length);
       try {
         if (this.transcriptionClient) {
           this.transcriptionClient.sendAudioData(audioData);
