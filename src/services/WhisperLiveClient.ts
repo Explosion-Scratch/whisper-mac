@@ -290,7 +290,7 @@ export class TranscriptionClient {
                 const pythonPath = this.resolvePythonInterpreter();
                 await runInstall(pythonPath);
                 await runSetup();
-                resolve(this._launch(repoDir, modelRepoId, onProgress));
+                resolve(this._launch(repoDir, modelRepoId, onProgress, onLog));
               } catch (err) {
                 reject(err);
               }
