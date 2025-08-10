@@ -66,21 +66,16 @@ export class SelectedTextService {
     const originalClipboard = this.getClipboardContent();
 
     try {
-      // Set a unique marker to detect if clipboard changes
       const marker = "1z4*5eiur_45r|uyt}r4";
       this.setClipboardContent(marker);
 
-      // Reduced delay from 50ms to 20ms
       await new Promise((resolve) => setTimeout(resolve, 20));
 
-      // Copy selected text using keyboard shortcut
       await keyboard.pressKey(Key.LeftCmd, Key.C);
       await keyboard.releaseKey(Key.LeftCmd, Key.C);
 
-      // Reduced delay from 100ms to 50ms
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      // Read the new clipboard content
       const newClipboard = this.getClipboardContent();
       const trimmedText = newClipboard.trim();
 
@@ -92,8 +87,6 @@ export class SelectedTextService {
         newClipboard: newClipboard,
       });
 
-      // Check if the clipboard content actually changed (indicating there was a selection)
-      // If clipboard still contains our marker, no text was selected
       const clipboardChanged =
         newClipboard !== originalClipboard && newClipboard !== marker;
 

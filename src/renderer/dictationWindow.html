@@ -485,15 +485,16 @@
           const updateTranscription = (update) => {
             console.log("Transcription update:", update);
             transcriptionSegments.value = update.segments;
-            // Show transforming status only during active transformation/injection
-            if (update.status === "transforming") {
+            // Respect transforming state throughout transformation
+            if (
+              currentStatus.value === "transforming" ||
+              update.status === "transforming"
+            ) {
               currentStatus.value = "transforming";
             } else {
-              // Show loading icon when actively receiving in-progress segments
               const hasInProgressSegments = update.segments.some(
                 (segment) => segment.type === "inprogress" || !segment.completed
               );
-              // Show idle microphone icon when only completed segments exist (idle recording state)
               currentStatus.value = hasInProgressSegments
                 ? "listening"
                 : "idle";
