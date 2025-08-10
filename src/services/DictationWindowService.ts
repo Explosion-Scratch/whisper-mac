@@ -249,13 +249,15 @@ export class DictationWindowService {
 
   updateTranscription(update: SegmentUpdate): void {
     this.currentSegments = update.segments;
-    this.currentStatus = update.status;
+    if (this.currentStatus !== "transforming") {
+      this.currentStatus = update.status;
+    }
 
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
-      this.dictationWindow.webContents.send(
-        "dictation-transcription-update",
-        update
-      );
+      this.dictationWindow.webContents.send("dictation-transcription-update", {
+        segments: this.currentSegments,
+        status: this.currentStatus,
+      });
     }
   }
 
@@ -266,6 +268,7 @@ export class DictationWindowService {
   }
 
   setTransformingStatus(): void {
+    this.currentStatus = "transforming";
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.webContents.send("dictation-transcription-update", {
         segments: this.currentSegments,
