@@ -26,7 +26,7 @@ function main() {
 
   if (!existsSync(whisperDir)) {
     console.log("vendor/whisperlive missing; preparing snapshot...");
-    run("node", [path.join("scripts", "fetch-whisperlive.js")]);
+    runCommand("node", [path.join("scripts", "fetch-whisperlive.js")]);
   }
 
   const req = path.join(whisperDir, "requirements", "server.txt");
