@@ -228,8 +228,12 @@ class WhisperMacApp {
       this.cancelDictationFlow();
     });
 
-    ipcMain.on("audio-data", (_event, audioData: Float32Array) => {
-      console.log("Audio data received", audioData.length);
+    ipcMain.on("audio-data", (_event, audioData: any) => {
+      try {
+        BrowserWindow.getAllWindows().forEach((w) =>
+          w.webContents.send("audio-data", audioData)
+        );
+      } catch {}
     });
     ipcMain.on("audio-final-samples", (_event, samples: Float32Array) => {
       try {

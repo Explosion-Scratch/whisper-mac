@@ -347,26 +347,32 @@
 
         <div class="text-scroll-container" ref="textScrollContainer">
           <canvas
+            v-if="currentStatus === 'listening'"
             id="waveform"
             height="24"
-            width="160"
-            style="margin-right: 8px; opacity: 0.85"
+            width="200"
+            style="margin-right: 8px; opacity: 0.9"
           ></canvas>
           <div class="text-content" ref="textContent">
             <span
-              v-for="(segment, index) in displaySegments"
-              :key="segment.id || index"
-              class="text-segment"
-              :class="getSegmentClass(segment)"
-            >
-              {{ getSegmentDisplayText(segment) }}
-            </span>
-            <span
-              v-if="displaySegments.length === 0"
+              v-if="currentStatus === 'listening'"
               class="text-segment in-progress"
             >
               Listening...
             </span>
+            <span
+              v-else-if="currentStatus === 'transforming'"
+              class="text-segment in-progress"
+            >
+              Processing...
+            </span>
+            <span
+              v-else-if="currentStatus === 'complete' && finalText"
+              class="text-segment transcribed"
+            >
+              {{ finalText }}
+            </span>
+            <span v-else class="text-segment"> Ready </span>
           </div>
         </div>
 
@@ -389,12 +395,15 @@
           // Reactive state
           const isRecording = ref(false);
           const currentStatus = ref("idle");
-          const transcriptionSegments = ref([]);
           const finalText = ref("");
           const audioLevel = ref(0);
+          const audioData = ref({ level: 0, frequencies: [], timestamp: 0 });
+
           let waveCanvas = null;
           let waveCtx = null;
           let waveAnim = null;
+          let frequencyHistory = [];
+          const maxHistoryLength = 60;
 
           // Computed properties
           const statusIconClass = computed(() => ({
@@ -403,41 +412,6 @@
             transforming: currentStatus.value === "transforming",
             complete: currentStatus.value === "complete",
           }));
-
-          const hasTranscription = computed(() => {
-            return transcriptionSegments.value.length > 0 || finalText.value;
-          });
-
-          const displaySegments = computed(() => {
-            if (finalText.value) {
-              return [
-                { type: "transcribed", text: finalText.value, completed: true },
-              ];
-            }
-
-            // Filter segments to only show the last in-progress segment
-            const segments = transcriptionSegments.value;
-            const completedSegments = segments.filter(
-              (segment) => segment.type === "transcribed" && segment.completed
-            );
-
-            // Find the last in-progress segment
-            const lastInProgressSegment = segments
-              .filter(
-                (segment) =>
-                  segment.type === "inprogress" ||
-                  (!segment.completed && segment.type === "transcribed")
-              )
-              .pop();
-
-            // Combine completed segments with the last in-progress segment
-            const result = [...completedSegments];
-            if (lastInProgressSegment) {
-              result.push(lastInProgressSegment);
-            }
-
-            return result;
-          });
 
           const textContent = ref(null);
           const textScrollContainer = ref(null);
@@ -449,90 +423,161 @@
             }
           };
 
-          const drawWave = () => {
-            if (!waveCtx || !waveCanvas) return;
+          const drawAdvancedWave = () => {
+            if (
+              !waveCtx ||
+              !waveCanvas ||
+              currentStatus.value !== "listening"
+            ) {
+              if (waveAnim) {
+                cancelAnimationFrame(waveAnim);
+                waveAnim = null;
+              }
+              return;
+            }
+
             const w = waveCanvas.width;
             const h = waveCanvas.height;
+            const centerY = h / 2;
+
+            // Clear canvas completely
             waveCtx.clearRect(0, 0, w, h);
-            const level = Math.max(0, Math.min(1, audioLevel.value));
-            const bars = 32;
-            const barWidth = w / bars;
-            for (let i = 0; i < bars; i++) {
-              const t = (i / bars) * Math.PI * 2;
-              const mod = 0.6 + 0.4 * Math.sin(Date.now() / 180 + t);
-              const amp = level * mod;
-              const barHeight = Math.max(2, amp * h);
-              const x = i * barWidth;
-              const y = (h - barHeight) / 2;
-              waveCtx.fillStyle = "rgba(0,0,0,0.45)";
-              waveCtx.fillRect(x + 0.75, y, barWidth - 1.5, barHeight);
+
+            const currentFreqs = audioData.value.frequencies || [];
+            const level = Math.max(0, Math.min(1, audioData.value.level || 0));
+
+            // Add current frequencies to history
+            if (currentFreqs.length > 0) {
+              frequencyHistory.push({
+                frequencies: [...currentFreqs],
+                level: level,
+                timestamp: Date.now(),
+              });
+
+              // Keep history manageable
+              if (frequencyHistory.length > maxHistoryLength) {
+                frequencyHistory = frequencyHistory.slice(-maxHistoryLength);
+              }
             }
-            waveAnim = requestAnimationFrame(drawWave);
+
+            if (frequencyHistory.length === 0) {
+              waveAnim = requestAnimationFrame(drawAdvancedWave);
+              return;
+            }
+
+            // Draw frequency-based waveform
+            const barCount = Math.min(32, currentFreqs.length);
+            const barWidth = w / barCount;
+            const now = Date.now();
+
+            for (let i = 0; i < barCount; i++) {
+              // Get frequency value for this bar
+              const freqIndex = Math.floor(
+                (i / barCount) * currentFreqs.length
+              );
+              const freqValue = currentFreqs[freqIndex] || 0;
+              const normalizedFreq = Math.min(1, freqValue / 255);
+
+              // Combine frequency data with overall level
+              const amplitude = normalizedFreq * 0.7 + level * 0.3;
+
+              // Add some organic movement
+              const phase = (i / barCount) * Math.PI * 2;
+              const wobble = 0.1 * Math.sin(now / 200 + phase);
+              const finalAmp = Math.max(0.02, amplitude + wobble);
+
+              // Calculate bar properties
+              const barHeight = finalAmp * h * 0.8;
+              const x = i * barWidth + barWidth * 0.1;
+              const y = centerY - barHeight / 2;
+
+              // Color based on frequency content and level
+              const intensity = Math.min(1, finalAmp * 1.5);
+              const alpha = 0.4 + intensity * 0.5;
+
+              // Use a more subtle, monochromatic design
+              const baseOpacity = 0.2 + intensity * 0.4;
+              let color = `rgba(0, 0, 0, ${baseOpacity})`;
+
+              waveCtx.fillStyle = color;
+              waveCtx.fillRect(x, y, barWidth * 0.8, barHeight);
+            }
+
+            // Draw flowing wave overlay
+            waveCtx.strokeStyle = `rgba(0, 0, 0, ${0.1 + level * 0.3})`;
+            waveCtx.lineWidth = 1;
+            waveCtx.beginPath();
+
+            for (let x = 0; x <= w; x += 2) {
+              const t = x / w;
+              const freqIndex = Math.floor(t * currentFreqs.length);
+              const freqValue = currentFreqs[freqIndex] || 0;
+              const normalizedFreq = freqValue / 255;
+
+              const baseWave = Math.sin(t * Math.PI * 4 + now / 150) * 0.2;
+              const freqWave = normalizedFreq * 0.4;
+              const y = centerY + (baseWave + freqWave - 0.2) * h * level;
+
+              if (x === 0) {
+                waveCtx.moveTo(x, y);
+              } else {
+                waveCtx.lineTo(x, y);
+              }
+            }
+            waveCtx.stroke();
+
+            waveAnim = requestAnimationFrame(drawAdvancedWave);
           };
 
           // Methods
-          const resetTranscription = () => {
-            transcriptionSegments.value = [];
+          const resetState = () => {
             finalText.value = "";
+            frequencyHistory = [];
             currentStatus.value = "listening";
           };
 
-          const getSegmentClass = (segment) => {
-            if (segment.type === "transcribed") {
-              return segment.completed ? "transcribed" : "in-progress";
-            }
-            if (segment.type === "inprogress") return "in-progress";
-            return "";
-          };
-
-          const getSegmentDisplayText = (segment) => {
-            return segment.text;
-          };
-
           const handleClose = () => {
-            // Close button now hides and reloads the window instead of closing it
             window.electronAPI.closeDictationWindow();
           };
 
           // IPC event handlers
           const initializeDictation = (data) => {
             console.log("Initializing dictation with data:", data);
-            resetTranscription();
+            resetState();
           };
 
           const startRecording = () => {
             console.log("Recording started");
             isRecording.value = true;
             currentStatus.value = "listening";
-            resetTranscription();
-            if (waveCanvas && !waveAnim)
-              waveAnim = requestAnimationFrame(drawWave);
+            resetState();
+
+            nextTick(() => {
+              const canvas = document.getElementById("waveform");
+              if (canvas) {
+                waveCanvas = canvas;
+                waveCtx = canvas.getContext("2d");
+                if (!waveAnim) {
+                  waveAnim = requestAnimationFrame(drawAdvancedWave);
+                }
+              }
+            });
           };
 
           const stopRecording = () => {
             console.log("Recording stopped");
             isRecording.value = false;
-            currentStatus.value = "processing";
-            if (waveAnim) cancelAnimationFrame(waveAnim);
-            waveAnim = null;
+            currentStatus.value = "transforming";
+            if (waveAnim) {
+              cancelAnimationFrame(waveAnim);
+              waveAnim = null;
+            }
           };
 
           const updateTranscription = (update) => {
             console.log("Transcription update:", update);
-            transcriptionSegments.value = update.segments;
-            // Respect transforming state throughout transformation
-            if (
-              currentStatus.value === "transforming" ||
-              update.status === "transforming"
-            ) {
+            if (update.status === "transforming") {
               currentStatus.value = "transforming";
-            } else {
-              const hasInProgressSegments = update.segments.some(
-                (segment) => segment.type === "inprogress" || !segment.completed
-              );
-              currentStatus.value = hasInProgressSegments
-                ? "listening"
-                : "idle";
             }
           };
 
@@ -540,24 +585,21 @@
             console.log("Dictation complete:", text);
             finalText.value = text;
             currentStatus.value = "complete";
-            transcriptionSegments.value = [
-              {
-                type: "transcribed",
-                text: text,
-                completed: true,
-              },
-            ];
+            if (waveAnim) {
+              cancelAnimationFrame(waveAnim);
+              waveAnim = null;
+            }
           };
 
           const clearDictation = () => {
             console.log("Clearing dictation window");
             currentStatus.value = "idle";
             isRecording.value = false;
-            resetTranscription();
+            resetState();
           };
 
-          // Watch for changes and scroll to end
-          watch([displaySegments], () => {
+          // Watch for text changes and scroll to end
+          watch([finalText], () => {
             nextTick(() => {
               scrollToEnd();
             });
@@ -565,19 +607,19 @@
 
           // Setup IPC listeners
           onMounted(() => {
-            const canvas = document.getElementById("waveform");
-            if (canvas) {
-              waveCanvas = canvas;
-              waveCtx = canvas.getContext("2d");
-            }
             window.electronAPI.onInitializeDictation(initializeDictation);
             window.electronAPI.onStartRecording(startRecording);
             window.electronAPI.onStopRecording(stopRecording);
             window.electronAPI.onTranscriptionUpdate(updateTranscription);
             window.electronAPI.onDictationComplete(completeDictation);
             window.electronAPI.onDictationClear(clearDictation);
+
             window.electronAPI.onAudioLevel((lvl) => {
               audioLevel.value = Math.max(0, Math.min(1, lvl));
+            });
+
+            window.electronAPI.onAudioData((data) => {
+              audioData.value = data;
             });
 
             // Prevent default drag behavior
@@ -588,21 +630,16 @@
             // State
             isRecording,
             currentStatus,
-            transcriptionSegments,
             finalText,
+            audioLevel,
+            audioData,
 
             // Computed
             statusIconClass,
-            hasTranscription,
-            displaySegments,
             textContent,
             textScrollContainer,
-            audioLevel,
 
             // Methods
-            resetTranscription,
-            getSegmentClass,
-            getSegmentDisplayText,
             handleClose,
           };
         },

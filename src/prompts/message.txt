@@ -14,7 +14,7 @@ Application: {app}
 ----END CONTEXT----
 
 ----INSTRUCTION----
-Now output only the changed text. No explanations or other text.
+Now output only the changed text. No explanations or other text. Do not include things like "Um" or "Uh". Try to convey exactly what the user would want as the output.
 ----END INSTRUCTION----
 
 Changed text:

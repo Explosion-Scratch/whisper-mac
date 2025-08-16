@@ -9,51 +9,54 @@
       let audioContext = null;
       let mediaStreamSource = null;
       let processor = null;
+      let analyser = null;
       let stream = null;
       let buffer = [];
       let sampleCount = 0;
+      let isCapturing = false;
+      let frequencyData = new Uint8Array(64);
 
-      // Listen for start capture command from main process
-      window.electronAPI.onStartCapture(async () => {
+      // Pre-initialize audio immediately on load
+      async function initializeAudio() {
         try {
-          console.log("Starting audio capture...");
+          console.log("Pre-initializing audio...");
 
           stream = await navigator.mediaDevices.getUserMedia({
             audio: {
               sampleRate: 16000,
               channelCount: 1,
-              // echoCancellation: true,
-              // noiseSuppression: true,
+              echoCancellation: true,
+              noiseSuppression: true,
             },
           });
-
-          console.log("Got media stream:", stream);
 
           audioContext = new AudioContext({
             sampleRate: 16000,
             latencyHint: "interactive",
           });
 
-          console.log("Created audio context");
-
-          if (audioContext.state === "suspended") {
-            try {
-              await audioContext.resume();
-            } catch {}
-          }
+          // Suspend immediately after creation
+          await audioContext.suspend();
 
           // Create media stream source
           mediaStreamSource = audioContext.createMediaStreamSource(stream);
+
+          // Create analyser for frequency data
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 128;
+          analyser.smoothingTimeConstant = 0.3;
 
           // Create script processor for audio processing
           const bufferSize = 4096;
           processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
 
           processor.onaudioprocess = (event) => {
+            if (!isCapturing) return;
+
             const inputBuffer = event.inputBuffer;
             const inputData = inputBuffer.getChannelData(0);
 
-            // Add samples to buffer and compute RMS level for UI
+            // Add samples to buffer and compute RMS level
             let sumSquares = 0;
             for (let i = 0; i < inputData.length; i++) {
               const v = inputData[i];
@@ -61,19 +64,55 @@
               sumSquares += v * v;
               sampleCount++;
             }
+
             const rms = Math.sqrt(sumSquares / Math.max(1, inputData.length));
             const level = Math.max(0, Math.min(1, rms * 3));
+
+            // Get frequency data for wave visualization
+            analyser.getByteFrequencyData(frequencyData);
+
+            // Send enhanced audio data
             try {
               window.electronAPI.sendAudioLevel(level);
+              window.electronAPI.sendAudioData({
+                level: level,
+                frequencies: Array.from(frequencyData.slice(0, 32)),
+                timestamp: Date.now(),
+              });
             } catch {}
           };
 
           // Connect the audio graph
-          mediaStreamSource.connect(processor);
+          mediaStreamSource.connect(analyser);
+          analyser.connect(processor);
           try {
             processor.connect(audioContext.destination);
           } catch {}
 
+          console.log("Audio pre-initialized successfully");
+        } catch (error) {
+          console.error("Failed to pre-initialize audio:", error);
+          window.electronAPI.sendAudioError(error.message);
+        }
+      }
+
+      // Initialize audio immediately when page loads
+      initializeAudio();
+
+      // Listen for start capture command from main process
+      window.electronAPI.onStartCapture(async () => {
+        try {
+          console.log("Starting audio capture...");
+
+          if (!audioContext) {
+            await initializeAudio();
+          }
+
+          if (audioContext.state === "suspended") {
+            await audioContext.resume();
+          }
+
+          isCapturing = true;
           console.log("Audio capture started in renderer");
           window.electronAPI.sendAudioCaptureStarted();
         } catch (error) {
@@ -86,22 +125,7 @@
       window.electronAPI.onStopCapture(() => {
         console.log("Stopping audio capture...");
 
-        if (processor) {
-          processor.disconnect();
-          processor = null;
-        }
-        if (mediaStreamSource) {
-          mediaStreamSource.disconnect();
-          mediaStreamSource = null;
-        }
-        if (audioContext) {
-          audioContext.close();
-          audioContext = null;
-        }
-        if (stream) {
-          stream.getTracks().forEach((track) => track.stop());
-          stream = null;
-        }
+        isCapturing = false;
 
         try {
           if (buffer.length > 0) {
@@ -109,6 +133,11 @@
             window.electronAPI.sendFinalSamples(finalArray);
           }
         } catch {}
+
+        // Suspend audio context instead of closing to keep it ready
+        if (audioContext && audioContext.state === "running") {
+          audioContext.suspend();
+        }
 
         // Reset buffer
         buffer = [];

@@ -54,6 +54,9 @@ export class GeminiService {
       ],
       generationConfig: {
         temperature: 0,
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
       },
     } as any;
 
