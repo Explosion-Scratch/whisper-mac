@@ -534,6 +534,10 @@ class WhisperMacApp {
     try {
       console.log("=== Finishing current dictation with Gemini ===");
       this.isFinishing = true;
+
+      // Immediately set complete status when user presses shortcut again
+      this.dictationWindowService.completeDictation("");
+
       await this.audioService.stopCapture();
       for (
         let i = 0;
@@ -542,7 +546,10 @@ class WhisperMacApp {
       ) {
         await new Promise((r) => setTimeout(r, 25));
       }
+
+      // Show processing state while Gemini is working
       this.dictationWindowService.setTransformingStatus();
+
       const samples = this.finalSamples;
       this.finalSamples = null;
       if (!samples || samples.length === 0) {
@@ -567,11 +574,13 @@ class WhisperMacApp {
         await this.cancelDictationFlow();
         return;
       }
+
+      // Update with final text after Gemini processing
+      this.dictationWindowService.completeDictation(resultText || "");
+
       try {
         await this.textInjector.insertText((resultText || "") + " ");
       } catch {}
-      this.dictationWindowService.completeDictation(resultText || "");
-      await new Promise((r) => setTimeout(r, 500));
       this.dictationWindowService.hideWindow();
       await this.completeDictationAfterFinishing();
     } catch (error) {
