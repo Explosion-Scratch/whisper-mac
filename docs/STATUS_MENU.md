@@ -1,19 +1,17 @@
 # Status-Aware Menu Bar
 
-The WhisperMac app now features a status-aware menu bar that provides user-friendly feedback during setup and initialization operations.
+The app features a status-aware menu bar that provides user-friendly feedback during setup and initialization operations.
 
 ## Overview
 
-Instead of showing technical messages like "Cloning WhisperLive" or "Installing dependencies", the menu bar displays user-friendly status messages that help users understand what's happening during app startup and setup operations.
+The menu bar displays user-friendly status messages during startup and setup.
 
 ## Status Messages
 
 The menu bar shows different status messages based on the current operation:
 
 - **"Preparing app..."** - Initial app startup and directory setup
-- **"Downloading models..."** - When downloading or cloning Whisper models
-- **"Setting up Whisper..."** - When installing Whisper dependencies or cloning the WhisperLive repository
-- **"Starting server..."** - When launching the WhisperLive server
+  No model downloads or local servers are used in this version.
 - **"Loading windows..."** - When pre-loading application windows
 - **"Checking permissions..."** - When verifying accessibility permissions
 
@@ -53,14 +51,13 @@ This version no longer downloads models or runs a local server. Recording is sin
 ### Initialization Flow
 
 1. App starts with "Preparing app..." status
-2. Model downloads show "Downloading models..." status
-3. Whisper setup shows "Setting up Whisper..." or "Starting server..." status
-4. Window preloading shows "Loading windows..." status
-5. App becomes ready with normal menu
+2. No model download or server setup in this version
+3. Window preloading shows "Loading windows..." status
+4. App becomes ready with normal menu
 
 ## User Experience Benefits
 
-- **Non-technical language**: Users see "Downloading models..." instead of "Cloning HuggingFace repository"
+- **Non-technical language**: Use simple, clear messages.
 - **Clear feedback**: Users always know what the app is doing
 - **Reduced confusion**: No more wondering why the app seems unresponsive during startup
 - **Professional appearance**: Status messages are consistent and polished

@@ -1,7 +1,16 @@
 import { BrowserWindow, screen, app } from "electron";
 import { join } from "path";
 import { AppConfig } from "../config/AppConfig";
-import { Segment, SegmentUpdate } from "../types/SegmentTypes";
+type Segment = {
+  id?: string;
+  text: string;
+  type?: string;
+  completed?: boolean;
+};
+type SegmentUpdate = {
+  segments: Segment[];
+  status: "listening" | "transforming";
+};
 
 export interface WindowPosition {
   x: number;

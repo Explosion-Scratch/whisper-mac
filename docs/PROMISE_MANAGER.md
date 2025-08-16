@@ -1,6 +1,6 @@
 # PromiseManager Documentation
 
-The `PromiseManager` is a singleton class that provides a centralized way to coordinate asynchronous operations across the WhisperMac application. It allows modules to wait for specific events or operations to complete before proceeding.
+The `PromiseManager` is a singleton class that provides a centralized way to coordinate asynchronous operations across the application. It allows modules to wait for specific events or operations to complete before proceeding.
 
 ## Overview
 
@@ -84,26 +84,16 @@ The application uses several predefined promises for startup coordination:
 ### Core Startup Promises
 
 - `app-initialization` - Resolved when the main app is fully initialized
-- `models-check` - Resolved when model installation check is complete
 - `modules-initialization` - Resolved when all modules are initialized
-- `whisper-server-startup` - Resolved when the WhisperLive server is ready (auto-started on app launch)
 - `audio-capture-ready` - Resolved when audio capture is ready (auto-started on app launch)
 - `dictation-window-ready` - Resolved when the dictation window is ready
 
 ### Example: Waiting for Dependencies
 
 ```typescript
-// In a module that needs the server to be ready
-async startTranscription(): Promise<void> {
-  // Wait for server to be ready (auto-started on app launch)
-  await promiseManager.waitFor("whisper-server-startup", 30000);
-
-  // Wait for audio capture to be ready (auto-started on app launch)
-  await promiseManager.waitFor("audio-capture-ready", 10000);
-
-  // Now safe to start transcription (server and audio capture are already running)
-  await this.startTranscriptionProcess();
-}
+// Example waiting for audio capture and window
+await promiseManager.waitFor("audio-capture-ready", 10000);
+await promiseManager.waitFor("dictation-window-ready", 10000);
 ```
 
 ## Checking Promise Status

@@ -3,11 +3,8 @@ import { join } from "path";
 
 export type SetupStatus =
   | "idle"
-  | "downloading-models"
-  | "setting-up-whisper"
   | "preparing-app"
   | "checking-permissions"
-  | "starting-server"
   | "loading-windows";
 
 export class TrayService {
@@ -68,7 +65,6 @@ export class TrayService {
         },
         { type: "separator" },
         { label: "Settings", click: () => this.onShowSettings() },
-        { label: "Download Models", click: () => this.onShowModels() },
         { type: "separator" },
         { label: "Quit", click: () => app.quit() },
       ]);

@@ -48,11 +48,8 @@ export class GeminiService {
                 data: audioWavBase64,
               },
             },
+            { text: messagePrompt },
           ],
-        },
-        {
-          role: "user",
-          parts: [{ text: messagePrompt }],
         },
       ],
       generationConfig: {
@@ -72,6 +69,7 @@ export class GeminiService {
     }
 
     const json: any = await response.json();
+    console.log(json);
     const text = this.extractText(json) || "";
     return text.trim();
   }
@@ -97,9 +95,15 @@ export class GeminiService {
       const texts = parts
         .map((p: any) => (typeof p?.text === "string" ? p.text : ""))
         .filter(Boolean);
-      return texts.join("\n");
+      return this.extractCode(texts.join("\n"));
     } catch {
       return null;
     }
+  }
+
+  private extractCode(string: string): string | null {
+    const codeRegex = /```(?:[a-zA-Z]+)?\n([\s\S]*?)\n```/;
+    const match = string.match(codeRegex);
+    return match ? match[1] : string;
   }
 }
