@@ -21,6 +21,23 @@
         try {
           console.log("Pre-initializing audio...");
 
+          // Clean up existing resources if they exist
+          if (processor) {
+            try {
+              processor.disconnect();
+            } catch {}
+          }
+          if (mediaStreamSource) {
+            try {
+              mediaStreamSource.disconnect();
+            } catch {}
+          }
+          if (audioContext && audioContext.state !== "closed") {
+            try {
+              await audioContext.close();
+            } catch {}
+          }
+
           stream = await navigator.mediaDevices.getUserMedia({
             audio: {
               sampleRate: 16000,
@@ -104,7 +121,15 @@
         try {
           console.log("Starting audio capture...");
 
-          if (!audioContext) {
+          // Check if audio context exists and is valid
+          if (!audioContext || audioContext.state === "closed") {
+            console.log("Audio context missing or closed, reinitializing...");
+            await initializeAudio();
+          }
+
+          // Check if stream is still active
+          if (stream && stream.active === false) {
+            console.log("Media stream inactive, reinitializing...");
             await initializeAudio();
           }
 

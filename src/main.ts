@@ -628,6 +628,7 @@ class WhisperMacApp {
     try {
       globalShortcut.unregisterAll();
       this.audioService.stopCapture();
+      this.audioService.cleanup();
       this.dictationWindowService.cleanup();
       this.settingsService.cleanup();
       this.errorService.cleanup();

@@ -53,7 +53,8 @@ export class AudioCaptureService extends EventEmitter {
         });
       }
 
-      // Create new window if pre-loaded one doesn't exist
+      // Create new window if pre-loaded one doesn't exist or was destroyed
+      console.log("Creating new audio capture window...");
       await this.createAudioWindow();
 
       console.log("Sending start capture command...");
@@ -82,8 +83,6 @@ export class AudioCaptureService extends EventEmitter {
         this.once("captureStarted", onStarted);
         this.once("error", onError);
       });
-
-      console.log("Audio capture setup complete");
     } catch (error) {
       let errMsg = "Unknown error";
       if (error instanceof Error) {
@@ -174,9 +173,11 @@ export class AudioCaptureService extends EventEmitter {
       // Give it a moment to clean up audio resources
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      console.log("Closing audio capture window...");
-      this.audioWindow.close();
-      this.audioWindow = null;
+      // Keep the audio window alive instead of closing it
+      // This preserves the audio context for faster subsequent recordings
+      console.log(
+        "Audio capture stopped - keeping window alive for faster restarts"
+      );
     }
 
     console.log("=== Audio capture stopped ===");
@@ -184,5 +185,18 @@ export class AudioCaptureService extends EventEmitter {
 
   getIsRecording(): boolean {
     return this.isRecording;
+  }
+
+  /**
+   * Clean up resources when shutting down the application
+   */
+  cleanup(): void {
+    console.log("Cleaning up AudioCaptureService...");
+    if (this.audioWindow && !this.audioWindow.isDestroyed()) {
+      this.audioWindow.close();
+      this.audioWindow = null;
+    }
+    this.isRecording = false;
+    this.onAudioDataCallback = null;
   }
 }
