@@ -47,7 +47,7 @@
           analyser.smoothingTimeConstant = 0.3;
 
           // Create script processor for audio processing
-          const bufferSize = 4096;
+          const bufferSize = 512; // Smoother animation: increased update rate from ~4Hz to ~31Hz
           processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
 
           processor.onaudioprocess = (event) => {

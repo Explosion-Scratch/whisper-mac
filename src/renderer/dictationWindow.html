@@ -305,19 +305,6 @@
             />
           </svg>
 
-          <!-- Microphone icon for listening state using Phosphor -->
-          <svg v-else-if="currentStatus === 'listening'" viewBox="0 0 256 256">
-            <g fill="currentColor">
-              <path
-                d="M168 64v64a40 40 0 0 1-40 40a40 40 0 0 1-40-40V64a40 40 0 0 1 40-40a40 40 0 0 1 40 40"
-                opacity=".2"
-              />
-              <path
-                d="M128 176a48.05 48.05 0 0 0 48-48V64a48 48 0 0 0-96 0v64a48.05 48.05 0 0 0 48 48M96 64a32 32 0 0 1 64 0v64a32 32 0 0 1-64 0Zm40 143.6V240a8 8 0 0 1-16 0v-32.4A80.11 80.11 0 0 1 48 128a8 8 0 0 1 16 0a64 64 0 0 0 128 0a8 8 0 0 1 16 0a80.11 80.11 0 0 1-72 79.6"
-              />
-            </g>
-          </svg>
-
           <!-- Loading spinner for transforming state -->
           <svg v-else-if="currentStatus === 'transforming'" viewBox="0 0 24 24">
             <g fill="none" fill-rule="evenodd">
@@ -347,7 +334,7 @@
 
         <div class="text-scroll-container" ref="textScrollContainer">
           <canvas
-            v-if="currentStatus === 'listening'"
+            v-show="currentStatus === 'listening'"
             id="waveform"
             height="24"
             width="200"
@@ -355,13 +342,7 @@
           ></canvas>
           <div class="text-content" ref="textContent">
             <span
-              v-if="currentStatus === 'listening'"
-              class="text-segment in-progress"
-            >
-              Listening...
-            </span>
-            <span
-              v-else-if="currentStatus === 'transforming'"
+              v-if="currentStatus === 'transforming'"
               class="text-segment in-progress"
             >
               Processing...
@@ -372,7 +353,12 @@
             >
               {{ finalText }}
             </span>
-            <span v-else class="text-segment"> Ready </span>
+            <span
+              v-else-if="currentStatus !== 'listening'"
+              class="text-segment"
+            >
+              Ready
+            </span>
           </div>
         </div>
 
@@ -397,13 +383,14 @@
           const currentStatus = ref("idle");
           const finalText = ref("");
           const audioLevel = ref(0);
-          const audioData = ref({ level: 0, frequencies: [], timestamp: 0 });
 
           let waveCanvas = null;
           let waveCtx = null;
           let waveAnim = null;
-          let frequencyHistory = [];
-          const maxHistoryLength = 60;
+
+          const loudnessHistory = ref([]);
+          const MAX_HISTORY = 64;
+          let smoothedLevel = 0;
 
           // Computed properties
           const statusIconClass = computed(() => ({
@@ -423,7 +410,18 @@
             }
           };
 
-          const drawAdvancedWave = () => {
+          const initializeWaveCanvas = () => {
+            const canvas = document.getElementById("waveform");
+            if (canvas) {
+              waveCanvas = canvas;
+              waveCtx = canvas.getContext("2d");
+              console.log("Wave canvas initialized:", !!waveCanvas, !!waveCtx);
+            } else {
+              console.warn("Wave canvas not found in DOM");
+            }
+          };
+
+          const drawLoudnessHistory = () => {
             if (
               !waveCtx ||
               !waveCanvas ||
@@ -436,104 +434,71 @@
               return;
             }
 
+            // Debug: Log when animation is running
+            if (loudnessHistory.value.length > 0) {
+              console.log(
+                "Drawing wave animation, history length:",
+                loudnessHistory.value.length
+              );
+            }
+
             const w = waveCanvas.width;
             const h = waveCanvas.height;
             const centerY = h / 2;
 
-            // Clear canvas completely
             waveCtx.clearRect(0, 0, w, h);
 
-            const currentFreqs = audioData.value.frequencies || [];
-            const level = Math.max(0, Math.min(1, audioData.value.level || 0));
+            const isDarkMode =
+              window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-            // Add current frequencies to history
-            if (currentFreqs.length > 0) {
-              frequencyHistory.push({
-                frequencies: [...currentFreqs],
-                level: level,
-                timestamp: Date.now(),
-              });
+            waveCtx.lineWidth = 1.5;
+            waveCtx.strokeStyle = isDarkMode
+              ? "rgba(255, 255, 255, 0.7)"
+              : "rgba(0, 0, 0, 0.7)";
 
-              // Keep history manageable
-              if (frequencyHistory.length > maxHistoryLength) {
-                frequencyHistory = frequencyHistory.slice(-maxHistoryLength);
-              }
-            }
-
-            if (frequencyHistory.length === 0) {
-              waveAnim = requestAnimationFrame(drawAdvancedWave);
-              return;
-            }
-
-            // Draw frequency-based waveform
-            const barCount = Math.min(32, currentFreqs.length);
-            const barWidth = w / barCount;
-            const now = Date.now();
-
-            for (let i = 0; i < barCount; i++) {
-              // Get frequency value for this bar
-              const freqIndex = Math.floor(
-                (i / barCount) * currentFreqs.length
-              );
-              const freqValue = currentFreqs[freqIndex] || 0;
-              const normalizedFreq = Math.min(1, freqValue / 255);
-
-              // Combine frequency data with overall level
-              const amplitude = normalizedFreq * 0.7 + level * 0.3;
-
-              // Add some organic movement
-              const phase = (i / barCount) * Math.PI * 2;
-              const wobble = 0.1 * Math.sin(now / 200 + phase);
-              const finalAmp = Math.max(0.02, amplitude + wobble);
-
-              // Calculate bar properties
-              const barHeight = finalAmp * h * 0.8;
-              const x = i * barWidth + barWidth * 0.1;
-              const y = centerY - barHeight / 2;
-
-              // Color based on frequency content and level
-              const intensity = Math.min(1, finalAmp * 1.5);
-              const alpha = 0.4 + intensity * 0.5;
-
-              // Use a more subtle, monochromatic design
-              const baseOpacity = 0.2 + intensity * 0.4;
-              let color = `rgba(0, 0, 0, ${baseOpacity})`;
-
-              waveCtx.fillStyle = color;
-              waveCtx.fillRect(x, y, barWidth * 0.8, barHeight);
-            }
-
-            // Draw flowing wave overlay
-            waveCtx.strokeStyle = `rgba(0, 0, 0, ${0.1 + level * 0.3})`;
-            waveCtx.lineWidth = 1;
             waveCtx.beginPath();
 
-            for (let x = 0; x <= w; x += 2) {
-              const t = x / w;
-              const freqIndex = Math.floor(t * currentFreqs.length);
-              const freqValue = currentFreqs[freqIndex] || 0;
-              const normalizedFreq = freqValue / 255;
+            const history = loudnessHistory.value;
+            const len = history.length;
+            const step = w / (MAX_HISTORY - 1);
 
-              const baseWave = Math.sin(t * Math.PI * 4 + now / 150) * 0.2;
-              const freqWave = normalizedFreq * 0.4;
-              const y = centerY + (baseWave + freqWave - 0.2) * h * level;
-
-              if (x === 0) {
-                waveCtx.moveTo(x, y);
-              } else {
-                waveCtx.lineTo(x, y);
+            if (len > 1) {
+              // Top path
+              waveCtx.moveTo(0, centerY - (history[0] || 0) * (h / 2) * 0.9);
+              for (let i = 1; i < len; i++) {
+                const x = i * step;
+                const amplitude = history[i] * (h / 2) * 0.9;
+                waveCtx.lineTo(x, centerY - amplitude);
               }
-            }
-            waveCtx.stroke();
 
-            waveAnim = requestAnimationFrame(drawAdvancedWave);
+              // Mirrored bottom path
+              for (let i = len - 1; i >= 0; i--) {
+                const x = i * step;
+                const amplitude = history[i] * (h / 2) * 0.9;
+                waveCtx.lineTo(x, centerY + amplitude);
+              }
+              waveCtx.closePath();
+              waveCtx.stroke();
+            }
+
+            waveAnim = requestAnimationFrame(drawLoudnessHistory);
           };
 
           // Methods
           const resetState = () => {
             finalText.value = "";
-            frequencyHistory = [];
             currentStatus.value = "listening";
+            loudnessHistory.value = [];
+            smoothedLevel = 0;
+
+            // Ensure wave canvas is initialized when resetting to listening state
+            nextTick(() => {
+              initializeWaveCanvas();
+              if (currentStatus.value === "listening" && !waveAnim) {
+                waveAnim = requestAnimationFrame(drawLoudnessHistory);
+              }
+            });
           };
 
           const handleClose = () => {
@@ -544,6 +509,14 @@
           const initializeDictation = (data) => {
             console.log("Initializing dictation with data:", data);
             resetState();
+
+            // Ensure wave canvas is initialized on window initialization
+            nextTick(() => {
+              initializeWaveCanvas();
+              if (currentStatus.value === "listening" && !waveAnim) {
+                waveAnim = requestAnimationFrame(drawLoudnessHistory);
+              }
+            });
           };
 
           const startRecording = () => {
@@ -553,13 +526,9 @@
             resetState();
 
             nextTick(() => {
-              const canvas = document.getElementById("waveform");
-              if (canvas) {
-                waveCanvas = canvas;
-                waveCtx = canvas.getContext("2d");
-                if (!waveAnim) {
-                  waveAnim = requestAnimationFrame(drawAdvancedWave);
-                }
+              initializeWaveCanvas();
+              if (!waveAnim) {
+                waveAnim = requestAnimationFrame(drawLoudnessHistory);
               }
             });
           };
@@ -595,6 +564,13 @@
             console.log("Clearing dictation window");
             currentStatus.value = "idle";
             isRecording.value = false;
+
+            // Stop animation when clearing
+            if (waveAnim) {
+              cancelAnimationFrame(waveAnim);
+              waveAnim = null;
+            }
+
             resetState();
           };
 
@@ -603,6 +579,21 @@
             nextTick(() => {
               scrollToEnd();
             });
+          });
+
+          // Watch for status changes to ensure wave animation starts
+          watch([currentStatus], (newStatus) => {
+            if (newStatus[0] === "listening") {
+              nextTick(() => {
+                initializeWaveCanvas();
+                if (!waveAnim) {
+                  waveAnim = requestAnimationFrame(drawLoudnessHistory);
+                }
+              });
+            } else if (newStatus[0] !== "listening" && waveAnim) {
+              cancelAnimationFrame(waveAnim);
+              waveAnim = null;
+            }
           });
 
           // Setup IPC listeners
@@ -615,15 +606,25 @@
             window.electronAPI.onDictationClear(clearDictation);
 
             window.electronAPI.onAudioLevel((lvl) => {
-              audioLevel.value = Math.max(0, Math.min(1, lvl));
-            });
+              const newLevel = Math.max(0, Math.min(1, lvl));
+              audioLevel.value = newLevel;
 
-            window.electronAPI.onAudioData((data) => {
-              audioData.value = data;
+              if (currentStatus.value === "listening") {
+                smoothedLevel = smoothedLevel * 0.6 + newLevel * 0.4;
+                loudnessHistory.value.push(smoothedLevel);
+                if (loudnessHistory.value.length > MAX_HISTORY) {
+                  loudnessHistory.value.shift();
+                }
+              }
             });
 
             // Prevent default drag behavior
             document.addEventListener("dragstart", (e) => e.preventDefault());
+
+            // Initialize wave canvas on mount
+            nextTick(() => {
+              initializeWaveCanvas();
+            });
           });
 
           return {
@@ -632,7 +633,6 @@
             currentStatus,
             finalText,
             audioLevel,
-            audioData,
 
             // Computed
             statusIconClass,

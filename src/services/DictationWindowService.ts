@@ -32,11 +32,15 @@ export class DictationWindowService {
       // Window already exists, just show it
       this.dictationWindow.showInactive();
 
-      // Initialize the window with empty data (no selected text)
-      this.dictationWindow.webContents.send("initialize-dictation", {
-        selectedText: "",
-        hasSelection: false,
-      });
+      // Wait a moment for the window to be ready, then initialize
+      setTimeout(() => {
+        if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+          this.dictationWindow.webContents.send("initialize-dictation", {
+            selectedText: "",
+            hasSelection: false,
+          });
+        }
+      }, 100);
 
       return;
     }
@@ -44,10 +48,12 @@ export class DictationWindowService {
     // Create new window if pre-loaded one doesn't exist
     await this.createDictationWindow();
 
-    // Initialize the window with empty data (no selected text)
-    this.dictationWindow!.webContents.send("initialize-dictation", {
-      selectedText: "",
-      hasSelection: false,
+    // Wait for the window to be ready before initializing
+    this.dictationWindow!.webContents.once("did-finish-load", () => {
+      this.dictationWindow!.webContents.send("initialize-dictation", {
+        selectedText: "",
+        hasSelection: false,
+      });
     });
 
     this.dictationWindow!.showInactive();
@@ -335,9 +341,19 @@ export class DictationWindowService {
       this.currentSegments = [];
       this.currentStatus = "listening";
 
-      // Reload the window content
+      // Reload the window content and wait for it to be ready
       console.log("Reloading window content...");
       this.dictationWindow.webContents.reload();
+
+      // Wait for the page to finish loading before sending initialization
+      this.dictationWindow.webContents.once("did-finish-load", () => {
+        console.log("Window reloaded, sending initialization...");
+        // Initialize the window with empty data after reload
+        this.dictationWindow!.webContents.send("initialize-dictation", {
+          selectedText: "",
+          hasSelection: false,
+        });
+      });
 
       console.log("Window hidden and reloaded successfully");
     } else {

@@ -31,6 +31,16 @@ export class GeminiService {
       messagePrompt = messagePrompt.replace(/<sel>[^<]+<\/sel>/, "");
     }
 
+    // Log the prompts for debugging
+    console.log("=== TRANSCRIPTION PROMPTS ===");
+    console.log("System Prompt:", systemPrompt);
+    console.log("Message Prompt:", messagePrompt);
+    console.log("Selected Text:", savedState.text || "");
+    console.log("Window Title:", windowInfo.title || "");
+    console.log("App Name:", windowInfo.appName || "");
+    console.log("Has Selection:", savedState.hasSelection);
+    console.log("=== END PROMPTS ===");
+
     const modelId = config.ai.model || "gemini-2.5-flash";
     const url = `${this.apiBase}/models/${encodeURIComponent(
       modelId

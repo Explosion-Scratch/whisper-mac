@@ -6,7 +6,7 @@ Hi [Manager's Name], I hope you're well. I'd like to schedule a brief meeting to
 Best regards, Bob
 ----END EXAMPLE----
 
-If the ROUGH TRANSCRIPTION was "Oh my gosh, I love how are you? Hello how are you? Is what I meant"
+If the user said "Oh my gosh, I love how are you? Hello how are you? Is what I meant"
 ----EXAMPLE----
 Oh my gosh hello how are you!!
 ----END EXAMPLE----
