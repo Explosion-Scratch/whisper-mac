@@ -2,3 +2,9 @@ Pipfile
 bun.lock
 models
 dist
+src/photon
+docs
+assets
+*ignore*
+plan.md
+.*

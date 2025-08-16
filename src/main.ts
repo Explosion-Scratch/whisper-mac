@@ -27,6 +27,8 @@ import {
   SetupStatus as TraySetupStatus,
 } from "./services/TrayService";
 import { SegmentUpdate } from "./types/SegmentTypes";
+import { GeminiService } from "./services/GeminiService";
+import { float32ToWavBase64 } from "./helpers/wav";
 
 type SetupStatus =
   | "idle"
@@ -68,6 +70,8 @@ class WhisperMacApp {
   private isFinishing = false; // New state to track when we're finishing current dictation
   private finishingTimeout: NodeJS.Timeout | null = null; // Timeout to prevent getting stuck
   private pendingToggle = false; // Defer first toggle until setup completes
+  private finalSamples: Float32Array | null = null;
+  private gemini = new GeminiService();
 
   constructor() {
     this.config = new AppConfig();
@@ -465,14 +469,25 @@ class WhisperMacApp {
     );
     // Audio capture handlers
     ipcMain.on("audio-data", (_event, audioData: Float32Array) => {
+      // Legacy: kept for compatibility if needed
       console.log("Audio data received", audioData.length);
+    });
+    ipcMain.on("audio-final-samples", (_event, samples: Float32Array) => {
       try {
-        if (this.transcriptionClient) {
-          this.transcriptionClient.sendAudioData(audioData);
-        }
-      } catch (e) {
-        console.error("Failed to forward audio data:", e);
-      }
+        this.finalSamples = samples;
+      } catch {}
+    });
+    ipcMain.on("audio-level", (event, level: number) => {
+      try {
+        this.dictationWindowService.updateTranscription({
+          segments: this.segmentManager.getAllSegments(),
+          status: this.dictationWindowService.getCurrentStatus(),
+        });
+        // also broadcast level to dictation window directly
+        BrowserWindow.getAllWindows().forEach((w) =>
+          w.webContents.send("audio-level", level)
+        );
+      } catch {}
     });
 
     ipcMain.on("audio-error", (_event, error: string) => {
@@ -892,19 +907,12 @@ class WhisperMacApp {
       this.trayService?.updateTrayIcon("recording");
       this.dictationWindowService.startRecording();
 
-      // Start audio capture and transcription in parallel
+      // New flow: only start audio capture (no streaming transcription)
       const audioStartTime = Date.now();
-      const [audioResult, transcriptionResult] = await Promise.allSettled([
-        this.audioService.startCapture(),
-        this.transcriptionClient.startTranscription(
-          async (update: SegmentUpdate) => {
-            // Update dictation window with real-time transcription
-            this.dictationWindowService.updateTranscription(update);
-            // Process segments and flush completed ones
-            await this.processSegments(update);
-          }
-        ),
-      ]);
+      const audioResult = await this.audioService.startCapture().then(
+        () => ({ status: "fulfilled" as const }),
+        (reason) => ({ status: "rejected" as const, reason })
+      );
 
       const audioEndTime = Date.now();
       console.log(`Audio setup: ${audioEndTime - audioStartTime}ms`);
@@ -913,25 +921,9 @@ class WhisperMacApp {
         throw new Error(`Failed to start audio capture: ${audioResult.reason}`);
       }
 
-      if (transcriptionResult && transcriptionResult.status === "rejected") {
-        const reason =
-          (transcriptionResult as PromiseRejectionEvent & any).reason ||
-          transcriptionResult?.reason;
-        console.error("Failed to start transcription:", reason);
-        // Clean up and surface a user-friendly error
-        await this.cancelDictationFlow();
-        await this.showError({
-          title: "Transcription failed",
-          description:
-            reason instanceof Error
-              ? reason.message
-              : String(reason || "Unknown error starting transcription"),
-          actions: ["ok"],
-        });
-        return;
-      }
+      // No transcription startup to check
 
-      // Audio forwarding is handled globally via ipcMain 'audio-data' handler to avoid duplicate sends
+      // Audio sample accumulation handled via 'audio-final-samples'
 
       const totalTime = Date.now() - startTime;
       console.log(`=== Dictation started successfully in ${totalTime}ms ===`);
@@ -1101,66 +1093,58 @@ class WhisperMacApp {
     if (!this.isRecording || this.isFinishing) return;
 
     try {
-      console.log("=== Finishing current dictation with transform+inject ===");
+      console.log("=== Finishing current dictation with Gemini ===");
 
-      // Check if there are any segments to process
-      const allSegments = this.segmentManager.getAllSegments();
-      const selectedText = (this.segmentManager as any).initialSelectedText;
+      this.isFinishing = true;
 
-      if (!selectedText && allSegments.length === 0) {
-        console.log("No segments found, stopping dictation immediately");
+      // Stop audio capture to finalize buffer
+      await this.audioService.stopCapture();
+
+      // Wait briefly for final samples to be delivered via IPC
+      for (
+        let i = 0;
+        i < 40 && (!this.finalSamples || this.finalSamples.length === 0);
+        i++
+      ) {
+        await new Promise((r) => setTimeout(r, 25));
+      }
+
+      this.dictationWindowService.setTransformingStatus();
+
+      const samples = this.finalSamples;
+      this.finalSamples = null;
+
+      if (!samples || samples.length === 0) {
+        console.log("No audio samples captured; stopping.");
         await this.stopDictation();
         return;
       }
 
-      console.log(
-        `Found ${allSegments.length} segments to transform and inject`
-      );
-
-      // Set finishing state
-      this.isFinishing = true;
-
-      // 1. Stop audio capture immediately (no new audio will be processed)
-      await this.audioService.stopCapture();
-
-      // 2. Set transforming status in UI immediately to give user feedback
-      this.dictationWindowService.setTransformingStatus();
-
-      // 3. Wait a bit longer for in-progress segments to complete
-      // This gives the WhisperLive server time to finish processing any audio that was sent
-      console.log("Waiting for in-progress segments to complete...");
-      await new Promise((r) => setTimeout(r, 1000));
-
-      // 4. Disable accumulating mode so we can transform+inject
-      this.segmentManager.setAccumulatingMode(false);
-
-      // 5. Transform and inject all accumulated segments (keep UI showing transforming status)
-      console.log(
-        "=== Transforming and injecting all accumulated segments ==="
-      );
-      const transformResult =
-        await this.segmentManager.transformAndInjectAllSegments();
-
-      // 6. Show completed status briefly before closing window
-      this.dictationWindowService.completeDictation(
-        this.dictationWindowService.getCurrentTranscription()
-      );
-
-      // Brief delay to show completed status
-      await new Promise((r) => setTimeout(r, 500));
-
-      // 7. Hide the dictation window after transform+inject is complete
-      this.dictationWindowService.hideWindow();
-
-      if (transformResult.success) {
-        console.log(
-          `Successfully transformed and injected ${transformResult.segmentsProcessed} segments`
+      const wavB64 = float32ToWavBase64(samples, 16000);
+      let resultText = "";
+      try {
+        resultText = await this.gemini.processAudioWithContext(
+          wavB64,
+          this.config
         );
-      } else {
-        console.error("Transform and inject failed:", transformResult.error);
+      } catch (e: any) {
+        console.error("Gemini processing failed:", e);
+        await this.showError({
+          title: "AI processing failed",
+          description: e?.message || "Unknown error contacting Gemini",
+          actions: ["ok"],
+        });
+        await this.cancelDictationFlow();
+        return;
       }
 
-      // 8. Complete the dictation flow
+      try {
+        await this.textInjector.insertText((resultText || "") + " ");
+      } catch (e) {}
+
+      this.dictationWindowService.completeDictation(resultText || "");
+      await new Promise((r) => setTimeout(r, 500));
+      this.dictationWindowService.hideWindow();
       await this.completeDictationAfterFinishing();
     } catch (error) {
       console.error("Failed to finish current dictation:", error);

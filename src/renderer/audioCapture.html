@@ -53,39 +53,19 @@
             const inputBuffer = event.inputBuffer;
             const inputData = inputBuffer.getChannelData(0);
 
-            // Add samples to buffer
+            // Add samples to buffer and compute RMS level for UI
+            let sumSquares = 0;
             for (let i = 0; i < inputData.length; i++) {
-              buffer.push(inputData[i]);
+              const v = inputData[i];
+              buffer.push(v);
+              sumSquares += v * v;
               sampleCount++;
-
-              // Send chunks of 8000 samples (0.5 seconds at 16kHz)
-              if (sampleCount >= 8000) {
-                const chunk = buffer.slice(0, 8000);
-                const float32Array = new Float32Array(chunk);
-
-                // Calculate audio energy (sum of absolute values)
-                let energy = 0;
-                for (let i = 0; i < float32Array.length; i++) {
-                  energy += Math.abs(float32Array[i]);
-                }
-
-                console.log("Energy:", energy);
-                // Only send if energy exceeds threshold (not silent)
-                if (energy > 20) {
-                  // Adjust threshold as needed
-                  console.log(
-                    "Sending audio chunk:",
-                    float32Array.length,
-                    "samples"
-                  );
-                  window.electronAPI.sendAudioData(float32Array);
-                }
-
-                // Remove sent samples from buffer
-                buffer = buffer.slice(8000);
-                sampleCount -= 8000;
-              }
             }
+            const rms = Math.sqrt(sumSquares / Math.max(1, inputData.length));
+            const level = Math.max(0, Math.min(1, rms * 3));
+            try {
+              window.electronAPI.sendAudioLevel(level);
+            } catch {}
           };
 
           // Connect the audio graph
@@ -122,6 +102,13 @@
           stream.getTracks().forEach((track) => track.stop());
           stream = null;
         }
+
+        try {
+          if (buffer.length > 0) {
+            const finalArray = new Float32Array(buffer);
+            window.electronAPI.sendFinalSamples(finalArray);
+          }
+        } catch {}
 
         // Reset buffer
         buffer = [];

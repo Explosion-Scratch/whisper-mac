@@ -55,6 +55,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("dictation-clear", callback);
   },
 
+  onAudioLevel: (callback: (level: number) => void) => {
+    ipcRenderer.on("audio-level", (_e, level) => callback(level));
+  },
+
   onError: (callback: (payload: any) => void) => {
     ipcRenderer.on("error:data", (_e, payload) => callback(payload));
   },
@@ -93,6 +97,7 @@ declare global {
       ) => void;
       onDictationComplete: (callback: (finalText: string) => void) => void;
       onDictationClear: (callback: () => void) => void;
+      onAudioLevel: (callback: (payload: number) => void) => void;
       onError: (callback: (payload: any) => void) => void;
       closeDictationWindow: () => void;
       cancelDictation: () => void;

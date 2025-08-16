@@ -47,61 +47,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
       },
     ],
   },
-  {
-    id: "general",
-    title: "General",
-    description: "Basic application settings",
-    icon: "settings",
-    fields: [
-      {
-        key: "defaultModel",
-        type: "select",
-        label: "Default Model",
-        description: "Whisper model to use for transcription",
-        defaultValue: "Systran/faster-whisper-tiny.en",
-        options: [
-          {
-            value: "Systran/faster-whisper-tiny",
-            label: "Tiny (Multilingual)",
-          },
-          { value: "Systran/faster-whisper-tiny.en", label: "Tiny (English)" },
-          {
-            value: "Systran/faster-whisper-base",
-            label: "Base (Multilingual)",
-          },
-          { value: "Systran/faster-whisper-base.en", label: "Base (English)" },
-          {
-            value: "Systran/faster-whisper-small",
-            label: "Small (Multilingual)",
-          },
-          {
-            value: "Systran/faster-whisper-small.en",
-            label: "Small (English)",
-          },
-          {
-            value: "Systran/faster-whisper-medium",
-            label: "Medium (Multilingual)",
-          },
-          {
-            value: "Systran/faster-whisper-medium.en",
-            label: "Medium (English)",
-          },
-          {
-            value: "Systran/faster-whisper-large-v1",
-            label: "Large v1 (Multilingual)",
-          },
-          {
-            value: "Systran/faster-whisper-large-v2",
-            label: "Large v2 (Multilingual)",
-          },
-          {
-            value: "Systran/faster-whisper-large-v3",
-            label: "Large v3 (Multilingual)",
-          },
-        ],
-      },
-    ],
-  },
+  // General section (default model) removed in new flow
   {
     id: "dictation",
     title: "Dictation Window",
@@ -259,25 +205,10 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     icon: "slider",
     fields: [
       {
-        key: "serverPort",
-        type: "number",
-        label: "Server Port",
-        description: "Port for the WhisperLive server",
-        defaultValue: 9090,
-        min: 1024,
-        max: 65535,
-        validation: (value) => {
-          if (value < 1024 || value > 65535) {
-            return "Port must be between 1024 and 65535";
-          }
-          return null;
-        },
-      },
-      {
         key: "dataDir",
         type: "directory",
         label: "Data Directory",
-        description: "Directory to store app data and models",
+        description: "Directory to store app data",
         defaultValue:
           app && !process.env.USE_LOCAL_DATA_DIR
             ? app.getPath("userData")

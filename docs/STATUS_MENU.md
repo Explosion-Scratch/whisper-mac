@@ -46,8 +46,8 @@ Once all setup operations are complete, the menu bar shows the normal menu with:
 
 ### Progress Callbacks
 
-- `ModelManager` provides progress callbacks during model downloads
-- `WhisperLiveClient` provides progress callbacks during server setup
+This version no longer downloads models or runs a local server. Recording is single-chunk and processed by Gemini.
+
 - All progress updates are translated to user-friendly status messages
 
 ### Initialization Flow

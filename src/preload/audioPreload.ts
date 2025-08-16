@@ -15,6 +15,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   sendAudioData: (data: Float32Array) => {
     ipcRenderer.send("audio-data", data);
   },
+  sendAudioLevel: (level: number) => {
+    ipcRenderer.send("audio-level", level);
+  },
+  sendFinalSamples: (data: Float32Array) => {
+    ipcRenderer.send("audio-final-samples", data);
+  },
   sendAudioError: (error: string) => {
     ipcRenderer.send("audio-error", error);
   },

@@ -221,11 +221,6 @@ export class SettingsManager {
    */
   applyToConfig(): void {
     // Basic settings
-    this.config.serverPort = this.get("serverPort", 9090);
-    this.config.defaultModel = this.get(
-      "defaultModel",
-      "Systran/faster-whisper-tiny.en"
-    );
 
     // Dictation window settings
     this.config.dictationWindowPosition = this.get(
@@ -242,15 +237,12 @@ export class SettingsManager {
     // Text processing
     this.config.transformTrim = this.get("transformTrim", true);
 
-    // AI settings
+    // AI settings (Gemini)
     const aiConfig: AiTransformationConfig = {
       enabled: this.get("ai.enabled", true),
       writingStyle: this.get("ai.writingStyle", this.config.ai.writingStyle),
-      baseUrl: this.get(
-        "ai.baseUrl",
-        "https://api.cerebras.ai/v1/chat/completions"
-      ),
-      model: this.get("ai.model", "qwen-3-32b"),
+      baseUrl: this.get("ai.baseUrl", ""),
+      model: this.get("ai.model", "gemini-2.5-flash"),
       maxTokens: this.get("ai.maxTokens", 16382),
       temperature: this.get("ai.temperature", 0.6),
       topP: this.get("ai.topP", 0.95),
@@ -278,8 +270,6 @@ export class SettingsManager {
    */
   loadFromConfig(): void {
     // Basic settings
-    this.set("serverPort", this.config.serverPort);
-    this.set("defaultModel", this.config.defaultModel);
 
     // Dictation window settings
     this.set("dictationWindowPosition", this.config.dictationWindowPosition);

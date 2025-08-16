@@ -18,9 +18,6 @@ export interface AiTransformationConfig {
 }
 
 export class AppConfig {
-  modelPath: string;
-  serverPort: number;
-  defaultModel: string;
   dataDir: string;
 
   // Dictation window configuration
@@ -36,10 +33,6 @@ export class AppConfig {
   ai: AiTransformationConfig;
 
   constructor() {
-    this.modelPath = "";
-    this.serverPort = 9090;
-    this.defaultModel = "Systran/faster-whisper-tiny.en";
-
     // Use Electron's user data directory instead of custom .whispermac-data
     this.dataDir =
       app && !process.env.USE_LOCAL_DATA_DIR
@@ -60,8 +53,8 @@ export class AppConfig {
       enabled: true,
       writingStyle:
         'I type all lowercase without punctuation except for exclamation points in messaging apps like instagram or imessage. Emails should be very concise, don\'t make them flowery. I frequently dictate instructions like "Set menu bar icon in electron" and in these instances I want you to simply correct and fix grammar or interpret the request but not fulfill it, e.g. you\'d respond "Set menu bar icon in Electron". Only if I explicitly ask you should you fulfill a request I\'m dictating, or when selected text is provided.',
-      baseUrl: "https://api.cerebras.ai/v1/chat/completions",
-      model: "qwen-3-32b",
+      baseUrl: "",
+      model: "gemini-2.5-flash",
       maxTokens: 16382,
       temperature: 0.6,
       topP: 0.95,
@@ -70,31 +63,11 @@ export class AppConfig {
     };
   }
 
-  setModelPath(path: string): void {
-    this.modelPath = path;
-  }
-
-  setServerPort(port: number): void {
-    this.serverPort = port;
-  }
-
-  setDefaultModel(model: string): void {
-    this.defaultModel = model;
-  }
-
   setDataDir(path: string): void {
     this.dataDir = path;
   }
 
-  getModelsDir(): string {
-    return join(this.dataDir, "models");
-  }
-
   getCacheDir(): string {
     return join(this.dataDir, "cache");
-  }
-
-  getWhisperLiveDir(): string {
-    return join(this.dataDir, "whisperlive");
   }
 }

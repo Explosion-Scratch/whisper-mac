@@ -346,6 +346,12 @@
         </div>
 
         <div class="text-scroll-container" ref="textScrollContainer">
+          <canvas
+            id="waveform"
+            height="24"
+            width="160"
+            style="margin-right: 8px; opacity: 0.85"
+          ></canvas>
           <div class="text-content" ref="textContent">
             <span
               v-for="(segment, index) in displaySegments"
@@ -385,6 +391,10 @@
           const currentStatus = ref("idle");
           const transcriptionSegments = ref([]);
           const finalText = ref("");
+          const audioLevel = ref(0);
+          let waveCanvas = null;
+          let waveCtx = null;
+          let waveAnim = null;
 
           // Computed properties
           const statusIconClass = computed(() => ({
@@ -439,6 +449,27 @@
             }
           };
 
+          const drawWave = () => {
+            if (!waveCtx || !waveCanvas) return;
+            const w = waveCanvas.width;
+            const h = waveCanvas.height;
+            waveCtx.clearRect(0, 0, w, h);
+            const level = Math.max(0, Math.min(1, audioLevel.value));
+            const bars = 32;
+            const barWidth = w / bars;
+            for (let i = 0; i < bars; i++) {
+              const t = (i / bars) * Math.PI * 2;
+              const mod = 0.6 + 0.4 * Math.sin(Date.now() / 180 + t);
+              const amp = level * mod;
+              const barHeight = Math.max(2, amp * h);
+              const x = i * barWidth;
+              const y = (h - barHeight) / 2;
+              waveCtx.fillStyle = "rgba(0,0,0,0.45)";
+              waveCtx.fillRect(x + 0.75, y, barWidth - 1.5, barHeight);
+            }
+            waveAnim = requestAnimationFrame(drawWave);
+          };
+
           // Methods
           const resetTranscription = () => {
             transcriptionSegments.value = [];
@@ -474,12 +505,16 @@
             isRecording.value = true;
             currentStatus.value = "listening";
             resetTranscription();
+            if (waveCanvas && !waveAnim)
+              waveAnim = requestAnimationFrame(drawWave);
           };
 
           const stopRecording = () => {
             console.log("Recording stopped");
             isRecording.value = false;
             currentStatus.value = "processing";
+            if (waveAnim) cancelAnimationFrame(waveAnim);
+            waveAnim = null;
           };
 
           const updateTranscription = (update) => {
@@ -530,12 +565,20 @@
 
           // Setup IPC listeners
           onMounted(() => {
+            const canvas = document.getElementById("waveform");
+            if (canvas) {
+              waveCanvas = canvas;
+              waveCtx = canvas.getContext("2d");
+            }
             window.electronAPI.onInitializeDictation(initializeDictation);
             window.electronAPI.onStartRecording(startRecording);
             window.electronAPI.onStopRecording(stopRecording);
             window.electronAPI.onTranscriptionUpdate(updateTranscription);
             window.electronAPI.onDictationComplete(completeDictation);
             window.electronAPI.onDictationClear(clearDictation);
+            window.electronAPI.onAudioLevel((lvl) => {
+              audioLevel.value = Math.max(0, Math.min(1, lvl));
+            });
 
             // Prevent default drag behavior
             document.addEventListener("dragstart", (e) => e.preventDefault());
@@ -554,6 +597,7 @@
             displaySegments,
             textContent,
             textScrollContainer,
+            audioLevel,
 
             // Methods
             resetTranscription,

@@ -120,8 +120,6 @@ class SettingsWindow {
       slider: "ph-slider-horizontal",
       directory: "ph-folder",
       // Specific field icons with better semantic mapping
-      serverPort: "ph-globe",
-      defaultModel: "ph-brain",
       dictationWindowPosition: "ph-app-window",
       dictationWindowWidth: "ph-resize-horizontal",
       dictationWindowHeight: "ph-resize-vertical",
@@ -139,7 +137,6 @@ class SettingsWindow {
       "ai.messagePrompt": "ph-envelope",
       dataDir: "ph-folder",
       // Additional semantic mappings
-      port: "ph-globe",
       model: "ph-brain",
       url: "ph-link",
       key: "ph-key",
@@ -258,8 +255,6 @@ class SettingsWindow {
         slider: "ph-slider-horizontal",
         directory: "ph-folder",
         // Specific field icons
-        serverPort: "ph-globe",
-        defaultModel: "ph-brain",
         dictationWindowPosition: "ph-app-window",
         dictationWindowWidth: "ph-resize-horizontal",
         dictationWindowHeight: "ph-resize-vertical",
@@ -277,7 +272,6 @@ class SettingsWindow {
         "ai.messagePrompt": "ph-envelope",
         dataDir: "ph-folder",
         // Additional semantic mappings
-        port: "ph-globe",
         model: "ph-brain",
         url: "ph-link",
         key: "ph-key",
@@ -486,44 +480,6 @@ class SettingsWindow {
           const oldValue = this.getSettingValue(key);
           this.setSettingValue(key, element.value);
           this.validateField(key);
-
-          // Intercept defaultModel changes to prompt deletion of old models
-          if (key === "defaultModel" && element.value !== oldValue) {
-            try {
-              const models = await window.electronAPI.listDownloadedModels();
-              // Exclude newly selected model
-              const toConsider = (models || []).filter(
-                (m) => m.repoId !== element.value
-              );
-              if (toConsider.length > 0) {
-                const list = toConsider
-                  .map((m) => {
-                    const fmt = (n) => {
-                      const units = ["B", "KB", "MB", "GB"];
-                      let i = 0;
-                      let v = n;
-                      while (v >= 1024 && i < units.length - 1) {
-                        v /= 1024;
-                        i++;
-                      }
-                      return `${v.toFixed(1)} ${units[i]}`;
-                    };
-                    return `${m.repoId} — ${fmt(m.sizeBytes)}`;
-                  })
-                  .join("\n");
-                const confirmDelete = window.confirm(
-                  `Switch model to "${element.value}"?\n\nDelete previously downloaded models to save space?\n\n${list}`
-                );
-                if (confirmDelete) {
-                  await window.electronAPI.deleteModels(
-                    toConsider.map((m) => m.repoId)
-                  );
-                }
-              }
-            } catch (e) {
-              // non-fatal
-            }
-          }
         });
       }
 
@@ -662,11 +618,6 @@ class SettingsWindow {
       }
 
       // Specific validation for server port
-      if (key === "serverPort") {
-        if (value < 1024 || value > 65535) {
-          error = "Port must be between 1024 and 65535";
-        }
-      }
     } else if (field.type === "text" && field.placeholder) {
       // Basic required field validation
       if (
