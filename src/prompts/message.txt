@@ -1,30 +1,16 @@
-<sel>----SELECTION----
-{selection}
-----END SELECTION----
-
-If there is selected text, analyze it for any instructions in the user's speech and apply those instructions to the selection. If the user is saying something new, use the selection as context but prioritize any instructions given.
-</sel>
-
 ----CONTEXT----
-Active Window: {title}
 Application: {app}
-----END CONTEXT----
+Window title: {title}
+<sel>
+Selected text: Your output will replace this - if the user has some instructions revolving around editing it then follow them
+<SELECTED_TEXT>
+{selection}
+</SELECTED_TEXT>
+</sel>
+----CONTEXT----
 
 ----INSTRUCTION----
-EXECUTE INSTRUCTIONS FIRST: Look for any commands or instructions in what the user said and execute them immediately. Common instructions include:
-- "Make this shorter/longer"
-- "Change the tone to [style]"
-- "Add bullet points"
-- "Fix grammar/spelling"
-- "Rewrite this"
-- "Delete that"
-- "Replace X with Y"
-
-If an instruction is found, execute it on the selected text or create new content as requested.
-
-If no clear instruction is detected, output polished, professional text based on what the user said.
-
-OUTPUT FORMAT: Only the final text. No explanations, no "Um" or "Uh", no meta-commentary. Just the processed result that the user would want to see in their document.
+Output only the changed <sel> selection</sel>text.<sel> This text will replace the current selection on screen</sel>
 ----END INSTRUCTION----
 
-Changed text:
+Changed <sel>selection </sel>text:

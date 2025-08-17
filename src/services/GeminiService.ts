@@ -29,22 +29,26 @@ export class GeminiService {
       config.ai.writingStyle || ""
     );
 
-    let messagePrompt = (config.ai.messagePrompt || "")
-      .replace(/{text}/g, "")
-      .replace(/{selection}/g, savedState.text || "")
-      .replace(/{title}/g, windowInfo.title || "")
-      .replace(/{app}/g, windowInfo.appName || "");
+    const p = (str: string) => {
+      let out = str
+        .replace(/{selection}/g, savedState.text || "")
+        .replace(/{title}/g, windowInfo.title || "")
+        .replace(/{app}/g, windowInfo.appName || "");
+      if (savedState.hasSelection) {
+        out = out.replace(/<sel>/g, "");
+        out = out.replace(/<\/sel>/g, "");
+      } else {
+        out = out.replace(/<sel>.*<\/sel>/g, "");
+      }
+      return out;
+    };
 
-    if (!savedState.hasSelection) {
-      messagePrompt = messagePrompt.replace(/<sel>[^<]+<\/sel>/g, "");
-    }
-    messagePrompt = messagePrompt.replace(/<sel>/g, "");
-    messagePrompt = messagePrompt.replace(/<\/sel>/g, "");
+    const messagePrompt = config.ai.messagePrompt || "";
 
     // Log the prompts for debugging
     console.log("=== TRANSCRIPTION PROMPTS ===");
-    console.log("System Prompt:", systemPrompt);
-    console.log("Message Prompt:", messagePrompt);
+    console.log(p(systemPrompt));
+    console.log(p(messagePrompt));
     console.log("=== END PROMPTS ===");
 
     const modelId = config.ai.model || "gemini-2.5-flash";
@@ -57,22 +61,24 @@ export class GeminiService {
         {
           role: "user",
           parts: [
-            { text: systemPrompt },
+            { text: p(systemPrompt) + "\n\n" + p(messagePrompt) },
             {
               inlineData: {
                 mimeType: "audio/x-wav",
                 data: audioWavBase64,
               },
             },
-            { text: messagePrompt },
+            ...(savedState.hasSelection
+              ? [{ text: "Remember, output the new selection." }]
+              : []),
           ],
         },
       ],
       generationConfig: {
         temperature: 1,
-        // thinkingConfig: {
-        //   thinkingBudget: 0,
-        // },
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
       },
     } as any;
 
@@ -88,8 +94,10 @@ export class GeminiService {
     }
 
     const json: any = await response.json();
-    console.log(json);
     const text = this.extractText(json) || "";
+    console.log("=== GEMINI RESPONSE ===");
+    console.log(text);
+    console.log("=== END RESPONSE ===");
     return text.trim();
   }
 
