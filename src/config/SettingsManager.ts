@@ -241,7 +241,6 @@ export class SettingsManager {
     const aiConfig: AiTransformationConfig = {
       enabled: this.get("ai.enabled", true),
       writingStyle: this.get("ai.writingStyle", this.config.ai.writingStyle),
-      baseUrl: this.get("ai.baseUrl", ""),
       model: this.get("ai.model", "gemini-2.5-flash"),
       maxTokens: this.get("ai.maxTokens", 16382),
       temperature: this.get("ai.temperature", 0.6),
@@ -286,7 +285,6 @@ export class SettingsManager {
     // AI settings
     this.set("ai.enabled", this.config.ai.enabled);
     this.set("ai.writingStyle", this.config.ai.writingStyle);
-    this.set("ai.baseUrl", this.config.ai.baseUrl);
     this.set("ai.model", this.config.ai.model);
     this.set("ai.maxTokens", this.config.ai.maxTokens);
     this.set("ai.temperature", this.config.ai.temperature);

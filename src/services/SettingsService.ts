@@ -154,13 +154,13 @@ export class SettingsService {
     // AI key validation
     ipcMain.handle(
       "ai:validateKeyAndListModels",
-      async (_event, payload: { baseUrl: string; apiKey: string }) => {
-        const { baseUrl, apiKey } = payload || { baseUrl: "", apiKey: "" };
+      async (_event, payload: { apiKey: string }) => {
+        const { apiKey } = payload || { apiKey: "" };
         const { AiProviderService } = await import(
           "../services/AiProviderService"
         );
         const svc = new AiProviderService();
-        return svc.validateAndListModels(baseUrl, apiKey);
+        return svc.validateAndListModels(apiKey);
       }
     );
 

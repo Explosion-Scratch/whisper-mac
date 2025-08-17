@@ -316,16 +316,7 @@
                 <label for="aiEnabled">Use AI to format dictation</label>
               </div>
               <div id="aiConfig" class="card" v-show="aiEnabled">
-                <div class="form-grid">
-                  <div class="field">
-                    <div class="label">API Provider</div>
-                    <input
-                      id="aiBaseUrl"
-                      class="input"
-                      placeholder="Google Gemini (preconfigured)"
-                      v-model="aiBaseUrl"
-                    />
-                  </div>
+                <div class="form-row">
                   <div class="field">
                     <div class="label">Model</div>
                     <input
@@ -429,7 +420,6 @@
           const accessStatus = ref("Not checked yet");
           const isCheckingAccess = ref(false);
           const aiEnabled = ref(false);
-          const aiBaseUrl = ref("");
           const aiModel = ref("gemini-2.5-flash");
           const aiModels = ref([]);
           const aiApiKey = ref("");
@@ -453,7 +443,6 @@
 
           const init = async () => {
             const initState = await window.onboardingAPI.getInitialState();
-            aiBaseUrl.value = initState.ai.baseUrl || "";
             aiModel.value = initState.ai.model || "gemini-2.5-flash";
             aiEnabled.value = !!initState.ai.enabled;
           };
@@ -477,10 +466,7 @@
             if (idx.value === 2) {
               await window.onboardingAPI.setAiEnabled(aiEnabled.value);
               if (aiEnabled.value) {
-                await window.onboardingAPI.setAiProvider(
-                  aiBaseUrl.value,
-                  aiModel.value
-                );
+                await window.onboardingAPI.setAiProvider(aiModel.value);
               }
             }
             if (idx.value < 3) idx.value += 1;
@@ -527,7 +513,6 @@
             accessStatus,
             isCheckingAccess,
             aiEnabled,
-            aiBaseUrl,
             aiModel,
             aiModels,
             aiApiKey,

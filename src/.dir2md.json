@@ -5,7 +5,7 @@
     "renderer/dictationWindow.html",
     "main.ts"
   ],
-  "prompt": "The wave animation should be comprised of multiple bars that don't change position, but the loudness and height of those bars are determined by the loudness at that point relative to the current time. This is instead of the up and down line system. Each bar should be smoothly animated and remain in the same place on the X axis",
+  "prompt": "The wave animation should be comprised of multiple bars that don't change position, but the loudness and height of those bars are determined by the loudness at that point relative to the current time. This is instead of the up and down line system. Each bar should be smoothly animated and remain in the same place on the X axis. Use a fixed set of bars and always keep each bar at the same position on the X axis. The bars should be spaced out evenly and the height of the bars should be determined by the loudness at that point relative to the current time.",
   "timestamp": "2025-08-17T12:52:31.141Z",
   "cwd": "/Users/tjs/Documents/.coding/ai-projects/whisper-mac/src"
 }

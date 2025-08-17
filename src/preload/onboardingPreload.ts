@@ -7,8 +7,8 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
     ipcRenderer.invoke("onboarding:resetAccessibilityCache"),
   setAiEnabled: (enabled: boolean) =>
     ipcRenderer.invoke("onboarding:setAiEnabled", enabled),
-  setAiProvider: (baseUrl: string, model: string) =>
-    ipcRenderer.invoke("onboarding:setAiProvider", { baseUrl, model }),
+  setAiProvider: (model: string) =>
+    ipcRenderer.invoke("onboarding:setAiProvider", { model }),
   saveApiKey: (apiKey: string) =>
     ipcRenderer.invoke("onboarding:saveApiKey", { apiKey }),
   runSetup: () => ipcRenderer.invoke("onboarding:runSetup"),
@@ -24,6 +24,6 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
 
 // Also expose the AI key validation used by onboarding UI
 contextBridge.exposeInMainWorld("electronAPI", {
-  validateApiKeyAndListModels: (baseUrl: string, apiKey: string) =>
-    ipcRenderer.invoke("ai:validateKeyAndListModels", { baseUrl, apiKey }),
+  validateApiKeyAndListModels: (apiKey: string) =>
+    ipcRenderer.invoke("ai:validateKeyAndListModels", { apiKey }),
 });

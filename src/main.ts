@@ -300,12 +300,10 @@ class WhisperMacApp {
 
     ipcMain.handle(
       "onboarding:setAiProvider",
-      (_e, payload: { baseUrl: string; model: string }) => {
-        const { baseUrl, model } = payload;
-        this.settingsService.getSettingsManager().set("ai.baseUrl", baseUrl);
+      (_e, payload: { model: string }) => {
+        const { model } = payload;
         this.settingsService.getSettingsManager().set("ai.model", model);
         this.settingsService.getSettingsManager().saveSettings();
-        this.config.ai.baseUrl = baseUrl;
         this.config.ai.model = model;
       }
     );
@@ -516,6 +514,7 @@ class WhisperMacApp {
       this.isFinishing = false;
       this.trayService?.updateTrayIcon("idle");
       this.dictationWindowService.stopRecording();
+
       await this.audioService.stopCapture();
       await new Promise((r) => setTimeout(r, 250));
       console.log("=== stopDictation called (new flow) ===");

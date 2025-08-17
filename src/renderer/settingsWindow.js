@@ -127,7 +127,6 @@ class SettingsWindow {
       showDictationWindowAlways: "ph-eye",
       transformTrim: "ph-scissors",
       "ai.enabled": "ph-robot",
-      "ai.baseUrl": "ph-link",
       "ai.model": "ph-brain",
       "ai.maxTokens": "ph-coins",
       "ai.temperature": "ph-thermometer",
@@ -262,7 +261,6 @@ class SettingsWindow {
         showDictationWindowAlways: "ph-eye",
         transformTrim: "ph-scissors",
         "ai.enabled": "ph-robot",
-        "ai.baseUrl": "ph-link",
         "ai.model": "ph-brain",
         "ai.maxTokens": "ph-coins",
         "ai.temperature": "ph-thermometer",
@@ -300,26 +298,6 @@ class SettingsWindow {
 
     switch (field.type) {
       case "text":
-        // Special-case inline API key input to enable validation before saving
-        if (field.key === "ai.baseUrl") {
-          // Add a sibling inline API key field to be read during save
-          fieldHtml = `
-            <input type="text" 
-                   class="form-control" 
-                   id="${fieldId}"
-                   value="${this.escapeHtml(value || "")}"
-                   placeholder="${field.placeholder || ""}"
-                   data-key="${field.key}">
-            <div class="form-group" style="margin-top:8px;">
-              <label for="aiApiKeyInline">
-                <i class="ph-duotone ph-key" style="margin-right: 6px; font-size: 14px;"></i>
-                API Key (not stored in settings; saved securely after validation)
-              </label>
-              <input type="password" class="form-control" id="aiApiKeyInline" placeholder="Paste API Key to validate & save securely">
-            </div>
-          `;
-          break;
-        }
         fieldHtml = `
           <input type="text" 
                  class="form-control" 
@@ -671,9 +649,8 @@ class SettingsWindow {
     }
 
     try {
-      // If AI is enabled and an API base URL and key are provided, validate first
+      // If AI is enabled and an API key is provided, validate first
       const aiEnabled = this.getSettingValue("ai.enabled");
-      const baseUrl = this.getSettingValue("ai.baseUrl");
       const modelKey = "ai.model";
 
       const saveBtn = document.getElementById("saveBtn");
@@ -696,9 +673,8 @@ class SettingsWindow {
       const apiKey = apiKeyInput ? apiKeyInput.value : "";
 
       let modelsFromProvider = null;
-      if (aiEnabled && baseUrl && apiKey) {
+      if (aiEnabled && apiKey) {
         const result = await window.electronAPI.validateApiKeyAndListModels(
-          baseUrl,
           apiKey
         );
         if (!result?.success) {

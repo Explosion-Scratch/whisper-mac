@@ -491,6 +491,15 @@
         </button>
       </div>
     </div>
+
+    <!-- Audio elements for sound feedback -->
+    <audio id="startSound" preload="auto">
+      <source src="../assets/start.mp3" type="audio/mpeg" />
+    </audio>
+    <audio id="endSound" preload="auto">
+      <source src="../assets/end.mp3" type="audio/mpeg" />
+    </audio>
+
     <script src="./vue.js"></script>
     <script>
       const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
@@ -510,6 +519,7 @@
           const loudnessHistory = ref([]);
           const MAX_HISTORY = 64;
           let smoothedLevel = 0;
+          const barVisualHeights = ref(new Array(MAX_HISTORY).fill(0));
 
           // Computed properties
           const statusIconClass = computed(() => ({
@@ -577,34 +587,42 @@
               window.matchMedia &&
               window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-            waveCtx.lineWidth = 1.5;
-            waveCtx.strokeStyle = isDarkMode
+            waveCtx.fillStyle = isDarkMode
               ? "rgba(255, 255, 255, 0.7)"
               : "rgba(0, 0, 0, 0.7)";
 
-            waveCtx.beginPath();
-
             const history = loudnessHistory.value;
-            const len = history.length;
-            const step = w / (MAX_HISTORY - 1);
+            const numBars = MAX_HISTORY; // 64 bars
 
-            if (len > 1) {
-              // Top path
-              waveCtx.moveTo(0, centerY - (history[0] || 0) * (h / 2) * 0.9);
-              for (let i = 1; i < len; i++) {
-                const x = i * step;
-                const amplitude = history[i] * (h / 2) * 0.9;
-                waveCtx.lineTo(x, centerY - amplitude);
-              }
+            const unitWidth = w / numBars;
+            const barWidth = unitWidth * 0.7;
 
-              // Mirrored bottom path
-              for (let i = len - 1; i >= 0; i--) {
-                const x = i * step;
-                const amplitude = history[i] * (h / 2) * 0.9;
-                waveCtx.lineTo(x, centerY + amplitude);
-              }
-              waveCtx.closePath();
-              waveCtx.stroke();
+            const minBarHeight = 2;
+
+            for (let i = 0; i < numBars; i++) {
+              // Position of the start of the unit (bar + space)
+              const x = i * unitWidth;
+
+              const historyIndex = history.length - numBars + i;
+              const loudness = historyIndex >= 0 ? history[historyIndex] : 0;
+
+              // Apply a curve to make low sounds more visible and high sounds not clip
+              const processedLoudness = Math.pow(loudness, 0.6);
+              const targetHeight = Math.max(
+                minBarHeight,
+                processedLoudness * h * 0.95
+              );
+
+              // Smoothly animate bar height
+              const currentHeight = barVisualHeights.value[i];
+              const newHeight =
+                currentHeight + (targetHeight - currentHeight) * 0.3; // Easing factor
+              barVisualHeights.value[i] = newHeight;
+
+              const y = centerY - newHeight / 2;
+
+              // Draw bar inside its unit area
+              waveCtx.fillRect(x, y, barWidth, newHeight);
             }
 
             waveAnim = requestAnimationFrame(drawLoudnessHistory);
@@ -614,6 +632,7 @@
           const resetState = () => {
             finalText.value = "";
             loudnessHistory.value = [];
+            barVisualHeights.value.fill(0);
             smoothedLevel = 0;
 
             // Smooth transition to listening state
@@ -651,11 +670,47 @@
             });
           };
 
+          // Sound feedback functions
+          const playStartSound = () => {
+            try {
+              const startSound = document.getElementById("startSound");
+              if (startSound) {
+                startSound.volume = 0.8;
+                startSound
+                  .play()
+                  .catch((error) =>
+                    console.warn("Failed to play start sound:", error)
+                  );
+              }
+            } catch (error) {
+              console.warn("Error playing start sound:", error);
+            }
+          };
+
+          const playEndSound = () => {
+            try {
+              const endSound = document.getElementById("endSound");
+              if (endSound) {
+                endSound.volume = 0.8;
+                endSound
+                  .play()
+                  .catch((error) =>
+                    console.warn("Failed to play end sound:", error)
+                  );
+              }
+            } catch (error) {
+              console.warn("Error playing end sound:", error);
+            }
+          };
+
           const startRecording = () => {
             console.log("Recording started");
             isRecording.value = true;
             currentStatus.value = "listening";
             resetState();
+
+            // Play start sound
+            playStartSound();
 
             nextTick(() => {
               initializeWaveCanvas();
@@ -669,6 +724,7 @@
             console.log("Recording stopped");
             isRecording.value = false;
             currentStatus.value = "transforming";
+
             if (waveAnim) {
               cancelAnimationFrame(waveAnim);
               waveAnim = null;
@@ -679,6 +735,8 @@
             console.log("Transcription update:", update);
             if (update.status === "transforming") {
               currentStatus.value = "transforming";
+            } else if (update.status === "listening") {
+              currentStatus.value = "listening";
             }
           };
 
@@ -713,8 +771,8 @@
             });
           });
 
-          // Watch for status changes to ensure wave animation starts
-          watch([currentStatus], (newStatus) => {
+          // Watch for status changes to ensure wave animation starts and play sounds
+          watch([currentStatus], (newStatus, oldStatus) => {
             if (newStatus[0] === "listening") {
               nextTick(() => {
                 initializeWaveCanvas();
@@ -725,6 +783,15 @@
             } else if (newStatus[0] !== "listening" && waveAnim) {
               cancelAnimationFrame(waveAnim);
               waveAnim = null;
+            }
+
+            // Play end sound when transitioning away from listening to processing/complete
+            if (
+              oldStatus &&
+              oldStatus[0] === "listening" &&
+              (newStatus[0] === "transforming" || newStatus[0] === "complete")
+            ) {
+              playEndSound();
             }
           });
 

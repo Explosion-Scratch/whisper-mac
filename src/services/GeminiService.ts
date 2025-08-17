@@ -31,25 +31,20 @@ export class GeminiService {
 
     let messagePrompt = (config.ai.messagePrompt || "")
       .replace(/{text}/g, "")
-      .replace(/{selection}/, savedState.text || "")
-      .replace(/GeminiService.ts — whisper-mac/g, windowInfo.title || "")
-      .replace(/Cursor/g, windowInfo.appName || "");
+      .replace(/{selection}/g, savedState.text || "")
+      .replace(/{title}/g, windowInfo.title || "")
+      .replace(/{app}/g, windowInfo.appName || "");
 
     if (!savedState.hasSelection) {
-      messagePrompt = messagePrompt.replace(/[^<]+<\/sel>/g, "");
-    } else {
-      messagePrompt = messagePrompt.split("").join("");
-      messagePrompt = messagePrompt.split("").join("");
+      messagePrompt = messagePrompt.replace(/<sel>[^<]+<\/sel>/g, "");
     }
+    messagePrompt = messagePrompt.replace(/<sel>/g, "");
+    messagePrompt = messagePrompt.replace(/<\/sel>/g, "");
 
     // Log the prompts for debugging
     console.log("=== TRANSCRIPTION PROMPTS ===");
     console.log("System Prompt:", systemPrompt);
     console.log("Message Prompt:", messagePrompt);
-    console.log("Selected Text:", savedState.text || "");
-    console.log("Window Title:", windowInfo.title || "");
-    console.log("App Name:", windowInfo.appName || "");
-    console.log("Has Selection:", savedState.hasSelection);
     console.log("=== END PROMPTS ===");
 
     const modelId = config.ai.model || "gemini-2.5-flash";
@@ -74,10 +69,10 @@ export class GeminiService {
         },
       ],
       generationConfig: {
-        temperature: 0,
-        thinkingConfig: {
-          thinkingBudget: 0,
-        },
+        temperature: 1,
+        // thinkingConfig: {
+        //   thinkingBudget: 0,
+        // },
       },
     } as any;
 
