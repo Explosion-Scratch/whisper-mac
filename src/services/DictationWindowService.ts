@@ -9,7 +9,7 @@ type Segment = {
 };
 type SegmentUpdate = {
   segments: Segment[];
-  status: "listening" | "transforming" | "complete";
+  status: "listening" | "transforming";
 };
 
 export interface WindowPosition {
@@ -21,8 +21,7 @@ export class DictationWindowService {
   private dictationWindow: BrowserWindow | null = null;
   private config: AppConfig;
   private currentSegments: Segment[] = [];
-  private currentStatus: "listening" | "transforming" | "complete" =
-    "listening";
+  private currentStatus: "listening" | "transforming" = "listening";
 
   constructor(config: AppConfig) {
     this.config = config;
@@ -278,14 +277,8 @@ export class DictationWindowService {
   }
 
   completeDictation(finalText: string): void {
-    this.currentStatus = "complete";
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
-      // Send both the complete event and a transcription update to ensure UI consistency
       this.dictationWindow.webContents.send("dictation-complete", finalText);
-      this.dictationWindow.webContents.send("dictation-transcription-update", {
-        segments: this.currentSegments,
-        status: "complete",
-      });
     }
   }
 
@@ -381,7 +374,7 @@ export class DictationWindowService {
     return this.currentSegments;
   }
 
-  getCurrentStatus(): "listening" | "transforming" | "complete" {
+  getCurrentStatus(): "listening" | "transforming" {
     return this.currentStatus;
   }
 

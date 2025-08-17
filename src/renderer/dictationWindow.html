@@ -664,8 +664,6 @@
             console.log("Transcription update:", update);
             if (update.status === "transforming") {
               currentStatus.value = "transforming";
-            } else if (update.status === "complete") {
-              currentStatus.value = "complete";
             }
           };
 

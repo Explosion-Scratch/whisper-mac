@@ -1,0 +1,11 @@
+{
+  "selectedFiles": [
+    "preload/dictationPreload.ts",
+    "renderer/dictationWindow.html",
+    "services/DictationWindowService.ts",
+    "main.ts"
+  ],
+  "prompt": "I want the dictation window to animate in. Is this possible with Electron? If so, how would I do that instead of just appearing?",
+  "timestamp": "2025-08-17T12:42:20.644Z",
+  "cwd": "/Users/tjs/Documents/.coding/ai-projects/whisper-mac/src"
+}

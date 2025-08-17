@@ -5,6 +5,14 @@ import { SecureStorageService } from "./SecureStorageService";
 export class GeminiService {
   private readonly apiBase = "https://generativelanguage.googleapis.com/v1beta";
 
+  /**
+   * Processes audio with context using the Gemini API.
+   *
+   * @param audioWavBase64 The audio data in WAV format, base64 encoded.
+   * @param config The application configuration.
+   * @returns A promise that resolves to the processed text.
+   * @throws Error if GEMINI_API_KEY is not found or the Gemini request fails.
+   */
   async processAudioWithContext(
     audioWavBase64: string,
     config: AppConfig
@@ -24,11 +32,14 @@ export class GeminiService {
     let messagePrompt = (config.ai.messagePrompt || "")
       .replace(/{text}/g, "")
       .replace(/{selection}/, savedState.text || "")
-      .replace(/{title}/g, windowInfo.title || "")
-      .replace(/{app}/g, windowInfo.appName || "");
+      .replace(/GeminiService.ts — whisper-mac/g, windowInfo.title || "")
+      .replace(/Cursor/g, windowInfo.appName || "");
 
     if (!savedState.hasSelection) {
-      messagePrompt = messagePrompt.replace(/<sel>[^<]+<\/sel>/, "");
+      messagePrompt = messagePrompt.replace(/[^<]+<\/sel>/g, "");
+    } else {
+      messagePrompt = messagePrompt.split("").join("");
+      messagePrompt = messagePrompt.split("").join("");
     }
 
     // Log the prompts for debugging

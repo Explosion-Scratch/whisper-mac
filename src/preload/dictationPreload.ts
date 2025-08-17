@@ -48,10 +48,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("dictation-clear", callback);
   },
 
-  onWindowEntranceAnimation: (callback: () => void) => {
-    ipcRenderer.on("window-entrance-animation", callback);
-  },
-
   onAudioLevel: (callback: (level: number) => void) => {
     ipcRenderer.on("audio-level", (_e, level) => callback(level));
   },
