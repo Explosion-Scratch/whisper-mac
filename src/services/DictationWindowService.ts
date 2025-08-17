@@ -32,6 +32,9 @@ export class DictationWindowService {
       // Window already exists, just show it
       this.dictationWindow.showInactive();
 
+      // Trigger the animation in the renderer process
+      this.dictationWindow.webContents.send("animate-in");
+
       // Wait a moment for the window to be ready, then initialize
       setTimeout(() => {
         if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
@@ -57,6 +60,9 @@ export class DictationWindowService {
     });
 
     this.dictationWindow!.showInactive();
+
+    // Trigger the animation in the renderer process
+    this.dictationWindow!.webContents.send("animate-in");
 
     console.log(
       "Dictation window shown at position:",

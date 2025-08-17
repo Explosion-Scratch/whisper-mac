@@ -20,6 +20,10 @@ export interface TranscriptionUpdate {
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld("electronAPI", {
   // Listeners for commands from main process
+  onAnimateIn: (callback: () => void) => {
+    ipcRenderer.on("animate-in", callback);
+  },
+
   onInitializeDictation: (callback: (data: DictationInitData) => void) => {
     ipcRenderer.on("initialize-dictation", (event, data) => callback(data));
   },
@@ -84,6 +88,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 declare global {
   interface Window {
     electronAPI: {
+      onAnimateIn: (callback: () => void) => void;
       onInitializeDictation: (
         callback: (data: DictationInitData) => void
       ) => void;

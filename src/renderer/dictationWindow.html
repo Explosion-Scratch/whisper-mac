@@ -26,9 +26,19 @@
         overflow: hidden;
         user-select: none;
         -webkit-user-select: none;
-        transition: box-shadow 0.2s ease, border-color 0.2s ease,
-          background 0.2s ease;
         background-clip: padding-box;
+
+        /* Animation properties */
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+        transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+          transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease,
+          border-color 0.2s ease, background 0.2s ease;
+      }
+
+      body.visible {
+        opacity: 1;
+        transform: scale(1) translateY(0);
       }
 
       body:hover {
@@ -619,7 +629,12 @@
           };
 
           const handleClose = () => {
-            window.electronAPI.closeDictationWindow();
+            // Animate out
+            document.body.classList.remove("visible");
+            // Wait for animation to finish before closing
+            setTimeout(() => {
+              window.electronAPI.closeDictationWindow();
+            }, 250); // Must match CSS transition duration
           };
 
           // IPC event handlers
@@ -715,6 +730,10 @@
 
           // Setup IPC listeners
           onMounted(() => {
+            window.electronAPI.onAnimateIn(() => {
+              document.body.classList.add("visible");
+            });
+
             window.electronAPI.onInitializeDictation(initializeDictation);
             window.electronAPI.onStartRecording(startRecording);
             window.electronAPI.onStopRecording(stopRecording);

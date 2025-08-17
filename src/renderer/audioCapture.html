@@ -5,6 +5,7 @@
   </head>
   <body>
     Audio capture window
+    <div class="energy-level"></div>
     <script>
       let audioContext = null;
       let mediaStreamSource = null;
@@ -85,18 +86,23 @@
             const rms = Math.sqrt(sumSquares / Math.max(1, inputData.length));
             const level = Math.max(0, Math.min(1, rms * 3));
 
+            // Convert level to energy value (0-100 scale)
+            const energy = level * 100;
+            document.querySelector(".energy-level").textContent = energy;
             // Get frequency data for wave visualization
             analyser.getByteFrequencyData(frequencyData);
 
-            // Send enhanced audio data
-            try {
-              window.electronAPI.sendAudioLevel(level);
-              window.electronAPI.sendAudioData({
-                level: level,
-                frequencies: Array.from(frequencyData.slice(0, 32)),
-                timestamp: Date.now(),
-              });
-            } catch {}
+            // Only send audio data if energy is above threshold
+            if (energy > 5) {
+              try {
+                window.electronAPI.sendAudioLevel(level);
+                window.electronAPI.sendAudioData({
+                  level: level,
+                  frequencies: Array.from(frequencyData.slice(0, 32)),
+                  timestamp: Date.now(),
+                });
+              } catch {}
+            }
           };
 
           // Connect the audio graph
