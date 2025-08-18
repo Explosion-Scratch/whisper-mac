@@ -79,7 +79,7 @@
 
             console.log("Energy:", energy);
             // Only send if energy exceeds threshold (not silent)
-            if (energy > 20) {
+            if (energy > 10) {
               console.log("Sending audio chunk:", audioData.length, "samples");
               window.electronAPI.sendAudioData(audioData);
             }
