@@ -1,5 +1,12 @@
 // Electron modules
-import { app, BrowserWindow, globalShortcut, ipcMain, dialog } from "electron";
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  dialog,
+  desktopCapturer,
+} from "electron";
 
 // Node.js utilities
 import { join } from "path";
@@ -57,6 +64,7 @@ class WhisperMacApp {
   private pendingToggle = false;
   private finalSamples: Float32Array | null = null;
   private gemini = new GeminiService();
+  private screenshotBase64: string | null = null;
 
   constructor() {
     this.config = new AppConfig();
@@ -466,6 +474,14 @@ class WhisperMacApp {
     try {
       console.log("=== Starting dictation process ===");
 
+      // Capture screenshot before showing dictation window
+      const screenshotStartTime = Date.now();
+      this.screenshotBase64 = await this.captureScreenshot();
+      const screenshotEndTime = Date.now();
+      console.log(
+        `Screenshot capture: ${screenshotEndTime - screenshotStartTime}ms`
+      );
+
       const windowStartTime = Date.now();
       await this.dictationWindowService.showDictationWindow();
       const windowEndTime = Date.now();
@@ -544,6 +560,8 @@ class WhisperMacApp {
       this.dictationWindowService.setTransformingStatus();
       const samples = this.finalSamples;
       this.finalSamples = null;
+      const screenshot = this.screenshotBase64;
+      this.screenshotBase64 = null;
       if (!samples || samples.length === 0) {
         console.log("No audio samples captured; stopping.");
         await this.stopDictation();
@@ -554,7 +572,8 @@ class WhisperMacApp {
       try {
         resultText = await this.gemini.processAudioWithContext(
           wavB64,
-          this.config
+          this.config,
+          screenshot || undefined
         );
       } catch (e: any) {
         console.error("Gemini processing failed:", e);
@@ -586,6 +605,7 @@ class WhisperMacApp {
       }
       this.isRecording = false;
       this.isFinishing = false;
+      this.screenshotBase64 = null;
       this.trayService?.updateTrayIcon("idle");
       this.dictationWindowService.clearTranscription();
       console.log("=== Dictation completed successfully after finishing ===");
@@ -604,12 +624,46 @@ class WhisperMacApp {
     const wasRecording = this.isRecording;
     this.isRecording = false;
     this.isFinishing = false;
+    this.screenshotBase64 = null;
     this.updateTrayIcon("idle");
     if (wasRecording) {
       await this.audioService.stopCapture();
     }
     this.dictationWindowService.closeDictationWindow();
     console.log("=== Dictation flow cancelled and cleaned up ===");
+  }
+
+  private async captureScreenshot(): Promise<string | null> {
+    try {
+      console.log("=== Capturing screenshot ===");
+      const sources = await desktopCapturer.getSources({
+        types: ["screen"],
+        thumbnailSize: { width: 1920, height: 1080 },
+      });
+
+      if (sources.length === 0) {
+        console.log("No screen sources found");
+        return null;
+      }
+
+      // Use the primary display (first source)
+      const source = sources[0];
+      const thumbnail = source.thumbnail;
+
+      if (!thumbnail) {
+        console.log("No thumbnail available");
+        return null;
+      }
+
+      // Convert to base64 and extract just the data part
+      const dataUrl = thumbnail.toDataURL();
+      const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+      console.log("Screenshot captured successfully");
+      return base64;
+    } catch (error) {
+      console.error("Failed to capture screenshot:", error);
+      return null;
+    }
   }
 
   private updateTrayIcon(state: "idle" | "recording") {

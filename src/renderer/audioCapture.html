@@ -12,6 +12,7 @@
       let processor = null;
       let analyser = null;
       let stream = null;
+      let audioTrack = null;
       let buffer = [];
       let sampleCount = 0;
       let isCapturing = false;
@@ -47,6 +48,15 @@
               noiseSuppression: true,
             },
           });
+
+          // Get the audio track and disable it initially to prevent recording light
+          audioTrack = stream.getAudioTracks()[0];
+          if (audioTrack) {
+            audioTrack.enabled = false;
+            console.log(
+              "Audio track disabled initially to prevent recording light"
+            );
+          }
 
           audioContext = new AudioContext({
             sampleRate: 16000,
@@ -139,6 +149,14 @@
             await initializeAudio();
           }
 
+          // Enable the audio track to start recording
+          if (audioTrack) {
+            audioTrack.enabled = true;
+            console.log(
+              "Audio track enabled - recording light should now show"
+            );
+          }
+
           if (audioContext.state === "suspended") {
             await audioContext.resume();
           }
@@ -157,6 +175,12 @@
         console.log("Stopping audio capture...");
 
         isCapturing = false;
+
+        // Disable the audio track to stop recording and hide recording light
+        if (audioTrack) {
+          audioTrack.enabled = false;
+          console.log("Audio track disabled - recording light should now hide");
+        }
 
         try {
           if (buffer.length > 0) {

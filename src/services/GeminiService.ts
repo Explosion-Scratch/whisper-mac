@@ -10,12 +10,14 @@ export class GeminiService {
    *
    * @param audioWavBase64 The audio data in WAV format, base64 encoded.
    * @param config The application configuration.
+   * @param screenshotBase64 Optional screenshot data in base64 format.
    * @returns A promise that resolves to the processed text.
    * @throws Error if GEMINI_API_KEY is not found or the Gemini request fails.
    */
   async processAudioWithContext(
     audioWavBase64: string,
-    config: AppConfig
+    config: AppConfig,
+    screenshotBase64?: string
   ): Promise<string> {
     const apiKey = await this.resolveApiKey();
     if (!apiKey) throw new Error("GEMINI_API_KEY not found");
@@ -38,7 +40,7 @@ export class GeminiService {
         out = out.replace(/<sel>/g, "");
         out = out.replace(/<\/sel>/g, "");
       } else {
-        out = out.replace(/<sel>.*<\/sel>/g, "");
+        out = out.replace(/<sel>[\s\S]*?<\/sel>/g, "");
       }
       return out;
     };
@@ -56,22 +58,36 @@ export class GeminiService {
       modelId
     )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
+    const parts = [
+      { text: p(systemPrompt) + "\n\n" + p(messagePrompt) },
+      ...(screenshotBase64
+        ? [
+            {
+              inlineData: {
+                mimeType: "image/png",
+                data: screenshotBase64,
+              },
+            },
+          ]
+        : []),
+      {
+        inlineData: {
+          mimeType: "audio/x-wav",
+          data: audioWavBase64,
+        },
+      },
+    ];
+
+    // Add selection reminder if needed
+    if (savedState.hasSelection) {
+      parts.push({ text: "Remember, output the new selection." });
+    }
+
     const body = {
       contents: [
         {
           role: "user",
-          parts: [
-            { text: p(systemPrompt) + "\n\n" + p(messagePrompt) },
-            {
-              inlineData: {
-                mimeType: "audio/x-wav",
-                data: audioWavBase64,
-              },
-            },
-            ...(savedState.hasSelection
-              ? [{ text: "Remember, output the new selection." }]
-              : []),
-          ],
+          parts,
         },
       ],
       generationConfig: {
