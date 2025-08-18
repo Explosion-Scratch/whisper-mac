@@ -26,6 +26,10 @@ export interface TranscriptionUpdate {
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld("electronAPI", {
+  // Animation trigger from main process
+  onAnimateIn: (callback: () => void) => {
+    ipcRenderer.on("animate-in", callback);
+  },
   // Listeners for commands from main process
   onInitializeDictation: (callback: (data: DictationInitData) => void) => {
     ipcRenderer.on("initialize-dictation", (event, data) => callback(data));
@@ -53,6 +57,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   onDictationClear: (callback: () => void) => {
     ipcRenderer.on("dictation-clear", callback);
+  },
+
+  onPlayEndSound: (callback: () => void) => {
+    ipcRenderer.on("play-end-sound", callback);
   },
 
   onError: (callback: (payload: any) => void) => {
@@ -88,6 +96,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 declare global {
   interface Window {
     electronAPI: {
+      onAnimateIn: (callback: () => void) => void;
       onInitializeDictation: (
         callback: (data: DictationInitData) => void
       ) => void;

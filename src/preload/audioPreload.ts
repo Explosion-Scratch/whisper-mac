@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onStopCapture: (callback: () => void) => {
     ipcRenderer.on("stop-audio-capture", callback);
   },
+  onSetMediaStreamEnabled: (callback: (enabled: boolean) => void) => {
+    ipcRenderer.on("set-media-stream-enabled", (event, enabled) =>
+      callback(enabled)
+    );
+  },
 
   // Senders to main process
   sendAudioData: (data: Float32Array) => {

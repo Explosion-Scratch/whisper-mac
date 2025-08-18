@@ -9,6 +9,7 @@ import {
 import { TransformationService } from "./TransformationService";
 import { TextInjectionService } from "./TextInjectionService";
 import { SelectedTextResult, SelectedTextService } from "./SelectedTextService";
+import { ActionsHandlerService } from "./ActionsHandlerService";
 import { clipboard } from "electron";
 
 export class SegmentManager extends EventEmitter {
@@ -18,18 +19,21 @@ export class SegmentManager extends EventEmitter {
   private transformationService: TransformationService;
   private textInjectionService: TextInjectionService;
   private selectedTextService: SelectedTextService;
+  private actionsHandlerService: ActionsHandlerService | null = null;
   private isAccumulatingMode: boolean = false; // New: track if we're in accumulate-only mode
   private ignoreNextCompleted: boolean = false;
 
   constructor(
     transformationService: TransformationService,
     textInjectionService: TextInjectionService,
-    selectedTextService: SelectedTextService
+    selectedTextService: SelectedTextService,
+    actionsHandlerService?: ActionsHandlerService
   ) {
     super();
     this.transformationService = transformationService;
     this.textInjectionService = textInjectionService;
     this.selectedTextService = selectedTextService;
+    this.actionsHandlerService = actionsHandlerService || null;
   }
 
   setAccumulatingMode(enabled: boolean): void {
@@ -56,6 +60,37 @@ export class SegmentManager extends EventEmitter {
   }
 
   /**
+   * Deduplicate segments based on start, end times and trimmed text
+   */
+  private deduplicateSegments(): void {
+    const seen = new Set<string>();
+    const uniqueSegments: Segment[] = [];
+
+    for (const segment of this.segments) {
+      if (segment.type === "transcribed") {
+        const transcribedSegment = segment as TranscribedSegment;
+        const key = `${transcribedSegment.start}-${
+          transcribedSegment.end
+        }-${transcribedSegment.text.trim()}`;
+
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueSegments.push(segment);
+        } else {
+          console.log(
+            `[SegmentManager] Removed duplicate segment: "${transcribedSegment.text}" (${transcribedSegment.start}-${transcribedSegment.end})`
+          );
+        }
+      } else {
+        // Keep non-transcribed segments as-is
+        uniqueSegments.push(segment);
+      }
+    }
+
+    this.segments = uniqueSegments;
+  }
+
+  /**
    * Add a transcribed segment from transcription plugins
    */
   addTranscribedSegment(
@@ -69,6 +104,31 @@ export class SegmentManager extends EventEmitter {
     console.log(
       `[SegmentManager] Attempting to add segment: "${trimmedText}" (completed: ${completed})`
     );
+
+    // Check for actions in completed segments before processing
+    if (completed && this.actionsHandlerService) {
+      const actionMatch = this.actionsHandlerService.detectAction(trimmedText);
+      if (actionMatch) {
+        console.log(
+          `[SegmentManager] Action detected: "${actionMatch.keyword}" with argument: "${actionMatch.argument}"`
+        );
+
+        // Emit action detected event
+        this.emit("action-detected", actionMatch);
+
+        // Return a segment but mark it as action-triggered
+        return {
+          id: uuidv4(),
+          type: "transcribed",
+          text: trimmedText,
+          completed,
+          start,
+          end,
+          confidence,
+          timestamp: Date.now(),
+        };
+      }
+    }
 
     // One-shot ignore for the next completed segment after a flush
     if (completed && this.ignoreNextCompleted) {
@@ -124,6 +184,10 @@ export class SegmentManager extends EventEmitter {
     };
 
     this.segments.push(segment);
+
+    // Deduplicate segments after adding the new one
+    this.deduplicateSegments();
+
     this.emit("segment-added", segment);
     console.log(
       `[SegmentManager] Added transcribed segment: "${trimmedText}" (completed: ${completed})`

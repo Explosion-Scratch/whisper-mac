@@ -21,6 +21,7 @@ import {
   TranscriptionSetupProgress,
   TranscriptionPluginConfigSchema,
 } from "./TranscriptionPlugin";
+import { readPrompt } from "../helpers/getPrompt";
 
 /**
  * Whisper.cpp transcription plugin
@@ -300,10 +301,12 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       };
 
       this.currentSegments = [completedSegment];
-      this.onTranscriptionCallback({
-        segments: [...this.currentSegments],
-        sessionUid: this.sessionUid,
-      });
+      if (this.onTranscriptionCallback) {
+        this.onTranscriptionCallback({
+          segments: [...this.currentSegments],
+          sessionUid: this.sessionUid,
+        });
+      }
     } catch (error: any) {
       console.error("Failed to process audio segment:", error);
 
@@ -543,6 +546,16 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         this.modelPath,
         "--output-txt",
       ];
+
+      // Add whisper prompt
+      try {
+        const whisperPrompt = readPrompt("whisper");
+        if (whisperPrompt.trim()) {
+          args.push("--prompt", whisperPrompt.trim());
+        }
+      } catch (error) {
+        console.warn("Failed to read whisper prompt:", error);
+      }
 
       // Add configuration options
       const language = this.config.get("whisperCppLanguage");

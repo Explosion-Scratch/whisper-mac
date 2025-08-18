@@ -25,11 +25,18 @@ export class DictationWindowService extends EventEmitter {
       // Window already exists, just show it
       this.dictationWindow.showInactive();
 
-      // Initialize the window with empty data (no selected text)
-      this.dictationWindow.webContents.send("initialize-dictation", {
-        selectedText: "",
-        hasSelection: false,
-      });
+      // Trigger the animation in the renderer process
+      this.dictationWindow.webContents.send("animate-in");
+
+      // Wait a moment for the window to be ready, then initialize
+      setTimeout(() => {
+        if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+          this.dictationWindow.webContents.send("initialize-dictation", {
+            selectedText: "",
+            hasSelection: false,
+          });
+        }
+      }, 100);
 
       return;
     }
@@ -37,13 +44,18 @@ export class DictationWindowService extends EventEmitter {
     // Create new window if pre-loaded one doesn't exist
     await this.createDictationWindow();
 
-    // Initialize the window with empty data (no selected text)
-    this.dictationWindow!.webContents.send("initialize-dictation", {
-      selectedText: "",
-      hasSelection: false,
+    // Wait for the window to be ready before initializing
+    this.dictationWindow!.webContents.once("did-finish-load", () => {
+      this.dictationWindow!.webContents.send("initialize-dictation", {
+        selectedText: "",
+        hasSelection: false,
+      });
     });
 
     this.dictationWindow!.showInactive();
+
+    // Trigger the animation in the renderer process
+    this.dictationWindow!.webContents.send("animate-in");
 
     console.log(
       "Dictation window shown at position:",
@@ -322,6 +334,8 @@ export class DictationWindowService extends EventEmitter {
 
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       console.log("Closing dictation window...");
+      // Send message to play end sound before closing
+      this.dictationWindow.webContents.send("play-end-sound");
       this.dictationWindow.close();
       console.log("Close command sent to window");
     } else {
@@ -345,6 +359,8 @@ export class DictationWindowService extends EventEmitter {
 
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       console.log("Hiding dictation window...");
+      // Send message to play end sound before hiding
+      this.dictationWindow.webContents.send("play-end-sound");
       this.dictationWindow.hide();
 
       // Clear current state
