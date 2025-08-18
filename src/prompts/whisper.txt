@@ -1,1 +1,1 @@
-Technical writing transcript including app names framework names and jargon. Highly precise with punctuation, proper capitalization and grammar. VueJS React, Svelte
+Technical writing transcript including app names framework names and jargon. Highly precise with punctuation, proper capitalization and grammar. VueJS React, Svelte, TextEdit, Cursor, Zed, Spotify, JSDocs. You can also output: OPEN [App], QUIT [App Name], SEARCH [Query]
