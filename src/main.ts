@@ -238,41 +238,7 @@ class WhisperMacApp {
           console.error("Failed to check accessibility permissions:", error);
         }),
 
-      // If Whisper.cpp is selected, ensure binary and selected model exist
-      (async () => {
-        try {
-          const activePlugin = this.config.get("transcriptionPlugin") || "yap";
-          if (activePlugin === "whisper-cpp") {
-            this.setSetupStatus("downloading-models");
-            const path = require("path");
-            const setupModulePath = path.join(
-              process.cwd(),
-              "plugins-setup",
-              "whisper-cpp-setup.js"
-            );
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const setupModule = require(setupModulePath);
-            const SetupCtor =
-              setupModule.WhisperCppPluginSetup ||
-              setupModule.default ||
-              setupModule;
-            const setup = new (SetupCtor as any)();
-            await setup.setup();
-            const modelName =
-              this.config.get("whisperCppModel") || "ggml-base.en.bin";
-            await setup.downloadModel(modelName);
-            console.log("Whisper.cpp and model ready");
-          }
-        } catch (error) {
-          console.error("Failed to prepare Whisper.cpp:", error);
-          this.showError({
-            title: "Whisper.cpp setup failed",
-            description:
-              error instanceof Error ? error.message : "Unknown error",
-            actions: ["ok"],
-          });
-        }
-      })(),
+      // Whisper.cpp is prepared during app bundling; models are handled in onboarding
 
       // Pre-load windows for faster startup
       this.preloadWindows()
@@ -521,13 +487,7 @@ class WhisperMacApp {
 
         const activePlugin = this.config.get("transcriptionPlugin") || "yap";
         if (activePlugin === "whisper-cpp") {
-          // Download/build whisper.cpp and the selected model
-          event.sender.send("onboarding:progress", {
-            status: "starting",
-            message: "Preparing Whisper.cpp",
-            percent: 5,
-          });
-
+          // Download selected Whisper.cpp model only (binary is bundled)
           const path = require("path");
           const setupModulePath = path.join(
             process.cwd(),
@@ -541,7 +501,8 @@ class WhisperMacApp {
             setupModule.default ||
             setupModule;
           const setup = new (SetupCtor as any)();
-          await setup.setup();
+          // Store models under user data for write access
+          setup.setModelsDir(this.config.getModelsDir());
 
           const modelName =
             this.config.get("whisperCppModel") || "ggml-base.en.bin";

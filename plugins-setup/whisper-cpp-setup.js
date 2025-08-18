@@ -17,10 +17,8 @@ class WhisperCppPluginSetup {
     this.modelsDir = path.join(this.vendorDir, "models");
     this.whisperVersion = "v1.7.6";
     this.repoUrl = "https://github.com/ggml-org/whisper.cpp";
-    this.modelsToDownload = [
-      "ggml-base.en.bin", // Default bundled speech model
-      "ggml-silero-v5.1.2.bin", // VAD model
-    ];
+    // Do not pre-download models during setup; models are chosen/downloaded in-app
+    this.modelsToDownload = [];
   }
 
   async setup() {
@@ -37,9 +35,9 @@ class WhisperCppPluginSetup {
       console.log(`Created directory: ${this.modelsDir}`);
     }
 
-    // Check if already available
+    // Check if binary already available
     if (await this.isWhisperCppAvailable()) {
-      console.log("Whisper.cpp is already available and working");
+      console.log("Whisper.cpp binary is already available and working");
       return;
     }
 
@@ -52,15 +50,11 @@ class WhisperCppPluginSetup {
       console.log("🔨 Building Whisper.cpp...");
       await this.buildWhisperCpp();
 
-      // Step 3: Download models
-      console.log("📦 Downloading Whisper models...");
-      await this.downloadModels();
-
-      // Step 4: Verify installation
+      // Step 3: Verify installation (binary only; models are handled in-app)
       if (await this.isWhisperCppAvailable()) {
-        console.log("✅ Whisper.cpp setup completed successfully");
+        console.log("✅ Whisper.cpp binary setup completed successfully");
       } else {
-        throw new Error("Whisper.cpp verification failed after setup");
+        throw new Error("Whisper.cpp binary verification failed after setup");
       }
     } catch (error) {
       console.error("❌ Whisper.cpp setup failed:", error.message);
@@ -70,15 +64,25 @@ class WhisperCppPluginSetup {
 
   async isWhisperCppAvailable() {
     const whisperBinaryPath = path.join(this.vendorDir, "whisper-cli");
-    const baseModelPath = path.join(this.modelsDir, "ggml-base.en.bin");
 
-    // Check if binary and model exist
-    if (!fs.existsSync(whisperBinaryPath) || !fs.existsSync(baseModelPath)) {
+    // Check if binary exists
+    if (!fs.existsSync(whisperBinaryPath)) {
       return false;
     }
 
     // Test if binary works
     return await this.testWhisperBinary(whisperBinaryPath);
+  }
+
+  /**
+   * Override the models directory (useful for runtime downloads to user data dir)
+   */
+  setModelsDir(dir) {
+    this.modelsDir = dir;
+    if (!fs.existsSync(this.modelsDir)) {
+      fs.mkdirSync(this.modelsDir, { recursive: true });
+      console.log(`Created models directory: ${this.modelsDir}`);
+    }
   }
 
   async testWhisperBinary(binaryPath) {
@@ -248,10 +252,10 @@ class WhisperCppPluginSetup {
   }
 
   async downloadModels() {
+    if (!this.modelsToDownload || this.modelsToDownload.length === 0) return;
     const downloadPromises = this.modelsToDownload.map((modelName) =>
       this.downloadModel(modelName)
     );
-
     await Promise.allSettled(downloadPromises);
   }
 
@@ -275,13 +279,8 @@ class WhisperCppPluginSetup {
   }
 
   getModelUrl(modelName) {
-    if (modelName.includes("silero")) {
-      // VAD model from Hugging Face
-      return `https://huggingface.co/ggml-org/whisper-vad/resolve/main/${modelName}`;
-    } else {
-      // Regular Whisper model from Hugging Face
-      return `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${modelName}`;
-    }
+    // Whisper.cpp ggml models
+    return `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${modelName}`;
   }
 
   async downloadFile(url, outputPath) {

@@ -18,14 +18,14 @@ import {
 } from "./TranscriptionPlugin";
 
 /**
- * YAP transcription plugin using Silero VAD + YAP CLI
+ * YAP transcription plugin using YAP CLI
  */
 export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
   readonly name = "yap";
-  readonly displayName = "YAP (Silero VAD + Apple Speech Framework)";
+  readonly displayName = "YAP (Apple Speech Framework)";
   readonly version = "1.0.3";
   readonly description =
-    "On-device transcription using Silero VAD for speech detection and YAP CLI for transcription";
+    "On-device transcription using YAP CLI for transcription";
   readonly supportsRealtime = true;
   readonly supportsBatchProcessing = true;
 
@@ -151,10 +151,12 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
       };
 
       this.currentSegments = [inProgressSegment];
-      this.onTranscriptionCallback({
-        segments: [...this.currentSegments],
-        sessionUid: this.sessionUid,
-      });
+      if (this.onTranscriptionCallback) {
+        this.onTranscriptionCallback({
+          segments: [...this.currentSegments],
+          sessionUid: this.sessionUid,
+        });
+      }
 
       // Transcribe with YAP
       const transcription = await this.transcribeWithYap(tempAudioPath);
@@ -177,10 +179,12 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
       };
 
       this.currentSegments = [completedSegment];
-      this.onTranscriptionCallback({
-        segments: [...this.currentSegments],
-        sessionUid: this.sessionUid,
-      });
+      if (this.onTranscriptionCallback) {
+        this.onTranscriptionCallback({
+          segments: [...this.currentSegments],
+          sessionUid: this.sessionUid,
+        });
+      }
     } catch (error: any) {
       console.error("Failed to process audio segment:", error);
 
