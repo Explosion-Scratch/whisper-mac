@@ -20,6 +20,8 @@ import {
   BaseTranscriptionPlugin,
   TranscriptionSetupProgress,
   TranscriptionPluginConfigSchema,
+  PluginOption,
+  PluginUIFunctions,
 } from "./TranscriptionPlugin";
 import { ModelManager, ModelDownloadProgress } from "../services/ModelManager";
 
@@ -178,9 +180,10 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
     try {
       onLog?.(`Downloading Vosk model: ${modelName} from ${modelInfo.url}`);
       onProgress?.({
-        status: "starting",
+        status: "downloading",
         message: "Starting download...",
         modelRepoId: modelName,
+        progress: 0,
         percent: 0,
       });
 
@@ -195,9 +198,10 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
 
       onLog?.(`Extracting model: ${modelName} to ${extractPath}`);
       onProgress?.({
-        status: "downloading",
+        status: "extracting",
         message: "Extracting model...",
         modelRepoId: modelName,
+        progress: 90,
         percent: 90,
       });
 
@@ -223,6 +227,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         status: "complete",
         message: "Model ready",
         modelRepoId: modelName,
+        progress: 100,
         percent: 100,
       });
 
@@ -250,6 +255,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         status: "error",
         message: error.message,
         modelRepoId: modelName,
+        progress: 0,
       });
 
       throw error;
@@ -309,6 +315,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
           status: "downloading",
           message: "Downloading model...",
           modelRepoId: modelName,
+          progress: 0,
           percent: 0,
           downloadedBytes: 0,
           totalBytes,
@@ -325,6 +332,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
             status: "downloading",
             message: `Downloading model... ${percent}%`,
             modelRepoId: modelName,
+            progress: percent,
             percent,
             downloadedBytes,
             totalBytes,
@@ -890,5 +898,294 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         }
       }, 30000); // 30 second timeout
     });
+  }
+
+  // New unified plugin system methods
+  getOptions() {
+    const voskModels = [
+      {
+        value: "vosk-model-small-en-us-0.15",
+        label: "Small English US (40MB)",
+        description: "Fast and lightweight",
+        size: "40MB",
+      },
+      {
+        value: "vosk-model-en-us-aspire-0.2",
+        label: "Large English US (1.4GB)",
+        description: "High accuracy",
+        size: "1.4GB",
+      },
+      {
+        value: "vosk-model-small-cn-0.22",
+        label: "Small Chinese (42MB)",
+        description: "Chinese language support",
+        size: "42MB",
+      },
+      {
+        value: "vosk-model-small-ru-0.22",
+        label: "Small Russian (45MB)",
+        description: "Russian language support",
+        size: "45MB",
+      },
+      {
+        value: "vosk-model-small-fr-0.22",
+        label: "Small French (41MB)",
+        description: "French language support",
+        size: "41MB",
+      },
+      {
+        value: "vosk-model-small-de-0.15",
+        label: "Small German (45MB)",
+        description: "German language support",
+        size: "45MB",
+      },
+      {
+        value: "vosk-model-small-es-0.42",
+        label: "Small Spanish (39MB)",
+        description: "Spanish language support",
+        size: "39MB",
+      },
+      {
+        value: "vosk-model-small-it-0.22",
+        label: "Small Italian (48MB)",
+        description: "Italian language support",
+        size: "48MB",
+      },
+    ];
+
+    return [
+      {
+        key: "model",
+        type: "model-select" as const,
+        label: "Vosk Model",
+        description: "Choose the Vosk model to use for transcription",
+        default: "vosk-model-small-en-us-0.15",
+        category: "model" as const,
+        options: voskModels,
+        required: true,
+      },
+      {
+        key: "sampleRate",
+        type: "select" as const,
+        label: "Sample Rate",
+        description: "Audio sample rate for transcription",
+        default: "16000",
+        category: "advanced" as const,
+        options: [
+          { value: "16000", label: "16 kHz (Recommended)" },
+          { value: "8000", label: "8 kHz" },
+          { value: "44100", label: "44.1 kHz" },
+          { value: "48000", label: "48 kHz" },
+        ],
+      },
+      {
+        key: "enableGrammars",
+        type: "boolean" as const,
+        label: "Enable Grammar Recognition",
+        description:
+          "Enable improved recognition for specific grammars and contexts",
+        default: false,
+        category: "advanced" as const,
+      },
+    ];
+  }
+
+  async verifyOptions(
+    options: Record<string, any>
+  ): Promise<{ valid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
+    if (options.model) {
+      const validModels =
+        this.getOptions()
+          .find((opt) => opt.key === "model")
+          ?.options?.map((opt) => opt.value) || [];
+      if (!validModels.includes(options.model)) {
+        errors.push(`Invalid model: ${options.model}`);
+      }
+    }
+
+    if (options.sampleRate) {
+      const validRates =
+        this.getOptions()
+          .find((opt) => opt.key === "sampleRate")
+          ?.options?.map((opt) => opt.value) || [];
+      if (!validRates.includes(options.sampleRate)) {
+        errors.push(`Invalid sample rate: ${options.sampleRate}`);
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  async onActivated(uiFunctions?: PluginUIFunctions): Promise<void> {
+    this.setActive(true);
+
+    try {
+      // Check if model exists - this is required for activation
+      const modelName =
+        this.config.get("voskModel") || "vosk-model-small-en-us-0.15";
+      const modelPath = join(this.config.getModelsDir(), modelName);
+
+      if (!existsSync(modelPath)) {
+        const error = `Model ${modelName} not found. Please download it first.`;
+        this.setError(error);
+        throw new Error(error);
+      }
+
+      this.setError(null);
+      console.log(`Vosk plugin activated with model: ${modelName}`);
+    } catch (error) {
+      this.setActive(false);
+      throw error;
+    }
+  }
+
+  async initialize(): Promise<void> {
+    this.setLoadingState(true, "Initializing Vosk plugin...");
+
+    try {
+      // Only verify Python and dependencies - don't check models here
+      const available = await this.isAvailable();
+      if (!available) {
+        throw new Error("Python or Vosk dependencies not found");
+      }
+
+      this.setInitialized(true);
+      this.setLoadingState(false);
+      console.log("Vosk plugin initialized successfully");
+    } catch (error) {
+      this.setError(`Vosk initialization failed: ${error}`);
+      this.setLoadingState(false);
+      throw error;
+    }
+  }
+
+  async destroy(): Promise<void> {
+    console.log("Vosk plugin destroyed");
+    this.setInitialized(false);
+    this.setActive(false);
+  }
+
+  async onDeactivate(): Promise<void> {
+    this.setActive(false);
+    console.log("Vosk plugin deactivated");
+  }
+
+  async clearData(): Promise<void> {
+    // Clean temp files
+    try {
+      const fs = await import("fs");
+      if (fs.existsSync(this.tempDir)) {
+        fs.rmSync(this.tempDir, { recursive: true, force: true });
+        this.tempDir = mkdtempSync(join(tmpdir(), "vosk-plugin-"));
+      }
+      console.log("Vosk plugin data cleared");
+    } catch (error) {
+      console.warn("Failed to clear Vosk plugin data:", error);
+    }
+  }
+
+  async updateOptions(
+    options: Record<string, any>,
+    uiFunctions?: PluginUIFunctions
+  ): Promise<void> {
+    this.setOptions(options);
+
+    // Handle model changes
+    if (options.model && options.model !== this.config.get("voskModel")) {
+      if (uiFunctions) {
+        uiFunctions.showProgress(`Switching to model ${options.model}...`, 0);
+      }
+      this.setLoadingState(true, `Switching to model ${options.model}...`);
+
+      try {
+        // Update model configuration
+        this.config.set("voskModel", options.model);
+
+        // Check if new model exists
+        const modelPath = join(this.config.getModelsDir(), options.model);
+        if (!existsSync(modelPath)) {
+          const message = `Model ${options.model} not found, may need to download...`;
+          this.setLoadingState(true, message);
+          if (uiFunctions) {
+            uiFunctions.showError(message);
+          }
+        } else {
+          this.setLoadingState(false);
+          if (uiFunctions) {
+            uiFunctions.showSuccess(`Switched to model ${options.model}`);
+            uiFunctions.hideProgress();
+          }
+        }
+      } catch (error) {
+        const errorMsg = `Failed to switch model: ${error}`;
+        this.setError(errorMsg);
+        this.setLoadingState(false);
+        if (uiFunctions) {
+          uiFunctions.showError(errorMsg);
+          uiFunctions.hideProgress();
+        }
+      }
+    }
+
+    // Apply other configuration changes
+    this.configure(options);
+
+    console.log("Vosk plugin options updated:", options);
+  }
+
+  async downloadModel(
+    modelName: string,
+    uiFunctions?: PluginUIFunctions
+  ): Promise<void> {
+    this.setLoadingState(true, `Downloading ${modelName}...`);
+
+    try {
+      const downloadProgress = {
+        status: "downloading" as const,
+        progress: 0,
+        message: `Starting download of ${modelName}...`,
+        modelName,
+      };
+
+      this.setDownloadProgress(downloadProgress);
+      if (uiFunctions) {
+        uiFunctions.showDownloadProgress(downloadProgress);
+      }
+
+      // Use the existing ModelManager for downloading
+      const onProgress = (progress: ModelDownloadProgress) => {
+        this.setDownloadProgress(progress);
+        if (uiFunctions) {
+          uiFunctions.showDownloadProgress(progress);
+        }
+      };
+
+      await this.modelManager.downloadModel(modelName, onProgress);
+
+      const completedProgress = {
+        status: "complete" as const,
+        progress: 100,
+        message: `${modelName} downloaded successfully`,
+        modelName,
+      };
+
+      this.setDownloadProgress(completedProgress);
+      this.setLoadingState(false);
+
+      if (uiFunctions) {
+        uiFunctions.showDownloadProgress(completedProgress);
+        uiFunctions.showSuccess(`${modelName} downloaded successfully`);
+      }
+    } catch (error) {
+      const errorMsg = `Failed to download ${modelName}: ${error}`;
+      this.setError(errorMsg);
+      this.setLoadingState(false);
+      if (uiFunctions) {
+        uiFunctions.showError(errorMsg);
+      }
+      throw error;
+    }
   }
 }

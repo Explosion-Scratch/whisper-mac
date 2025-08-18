@@ -15,6 +15,8 @@ import {
   BaseTranscriptionPlugin,
   TranscriptionSetupProgress,
   TranscriptionPluginConfigSchema,
+  PluginOption,
+  PluginUIFunctions,
 } from "./TranscriptionPlugin";
 
 /**
@@ -425,5 +427,135 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
         }
       }, 30000); // 30 second timeout
     });
+  }
+
+  // New unified plugin system methods
+  getOptions() {
+    return [
+      {
+        key: "locale",
+        type: "select" as const,
+        label: "Language",
+        description: "Language for transcription",
+        default: "en-US",
+        category: "basic" as const,
+        options: [
+          { value: "current", label: "System Language" },
+          { value: "en-US", label: "English (US)" },
+          { value: "en-GB", label: "English (UK)" },
+          { value: "es-ES", label: "Spanish (Spain)" },
+          { value: "fr-FR", label: "French (France)" },
+          { value: "de-DE", label: "German (Germany)" },
+          { value: "it-IT", label: "Italian (Italy)" },
+          { value: "pt-BR", label: "Portuguese (Brazil)" },
+          { value: "zh-CN", label: "Chinese (Simplified)" },
+          { value: "ja-JP", label: "Japanese" },
+          { value: "ko-KR", label: "Korean" },
+        ],
+        required: true,
+      },
+      {
+        key: "censor",
+        type: "boolean" as const,
+        label: "Censor Profanity",
+        description: "Replaces certain words and phrases with a redacted form",
+        default: false,
+        category: "advanced" as const,
+      },
+    ];
+  }
+
+  async verifyOptions(
+    options: Record<string, any>
+  ): Promise<{ valid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
+    if (options.locale) {
+      const validLocales =
+        this.getOptions()
+          .find((opt) => opt.key === "locale")
+          ?.options?.map((opt) => opt.value) || [];
+      if (!validLocales.includes(options.locale)) {
+        errors.push(`Invalid locale: ${options.locale}`);
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  async onActivated(uiFunctions?: PluginUIFunctions): Promise<void> {
+    this.setActive(true);
+
+    try {
+      // YAP doesn't require models - just verify it's available
+      const available = await this.isAvailable();
+      if (!available) {
+        const error = "YAP binary not found or not executable";
+        this.setError(error);
+        throw new Error(error);
+      }
+
+      this.setError(null);
+      console.log(`YAP plugin activated`);
+    } catch (error) {
+      this.setActive(false);
+      throw error;
+    }
+  }
+
+  async initialize(): Promise<void> {
+    this.setLoadingState(true, "Initializing YAP plugin...");
+
+    try {
+      // YAP doesn't need model loading - just basic setup
+      this.setInitialized(true);
+      this.setLoadingState(false);
+      console.log("YAP plugin initialized successfully");
+    } catch (error) {
+      this.setError(`YAP initialization failed: ${error}`);
+      this.setLoadingState(false);
+      throw error;
+    }
+  }
+
+  async destroy(): Promise<void> {
+    console.log("YAP plugin destroyed");
+    this.setInitialized(false);
+    this.setActive(false);
+  }
+
+  async onDeactivate(): Promise<void> {
+    this.setActive(false);
+    console.log("YAP plugin deactivated");
+  }
+
+  async clearData(): Promise<void> {
+    // YAP doesn't store persistent data, just clean temp files
+    try {
+      const fs = await import("fs");
+      if (fs.existsSync(this.tempDir)) {
+        fs.rmSync(this.tempDir, { recursive: true, force: true });
+        this.tempDir = mkdtempSync(join(tmpdir(), "yap-plugin-"));
+      }
+      console.log("YAP plugin data cleared");
+    } catch (error) {
+      console.warn("Failed to clear YAP plugin data:", error);
+    }
+  }
+
+  async updateOptions(
+    options: Record<string, any>,
+    uiFunctions?: PluginUIFunctions
+  ): Promise<void> {
+    this.setOptions(options);
+
+    // Apply configuration changes
+    this.configure(options);
+
+    if (uiFunctions) {
+      uiFunctions.showSuccess("YAP plugin options updated");
+    }
+
+    console.log("YAP plugin options updated:", options);
   }
 }

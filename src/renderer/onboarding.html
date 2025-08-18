@@ -264,6 +264,46 @@
         white-space: pre-wrap;
       }
 
+      /* Plugin option styles */
+      .plugin-options-section {
+        width: 100%;
+      }
+      .plugin-config-section {
+        margin-top: 12px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.5);
+      }
+      .plugin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+      }
+      .plugin-info h4 {
+        margin: 0 0 4px 0;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .plugin-description {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .plugin-delete-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .plugin-delete-btn:hover {
+        background: #c82333;
+      }
+
       /* Dark mode */
       @media (prefers-color-scheme: dark) {
         :root {
@@ -298,6 +338,10 @@
         }
         .progress {
           background: rgba(255, 255, 255, 0.08);
+        }
+        .plugin-config-section {
+          background: rgba(255, 255, 255, 0.1);
+          border-color: var(--border);
         }
       }
     </style>
@@ -391,50 +435,95 @@
                     id="pluginSelect"
                     class="select"
                     v-model="pluginSelect"
-                  >
-                    <option value="yap">YAP (Apple Speech)</option>
-                    <option value="whisper-cpp">Whisper.cpp</option>
-                    <option value="vosk">Vosk</option>
-                  </select>
-                </div>
-                <div
-                  class="field"
-                  v-show="pluginSelect === 'whisper-cpp'"
-                  style="margin-top: 10px"
-                >
-                  <div class="label">Whisper.cpp model</div>
-                  <select id="modelSelect" class="select" v-model="modelSelect">
-                    <option v-for="m in whisperModels" :key="m" :value="m">
-                      {{ m }}
-                    </option>
-                  </select>
-                  <div class="hint" style="margin-top: 6px">
-                    Defaults to the bundled model if available. Models are
-                    downloaded from the official ggml repository.
-                  </div>
-                </div>
-                <div
-                  class="field"
-                  v-show="pluginSelect === 'vosk'"
-                  style="margin-top: 10px"
-                >
-                  <div class="label">Vosk model</div>
-                  <select
-                    id="voskModelSelect"
-                    class="select"
-                    v-model="voskModelSelect"
+                    @change="onPluginChange"
                   >
                     <option
-                      v-for="m in voskModels"
-                      :key="m.value"
-                      :value="m.value"
+                      v-for="plugin in availablePlugins"
+                      :key="plugin.name"
+                      :value="plugin.name"
                     >
-                      {{ m.label }}
+                      {{ plugin.displayName }}
                     </option>
                   </select>
-                  <div class="hint" style="margin-top: 6px">
-                    Models are downloaded automatically when first used.
-                    Downloaded from the official Vosk models repository.
+                </div>
+
+                <!-- Dynamic plugin options -->
+                <div
+                  v-for="option in currentPluginOptions"
+                  :key="option.key"
+                  class="field"
+                  style="margin-top: 10px"
+                >
+                  <div class="label">{{ option.label }}</div>
+
+                  <!-- Model select with enhanced display -->
+                  <select
+                    v-if="option.type === 'model-select'"
+                    class="select"
+                    :value="selectedOptions[option.key] || option.default"
+                    @change="updateSelectedOption(option.key, $event.target.value)"
+                  >
+                    <option
+                      v-for="modelOpt in option.options"
+                      :key="modelOpt.value"
+                      :value="modelOpt.value"
+                    >
+                      {{ modelOpt.label }}
+                    </option>
+                  </select>
+
+                  <!-- Regular select -->
+                  <select
+                    v-else-if="option.type === 'select'"
+                    class="select"
+                    :value="selectedOptions[option.key] || option.default"
+                    @change="updateSelectedOption(option.key, $event.target.value)"
+                  >
+                    <option
+                      v-for="selectOpt in option.options"
+                      :key="selectOpt.value"
+                      :value="selectOpt.value"
+                    >
+                      {{ selectOpt.label }}
+                    </option>
+                  </select>
+
+                  <!-- Boolean checkbox -->
+                  <label v-else-if="option.type === 'boolean'" class="toggle">
+                    <input
+                      type="checkbox"
+                      :checked="selectedOptions[option.key] || option.default"
+                      @change="updateSelectedOption(option.key, $event.target.checked)"
+                    />
+                    {{ option.description }}
+                  </label>
+
+                  <!-- Number input -->
+                  <input
+                    v-else-if="option.type === 'number'"
+                    type="number"
+                    class="input"
+                    :value="selectedOptions[option.key] || option.default"
+                    :min="option.min"
+                    :max="option.max"
+                    @input="updateSelectedOption(option.key, parseInt($event.target.value))"
+                  />
+
+                  <!-- Text input -->
+                  <input
+                    v-else
+                    type="text"
+                    class="input"
+                    :value="selectedOptions[option.key] || option.default"
+                    @input="updateSelectedOption(option.key, $event.target.value)"
+                  />
+
+                  <div
+                    v-if="option.description"
+                    class="hint"
+                    style="margin-top: 6px"
+                  >
+                    {{ option.description }}
                   </div>
                 </div>
               </div>
@@ -588,70 +677,9 @@
           const keyStatus = ref("");
           const savingKey = ref(false);
           const pluginSelect = ref("yap");
-          const modelSelect = ref("ggml-base.en.bin");
-          const voskModelSelect = ref("vosk-model-small-en-us-0.15");
-          const whisperModels = ref([
-            "ggml-tiny.bin",
-            "ggml-tiny-q5_1.bin",
-            "ggml-tiny-q8_0.bin",
-            "ggml-tiny.en.bin",
-            "ggml-tiny.en-q5_1.bin",
-            "ggml-tiny.en-q8_0.bin",
-            "ggml-base.bin",
-            "ggml-base-q5_1.bin",
-            "ggml-base-q8_0.bin",
-            "ggml-base.en.bin",
-            "ggml-base.en-q5_1.bin",
-            "ggml-base.en-q8_0.bin",
-            "ggml-small.bin",
-            "ggml-small-q5_1.bin",
-            "ggml-small-q8_0.bin",
-            "ggml-small.en.bin",
-            "ggml-small.en-q5_1.bin",
-            "ggml-small.en-q8_0.bin",
-            "ggml-medium.bin",
-            "ggml-medium-q5_0.bin",
-            "ggml-medium-q8_0.bin",
-            "ggml-medium.en.bin",
-            "ggml-medium.en-q5_0.bin",
-            "ggml-medium.en-q8_0.bin",
-            "ggml-large-v2.bin",
-            "ggml-large-v2-q5_0.bin",
-            "ggml-large-v2-q8_0.bin",
-            "ggml-large-v3.bin",
-            "ggml-large-v3-q5_0.bin",
-            "ggml-large-v3-turbo.bin",
-            "ggml-large-v3-turbo-q5_0.bin",
-            "ggml-large-v3-turbo-q8_0.bin",
-          ]);
-          const voskModels = ref([
-            {
-              value: "vosk-model-small-en-us-0.15",
-              label: "Small English US (40MB)",
-            },
-            {
-              value: "vosk-model-en-us-aspire-0.2",
-              label: "Large English US (1.4GB)",
-            },
-            {
-              value: "vosk-model-small-cn-0.22",
-              label: "Small Chinese (42MB)",
-            },
-            {
-              value: "vosk-model-small-ru-0.22",
-              label: "Small Russian (45MB)",
-            },
-            { value: "vosk-model-small-fr-0.22", label: "Small French (41MB)" },
-            { value: "vosk-model-small-de-0.15", label: "Small German (45MB)" },
-            {
-              value: "vosk-model-small-es-0.42",
-              label: "Small Spanish (39MB)",
-            },
-            {
-              value: "vosk-model-small-it-0.22",
-              label: "Small Italian (48MB)",
-            },
-          ]);
+          const pluginOptions = ref({});
+          const pluginStates = ref({});
+          const selectedOptions = ref({});
           const progressText = ref("Idle");
           const progressPercent = ref(0);
           const logs = ref([]);
@@ -675,15 +703,49 @@
             return true;
           });
 
+          const availablePlugins = ref([]);
+          const currentPluginOptions = ref([]);
+
           const init = async () => {
             const initState = await window.onboardingAPI.getInitialState();
             aiBaseUrl.value = initState.ai.baseUrl || "";
             aiModel.value = initState.ai.model || "";
             aiEnabled.value = !!initState.ai.enabled;
-            modelSelect.value = initState.model || modelSelect.value;
-            voskModelSelect.value =
-              initState.voskModel || voskModelSelect.value;
             pluginSelect.value = initState.plugin || pluginSelect.value;
+
+            // Load plugin information
+            const pluginData = await window.onboardingAPI.getPluginOptions();
+            availablePlugins.value = pluginData.plugins || [];
+            pluginOptions.value = pluginData.options || {};
+
+            // Set default options for each plugin
+            for (const [pluginName, options] of Object.entries(
+              pluginOptions.value
+            )) {
+              selectedOptions.value[pluginName] = {};
+              for (const option of options) {
+                selectedOptions.value[pluginName][option.key] = option.default;
+              }
+            }
+
+            // Load current plugin options
+            updateCurrentPluginOptions();
+          };
+
+          const updateCurrentPluginOptions = () => {
+            currentPluginOptions.value =
+              pluginOptions.value[pluginSelect.value] || [];
+          };
+
+          const onPluginChange = () => {
+            updateCurrentPluginOptions();
+          };
+
+          const updateSelectedOption = (key, value) => {
+            if (!selectedOptions.value[pluginSelect.value]) {
+              selectedOptions.value[pluginSelect.value] = {};
+            }
+            selectedOptions.value[pluginSelect.value][key] = value;
           };
 
           const prev = () => {
@@ -706,12 +768,12 @@
 
             if (idx.value === 4 && !setupDone.value) return;
             if (idx.value === 2) {
-              await window.onboardingAPI.setPlugin(pluginSelect.value);
-              if (pluginSelect.value === "whisper-cpp") {
-                await window.onboardingAPI.setModel(modelSelect.value);
-              } else if (pluginSelect.value === "vosk") {
-                await window.onboardingAPI.setVoskModel(voskModelSelect.value);
-              }
+              const currentOptions =
+                selectedOptions.value[pluginSelect.value] || {};
+              await window.onboardingAPI.setPlugin(
+                pluginSelect.value,
+                currentOptions
+              );
             }
             if (idx.value === 3) {
               await window.onboardingAPI.setAiEnabled(aiEnabled.value);
@@ -841,10 +903,10 @@
             keyStatus,
             savingKey,
             pluginSelect,
-            modelSelect,
-            voskModelSelect,
-            whisperModels,
-            voskModels,
+            availablePlugins,
+            pluginOptions,
+            currentPluginOptions,
+            selectedOptions,
             progressText,
             progressPercent,
             logs,
@@ -854,6 +916,8 @@
             canProceed,
             prev,
             next,
+            onPluginChange,
+            updateSelectedOption,
             checkAccess,
             startAccessibilityMonitoring,
             saveKey,

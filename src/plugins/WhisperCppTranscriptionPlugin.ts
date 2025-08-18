@@ -20,6 +20,8 @@ import {
   BaseTranscriptionPlugin,
   TranscriptionSetupProgress,
   TranscriptionPluginConfigSchema,
+  PluginOption,
+  PluginUIFunctions,
 } from "./TranscriptionPlugin";
 import { readPrompt } from "../helpers/getPrompt";
 
@@ -145,18 +147,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     return undefined;
   }
 
-  async isAvailable(): Promise<boolean> {
+  async isBinaryAvailable(): Promise<boolean> {
     try {
-      // Refresh paths from current config in case onboarding updated them
-      this.modelPath = this.resolveModelPath();
-      this.vadModelPath = this.resolveVadModelPath();
-
-      // Check if whisper binary and model exist
-      if (!existsSync(this.modelPath)) {
-        console.log(`Whisper.cpp model not found at: ${this.modelPath}`);
-        return false;
-      }
-
       // Check if whisper binary exists and is executable
       return new Promise((resolve) => {
         const whisperProcess = spawn(this.whisperBinaryPath, ["--help"], {
@@ -192,6 +184,26 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
           }
         }, 5000);
       });
+    } catch (error) {
+      console.error("Whisper.cpp binary availability check failed:", error);
+      return false;
+    }
+  }
+
+  async isAvailable(): Promise<boolean> {
+    try {
+      // Refresh paths from current config in case onboarding updated them
+      this.modelPath = this.resolveModelPath();
+      this.vadModelPath = this.resolveVadModelPath();
+
+      // Check if whisper binary and model exist
+      if (!existsSync(this.modelPath)) {
+        console.log(`Whisper.cpp model not found at: ${this.modelPath}`);
+        return false;
+      }
+
+      // Check if whisper binary exists and is executable
+      return await this.isBinaryAvailable();
     } catch (error) {
       console.error("Whisper.cpp availability check failed:", error);
       return false;
@@ -646,5 +658,325 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         }
       }, 60000); // 60 second timeout (whisper.cpp can be slower than YAP)
     });
+  }
+
+  // New unified plugin system methods
+  getOptions() {
+    const whisperModels = [
+      {
+        value: "ggml-tiny.bin",
+        label: "Tiny (77.7 MB)",
+        description: "Fastest, least accurate - multilingual",
+        size: "77.7 MB",
+      },
+      {
+        value: "ggml-tiny.en.bin",
+        label: "Tiny English (77.7 MB)",
+        description: "English only, fastest option",
+        size: "77.7 MB",
+      },
+      {
+        value: "ggml-tiny-q5_1.bin",
+        label: "Tiny Quantized (32.2 MB)",
+        description: "Smallest size, good quality",
+        size: "32.2 MB",
+      },
+      {
+        value: "ggml-tiny-q8_0.bin",
+        label: "Tiny Q8 (43.5 MB)",
+        description: "Better quality than Q5_1",
+        size: "43.5 MB",
+      },
+      {
+        value: "ggml-base.bin",
+        label: "Base (148 MB)",
+        description: "Good balance of speed and accuracy",
+        size: "148 MB",
+      },
+      {
+        value: "ggml-base.en.bin",
+        label: "Base English (148 MB)",
+        description: "English only, recommended for most users",
+        size: "148 MB",
+      },
+      {
+        value: "ggml-base-q5_1.bin",
+        label: "Base Quantized (59.7 MB)",
+        description: "Compact with good quality",
+        size: "59.7 MB",
+      },
+      {
+        value: "ggml-base-q8_0.bin",
+        label: "Base Q8 (81.8 MB)",
+        description: "Higher quality quantized",
+        size: "81.8 MB",
+      },
+      {
+        value: "ggml-small.bin",
+        label: "Small (488 MB)",
+        description: "Higher accuracy, slower",
+        size: "488 MB",
+      },
+      {
+        value: "ggml-small.en.bin",
+        label: "Small English (488 MB)",
+        description: "English only, higher accuracy",
+        size: "488 MB",
+      },
+      {
+        value: "ggml-medium.bin",
+        label: "Medium (1.53 GB)",
+        description: "Very accurate, much slower",
+        size: "1.53 GB",
+      },
+      {
+        value: "ggml-medium.en.bin",
+        label: "Medium English (1.53 GB)",
+        description: "English only, very accurate",
+        size: "1.53 GB",
+      },
+      {
+        value: "ggml-large-v2.bin",
+        label: "Large v2 (3.09 GB)",
+        description: "Excellent accuracy, very slow",
+        size: "3.09 GB",
+      },
+      {
+        value: "ggml-large-v3.bin",
+        label: "Large v3 (3.1 GB)",
+        description: "Latest large model, best accuracy",
+        size: "3.1 GB",
+      },
+      {
+        value: "ggml-large-v3-turbo.bin",
+        label: "Large v3 Turbo (1.62 GB)",
+        description: "Fast large model, great balance",
+        size: "1.62 GB",
+      },
+    ];
+
+    return [
+      {
+        key: "model",
+        type: "model-select" as const,
+        label: "Whisper Model",
+        description: "Choose the Whisper model to use for transcription",
+        default: "ggml-base.en.bin",
+        category: "model" as const,
+        options: whisperModels,
+        required: true,
+      },
+      {
+        key: "language",
+        type: "select" as const,
+        label: "Language",
+        description:
+          "Language for transcription (auto-detect if not specified)",
+        default: "auto",
+        category: "basic" as const,
+        options: [
+          { value: "auto", label: "Auto-detect" },
+          { value: "en", label: "English" },
+          { value: "es", label: "Spanish" },
+          { value: "fr", label: "French" },
+          { value: "de", label: "German" },
+          { value: "it", label: "Italian" },
+          { value: "pt", label: "Portuguese" },
+          { value: "ru", label: "Russian" },
+          { value: "ja", label: "Japanese" },
+          { value: "ko", label: "Korean" },
+          { value: "zh", label: "Chinese" },
+        ],
+      },
+      {
+        key: "threads",
+        type: "number" as const,
+        label: "Thread Count",
+        description: "Number of threads to use for transcription",
+        default: 4,
+        min: 1,
+        max: 16,
+        category: "advanced" as const,
+      },
+    ];
+  }
+
+  async verifyOptions(
+    options: Record<string, any>
+  ): Promise<{ valid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
+    if (options.model) {
+      const validModels =
+        this.getOptions()
+          .find((opt) => opt.key === "model")
+          ?.options?.map((opt) => opt.value) || [];
+      if (!validModels.includes(options.model)) {
+        errors.push(`Invalid model: ${options.model}`);
+      }
+    }
+
+    if (options.threads !== undefined) {
+      const threads = Number(options.threads);
+      if (isNaN(threads) || threads < 1 || threads > 16) {
+        errors.push("Thread count must be between 1 and 16");
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  async onActivated(uiFunctions?: PluginUIFunctions): Promise<void> {
+    this.setActive(true);
+
+    try {
+      // Check if model exists - this is required for activation
+      const modelName =
+        this.config.get("whisperCppModel") || "ggml-base.en.bin";
+      const modelPath = join(this.config.getModelsDir(), modelName);
+
+      if (!existsSync(modelPath)) {
+        const error = `Model ${modelName} not found. Please download it first.`;
+        this.setError(error);
+        throw new Error(error);
+      }
+
+      this.setError(null);
+      console.log(`Whisper.cpp plugin activated with model: ${modelName}`);
+    } catch (error) {
+      this.setActive(false);
+      throw error;
+    }
+  }
+
+  async initialize(): Promise<void> {
+    this.setLoadingState(true, "Initializing Whisper.cpp plugin...");
+
+    try {
+      // Only verify binary is available - don't check models here
+      const available = await this.isBinaryAvailable();
+      if (!available) {
+        throw new Error("Whisper.cpp binary not found or not executable");
+      }
+
+      this.setInitialized(true);
+      this.setLoadingState(false);
+      console.log("Whisper.cpp plugin initialized successfully");
+    } catch (error) {
+      this.setError(`Whisper.cpp initialization failed: ${error}`);
+      this.setLoadingState(false);
+      throw error;
+    }
+  }
+
+  async destroy(): Promise<void> {
+    console.log("Whisper.cpp plugin destroyed");
+    this.setInitialized(false);
+    this.setActive(false);
+  }
+
+  async onDeactivate(): Promise<void> {
+    this.setActive(false);
+    console.log("Whisper.cpp plugin deactivated");
+  }
+
+  async clearData(): Promise<void> {
+    // Clean temp files
+    try {
+      const fs = await import("fs");
+      if (fs.existsSync(this.tempDir)) {
+        fs.rmSync(this.tempDir, { recursive: true, force: true });
+        this.tempDir = mkdtempSync(join(tmpdir(), "whisper-cpp-plugin-"));
+      }
+      console.log("Whisper.cpp plugin data cleared");
+    } catch (error) {
+      console.warn("Failed to clear Whisper.cpp plugin data:", error);
+    }
+  }
+
+  async updateOptions(
+    options: Record<string, any>,
+    uiFunctions?: PluginUIFunctions
+  ): Promise<void> {
+    this.setOptions(options);
+
+    // Handle model changes
+    if (options.model && options.model !== this.config.get("whisperCppModel")) {
+      if (uiFunctions) {
+        uiFunctions.showProgress(`Switching to model ${options.model}...`, 0);
+      }
+      this.setLoadingState(true, `Switching to model ${options.model}...`);
+
+      try {
+        // Update model path
+        this.config.set("whisperCppModel", options.model);
+        this.modelPath = this.resolveModelPath();
+
+        // Check if new model exists
+        if (!existsSync(this.modelPath)) {
+          const message = `Model ${options.model} not found, may need to download...`;
+          this.setLoadingState(true, message);
+          if (uiFunctions) {
+            uiFunctions.showError(message);
+          }
+        } else {
+          this.setLoadingState(false);
+          if (uiFunctions) {
+            uiFunctions.showSuccess(`Switched to model ${options.model}`);
+            uiFunctions.hideProgress();
+          }
+        }
+      } catch (error) {
+        const errorMsg = `Failed to switch model: ${error}`;
+        this.setError(errorMsg);
+        this.setLoadingState(false);
+        if (uiFunctions) {
+          uiFunctions.showError(errorMsg);
+          uiFunctions.hideProgress();
+        }
+      }
+    }
+
+    // Apply other configuration changes
+    this.configure(options);
+
+    console.log("Whisper.cpp plugin options updated:", options);
+  }
+
+  async downloadModel(
+    modelName: string,
+    uiFunctions?: PluginUIFunctions
+  ): Promise<void> {
+    this.setLoadingState(true, `Downloading ${modelName}...`);
+
+    try {
+      const downloadProgress = {
+        status: "downloading" as const,
+        progress: 0,
+        message: `Starting download of ${modelName}...`,
+        modelName,
+      };
+
+      this.setDownloadProgress(downloadProgress);
+      if (uiFunctions) {
+        uiFunctions.showDownloadProgress(downloadProgress);
+      }
+
+      // Implement actual download logic here
+      // This would integrate with the existing model download system
+      // For now, just simulate the process
+
+      throw new Error(
+        "Download functionality not yet implemented - please use the existing model download system"
+      );
+    } catch (error) {
+      const errorMsg = `Failed to download ${modelName}: ${error}`;
+      this.setError(errorMsg);
+      this.setLoadingState(false);
+      if (uiFunctions) {
+        uiFunctions.showError(errorMsg);
+      }
+      throw error;
+    }
   }
 }

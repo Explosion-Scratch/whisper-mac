@@ -2,6 +2,9 @@ import { EventEmitter } from "events";
 import {
   BaseTranscriptionPlugin,
   TranscriptionSetupProgress,
+  PluginOption,
+  PluginState,
+  PluginUIFunctions,
 } from "./TranscriptionPlugin";
 import { SegmentUpdate } from "../types/SegmentTypes";
 import { AppConfig } from "../config/AppConfig";
@@ -25,10 +28,18 @@ export class TranscriptionPluginManager extends EventEmitter {
     );
     this.plugins.set(plugin.name, plugin);
 
-    // Forward plugin errors
+    // Forward plugin events
     plugin.on("error", (error: any) => {
       console.error(`Plugin ${plugin.name} error:`, error);
       this.emit("plugin-error", { plugin: plugin.name, error });
+    });
+
+    plugin.on("stateChanged", (state: PluginState) => {
+      this.emit("plugin-state-changed", { plugin: plugin.name, state });
+    });
+
+    plugin.on("downloadProgress", (progress: any) => {
+      this.emit("plugin-download-progress", { plugin: plugin.name, progress });
     });
 
     this.emit("plugin-registered", plugin);
@@ -73,9 +84,13 @@ export class TranscriptionPluginManager extends EventEmitter {
   }
 
   /**
-   * Set the active transcription plugin
+   * Set the active transcription plugin with proper lifecycle management
    */
-  async setActivePlugin(name: string): Promise<void> {
+  async setActivePlugin(
+    name: string,
+    options: Record<string, any> = {},
+    uiFunctions?: PluginUIFunctions
+  ): Promise<void> {
     const plugin = this.getPlugin(name);
     if (!plugin) {
       throw new Error(`Plugin ${name} not found`);
@@ -85,18 +100,48 @@ export class TranscriptionPluginManager extends EventEmitter {
       throw new Error(`Plugin ${name} is not available`);
     }
 
-    // Stop current plugin if active
-    if (this.activePlugin && this.activePlugin !== plugin) {
-      try {
-        await this.activePlugin.stopTranscription();
-      } catch (error) {
-        console.error("Error stopping current plugin:", error);
+    // Verify options before proceeding
+    if (Object.keys(options).length > 0) {
+      const validation = await plugin.verifyOptions(options);
+      if (!validation.valid) {
+        throw new Error(`Invalid options: ${validation.errors.join(", ")}`);
       }
     }
 
+    // Check if plugin is currently downloading
+    const state = plugin.getState();
+    if (state.isLoading && state.downloadProgress?.status === "downloading") {
+      throw new Error(`Cannot activate ${name}: currently downloading`);
+    }
+
+    // Deactivate current plugin if different
+    if (this.activePlugin && this.activePlugin !== plugin) {
+      try {
+        await this.activePlugin.stopTranscription();
+        await this.activePlugin.onDeactivate();
+      } catch (error) {
+        console.error("Error deactivating current plugin:", error);
+      }
+    }
+
+    // Activate new plugin
     this.activePlugin = plugin;
-    this.emit("active-plugin-changed", plugin);
-    console.log(`Active transcription plugin set to: ${plugin.displayName}`);
+
+    try {
+      // Update options first
+      if (Object.keys(options).length > 0) {
+        await plugin.updateOptions(options, uiFunctions);
+      }
+
+      // Activate the plugin
+      await plugin.onActivated(uiFunctions);
+
+      this.emit("active-plugin-changed", plugin);
+      console.log(`Active transcription plugin set to: ${plugin.displayName}`);
+    } catch (error) {
+      this.activePlugin = null;
+      throw new Error(`Failed to activate plugin ${name}: ${error}`);
+    }
   }
 
   /**
@@ -191,10 +236,8 @@ export class TranscriptionPluginManager extends EventEmitter {
     const plugins = this.getPlugins();
     const initPromises = plugins.map(async (plugin) => {
       try {
-        if (plugin.initialize) {
-          await plugin.initialize();
-          console.log(`Plugin ${plugin.displayName} initialized successfully`);
-        }
+        await plugin.initialize();
+        console.log(`Plugin ${plugin.displayName} initialized successfully`);
       } catch (error) {
         console.error(
           `Failed to initialize plugin ${plugin.displayName}:`,
@@ -223,15 +266,137 @@ export class TranscriptionPluginManager extends EventEmitter {
   }
 
   /**
+   * Get all plugin options for onboarding/settings UI
+   */
+  getAllPluginOptions(): Record<string, PluginOption[]> {
+    const pluginOptions: Record<string, PluginOption[]> = {};
+
+    for (const plugin of this.getPlugins()) {
+      pluginOptions[plugin.name] = plugin.getOptions();
+    }
+
+    return pluginOptions;
+  }
+
+  /**
+   * Get options for a specific plugin
+   */
+  getPluginOptions(name: string): PluginOption[] | null {
+    const plugin = this.getPlugin(name);
+    return plugin ? plugin.getOptions() : null;
+  }
+
+  /**
+   * Get the current state of a plugin
+   */
+  getPluginState(name: string): PluginState | null {
+    const plugin = this.getPlugin(name);
+    return plugin ? plugin.getState() : null;
+  }
+
+  /**
+   * Update options for the active plugin
+   */
+  async updateActivePluginOptions(
+    options: Record<string, any>,
+    uiFunctions?: PluginUIFunctions
+  ): Promise<void> {
+    if (!this.activePlugin) {
+      throw new Error("No active plugin to update");
+    }
+
+    const validation = await this.activePlugin.verifyOptions(options);
+    if (!validation.valid) {
+      throw new Error(`Invalid options: ${validation.errors.join(", ")}`);
+    }
+
+    await this.activePlugin.updateOptions(options, uiFunctions);
+  }
+
+  /**
+   * Verify options for a specific plugin
+   */
+  async verifyPluginOptions(
+    name: string,
+    options: Record<string, any>
+  ): Promise<{ valid: boolean; errors: string[] }> {
+    const plugin = this.getPlugin(name);
+    if (!plugin) {
+      return { valid: false, errors: [`Plugin ${name} not found`] };
+    }
+
+    return await plugin.verifyOptions(options);
+  }
+
+  /**
+   * Delete/clear data for an inactive plugin
+   */
+  async deleteInactivePlugin(name: string): Promise<void> {
+    const plugin = this.getPlugin(name);
+    if (!plugin) {
+      throw new Error(`Plugin ${name} not found`);
+    }
+
+    if (this.activePlugin === plugin) {
+      throw new Error(`Cannot delete active plugin ${name}`);
+    }
+
+    await plugin.clearData();
+    console.log(`Cleared data for inactive plugin: ${name}`);
+  }
+
+  /**
+   * Clear data for a specific plugin
+   */
+  async clearPluginData(name: string): Promise<void> {
+    const plugin = this.getPlugin(name);
+    if (!plugin) {
+      throw new Error(`Plugin ${name} not found`);
+    }
+
+    await plugin.clearData();
+  }
+
+  /**
+   * Clear data for all plugins
+   */
+  async clearAllPluginData(): Promise<void> {
+    const plugins = this.getPlugins();
+    const clearPromises = plugins.map(async (plugin) => {
+      try {
+        await plugin.clearData();
+      } catch (error) {
+        console.error(
+          `Error clearing data for plugin ${plugin.displayName}:`,
+          error
+        );
+      }
+    });
+
+    await Promise.allSettled(clearPromises);
+  }
+
+  /**
    * Cleanup all plugins
    */
   async cleanup(): Promise<void> {
     console.log("Cleaning up transcription plugins...");
 
+    // Deactivate active plugin first
+    if (this.activePlugin) {
+      try {
+        await this.activePlugin.stopTranscription();
+        await this.activePlugin.onDeactivate();
+      } catch (error) {
+        console.error("Error deactivating plugin during cleanup:", error);
+      }
+    }
+
     const plugins = this.getPlugins();
     const cleanupPromises = plugins.map(async (plugin) => {
       try {
         await plugin.cleanup();
+        await plugin.destroy();
       } catch (error) {
         console.error(`Error cleaning up plugin ${plugin.displayName}:`, error);
       }
