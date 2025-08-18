@@ -7,7 +7,10 @@ import { existsSync, mkdirSync } from "fs";
 
 // Core services
 import { AudioCaptureService } from "./services/AudioCaptureService";
-import { TranscriptionClient } from "./services/WhisperLiveClient";
+import {
+  TranscriptionPluginManager,
+  createTranscriptionPluginManager,
+} from "./plugins";
 import { TextInjectionService } from "./services/TextInjectionService";
 import { TransformationService } from "./services/TransformationService";
 import { ModelManager } from "./services/ModelManager";
@@ -35,7 +38,9 @@ type SetupStatus =
   | "preparing-app"
   | "checking-permissions"
   | "starting-server"
-  | "loading-windows";
+  | "loading-windows"
+  | "initializing-plugins"
+  | "service-ready";
 
 class WhisperMacApp {
   private trayService: TrayService | null = null;
@@ -43,7 +48,7 @@ class WhisperMacApp {
   private onboardingWindow: BrowserWindow | null = null;
   private modelManagerWindow: BrowserWindow | null = null;
   private audioService: AudioCaptureService;
-  private transcriptionClient: TranscriptionClient;
+  private transcriptionPluginManager: TranscriptionPluginManager;
   private textInjector: TextInjectionService;
   private transformationService: TransformationService;
   private modelManager: ModelManager;
@@ -78,14 +83,26 @@ class WhisperMacApp {
     // Initialize other services with potentially updated config
     this.audioService = new AudioCaptureService(this.config);
     this.modelManager = new ModelManager(this.config);
-    this.transcriptionClient = new TranscriptionClient(
-      this.config,
-      this.modelManager
+    this.transcriptionPluginManager = createTranscriptionPluginManager(
+      this.config
     );
     this.textInjector = new TextInjectionService();
     this.transformationService = new TransformationService(this.config);
     this.selectedTextService = new SelectedTextService();
     this.dictationWindowService = new DictationWindowService(this.config);
+
+    // Set up VAD audio segment handler
+    this.dictationWindowService.on(
+      "vad-audio-segment",
+      (audioData: Float32Array) => {
+        console.log(
+          "Processing VAD audio segment:",
+          audioData.length,
+          "samples"
+        );
+        this.transcriptionPluginManager.processAudioSegment(audioData);
+      }
+    );
     this.segmentManager = new SegmentManager(
       this.transformationService,
       this.textInjector,
@@ -185,10 +202,7 @@ class WhisperMacApp {
     } catch (e) {}
     this.setSetupStatus("preparing-app");
 
-    // Best-effort cleanup of stale embedded python servers
-    try {
-      await this.transcriptionClient.killStaleEmbeddedPythonProcesses();
-    } catch {}
+    // Plugin system initialization - no pre-cleanup needed
 
     // Initialize data directories
     if (!existsSync(this.config.dataDir)) {
@@ -224,30 +238,41 @@ class WhisperMacApp {
           console.error("Failed to check accessibility permissions:", error);
         }),
 
-      // Check and download Whisper model on first launch
-      this.modelManager
-        .ensureModelExists(this.config.defaultModel, (progress) => {
-          if (progress.status === "starting" || progress.status === "cloning") {
+      // If Whisper.cpp is selected, ensure binary and selected model exist
+      (async () => {
+        try {
+          const activePlugin = this.config.get("transcriptionPlugin") || "yap";
+          if (activePlugin === "whisper-cpp") {
             this.setSetupStatus("downloading-models");
-          } else if (
-            progress.status === "complete" ||
-            progress.status === "error"
-          ) {
-            // Don't set to idle here as we still have other tasks running
+            const path = require("path");
+            const setupModulePath = path.join(
+              process.cwd(),
+              "plugins-setup",
+              "whisper-cpp-setup.js"
+            );
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const setupModule = require(setupModulePath);
+            const SetupCtor =
+              setupModule.WhisperCppPluginSetup ||
+              setupModule.default ||
+              setupModule;
+            const setup = new (SetupCtor as any)();
+            await setup.setup();
+            const modelName =
+              this.config.get("whisperCppModel") || "ggml-base.en.bin";
+            await setup.downloadModel(modelName);
+            console.log("Whisper.cpp and model ready");
           }
-        })
-        .then(() => {
-          console.log("Model check completed");
-        })
-        .catch((error) => {
-          console.error("Failed to check model:", error);
+        } catch (error) {
+          console.error("Failed to prepare Whisper.cpp:", error);
           this.showError({
-            title: "Model check failed",
+            title: "Whisper.cpp setup failed",
             description:
               error instanceof Error ? error.message : "Unknown error",
             actions: ["ok"],
           });
-        }),
+        }
+      })(),
 
       // Pre-load windows for faster startup
       this.preloadWindows()
@@ -263,89 +288,40 @@ class WhisperMacApp {
             actions: ["ok"],
           });
         }),
-      // Early check for WebSocket availability via TranscriptionClient
+      // Plugin system doesn't require WebSocket checks
       (async () => {
-        try {
-          // If the transcription client indicates WebSocket is missing, surface it
-          // by attempting to start and immediately stop a connection check.
-          // We won't actually launch the server here; instead, check client state.
-          const wsMissing = !(this.transcriptionClient as any)
-            .websocketAvailable;
-          if (wsMissing) {
-            await this.showError({
-              title: "WebSocket unavailable",
-              description:
-                "The WebSocket library is missing or unusable. Networking features will be disabled.",
-              actions: ["ok"],
-            });
-          }
-        } catch (err) {
-          // Non-fatal
-        }
+        console.log(
+          "Plugin system initialization will handle availability checks"
+        );
       })(),
     ];
 
-    // Start WhisperLive server (this needs to be done before we can transcribe)
-    this.setSetupStatus("starting-server");
+    // Initialize transcription plugins
+    this.setSetupStatus("initializing-plugins");
     try {
-      await this.transcriptionClient.startServer(
-        this.config.defaultModel,
-        (progress) => {
-          // Update tray status based on Whisper setup progress
-          if (progress.status === "cloning") {
-            this.setSetupStatus("setting-up-whisper");
-          } else if (progress.status === "installing") {
-            this.setSetupStatus("setting-up-whisper");
-          } else if (progress.status === "launching") {
-            this.setSetupStatus("starting-server");
-          }
-        }
-      );
-    } catch (e: any) {
-      if (e && e.code === "PORT_IN_USE") {
-        await this.showPortInUseError(this.config.serverPort);
-      } else {
-        console.error("Failed to start server:", e);
-        // Use non-blocking error surface to avoid halting init
-        this.showError({
-          title: "Failed to start server",
-          description:
-            (e && (e.message || e.toString())) ||
-            "Unknown error while starting Whisper server.",
-          actions: ["ok"],
-        });
-      }
+      await this.transcriptionPluginManager.initializePlugins();
+      console.log("Transcription plugins initialized");
+    } catch (error) {
+      console.error("Failed to initialize transcription plugins:", error);
     }
 
-    // Listen for websocket/transcription errors from transcription client
-    try {
-      (this.transcriptionClient as any).onError = (err: any) => {
-        console.error("Transcription client error:", err);
-        this.showError({
-          title: "Transcription error",
-          description:
-            err && (err.message || err.toString())
-              ? err.message || err.toString()
-              : "WebSocket connection failed",
-          actions: ["ok"],
-        });
-      };
-    } catch {}
+    this.setSetupStatus("service-ready");
+    console.log("Transcription plugin system ready");
 
-    // Listen for audio capture errors
-    try {
-      (this.audioService as any).on("error", (err: any) => {
-        console.error("Audio service error event:", err);
-        this.showError({
-          title: "Audio capture error",
-          description:
-            err && err.message
-              ? err.message
-              : String(err || "Unknown audio error"),
-          actions: ["ok"],
-        });
+    // Listen for plugin errors
+    this.transcriptionPluginManager.on("plugin-error", ({ plugin, error }) => {
+      console.error(`Transcription plugin ${plugin} error:`, error);
+      this.showError({
+        title: "Transcription error",
+        description:
+          error && (error.message || error.toString())
+            ? error.message || error.toString()
+            : "Transcription plugin failed",
+        actions: ["ok"],
       });
-    } catch {}
+    });
+
+    // VAD+YAP: Audio errors are handled directly by the browser VAD
 
     // Wait for other initialization tasks to complete
     await Promise.allSettled(initTasks);
@@ -463,44 +439,10 @@ class WhisperMacApp {
         }
       }
     );
-    // Audio capture handlers
-    ipcMain.on("audio-data", (_event, audioData: Float32Array) => {
-      console.log("Audio data received", audioData.length);
-      try {
-        if (this.transcriptionClient) {
-          this.transcriptionClient.sendAudioData(audioData);
-        }
-      } catch (e) {
-        console.error("Failed to forward audio data:", e);
-      }
-    });
+    // VAD+YAP: Audio processing is handled by Silero VAD in the browser
+    // Audio segments are sent via 'vad-audio-segment' (handled by DictationWindowService)
 
-    ipcMain.on("audio-error", (_event, error: string) => {
-      console.error("Audio capture error:", error);
-      try {
-        // Surface error to audio service listeners if present
-        (this.audioService as any).emit?.("error", new Error(error));
-      } catch {}
-      this.showError({
-        title: "Audio capture error",
-        description: error,
-        actions: ["ok"],
-      });
-    });
-
-    ipcMain.on("audio-capture-started", () => {
-      console.log("Audio capture started (IPC)");
-      try {
-        (this.audioService as any).emit?.("captureStarted");
-      } catch {}
-    });
-
-    ipcMain.on("audio-capture-stopped", () => {
-      console.log("Audio capture stopped (IPC)");
-      try {
-        (this.audioService as any).emit?.("captureStopped");
-      } catch {}
-    });
+    // Audio capture events handled directly by VAD in the browser
 
     // Extend with more handlers as needed
     console.log("IPC Handlers set up");
@@ -509,7 +451,8 @@ class WhisperMacApp {
   private setupOnboardingIpc() {
     ipcMain.handle("onboarding:getInitialState", () => ({
       ai: this.config.ai,
-      model: this.config.defaultModel,
+      model: this.config.get("whisperCppModel") || "ggml-base.en.bin",
+      plugin: this.config.get("transcriptionPlugin") || "yap",
     }));
 
     ipcMain.handle("onboarding:checkAccessibility", async () => {
@@ -522,12 +465,22 @@ class WhisperMacApp {
       return true;
     });
 
-    ipcMain.handle("onboarding:setModel", (_e, modelRepoId: string) => {
-      this.config.setDefaultModel(modelRepoId);
+    ipcMain.handle("onboarding:setModel", (_e, modelName: string) => {
+      this.config.set("whisperCppModel", modelName);
       this.settingsService
         .getSettingsManager()
-        .set("defaultModel", modelRepoId);
+        .set("whisperCpp.model", modelName);
       this.settingsService.getSettingsManager().saveSettings();
+    });
+
+    ipcMain.handle("onboarding:setPlugin", async (_e, pluginName: string) => {
+      this.config.set("transcriptionPlugin", pluginName);
+      const sm = this.settingsService.getSettingsManager();
+      sm.set("transcription.plugin", pluginName);
+      sm.saveSettings();
+      try {
+        await this.transcriptionPluginManager.setActivePlugin(pluginName);
+      } catch {}
     });
 
     ipcMain.handle("onboarding:setAiEnabled", (_e, enabled: boolean) => {
@@ -566,46 +519,50 @@ class WhisperMacApp {
         const sendLog = (line: string) =>
           event.sender.send("onboarding:log", { line });
 
-        await this.modelManager.ensureModelExists(
-          this.config.defaultModel,
-          (p) => {
-            event.sender.send("onboarding:progress", {
-              status: p.status,
-              message: p.message,
-              percent:
-                p.status === "cloning" ? 40 : p.status === "complete" ? 60 : 20,
-            });
-          },
-          sendLog
-        );
+        const activePlugin = this.config.get("transcriptionPlugin") || "yap";
+        if (activePlugin === "whisper-cpp") {
+          // Download/build whisper.cpp and the selected model
+          event.sender.send("onboarding:progress", {
+            status: "starting",
+            message: "Preparing Whisper.cpp",
+            percent: 5,
+          });
 
-        event.sender.send("onboarding:progress", {
-          status: "starting-server",
-          message: "Starting Whisper server...",
-          percent: 70,
-        });
-
-        try {
-          await this.transcriptionClient.startServer(
-            this.config.defaultModel,
-            (progress) => {
-              let percent = 70;
-              if (progress.status === "installing") percent = 80;
-              else if (progress.status === "launching") percent = 90;
-              else if (progress.status === "complete") percent = 100;
-              event.sender.send("onboarding:progress", {
-                status: progress.status,
-                message: progress.message,
-                percent,
-              });
-            },
-            sendLog
+          const path = require("path");
+          const setupModulePath = path.join(
+            process.cwd(),
+            "plugins-setup",
+            "whisper-cpp-setup.js"
           );
-        } catch (e: any) {
-          if (e && e.code === "PORT_IN_USE") {
-            await this.showPortInUseError(this.config.serverPort);
-          }
-          throw e;
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const setupModule = require(setupModulePath);
+          const SetupCtor =
+            setupModule.WhisperCppPluginSetup ||
+            setupModule.default ||
+            setupModule;
+          const setup = new (SetupCtor as any)();
+          await setup.setup();
+
+          const modelName =
+            this.config.get("whisperCppModel") || "ggml-base.en.bin";
+          event.sender.send("onboarding:progress", {
+            status: "downloading-models",
+            message: `Downloading model ${modelName}`,
+            percent: 40,
+          });
+          await setup.downloadModel(modelName);
+
+          event.sender.send("onboarding:progress", {
+            status: "service-ready",
+            message: "Whisper.cpp ready",
+            percent: 100,
+          });
+        } else {
+          event.sender.send("onboarding:progress", {
+            status: "service-ready",
+            message: "YAP transcription ready",
+            percent: 100,
+          });
         }
 
         event.sender.send("onboarding:progress", {
@@ -649,16 +606,19 @@ class WhisperMacApp {
       this.preloadWindows().catch(() => {}),
     ];
 
-    this.setSetupStatus("starting-server");
+    // Initialize plugins after onboarding selection
+    this.setSetupStatus("initializing-plugins");
     try {
-      await this.transcriptionClient.startServer(this.config.defaultModel);
-    } catch (e: any) {
-      if (e && e.code === "PORT_IN_USE") {
-        await this.showPortInUseError(this.config.serverPort);
-      } else {
-        console.error("Failed to start server:", e);
-      }
+      await this.transcriptionPluginManager.initializePlugins();
+      console.log("Transcription plugins initialized (post-onboarding)");
+    } catch (error) {
+      console.error(
+        "Failed to initialize transcription plugins (post-onboarding):",
+        error
+      );
     }
+    this.setSetupStatus("service-ready");
+    console.log("Transcription plugin system ready (post-onboarding)");
     await Promise.allSettled(initTasks);
     this.registerGlobalShortcuts();
     this.setupIpcHandlers();
@@ -729,10 +689,7 @@ class WhisperMacApp {
     ipcMain.removeAllListeners("close-dictation-window");
     ipcMain.removeAllListeners("download-model");
     // Remove audio IPC listeners
-    ipcMain.removeAllListeners("audio-data");
-    ipcMain.removeAllListeners("audio-error");
-    ipcMain.removeAllListeners("audio-capture-started");
-    ipcMain.removeAllListeners("audio-capture-stopped");
+    // No audio capture listeners to remove in VAD+YAP system
 
     console.log("=== IPC handlers cleaned up ===");
   }
@@ -892,46 +849,37 @@ class WhisperMacApp {
       this.trayService?.updateTrayIcon("recording");
       this.dictationWindowService.startRecording();
 
-      // Start audio capture and transcription in parallel
-      const audioStartTime = Date.now();
-      const [audioResult, transcriptionResult] = await Promise.allSettled([
-        this.audioService.startCapture(),
-        this.transcriptionClient.startTranscription(
+      // Start transcription with active plugin (VAD runs in browser, no separate audio capture needed)
+      const transcriptionStartTime = Date.now();
+      try {
+        await this.transcriptionPluginManager.startTranscription(
           async (update: SegmentUpdate) => {
             // Update dictation window with real-time transcription
             this.dictationWindowService.updateTranscription(update);
             // Process segments and flush completed ones
             await this.processSegments(update);
           }
-        ),
-      ]);
+        );
 
-      const audioEndTime = Date.now();
-      console.log(`Audio setup: ${audioEndTime - audioStartTime}ms`);
-
-      if (audioResult.status === "rejected") {
-        throw new Error(`Failed to start audio capture: ${audioResult.reason}`);
-      }
-
-      if (transcriptionResult && transcriptionResult.status === "rejected") {
-        const reason =
-          (transcriptionResult as PromiseRejectionEvent & any).reason ||
-          transcriptionResult?.reason;
-        console.error("Failed to start transcription:", reason);
+        const transcriptionEndTime = Date.now();
+        console.log(
+          `Transcription setup: ${
+            transcriptionEndTime - transcriptionStartTime
+          }ms`
+        );
+      } catch (error: any) {
+        console.error("Failed to start transcription:", error);
         // Clean up and surface a user-friendly error
         await this.cancelDictationFlow();
         await this.showError({
           title: "Transcription failed",
-          description:
-            reason instanceof Error
-              ? reason.message
-              : String(reason || "Unknown error starting transcription"),
+          description: error.message || "Unknown error starting transcription",
           actions: ["ok"],
         });
         return;
       }
 
-      // Audio forwarding is handled globally via ipcMain 'audio-data' handler to avoid duplicate sends
+      // VAD+YAP: Audio processing is handled by the browser VAD and sent to YAP when speech segments are detected
 
       const totalTime = Date.now() - startTime;
       console.log(`=== Dictation started successfully in ${totalTime}ms ===`);
@@ -1031,7 +979,7 @@ class WhisperMacApp {
       // Clear all segments without flushing (segments should have been handled in finishCurrentDictation)
       this.segmentManager.clearAllSegments();
 
-      await this.transcriptionClient.stopTranscription();
+      await this.transcriptionPluginManager.stopTranscription();
 
       // Close the dictation window
       setTimeout(() => {
@@ -1127,7 +1075,7 @@ class WhisperMacApp {
       this.dictationWindowService.setTransformingStatus();
 
       // 3. Wait a bit longer for in-progress segments to complete
-      // This gives the WhisperLive server time to finish processing any audio that was sent
+      // Allow time for transcription plugins to finish processing
       console.log("Waiting for in-progress segments to complete...");
       await new Promise((r) => setTimeout(r, 1000));
 
@@ -1186,7 +1134,7 @@ class WhisperMacApp {
       this.trayService?.updateTrayIcon("idle");
 
       // Stop transcription since we're done
-      await this.transcriptionClient.stopTranscription();
+      await this.transcriptionPluginManager.stopTranscription();
 
       // Clear all segments since they've been processed
       this.segmentManager.clearAllSegments();
@@ -1217,7 +1165,7 @@ class WhisperMacApp {
 
     if (wasRecording) {
       await this.audioService.stopCapture();
-      await this.transcriptionClient.stopTranscription();
+      await this.transcriptionPluginManager.stopTranscription();
     }
 
     this.dictationWindowService.closeDictationWindow();
@@ -1234,7 +1182,7 @@ class WhisperMacApp {
   }
 
   // Clean up when app quits
-  cleanup() {
+  async cleanup() {
     console.log("=== Starting app cleanup ===");
 
     // Set a timeout to force quit if cleanup takes too long
@@ -1248,7 +1196,7 @@ class WhisperMacApp {
       globalShortcut.unregisterAll();
 
       // Stop transcription and close WebSocket
-      this.transcriptionClient.stopTranscription();
+      await this.transcriptionPluginManager.stopTranscription();
 
       // Stop audio capture and close audio window
       this.audioService.stopCapture();
@@ -1268,8 +1216,9 @@ class WhisperMacApp {
       // Close error window
       this.errorService.cleanup();
 
-      // Stop WhisperLive server
-      this.transcriptionClient.stopServer();
+      // Stop transcription plugins
+      // Cleanup transcription plugins
+      await this.transcriptionPluginManager.cleanup();
 
       // Clear tray
       this.trayService?.destroy();

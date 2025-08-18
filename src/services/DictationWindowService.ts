@@ -1,5 +1,6 @@
 import { BrowserWindow, screen, app } from "electron";
 import { join } from "path";
+import { EventEmitter } from "events";
 import { AppConfig } from "../config/AppConfig";
 import { Segment, SegmentUpdate } from "../types/SegmentTypes";
 
@@ -8,13 +9,14 @@ export interface WindowPosition {
   y: number;
 }
 
-export class DictationWindowService {
+export class DictationWindowService extends EventEmitter {
   private dictationWindow: BrowserWindow | null = null;
   private config: AppConfig;
   private currentSegments: Segment[] = [];
   private currentStatus: "listening" | "transforming" = "listening";
 
   constructor(config: AppConfig) {
+    super();
     this.config = config;
   }
 
@@ -138,6 +140,10 @@ export class DictationWindowService {
           case "dictation-log":
             console.log("Dictation window log:", args[0]);
             break;
+          case "vad-audio-segment":
+            console.log("Received VAD audio segment:", args[0]?.length || 0, "samples");
+            this.emit("vad-audio-segment", new Float32Array(args[0]));
+            break;
           default:
             console.log("Unknown IPC channel:", channel);
         }
@@ -250,7 +256,7 @@ export class DictationWindowService {
   updateTranscription(update: SegmentUpdate): void {
     this.currentSegments = update.segments;
     if (this.currentStatus !== "transforming") {
-      this.currentStatus = update.status;
+      this.currentStatus = update.status || "listening";
     }
 
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {

@@ -5,8 +5,10 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
   checkAccessibility: () => ipcRenderer.invoke("onboarding:checkAccessibility"),
   resetAccessibilityCache: () =>
     ipcRenderer.invoke("onboarding:resetAccessibilityCache"),
-  setModel: (modelRepoId: string) =>
-    ipcRenderer.invoke("onboarding:setModel", modelRepoId),
+  setModel: (modelName: string) =>
+    ipcRenderer.invoke("onboarding:setModel", modelName),
+  setPlugin: (pluginName: string) =>
+    ipcRenderer.invoke("onboarding:setPlugin", pluginName),
   setAiEnabled: (enabled: boolean) =>
     ipcRenderer.invoke("onboarding:setAiEnabled", enabled),
   setAiProvider: (baseUrl: string, model: string) =>

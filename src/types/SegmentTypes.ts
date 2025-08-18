@@ -12,7 +12,6 @@ export interface BaseSegment {
 export interface InProgressSegment extends BaseSegment {
   type: "inprogress";
   confidence?: number;
-  completed: boolean;
 }
 
 export interface TranscribedSegment extends BaseSegment {
@@ -25,7 +24,8 @@ export type Segment = InProgressSegment | TranscribedSegment;
 
 export interface SegmentUpdate {
   segments: Segment[];
-  status: "listening" | "transforming";
+  status?: "listening" | "transforming";
+  sessionUid?: string;
 }
 
 export interface FlushResult {

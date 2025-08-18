@@ -24,7 +24,7 @@ export class SegmentManager extends EventEmitter {
   constructor(
     transformationService: TransformationService,
     textInjectionService: TextInjectionService,
-    selectedTextService: SelectedTextService,
+    selectedTextService: SelectedTextService
   ) {
     super();
     this.transformationService = transformationService;
@@ -51,29 +51,29 @@ export class SegmentManager extends EventEmitter {
   setInitialSelectedText(text: string): void {
     this.initialSelectedText = text.trim();
     console.log(
-      `[SegmentManager] Set initial selected text: "${this.initialSelectedText}"`,
+      `[SegmentManager] Set initial selected text: "${this.initialSelectedText}"`
     );
   }
 
   /**
-   * Add a transcribed segment from WhisperLive
+   * Add a transcribed segment from transcription plugins
    */
   addTranscribedSegment(
     text: string,
     completed: boolean,
     start?: number,
     end?: number,
-    confidence?: number,
+    confidence?: number
   ): TranscribedSegment {
     const trimmedText = text.trim();
     console.log(
-      `[SegmentManager] Attempting to add segment: "${trimmedText}" (completed: ${completed})`,
+      `[SegmentManager] Attempting to add segment: "${trimmedText}" (completed: ${completed})`
     );
 
     // One-shot ignore for the next completed segment after a flush
     if (completed && this.ignoreNextCompleted) {
       console.log(
-        "[SegmentManager] Ignoring next completed segment post-flush",
+        "[SegmentManager] Ignoring next completed segment post-flush"
       );
       this.ignoreNextCompleted = false;
       return {
@@ -91,7 +91,7 @@ export class SegmentManager extends EventEmitter {
     // If a completed segment arrives, delete all in-progress segments.
     if (completed) {
       this.segments = this.segments.filter(
-        (s) => s.type === "transcribed" && s.completed,
+        (s) => s.type === "transcribed" && s.completed
       );
       this.segments.push({
         id: uuidv4(),
@@ -108,7 +108,7 @@ export class SegmentManager extends EventEmitter {
     // If it's a new in-progress segment, clear out all other old ones first.
     if (!completed) {
       this.segments = this.segments.filter(
-        (s) => s.type !== "transcribed" || s.completed,
+        (s) => s.type !== "transcribed" || s.completed
       );
     }
 
@@ -122,10 +122,10 @@ export class SegmentManager extends EventEmitter {
 
     if (isDuplicate) {
       console.log(
-        `[SegmentManager] Skipping duplicate segment: "${trimmedText}"`,
+        `[SegmentManager] Skipping duplicate segment: "${trimmedText}"`
       );
       return this.segments.find(
-        (s) => s.type === "transcribed" && s.text.trim() === trimmedText,
+        (s) => s.type === "transcribed" && s.text.trim() === trimmedText
       ) as TranscribedSegment;
     }
 
@@ -143,7 +143,7 @@ export class SegmentManager extends EventEmitter {
     this.segments.push(segment);
     this.emit("segment-added", segment);
     console.log(
-      `[SegmentManager] Added transcribed segment: "${trimmedText}" (completed: ${completed})`,
+      `[SegmentManager] Added transcribed segment: "${trimmedText}" (completed: ${completed})`
     );
     return segment;
   }
@@ -177,7 +177,7 @@ export class SegmentManager extends EventEmitter {
       console.log("[SegmentManager] Transform and inject all segments");
 
       const segmentsToProcess = this.segments.filter(
-        (s) => s.type === "transcribed",
+        (s) => s.type === "transcribed"
       ) as TranscribedSegment[];
 
       if (segmentsToProcess.length === 0) {
@@ -186,20 +186,20 @@ export class SegmentManager extends EventEmitter {
       }
 
       console.log(
-        `[SegmentManager] Transforming and injecting ${segmentsToProcess.length} segments`,
+        `[SegmentManager] Transforming and injecting ${segmentsToProcess.length} segments`
       );
 
       // Transform all segments
       const transformResult =
         await this.transformationService.transformSegments(
           segmentsToProcess,
-          SAVED_STATE,
+          SAVED_STATE
         );
 
       if (!transformResult.success) {
         console.error(
           "[SegmentManager] Transformation failed:",
-          transformResult.error,
+          transformResult.error
         );
         return {
           transformedText: "",
@@ -221,7 +221,7 @@ export class SegmentManager extends EventEmitter {
       this.clearAllSegments();
 
       console.log(
-        `[SegmentManager] Transform and inject completed successfully`,
+        `[SegmentManager] Transform and inject completed successfully`
       );
 
       return {
@@ -246,7 +246,7 @@ export class SegmentManager extends EventEmitter {
    */
   clearAllSegments(): void {
     console.log(
-      `[SegmentManager] Clearing all ${this.segments.length} segments and selected text`,
+      `[SegmentManager] Clearing all ${this.segments.length} segments and selected text`
     );
     this.segments = [];
     this.initialSelectedText = null;
@@ -273,7 +273,7 @@ export class SegmentManager extends EventEmitter {
    */
   getCompletedTranscribedSegments(): TranscribedSegment[] {
     return this.segments.filter(
-      (s) => s.type === "transcribed" && s.completed,
+      (s) => s.type === "transcribed" && s.completed
     ) as TranscribedSegment[];
   }
 
@@ -282,7 +282,7 @@ export class SegmentManager extends EventEmitter {
    */
   getInProgressTranscribedSegments(): TranscribedSegment[] {
     return this.segments.filter(
-      (s) => s.type === "transcribed" && !s.completed,
+      (s) => s.type === "transcribed" && !s.completed
     ) as TranscribedSegment[];
   }
 
@@ -316,13 +316,13 @@ export class SegmentManager extends EventEmitter {
     inProgress: number;
   } {
     const transcribed = this.segments.filter(
-      (s) => s.type === "transcribed",
+      (s) => s.type === "transcribed"
     ).length;
     const completed = this.segments.filter(
-      (s) => s.type === "transcribed" && s.completed,
+      (s) => s.type === "transcribed" && s.completed
     ).length;
     const inProgress = this.segments.filter(
-      (s) => s.type === "transcribed" && !s.completed,
+      (s) => s.type === "transcribed" && !s.completed
     ).length;
 
     return {

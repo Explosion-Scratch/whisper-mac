@@ -1,0 +1,410 @@
+import { spawn, ChildProcess } from "child_process";
+import { writeFileSync, unlinkSync, mkdtempSync, existsSync } from "fs";
+import { join, resolve } from "path";
+import { tmpdir } from "os";
+import { app } from "electron";
+import { v4 as uuidv4 } from "uuid";
+import { AppConfig } from "../config/AppConfig";
+import {
+  Segment,
+  TranscribedSegment,
+  InProgressSegment,
+  SegmentUpdate,
+} from "../types/SegmentTypes";
+import {
+  BaseTranscriptionPlugin,
+  TranscriptionSetupProgress,
+  TranscriptionPluginConfigSchema,
+} from "./TranscriptionPlugin";
+
+/**
+ * YAP transcription plugin using Silero VAD + YAP CLI
+ */
+export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
+  readonly name = "yap";
+  readonly displayName = "YAP (Silero VAD + Apple Speech Framework)";
+  readonly version = "1.0.3";
+  readonly description =
+    "On-device transcription using Silero VAD for speech detection and YAP CLI for transcription";
+  readonly supportsRealtime = true;
+  readonly supportsBatchProcessing = true;
+
+  private config: AppConfig;
+  private sessionUid: string = "";
+  private currentSegments: Segment[] = [];
+  private tempDir: string;
+  private yapBinaryPath: string;
+
+  constructor(config: AppConfig) {
+    super();
+    this.config = config;
+    this.tempDir = mkdtempSync(join(tmpdir(), "yap-plugin-"));
+    this.yapBinaryPath = this.resolveYapBinaryPath();
+  }
+
+  private resolveYapBinaryPath(): string {
+    // Try production bundled path first
+    const packagedPath = join(process.resourcesPath, "yap", "yap");
+    if (existsSync(packagedPath)) {
+      return packagedPath;
+    }
+
+    // Fall back to development vendor path
+    const devPath = join(process.cwd(), "vendor", "yap", "yap");
+    if (existsSync(devPath)) {
+      return devPath;
+    }
+
+    // Fall back to system yap (if installed via Homebrew)
+    return "yap";
+  }
+
+  async isAvailable(): Promise<boolean> {
+    try {
+      // Check if YAP binary exists and is executable
+      return new Promise((resolve) => {
+        const yapProcess = spawn(this.yapBinaryPath, ["--help"], {
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+
+        let hasOutput = false;
+        yapProcess.stdout?.on("data", () => {
+          hasOutput = true;
+        });
+
+        yapProcess.on("close", (code) => {
+          resolve(hasOutput && code === 0);
+        });
+
+        yapProcess.on("error", () => {
+          resolve(false);
+        });
+
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          if (!yapProcess.killed) {
+            yapProcess.kill();
+            resolve(false);
+          }
+        }, 5000);
+      });
+    } catch (error) {
+      console.error("YAP availability check failed:", error);
+      return false;
+    }
+  }
+
+  async startTranscription(
+    onUpdate: (update: SegmentUpdate) => void,
+    onProgress?: (progress: TranscriptionSetupProgress) => void,
+    onLog?: (line: string) => void
+  ): Promise<void> {
+    console.log("=== Starting YAP transcription plugin ===");
+
+    if (this.isRunning) {
+      onLog?.("[YAP Plugin] Service already running");
+      onProgress?.({ status: "complete", message: "YAP plugin ready" });
+      return;
+    }
+
+    try {
+      onProgress?.({ status: "starting", message: "Initializing YAP plugin" });
+
+      this.setTranscriptionCallback(onUpdate);
+      this.sessionUid = uuidv4();
+      this.currentSegments = [];
+      this.setRunning(true);
+
+      onProgress?.({ status: "complete", message: "YAP plugin ready" });
+      onLog?.("[YAP Plugin] Service initialized and ready for audio segments");
+    } catch (error: any) {
+      console.error("Failed to start YAP plugin:", error);
+      this.setRunning(false);
+      onProgress?.({
+        status: "error",
+        message: `Failed to start plugin: ${error.message}`,
+      });
+
+      this.emit("error", error);
+      throw error;
+    }
+  }
+
+  async processAudioSegment(audioData: Float32Array): Promise<void> {
+    if (!this.isRunning || !this.onTranscriptionCallback) {
+      console.log("YAP plugin not running, ignoring audio segment");
+      return;
+    }
+
+    try {
+      console.log(`Processing audio segment: ${audioData.length} samples`);
+
+      // Create temporary WAV file for YAP
+      const tempAudioPath = await this.saveAudioAsWav(audioData);
+
+      // Show in-progress transcription
+      const inProgressSegment: InProgressSegment = {
+        id: uuidv4(),
+        type: "inprogress",
+        text: "Transcribing...",
+        timestamp: Date.now(),
+      };
+
+      this.currentSegments = [inProgressSegment];
+      this.onTranscriptionCallback({
+        segments: [...this.currentSegments],
+        sessionUid: this.sessionUid,
+      });
+
+      // Transcribe with YAP
+      const transcription = await this.transcribeWithYap(tempAudioPath);
+
+      // Clean up temp file
+      try {
+        unlinkSync(tempAudioPath);
+      } catch (err) {
+        console.warn("Failed to delete temp audio file:", err);
+      }
+
+      // Create completed segment
+      const completedSegment: TranscribedSegment = {
+        id: uuidv4(),
+        type: "transcribed",
+        text: transcription.trim(),
+        completed: true,
+        timestamp: Date.now(),
+        confidence: 0.9, // YAP doesn't provide confidence, use default
+      };
+
+      this.currentSegments = [completedSegment];
+      this.onTranscriptionCallback({
+        segments: [...this.currentSegments],
+        sessionUid: this.sessionUid,
+      });
+    } catch (error: any) {
+      console.error("Failed to process audio segment:", error);
+
+      const errorSegment: TranscribedSegment = {
+        id: uuidv4(),
+        type: "transcribed",
+        text: "[Transcription failed]",
+        completed: true,
+        timestamp: Date.now(),
+        confidence: 0,
+      };
+
+      this.currentSegments = [errorSegment];
+      if (this.onTranscriptionCallback) {
+        this.onTranscriptionCallback({
+          segments: [...this.currentSegments],
+          sessionUid: this.sessionUid,
+        });
+      }
+    }
+  }
+
+  async transcribeFile(filePath: string): Promise<string> {
+    return await this.transcribeWithYap(filePath);
+  }
+
+  async stopTranscription(): Promise<void> {
+    console.log("=== Stopping YAP transcription plugin ===");
+
+    this.setRunning(false);
+    this.setTranscriptionCallback(null);
+    this.currentSegments = [];
+
+    console.log("YAP transcription plugin stopped");
+  }
+
+  async cleanup(): Promise<void> {
+    await this.stopTranscription();
+
+    // Clean up temp directory
+    try {
+      const { readdirSync } = require("fs");
+      const files = readdirSync(this.tempDir);
+      for (const file of files) {
+        unlinkSync(join(this.tempDir, file));
+      }
+    } catch (err) {
+      console.warn("Failed to clean temp directory:", err);
+    }
+  }
+
+  getConfigSchema(): TranscriptionPluginConfigSchema {
+    return {
+      locale: {
+        type: "select",
+        label: "Language",
+        description: "Language for transcription",
+        default: "en-US",
+        options: [
+          "current",
+          "en-US",
+          "en-GB",
+          "es-ES",
+          "fr-FR",
+          "de-DE",
+          "it-IT",
+          "pt-BR",
+          "zh-CN",
+          "ja-JP",
+          "ko-KR",
+        ],
+      },
+      censor: {
+        type: "boolean",
+        label: "Censor Profanity",
+        description: "Replaces certain words and phrases with a redacted form",
+        default: false,
+      },
+    };
+  }
+
+  configure(config: Record<string, any>): void {
+    // YAP configuration is passed as CLI args, stored in this.config
+    if (config.locale !== undefined) {
+      this.config.set("yapLocale", config.locale);
+    }
+    if (config.censor !== undefined) {
+      this.config.set("yapCensor", config.censor);
+    }
+  }
+
+  /**
+   * Convert Float32Array audio data to WAV file for YAP
+   */
+  private async saveAudioAsWav(audioData: Float32Array): Promise<string> {
+    const sampleRate = 16000; // VAD outputs at 16kHz
+    const numChannels = 1;
+    const bitsPerSample = 16;
+
+    const tempPath = join(this.tempDir, `audio_${Date.now()}.wav`);
+
+    // Convert Float32Array to 16-bit PCM
+    const pcmData = new Int16Array(audioData.length);
+    for (let i = 0; i < audioData.length; i++) {
+      // Clamp to [-1, 1] and convert to 16-bit
+      const clamped = Math.max(-1, Math.min(1, audioData[i]));
+      pcmData[i] = Math.round(clamped * 32767);
+    }
+
+    // Create WAV header
+    const wavHeader = this.createWavHeader(
+      pcmData.length * 2,
+      sampleRate,
+      numChannels,
+      bitsPerSample
+    );
+
+    // Combine header and data
+    const wavBuffer = new ArrayBuffer(
+      wavHeader.byteLength + pcmData.byteLength
+    );
+    const wavView = new Uint8Array(wavBuffer);
+    wavView.set(new Uint8Array(wavHeader), 0);
+    wavView.set(new Uint8Array(pcmData.buffer), wavHeader.byteLength);
+
+    // Write to file
+    writeFileSync(tempPath, Buffer.from(wavBuffer));
+
+    return tempPath;
+  }
+
+  /**
+   * Create WAV file header
+   */
+  private createWavHeader(
+    dataLength: number,
+    sampleRate: number,
+    numChannels: number,
+    bitsPerSample: number
+  ): ArrayBuffer {
+    const buffer = new ArrayBuffer(44);
+    const view = new DataView(buffer);
+
+    // RIFF header
+    view.setUint32(0, 0x52494646, false); // "RIFF"
+    view.setUint32(4, 36 + dataLength, true); // File size - 8
+    view.setUint32(8, 0x57415645, false); // "WAVE"
+
+    // Format chunk
+    view.setUint32(12, 0x666d7420, false); // "fmt "
+    view.setUint32(16, 16, true); // Subchunk1Size
+    view.setUint16(20, 1, true); // AudioFormat (PCM)
+    view.setUint16(22, numChannels, true); // NumChannels
+    view.setUint32(24, sampleRate, true); // SampleRate
+    view.setUint32(28, (sampleRate * numChannels * bitsPerSample) / 8, true); // ByteRate
+    view.setUint16(32, (numChannels * bitsPerSample) / 8, true); // BlockAlign
+    view.setUint16(34, bitsPerSample, true); // BitsPerSample
+
+    // Data chunk
+    view.setUint32(36, 0x64617461, false); // "data"
+    view.setUint32(40, dataLength, true); // Subchunk2Size
+
+    return buffer;
+  }
+
+  /**
+   * Transcribe audio file using YAP CLI
+   */
+  private async transcribeWithYap(audioPath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const args = ["transcribe", audioPath, "--txt"];
+
+      // Add configuration options
+      const locale = this.config.get("yapLocale");
+      if (locale && locale !== "current") {
+        args.push("--locale", locale);
+      }
+
+      const censor = this.config.get("yapCensor");
+      if (censor) {
+        args.push("--censor");
+      }
+
+      console.log(`Running YAP: ${this.yapBinaryPath} ${args.join(" ")}`);
+
+      const yapProcess = spawn(this.yapBinaryPath, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      yapProcess.stdout?.on("data", (data) => {
+        stdout += data.toString();
+      });
+
+      yapProcess.stderr?.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      yapProcess.on("close", (code) => {
+        if (code === 0) {
+          const transcription = stdout.trim();
+          console.log(`YAP transcription: "${transcription}"`);
+          resolve(transcription || "[No speech detected]");
+        } else {
+          const error = new Error(`YAP failed with code ${code}: ${stderr}`);
+          console.error("YAP error:", error.message);
+          reject(error);
+        }
+      });
+
+      yapProcess.on("error", (error) => {
+        console.error("YAP spawn error:", error);
+        reject(error);
+      });
+
+      // Set timeout to prevent hanging
+      setTimeout(() => {
+        if (!yapProcess.killed) {
+          yapProcess.kill();
+          reject(new Error("YAP transcription timeout"));
+        }
+      }, 30000); // 30 second timeout
+    });
+  }
+}

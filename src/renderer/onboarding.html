@@ -382,33 +382,36 @@
                 <span class="step-icon"
                   ><i class="ph-duotone ph-download-simple"></i
                 ></span>
-                <h1>Choose a Whisper model</h1>
+                <h1>Choose transcription engine</h1>
               </div>
-              <p class="micro">
-                We recommend Tiny (English) for best speed. You can change
-                later.
-              </p>
-              <div class="row" style="width: 100%">
-                <select id="modelSelect" class="select" v-model="modelSelect">
-                  <option value="Systran/faster-whisper-tiny.en">
-                    Tiny (English) — recommended
-                  </option>
-                  <option value="Systran/faster-whisper-tiny">
-                    Tiny (Multilingual)
-                  </option>
-                  <option value="Systran/faster-whisper-base.en">
-                    Base (English)
-                  </option>
-                  <option value="Systran/faster-whisper-base">
-                    Base (Multilingual)
-                  </option>
-                  <option value="Systran/faster-whisper-small.en">
-                    Small (English)
-                  </option>
-                  <option value="Systran/faster-whisper-small">
-                    Small (Multilingual)
-                  </option>
-                </select>
+              <div class="card" style="width: 100%">
+                <div class="field">
+                  <div class="label">Plugin</div>
+                  <select
+                    id="pluginSelect"
+                    class="select"
+                    v-model="pluginSelect"
+                  >
+                    <option value="yap">YAP (Apple Speech)</option>
+                    <option value="whisper-cpp">Whisper.cpp</option>
+                  </select>
+                </div>
+                <div
+                  class="field"
+                  v-show="pluginSelect === 'whisper-cpp'"
+                  style="margin-top: 10px"
+                >
+                  <div class="label">Whisper.cpp model</div>
+                  <select id="modelSelect" class="select" v-model="modelSelect">
+                    <option v-for="m in whisperModels" :key="m" :value="m">
+                      {{ m }}
+                    </option>
+                  </select>
+                  <div class="hint" style="margin-top: 6px">
+                    Defaults to the bundled model if available. Models are
+                    downloaded from the Whisper.cpp repository on Hugging Face.
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -559,7 +562,42 @@
           const aiApiKey = ref("");
           const keyStatus = ref("");
           const savingKey = ref(false);
-          const modelSelect = ref("Systran/faster-whisper-tiny.en");
+          const pluginSelect = ref("yap");
+          const modelSelect = ref("ggml-base.en.bin");
+          const whisperModels = ref([
+            "ggml-tiny.bin",
+            "ggml-tiny-q5_1.bin",
+            "ggml-tiny-q8_0.bin",
+            "ggml-tiny.en.bin",
+            "ggml-tiny.en-q5_1.bin",
+            "ggml-tiny.en-q8_0.bin",
+            "ggml-base.bin",
+            "ggml-base-q5_1.bin",
+            "ggml-base-q8_0.bin",
+            "ggml-base.en.bin",
+            "ggml-base.en-q5_1.bin",
+            "ggml-base.en-q8_0.bin",
+            "ggml-small.bin",
+            "ggml-small-q5_1.bin",
+            "ggml-small-q8_0.bin",
+            "ggml-small.en.bin",
+            "ggml-small.en-q5_1.bin",
+            "ggml-small.en-q8_0.bin",
+            "ggml-medium.bin",
+            "ggml-medium-q5_0.bin",
+            "ggml-medium-q8_0.bin",
+            "ggml-medium.en.bin",
+            "ggml-medium.en-q5_0.bin",
+            "ggml-medium.en-q8_0.bin",
+            "ggml-large-v2.bin",
+            "ggml-large-v2-q5_0.bin",
+            "ggml-large-v2-q8_0.bin",
+            "ggml-large-v3.bin",
+            "ggml-large-v3-q5_0.bin",
+            "ggml-large-v3-turbo.bin",
+            "ggml-large-v3-turbo-q5_0.bin",
+            "ggml-large-v3-turbo-q8_0.bin",
+          ]);
           const progressText = ref("Idle");
           const progressPercent = ref(0);
           const logs = ref([]);
@@ -589,6 +627,7 @@
             aiModel.value = initState.ai.model || "";
             aiEnabled.value = !!initState.ai.enabled;
             modelSelect.value = initState.model || modelSelect.value;
+            pluginSelect.value = initState.plugin || pluginSelect.value;
           };
 
           const prev = () => {
@@ -611,7 +650,10 @@
 
             if (idx.value === 4 && !setupDone.value) return;
             if (idx.value === 2) {
-              await window.onboardingAPI.setModel(modelSelect.value);
+              await window.onboardingAPI.setPlugin(pluginSelect.value);
+              if (pluginSelect.value === "whisper-cpp") {
+                await window.onboardingAPI.setModel(modelSelect.value);
+              }
             }
             if (idx.value === 3) {
               await window.onboardingAPI.setAiEnabled(aiEnabled.value);
@@ -740,7 +782,9 @@
             aiApiKey,
             keyStatus,
             savingKey,
+            pluginSelect,
             modelSelect,
+            whisperModels,
             progressText,
             progressPercent,
             logs,

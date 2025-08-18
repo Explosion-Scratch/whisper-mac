@@ -374,6 +374,9 @@
         </button>
       </div>
     </div>
+    <!-- Silero VAD Libraries (local) -->
+    <script src="./ort.js"></script>
+    <script src="./bundle.min.js"></script>
     <script src="./vue.js"></script>
     <script>
       const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
@@ -432,6 +435,10 @@
           const textContent = ref(null);
           const textScrollContainer = ref(null);
 
+          // VAD state
+          const vadInstance = ref(null);
+          const isVadInitialized = ref(false);
+
           const scrollToEnd = () => {
             if (textScrollContainer.value) {
               textScrollContainer.value.scrollLeft =
@@ -463,23 +470,101 @@
             window.electronAPI.closeDictationWindow();
           };
 
+          // VAD Methods
+          const initializeVAD = async () => {
+            try {
+              console.log("Initializing Silero VAD...");
+
+              if (!window.vad) {
+                throw new Error("VAD library not loaded");
+              }
+
+              const myVAD = await window.vad.MicVAD.new({
+                baseAssetPath: "./",
+                onnxWASMBasePath: "./",
+                onSpeechStart: () => {
+                  console.log("VAD: Speech started");
+                  if (isRecording.value) {
+                    currentStatus.value = "listening";
+                  }
+                },
+                onSpeechEnd: (audio) => {
+                  console.log("VAD: Speech ended, audio length:", audio.length);
+                  if (isRecording.value && audio.length > 0) {
+                    // Send audio segment to main process for YAP transcription
+                    window.electronAPI.sendAudioSegment(audio);
+                    currentStatus.value = "transforming";
+                  }
+                },
+                onVADMisfire: () => {
+                  console.log("VAD: Misfire detected");
+                },
+              });
+
+              vadInstance.value = myVAD;
+              isVadInitialized.value = true;
+              console.log("VAD initialized successfully");
+            } catch (error) {
+              console.error("Failed to initialize VAD:", error);
+              window.electronAPI.logMessage(
+                `VAD initialization failed: ${error.message}`
+              );
+            }
+          };
+
+          const startVAD = async () => {
+            if (!isVadInitialized.value) {
+              await initializeVAD();
+            }
+
+            if (vadInstance.value && isVadInitialized.value) {
+              try {
+                console.log("Starting VAD...");
+                await vadInstance.value.start();
+                console.log("VAD started successfully");
+              } catch (error) {
+                console.error("Failed to start VAD:", error);
+                window.electronAPI.logMessage(
+                  `VAD start failed: ${error.message}`
+                );
+              }
+            }
+          };
+
+          const stopVAD = async () => {
+            if (vadInstance.value) {
+              try {
+                console.log("Stopping VAD...");
+                await vadInstance.value.pause();
+                console.log("VAD stopped successfully");
+              } catch (error) {
+                console.error("Failed to stop VAD:", error);
+                window.electronAPI.logMessage(
+                  `VAD stop failed: ${error.message}`
+                );
+              }
+            }
+          };
+
           // IPC event handlers
           const initializeDictation = (data) => {
             console.log("Initializing dictation with data:", data);
             resetTranscription();
           };
 
-          const startRecording = () => {
+          const startRecording = async () => {
             console.log("Recording started");
             isRecording.value = true;
             currentStatus.value = "listening";
             resetTranscription();
+            await startVAD();
           };
 
-          const stopRecording = () => {
+          const stopRecording = async () => {
             console.log("Recording stopped");
             isRecording.value = false;
             currentStatus.value = "processing";
+            await stopVAD();
           };
 
           const updateTranscription = (update) => {
@@ -529,7 +614,7 @@
           });
 
           // Setup IPC listeners
-          onMounted(() => {
+          onMounted(async () => {
             window.electronAPI.onInitializeDictation(initializeDictation);
             window.electronAPI.onStartRecording(startRecording);
             window.electronAPI.onStopRecording(stopRecording);
@@ -539,6 +624,10 @@
 
             // Prevent default drag behavior
             document.addEventListener("dragstart", (e) => e.preventDefault());
+
+            // Initialize VAD on mount
+            console.log("Initializing VAD on mount...");
+            await initializeVAD();
           });
 
           return {
