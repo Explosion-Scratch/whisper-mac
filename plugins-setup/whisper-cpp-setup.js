@@ -96,6 +96,10 @@ class WhisperCppPluginSetup {
         hasOutput = true;
       });
 
+      child.stderr?.on("data", () => {
+        hasOutput = true;
+      });
+
       child.on("close", (code) => {
         resolve(hasOutput && (code === 0 || code === 1)); // Some versions return 1 for --help
       });
@@ -173,13 +177,7 @@ class WhisperCppPluginSetup {
       console.log("Configuring with CMake...");
       const configChild = spawn(
         "cmake",
-        [
-          "-B",
-          "build",
-          "-DCMAKE_BUILD_TYPE=Release",
-          // Enable CoreML/Metal backend on macOS for Apple Silicon
-          process.platform === "darwin" ? "-DWHISPER_COREML=1" : "",
-        ].filter(Boolean),
+        ["-B", "build", "-DCMAKE_BUILD_TYPE=Release"],
         {
           cwd: sourceDir,
           stdio: "inherit",
@@ -325,6 +323,30 @@ class WhisperCppPluginSetup {
         request.abort();
         reject(new Error("Download timeout"));
       });
+    });
+  }
+
+  async copyDir(from, to) {
+    await fs.promises.mkdir(to, { recursive: true });
+    const entries = await fs.promises.readdir(from, { withFileTypes: true });
+    for (const entry of entries) {
+      const src = path.join(from, entry.name);
+      const dst = path.join(to, entry.name);
+      if (entry.isDirectory()) {
+        await this.copyDir(src, dst);
+      } else if (entry.isFile()) {
+        await fs.promises.copyFile(src, dst);
+      }
+    }
+  }
+
+  async run(cmd, args, opts = {}) {
+    return new Promise((resolve, reject) => {
+      const child = spawn(cmd, args, { stdio: "inherit", ...opts });
+      child.on("close", (code) =>
+        code === 0 ? resolve(0) : reject(new Error(`${cmd} exited ${code}`))
+      );
+      child.on("error", (err) => reject(err));
     });
   }
 

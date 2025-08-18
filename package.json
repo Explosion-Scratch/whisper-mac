@@ -65,8 +65,7 @@
         "from": "vendor/whisper-cpp",
         "to": "whisper-cpp",
         "filter": [
-          "whisper-cli",
-          "models/**"
+          "whisper-cli"
         ]
       }
     ],

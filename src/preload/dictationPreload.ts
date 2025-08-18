@@ -20,7 +20,7 @@ export interface TranscriptionSegment {
 
 export interface TranscriptionUpdate {
   segments: TranscriptionSegment[];
-  status: "listening" | "transforming";
+  status?: "listening" | "transforming";
 }
 
 // Expose protected methods that allow the renderer process to use

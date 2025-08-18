@@ -1,11 +1,14 @@
 import { EventEmitter } from "events";
-import { TranscriptionPlugin, TranscriptionSetupProgress } from "./TranscriptionPlugin";
+import {
+  BaseTranscriptionPlugin,
+  TranscriptionSetupProgress,
+} from "./TranscriptionPlugin";
 import { SegmentUpdate } from "../types/SegmentTypes";
 import { AppConfig } from "../config/AppConfig";
 
 export class TranscriptionPluginManager extends EventEmitter {
-  private plugins: Map<string, TranscriptionPlugin> = new Map();
-  private activePlugin: TranscriptionPlugin | null = null;
+  private plugins: Map<string, BaseTranscriptionPlugin> = new Map();
+  private activePlugin: BaseTranscriptionPlugin | null = null;
   private config: AppConfig;
 
   constructor(config: AppConfig) {
@@ -16,12 +19,14 @@ export class TranscriptionPluginManager extends EventEmitter {
   /**
    * Register a transcription plugin
    */
-  registerPlugin(plugin: TranscriptionPlugin): void {
-    console.log(`Registering transcription plugin: ${plugin.displayName} (${plugin.name})`);
+  registerPlugin(plugin: BaseTranscriptionPlugin): void {
+    console.log(
+      `Registering transcription plugin: ${plugin.displayName} (${plugin.name})`
+    );
     this.plugins.set(plugin.name, plugin);
-    
+
     // Forward plugin errors
-    plugin.on("error", (error) => {
+    plugin.on("error", (error: any) => {
       console.error(`Plugin ${plugin.name} error:`, error);
       this.emit("plugin-error", { plugin: plugin.name, error });
     });
@@ -32,33 +37,38 @@ export class TranscriptionPluginManager extends EventEmitter {
   /**
    * Get all registered plugins
    */
-  getPlugins(): TranscriptionPlugin[] {
+  getPlugins(): BaseTranscriptionPlugin[] {
     return Array.from(this.plugins.values());
   }
 
   /**
    * Get available (ready to use) plugins
    */
-  async getAvailablePlugins(): Promise<TranscriptionPlugin[]> {
+  async getAvailablePlugins(): Promise<BaseTranscriptionPlugin[]> {
     const plugins = this.getPlugins();
     const availabilityChecks = await Promise.allSettled(
       plugins.map(async (plugin) => ({
         plugin,
-        available: await plugin.isAvailable()
+        available: await plugin.isAvailable(),
       }))
     );
 
     return availabilityChecks
-      .filter((result): result is PromiseFulfilledResult<{plugin: TranscriptionPlugin, available: boolean}> => 
-        result.status === "fulfilled" && result.value.available
+      .filter(
+        (
+          result
+        ): result is PromiseFulfilledResult<{
+          plugin: BaseTranscriptionPlugin;
+          available: boolean;
+        }> => result.status === "fulfilled" && result.value.available
       )
-      .map(result => result.value.plugin);
+      .map((result) => result.value.plugin);
   }
 
   /**
    * Get plugin by name
    */
-  getPlugin(name: string): TranscriptionPlugin | null {
+  getPlugin(name: string): BaseTranscriptionPlugin | null {
     return this.plugins.get(name) || null;
   }
 
@@ -92,7 +102,7 @@ export class TranscriptionPluginManager extends EventEmitter {
   /**
    * Get the currently active plugin
    */
-  getActivePlugin(): TranscriptionPlugin | null {
+  getActivePlugin(): BaseTranscriptionPlugin | null {
     return this.activePlugin;
   }
 
@@ -108,7 +118,9 @@ export class TranscriptionPluginManager extends EventEmitter {
       throw new Error("No active transcription plugin set");
     }
 
-    console.log(`Starting transcription with plugin: ${this.activePlugin.displayName}`);
+    console.log(
+      `Starting transcription with plugin: ${this.activePlugin.displayName}`
+    );
     await this.activePlugin.startTranscription(onUpdate, onProgress, onLog);
   }
 
@@ -120,7 +132,9 @@ export class TranscriptionPluginManager extends EventEmitter {
       return;
     }
 
-    console.log(`Stopping transcription with plugin: ${this.activePlugin.displayName}`);
+    console.log(
+      `Stopping transcription with plugin: ${this.activePlugin.displayName}`
+    );
     await this.activePlugin.stopTranscription();
   }
 
@@ -173,7 +187,7 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   async initializePlugins(): Promise<void> {
     console.log("Initializing transcription plugins...");
-    
+
     const plugins = this.getPlugins();
     const initPromises = plugins.map(async (plugin) => {
       try {
@@ -182,7 +196,10 @@ export class TranscriptionPluginManager extends EventEmitter {
           console.log(`Plugin ${plugin.displayName} initialized successfully`);
         }
       } catch (error) {
-        console.error(`Failed to initialize plugin ${plugin.displayName}:`, error);
+        console.error(
+          `Failed to initialize plugin ${plugin.displayName}:`,
+          error
+        );
       }
     });
 
@@ -191,8 +208,8 @@ export class TranscriptionPluginManager extends EventEmitter {
     // Set default active plugin
     const defaultPluginName = this.getDefaultPluginName();
     const defaultPlugin = this.getPlugin(defaultPluginName);
-    
-    if (defaultPlugin && await defaultPlugin.isAvailable()) {
+
+    if (defaultPlugin && (await defaultPlugin.isAvailable())) {
       await this.setActivePlugin(defaultPluginName);
     } else {
       // Try to find any available plugin
@@ -210,7 +227,7 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   async cleanup(): Promise<void> {
     console.log("Cleaning up transcription plugins...");
-    
+
     const plugins = this.getPlugins();
     const cleanupPromises = plugins.map(async (plugin) => {
       try {
@@ -221,7 +238,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     });
 
     await Promise.allSettled(cleanupPromises);
-    
+
     this.activePlugin = null;
     this.plugins.clear();
   }

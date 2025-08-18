@@ -159,7 +159,7 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
       }
 
       // Transcribe with YAP
-      const transcription = await this.transcribeWithYap(tempAudioPath);
+      const rawTranscription = await this.transcribeWithYap(tempAudioPath);
 
       // Clean up temp file
       try {
@@ -168,14 +168,23 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
         console.warn("Failed to delete temp audio file:", err);
       }
 
+      // Use uniform post-processing API
+      const postProcessed = this.postProcessTranscription(rawTranscription, {
+        parseTimestamps: true,
+        cleanText: true,
+        extractConfidence: false,
+      });
+
       // Create completed segment
       const completedSegment: TranscribedSegment = {
         id: uuidv4(),
         type: "transcribed",
-        text: transcription.trim(),
+        text: postProcessed.text,
         completed: true,
         timestamp: Date.now(),
-        confidence: 0.9, // YAP doesn't provide confidence, use default
+        confidence: postProcessed.confidence ?? 0.9, // YAP doesn't provide confidence, use default
+        start: postProcessed.start,
+        end: postProcessed.end,
       };
 
       this.currentSegments = [completedSegment];
@@ -208,7 +217,13 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   async transcribeFile(filePath: string): Promise<string> {
-    return await this.transcribeWithYap(filePath);
+    const rawTranscription = await this.transcribeWithYap(filePath);
+    const postProcessed = this.postProcessTranscription(rawTranscription, {
+      parseTimestamps: true,
+      cleanText: true,
+      extractConfidence: false,
+    });
+    return postProcessed.text;
   }
 
   async stopTranscription(): Promise<void> {
@@ -387,9 +402,9 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
 
       yapProcess.on("close", (code) => {
         if (code === 0) {
-          const transcription = stdout.trim();
-          console.log(`YAP transcription: "${transcription}"`);
-          resolve(transcription || "[No speech detected]");
+          const rawTranscription = stdout.trim();
+          console.log(`YAP raw transcription: "${rawTranscription}"`);
+          resolve(rawTranscription || "[No speech detected]");
         } else {
           const error = new Error(`YAP failed with code ${code}: ${stderr}`);
           console.error("YAP error:", error.message);

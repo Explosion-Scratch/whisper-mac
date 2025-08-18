@@ -76,6 +76,12 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     // Default to base.en model
     const modelName = this.config.get("whisperCppModel") || "ggml-base.en.bin";
 
+    // Prefer user-downloaded models directory first
+    const userModelPath = join(this.config.getModelsDir(), modelName);
+    if (existsSync(userModelPath)) {
+      return userModelPath;
+    }
+
     // Try production bundled path first
     const packagedPath = join(
       process.resourcesPath,
@@ -106,6 +112,12 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   private resolveVadModelPath(): string | undefined {
     const vadModelName = "ggml-silero-v5.1.2.bin";
 
+    // Prefer user-downloaded models directory first
+    const userVadPath = join(this.config.getModelsDir(), vadModelName);
+    if (existsSync(userVadPath)) {
+      return userVadPath;
+    }
+
     // Try production bundled path first
     const packagedPath = join(
       process.resourcesPath,
@@ -134,6 +146,10 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
   async isAvailable(): Promise<boolean> {
     try {
+      // Refresh paths from current config in case onboarding updated them
+      this.modelPath = this.resolveModelPath();
+      this.vadModelPath = this.resolveVadModelPath();
+
       // Check if whisper binary and model exist
       if (!existsSync(this.modelPath)) {
         console.log(`Whisper.cpp model not found at: ${this.modelPath}`);
@@ -195,6 +211,10 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
 
     try {
+      // Refresh paths in case onboarding updated them
+      this.modelPath = this.resolveModelPath();
+      this.vadModelPath = this.resolveVadModelPath();
+
       onProgress?.({
         status: "starting",
         message: "Initializing Whisper.cpp plugin",
@@ -249,7 +269,9 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       });
 
       // Transcribe with whisper.cpp
-      const transcription = await this.transcribeWithWhisperCpp(tempAudioPath);
+      const rawTranscription = await this.transcribeWithWhisperCpp(
+        tempAudioPath
+      );
 
       // Clean up temp file
       try {
@@ -258,14 +280,23 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         console.warn("Failed to delete temp audio file:", err);
       }
 
+      // Use uniform post-processing API
+      const postProcessed = this.postProcessTranscription(rawTranscription, {
+        parseTimestamps: true,
+        cleanText: true,
+        extractConfidence: false,
+      });
+
       // Create completed segment
       const completedSegment: TranscribedSegment = {
         id: uuidv4(),
         type: "transcribed",
-        text: transcription.trim(),
+        text: postProcessed.text,
         completed: true,
         timestamp: Date.now(),
-        confidence: 0.95, // Whisper.cpp generally has good confidence
+        confidence: postProcessed.confidence ?? 0.95, // Whisper.cpp generally has good confidence
+        start: postProcessed.start,
+        end: postProcessed.end,
       };
 
       this.currentSegments = [completedSegment];
@@ -296,7 +327,13 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   async transcribeFile(filePath: string): Promise<string> {
-    return await this.transcribeWithWhisperCpp(filePath);
+    const rawTranscription = await this.transcribeWithWhisperCpp(filePath);
+    const postProcessed = this.postProcessTranscription(rawTranscription, {
+      parseTimestamps: true,
+      cleanText: true,
+      extractConfidence: false,
+    });
+    return postProcessed.text;
   }
 
   async stopTranscription(): Promise<void> {
@@ -548,17 +585,21 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
           // Try to read the output txt file
           const txtOutputPath = audioPath.replace(/\.[^/.]+$/, ".txt");
           try {
-            const transcription = readFileSync(txtOutputPath, "utf8").trim();
+            const rawTranscription = readFileSync(txtOutputPath, "utf8").trim();
             unlinkSync(txtOutputPath); // Clean up output file
-            console.log(`Whisper.cpp transcription: "${transcription}"`);
-            resolve(transcription || "[No speech detected]");
+
+            console.log(
+              `Whisper.cpp raw transcription from file: "${rawTranscription}"`
+            );
+            resolve(rawTranscription || "[No speech detected]");
           } catch (fileError) {
             // If we can't read the file, try to get output from stdout
-            const transcription = stdout.trim();
+            const rawTranscription = stdout.trim();
+
             console.log(
-              `Whisper.cpp transcription from stdout: "${transcription}"`
+              `Whisper.cpp raw transcription from stdout: "${rawTranscription}"`
             );
-            resolve(transcription || "[No speech detected]");
+            resolve(rawTranscription || "[No speech detected]");
           }
         } else {
           const error = new Error(
