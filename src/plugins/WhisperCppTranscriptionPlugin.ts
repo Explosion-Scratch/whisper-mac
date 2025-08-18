@@ -145,14 +145,20 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         const whisperProcess = spawn(this.whisperBinaryPath, ["--help"], {
           stdio: ["ignore", "pipe", "pipe"],
         });
+        console.log("Whisper.cpp binary check started", this.whisperBinaryPath);
 
         let hasOutput = false;
-        whisperProcess.stdout?.on("data", () => {
+        whisperProcess.stdout?.on("data", (data) => {
+          console.log("Whisper.cpp data: ", data.toString());
           hasOutput = true;
         });
 
         whisperProcess.on("close", (code) => {
-          resolve(hasOutput && (code === 0 || code === 1)); // Some versions return 1 for --help
+          console.log("Whisper.cpp binary check closed with code:", {
+            code,
+            hasOutput,
+          });
+          resolve(code === 0); // Some versions return 1 for --help
         });
 
         whisperProcess.on("error", (error) => {
@@ -163,6 +169,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         // Timeout after 5 seconds
         setTimeout(() => {
           if (!whisperProcess.killed) {
+            console.log("Whisper.cpp binary check timed out");
             whisperProcess.kill();
             resolve(false);
           }

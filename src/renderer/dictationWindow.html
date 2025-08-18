@@ -491,7 +491,7 @@
                 onSpeechEnd: (audio) => {
                   console.log("VAD: Speech ended, audio length:", audio.length);
                   if (isRecording.value && audio.length > 0) {
-                    // Send audio segment to main process for YAP transcription
+                    // Send audio segment to main process for transcription (plugin-agnostic)
                     window.electronAPI.sendAudioSegment(audio);
                     currentStatus.value = "transforming";
                   }
