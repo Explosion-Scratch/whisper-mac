@@ -38,16 +38,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   saveApiKeySecure: (apiKey: string) =>
     ipcRenderer.invoke("settings:saveApiKey", { apiKey }),
 
-  // Model management helpers
+  // Legacy model management helpers (kept for compatibility)
   listDownloadedModels: () => ipcRenderer.invoke("models:listDownloaded"),
   deleteModels: (repoIds: string[]) =>
     ipcRenderer.invoke("models:delete", repoIds),
   downloadModel: (modelName: string) =>
     ipcRenderer.invoke("models:download", modelName),
-  switchModel: (newModel: string, oldModel?: string) =>
-    ipcRenderer.invoke("models:switch", { newModel, oldModel }),
-  switchVoskModel: (newModel: string, oldModel?: string) =>
-    ipcRenderer.invoke("models:switchVosk", { newModel, oldModel }),
   isDownloading: () => ipcRenderer.invoke("models:isDownloading"),
 
   // Unified plugin switching
@@ -60,6 +56,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getActivePlugin: () => ipcRenderer.invoke("plugins:getActive"),
   setActivePlugin: (pluginName: string, options?: Record<string, any>) =>
     ipcRenderer.invoke("plugins:setActive", { pluginName, options }),
+  updateActivePluginOptions: (options: Record<string, any>) =>
+    ipcRenderer.invoke("plugins:updateActiveOptions", { options }),
   verifyPluginOptions: (pluginName: string, options: Record<string, any>) =>
     ipcRenderer.invoke("plugins:verifyOptions", { pluginName, options }),
   getPluginState: (pluginName: string) =>
@@ -78,24 +76,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
       callback(payload)
     );
   },
-  onModelSwitchProgress: (callback: (progress: any) => void) => {
-    ipcRenderer.on("models:switchProgress", (_event, progress) =>
-      callback(progress)
-    );
-  },
-  onModelSwitchLog: (callback: (payload: any) => void) => {
-    ipcRenderer.on("models:switchLog", (_event, payload) => callback(payload));
-  },
-  onVoskModelSwitchProgress: (callback: (progress: any) => void) => {
-    ipcRenderer.on("models:switchVoskProgress", (_event, progress) =>
-      callback(progress)
-    );
-  },
-  onVoskModelSwitchLog: (callback: (payload: any) => void) => {
-    ipcRenderer.on("models:switchVoskLog", (_event, payload) =>
-      callback(payload)
-    );
-  },
 
   // Unified plugin switching progress listeners
   onPluginSwitchProgress: (callback: (progress: any) => void) => {
@@ -105,6 +85,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   onPluginSwitchLog: (callback: (payload: any) => void) => {
     ipcRenderer.on("settings:pluginSwitchLog", (_event, payload) =>
+      callback(payload)
+    );
+  },
+
+  // Plugin option update progress listeners
+  onPluginOptionProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on("settings:pluginOptionProgress", (_event, progress) =>
+      callback(progress)
+    );
+  },
+  onPluginOptionLog: (callback: (payload: any) => void) => {
+    ipcRenderer.on("settings:pluginOptionLog", (_event, payload) =>
       callback(payload)
     );
   },

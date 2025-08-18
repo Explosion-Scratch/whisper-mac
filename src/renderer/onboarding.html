@@ -770,9 +770,11 @@
             if (idx.value === 2) {
               const currentOptions =
                 selectedOptions.value[pluginSelect.value] || {};
+              // Convert Vue reactive object to plain object to avoid cloning errors
+              const plainOptions = JSON.parse(JSON.stringify(currentOptions));
               await window.onboardingAPI.setPlugin(
                 pluginSelect.value,
-                currentOptions
+                plainOptions
               );
             }
             if (idx.value === 3) {

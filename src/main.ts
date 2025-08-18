@@ -256,8 +256,8 @@ class WhisperMacApp {
     const isFirstRun = !settings?.onboardingComplete;
 
     if (isFirstRun) {
-      this.openOnboardingWindow();
       this.setupOnboardingIpc();
+      this.openOnboardingWindow();
       this.trayService?.updateTrayMenu(
         this.currentSetupStatus as TraySetupStatus
       );
@@ -509,6 +509,26 @@ class WhisperMacApp {
       plugin: this.config.get("transcriptionPlugin") || "yap",
     }));
 
+    ipcMain.handle("onboarding:getPluginOptions", () => {
+      const plugins = this.transcriptionPluginManager
+        .getPlugins()
+        .map((plugin) => ({
+          name: plugin.name,
+          displayName: plugin.displayName,
+          description: plugin.description,
+          version: plugin.version,
+          supportsRealtime: plugin.supportsRealtime,
+          supportsBatchProcessing: plugin.supportsBatchProcessing,
+        }));
+
+      const options = this.transcriptionPluginManager.getAllPluginOptions();
+
+      return {
+        plugins,
+        options,
+      };
+    });
+
     ipcMain.handle("onboarding:checkAccessibility", async () => {
       const ok = await this.textInjector.ensureAccessibilityPermissions();
       return ok;
@@ -521,10 +541,6 @@ class WhisperMacApp {
 
     ipcMain.handle("onboarding:setModel", (_e, modelName: string) => {
       this.config.set("whisperCppModel", modelName);
-      this.settingsService
-        .getSettingsManager()
-        .set("whisperCpp.model", modelName);
-      this.settingsService.getSettingsManager().saveSettings();
 
       // Update the WhisperCppTranscriptionPlugin model path
       const whisperPlugin =
@@ -536,8 +552,6 @@ class WhisperMacApp {
 
     ipcMain.handle("onboarding:setVoskModel", (_e, modelName: string) => {
       this.config.set("voskModel", modelName);
-      this.settingsService.getSettingsManager().set("vosk.model", modelName);
-      this.settingsService.getSettingsManager().saveSettings();
 
       // Update the VoskTranscriptionPlugin configuration
       const voskPlugin = this.transcriptionPluginManager.getPlugin("vosk");
@@ -546,15 +560,25 @@ class WhisperMacApp {
       }
     });
 
-    ipcMain.handle("onboarding:setPlugin", async (_e, pluginName: string) => {
-      this.config.set("transcriptionPlugin", pluginName);
-      const sm = this.settingsService.getSettingsManager();
-      sm.set("transcription.plugin", pluginName);
-      sm.saveSettings();
-      try {
-        await this.transcriptionPluginManager.setActivePlugin(pluginName);
-      } catch {}
-    });
+    ipcMain.handle(
+      "onboarding:setPlugin",
+      async (
+        _e,
+        payload: { pluginName: string; options?: Record<string, any> }
+      ) => {
+        const { pluginName, options = {} } = payload;
+        this.config.set("transcriptionPlugin", pluginName);
+        const sm = this.settingsService.getSettingsManager();
+        sm.set("transcription.plugin", pluginName);
+        sm.saveSettings();
+        try {
+          await this.transcriptionPluginManager.setActivePlugin(
+            pluginName,
+            options
+          );
+        } catch {}
+      }
+    );
 
     ipcMain.handle("onboarding:setAiEnabled", (_e, enabled: boolean) => {
       this.settingsService.getSettingsManager().set("ai.enabled", enabled);

@@ -19,8 +19,6 @@ export interface AiTransformationConfig {
 
 export class AppConfig {
   modelPath: string;
-  serverPort: number;
-  defaultModel: string;
   dataDir: string;
 
   // Dictation window configuration
@@ -40,8 +38,6 @@ export class AppConfig {
 
   constructor() {
     this.modelPath = "";
-    this.serverPort = 9090;
-    this.defaultModel = "Systran/faster-whisper-tiny.en";
 
     // Use Electron's user data directory instead of custom .whispermac-data
     this.dataDir =
@@ -74,14 +70,6 @@ export class AppConfig {
 
   setModelPath(path: string): void {
     this.modelPath = path;
-  }
-
-  setServerPort(port: number): void {
-    this.serverPort = port;
-  }
-
-  setDefaultModel(model: string): void {
-    this.defaultModel = model;
   }
 
   setDataDir(path: string): void {

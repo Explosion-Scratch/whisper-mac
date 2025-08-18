@@ -220,32 +220,12 @@ export class SettingsManager {
    * Apply current settings to the AppConfig instance
    */
   applyToConfig(): void {
-    // Basic settings
-    this.config.serverPort = this.get("serverPort", 9090);
-    // Preferred plugin and model settings
+    // Preferred plugin setting
     const pluginName = this.get(
       "transcription.plugin",
       this.config.get("transcriptionPlugin") || "yap"
     );
     this.config.set("transcriptionPlugin", pluginName);
-    const whisperModel = this.get(
-      "whisperCpp.model",
-      this.config.get("whisperCppModel") || "ggml-base.en.bin"
-    );
-    this.config.set("whisperCppModel", whisperModel);
-
-    // Vosk settings
-    const voskModel = this.get(
-      "vosk.model",
-      this.config.get("voskModel") || "vosk-model-small-en-us-0.15"
-    );
-    this.config.set("voskModel", voskModel);
-
-    const voskSampleRate = this.get(
-      "vosk.sampleRate",
-      this.config.get("voskSampleRate") || 16000
-    );
-    this.config.set("voskSampleRate", voskSampleRate);
 
     // Dictation window settings
     this.config.dictationWindowPosition = this.get(
@@ -297,15 +277,10 @@ export class SettingsManager {
    * Load settings from current AppConfig instance
    */
   loadFromConfig(): void {
-    // Basic settings
-    this.set("serverPort", this.config.serverPort);
+    // Plugin selection
     this.set(
       "transcription.plugin",
       this.config.get("transcriptionPlugin") || "yap"
-    );
-    this.set(
-      "whisperCpp.model",
-      this.config.get("whisperCppModel") || "ggml-base.en.bin"
     );
 
     // Dictation window settings
