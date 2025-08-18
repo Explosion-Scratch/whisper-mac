@@ -363,7 +363,7 @@ class WhisperMacApp {
               // Update tray status based on progress
               if (progress.status === "starting") {
                 this.setSetupStatus("downloading-models");
-              } else if (progress.status === "cloning") {
+              } else if (progress.status === "downloading") {
                 this.setSetupStatus("downloading-models");
               } else if (progress.status === "complete") {
                 this.setSetupStatus("idle");
@@ -480,38 +480,37 @@ class WhisperMacApp {
     );
 
     ipcMain.handle("onboarding:runSetup", async (event) => {
-      // Chain model ensure + server start, emitting progress to renderer
       try {
         const sendLog = (line: string) =>
           event.sender.send("onboarding:log", { line });
 
         const activePlugin = this.config.get("transcriptionPlugin") || "yap";
         if (activePlugin === "whisper-cpp") {
-          // Download selected Whisper.cpp model only (binary is bundled)
-          const path = require("path");
-          const setupModulePath = path.join(
-            process.cwd(),
-            "plugins-setup",
-            "whisper-cpp-setup.js"
-          );
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const setupModule = require(setupModulePath);
-          const SetupCtor =
-            setupModule.WhisperCppPluginSetup ||
-            setupModule.default ||
-            setupModule;
-          const setup = new (SetupCtor as any)();
-          // Store models under user data for write access
-          setup.setModelsDir(this.config.getModelsDir());
-
           const modelName =
             this.config.get("whisperCppModel") || "ggml-base.en.bin";
-          event.sender.send("onboarding:progress", {
-            status: "downloading-models",
-            message: `Downloading model ${modelName}`,
-            percent: 40,
-          });
-          await setup.downloadModel(modelName);
+
+          // Check if model already exists
+          const modelPath = join(this.config.getModelsDir(), modelName);
+          if (!require("fs").existsSync(modelPath)) {
+            sendLog(`Starting download of model: ${modelName}`);
+
+            const onProgress = (progress: any) => {
+              event.sender.send("onboarding:progress", {
+                status: "downloading-models",
+                message: progress.message || `Downloading ${modelName}...`,
+                percent: progress.percent || 0,
+              });
+            };
+
+            await this.modelManager.downloadModel(
+              modelName,
+              onProgress,
+              sendLog
+            );
+            sendLog(`Model ${modelName} downloaded successfully`);
+          } else {
+            sendLog(`Model ${modelName} already exists`);
+          }
 
           event.sender.send("onboarding:progress", {
             status: "service-ready",

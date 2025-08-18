@@ -487,6 +487,11 @@ class SettingsWindow {
           this.setSettingValue(key, element.value);
           this.validateField(key);
 
+          // Handle Whisper.cpp model changes with download progress
+          if (key === "whisperCpp.model" && element.value !== oldValue) {
+            await this.handleWhisperModelChange(element.value, oldValue);
+          }
+
           // Intercept defaultModel changes to prompt deletion of old models
           if (key === "defaultModel" && element.value !== oldValue) {
             try {
@@ -887,6 +892,126 @@ class SettingsWindow {
   getCurrentSectionTitle() {
     const section = this.schema.find((s) => s.id === this.currentSectionId);
     return section ? section.title : "Unknown";
+  }
+
+  async handleWhisperModelChange(newModel, oldModel) {
+    try {
+      // Check if already downloading
+      const downloadStatus = await window.electronAPI.isDownloading();
+      if (downloadStatus.isDownloading) {
+        this.showStatus(
+          `Cannot switch models: ${downloadStatus.currentDownload} is currently downloading`,
+          "error"
+        );
+        return;
+      }
+
+      // Show confirmation dialog
+      const confirmSwitch = window.confirm(
+        `Switch to model "${newModel}"?\n\n` +
+          `This will download the new model and delete the old one to save space.`
+      );
+
+      if (!confirmSwitch) {
+        // Revert the selection
+        this.setSettingValue("whisperCpp.model", oldModel);
+        const field = document.querySelector(`[data-key="whisperCpp.model"]`);
+        if (field) field.value = oldModel;
+        return;
+      }
+
+      // Disable the field during download
+      const field = document.querySelector(`[data-key="whisperCpp.model"]`);
+      if (field) field.disabled = true;
+
+      // Show progress
+      this.showModelSwitchProgress(`Switching to ${newModel}...`, 0);
+
+      // Set up progress listeners
+      const progressHandler = (progress) => {
+        const message = progress.message || `Downloading ${newModel}...`;
+        const percent = progress.percent || 0;
+        this.showModelSwitchProgress(message, percent);
+      };
+
+      const logHandler = (payload) => {
+        console.log("Model switch log:", payload.line);
+      };
+
+      window.electronAPI.onModelSwitchProgress(progressHandler);
+      window.electronAPI.onModelSwitchLog(logHandler);
+
+      try {
+        // Perform the model switch
+        await window.electronAPI.switchModel(newModel, oldModel);
+        this.showModelSwitchProgress("Model switch completed!", 100);
+        this.showStatus(
+          `Successfully switched to model: ${newModel}`,
+          "success"
+        );
+      } catch (error) {
+        this.showModelSwitchProgress("Model switch failed", 0);
+        this.showStatus(`Failed to switch model: ${error.message}`, "error");
+        // Revert the selection
+        this.setSettingValue("whisperCpp.model", oldModel);
+        if (field) field.value = oldModel;
+      } finally {
+        // Clean up listeners
+        window.electronAPI.removeAllListeners("models:switchProgress");
+        window.electronAPI.removeAllListeners("models:switchLog");
+
+        // Re-enable the field
+        if (field) field.disabled = false;
+
+        // Hide progress after a delay
+        setTimeout(() => {
+          this.hideModelSwitchProgress();
+        }, 2000);
+      }
+    } catch (error) {
+      console.error("Error handling whisper model change:", error);
+      this.showStatus("Error switching model", "error");
+    }
+  }
+
+  showModelSwitchProgress(message, percent) {
+    let progressContainer = document.querySelector(".model-switch-progress");
+    if (!progressContainer) {
+      // Create progress container
+      progressContainer = document.createElement("div");
+      progressContainer.className = "model-switch-progress";
+      progressContainer.style.cssText = `
+        position: fixed;
+        top: 60px;
+        right: 20px;
+        background: rgba(0, 122, 255, 0.95);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 1001;
+        min-width: 280px;
+        font-size: 13px;
+      `;
+      document.body.appendChild(progressContainer);
+    }
+
+    progressContainer.innerHTML = `
+      <div style="margin-bottom: 8px;">${message}</div>
+      <div style="background: rgba(255, 255, 255, 0.2); height: 4px; border-radius: 2px; overflow: hidden;">
+        <div style="background: white; height: 100%; width: ${percent}%; transition: width 0.3s ease;"></div>
+      </div>
+      <div style="margin-top: 4px; font-size: 11px; opacity: 0.9;">${percent.toFixed(
+        1
+      )}%</div>
+    `;
+  }
+
+  hideModelSwitchProgress() {
+    const progressContainer = document.querySelector(".model-switch-progress");
+    if (progressContainer) {
+      progressContainer.remove();
+    }
   }
 
   showStatus(message, type = "success") {

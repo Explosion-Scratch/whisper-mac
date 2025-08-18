@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
   saveApiKey: (apiKey: string) =>
     ipcRenderer.invoke("onboarding:saveApiKey", { apiKey }),
   runSetup: () => ipcRenderer.invoke("onboarding:runSetup"),
+  downloadModel: (modelName: string) =>
+    ipcRenderer.invoke("models:download", modelName),
+  isDownloading: () => ipcRenderer.invoke("models:isDownloading"),
   onError: (callback: (payload: any) => void) => {
     ipcRenderer.on("error:data", (_e, payload) => callback(payload));
   },
@@ -23,6 +26,16 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
     ipcRenderer.on("onboarding:progress", (_e, p) => cb(p)),
   onLog: (cb: (payload: any) => void) =>
     ipcRenderer.on("onboarding:log", (_e, p) => cb(p)),
+  onModelDownloadProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on("models:downloadProgress", (_event, progress) =>
+      callback(progress)
+    );
+  },
+  onModelDownloadLog: (callback: (payload: any) => void) => {
+    ipcRenderer.on("models:downloadLog", (_event, payload) =>
+      callback(payload)
+    );
+  },
   complete: () => ipcRenderer.invoke("onboarding:complete"),
 });
 
