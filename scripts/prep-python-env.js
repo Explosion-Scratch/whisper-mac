@@ -108,6 +108,8 @@ async function createPythonEnvironment() {
     "python=3.12",
     "pip", // Explicitly install pip into the environment
     "pytorch", // Install PyTorch from its dedicated channel for best results
+    "torchaudio",
+    "cpuonly",
   ];
   console.log("Creating base environment with Python, Pip, and PyTorch...");
   runCommand(MAMBA_EXECUTABLE, createArgs);
@@ -122,10 +124,22 @@ async function createPythonEnvironment() {
     "install",
     "-r",
     requirementsPath,
-    "--no-deps", // Important: prevent pip from re-installing things conda already did (like PyTorch)
   ];
   console.log("Installing pip packages from requirements.txt...");
   runCommand(MAMBA_EXECUTABLE, installArgs);
+
+  // Ensure CTranslate2 is present (required by faster-whisper) using pip wheels
+  const pipInstallCtranslateArgs = [
+    "run",
+    "-p",
+    PYTHON_DIR,
+    "pip",
+    "install",
+    "ctranslate2",
+    "faster-whisper",
+  ];
+  console.log("Installing CTranslate2 via pip...");
+  runCommand(MAMBA_EXECUTABLE, pipInstallCtranslateArgs);
   console.log("Python environment created successfully.");
 }
 
