@@ -42,6 +42,31 @@ contextBridge.exposeInMainWorld("electronAPI", {
   listDownloadedModels: () => ipcRenderer.invoke("models:listDownloaded"),
   deleteModels: (repoIds: string[]) =>
     ipcRenderer.invoke("models:delete", repoIds),
+  downloadModel: (modelName: string) =>
+    ipcRenderer.invoke("models:download", modelName),
+  switchModel: (newModel: string, oldModel?: string) =>
+    ipcRenderer.invoke("models:switch", { newModel, oldModel }),
+  isDownloading: () => ipcRenderer.invoke("models:isDownloading"),
+
+  // Model download progress listeners
+  onModelDownloadProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on("models:downloadProgress", (_event, progress) =>
+      callback(progress)
+    );
+  },
+  onModelDownloadLog: (callback: (payload: any) => void) => {
+    ipcRenderer.on("models:downloadLog", (_event, payload) =>
+      callback(payload)
+    );
+  },
+  onModelSwitchProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on("models:switchProgress", (_event, progress) =>
+      callback(progress)
+    );
+  },
+  onModelSwitchLog: (callback: (payload: any) => void) => {
+    ipcRenderer.on("models:switchLog", (_event, payload) => callback(payload));
+  },
 
   // Listen for settings updates from main process
   onSettingsUpdated: (callback: (settings: Record<string, any>) => void) => {

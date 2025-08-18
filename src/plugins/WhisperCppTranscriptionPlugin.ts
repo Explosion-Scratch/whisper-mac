@@ -76,7 +76,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     // Default to base.en model
     const modelName = this.config.get("whisperCppModel") || "ggml-base.en.bin";
 
-    // Prefer user-downloaded models directory first
+    // Models are now stored directly as files in the models directory
     const userModelPath = join(this.config.getModelsDir(), modelName);
     if (existsSync(userModelPath)) {
       return userModelPath;
@@ -105,8 +105,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       return devPath;
     }
 
-    // Return expected path for setup to create
-    return devPath;
+    // Return expected path for download
+    return userModelPath;
   }
 
   private resolveVadModelPath(): string | undefined {
