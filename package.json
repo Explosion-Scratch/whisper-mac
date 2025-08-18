@@ -67,6 +67,13 @@
         "filter": [
           "whisper-cli"
         ]
+      },
+      {
+        "from": "vendor/vosk",
+        "to": "vosk",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "mac": {

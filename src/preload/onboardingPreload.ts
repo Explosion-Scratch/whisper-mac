@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
     ipcRenderer.invoke("onboarding:resetAccessibilityCache"),
   setModel: (modelName: string) =>
     ipcRenderer.invoke("onboarding:setModel", modelName),
+  setVoskModel: (modelName: string) =>
+    ipcRenderer.invoke("onboarding:setVoskModel", modelName),
   setPlugin: (pluginName: string) =>
     ipcRenderer.invoke("onboarding:setPlugin", pluginName),
   setAiEnabled: (enabled: boolean) =>
@@ -19,6 +21,9 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
   downloadModel: (modelName: string) =>
     ipcRenderer.invoke("models:download", modelName),
   isDownloading: () => ipcRenderer.invoke("models:isDownloading"),
+  switchPlugin: (pluginName: string, modelName?: string) =>
+    ipcRenderer.invoke("plugin:switch", { pluginName, modelName }),
+  isUnifiedDownloading: () => ipcRenderer.invoke("unified:isDownloading"),
   onError: (callback: (payload: any) => void) => {
     ipcRenderer.on("error:data", (_e, payload) => callback(payload));
   },
@@ -35,6 +40,14 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
     ipcRenderer.on("models:downloadLog", (_event, payload) =>
       callback(payload)
     );
+  },
+  onPluginSwitchProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on("plugin:switchProgress", (_event, progress) =>
+      callback(progress)
+    );
+  },
+  onPluginSwitchLog: (callback: (payload: any) => void) => {
+    ipcRenderer.on("plugin:switchLog", (_event, payload) => callback(payload));
   },
   complete: () => ipcRenderer.invoke("onboarding:complete"),
 });

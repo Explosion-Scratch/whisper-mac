@@ -282,6 +282,11 @@ export class ModelManager {
     return this.downloadModelFile(modelName, onProgress, onLog);
   }
 
+  isModelDownloaded(modelName: string): boolean {
+    const modelPath = this.getModelPath(modelName);
+    return existsSync(modelPath);
+  }
+
   /** List downloaded models and their sizes (in bytes). */
   listDownloadedModels(): Array<{
     repoId: string;

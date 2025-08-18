@@ -26,6 +26,7 @@ import {
   ErrorWindowService,
   ErrorPayload,
 } from "./services/ErrorWindowService";
+import { UnifiedModelDownloadService } from "./services/UnifiedModelDownloadService";
 import {
   TrayService,
   SetupStatus as TraySetupStatus,
@@ -53,6 +54,7 @@ class WhisperMacApp {
   private textInjector: TextInjectionService;
   private transformationService: TransformationService;
   private modelManager: ModelManager;
+  private unifiedModelDownloadService: UnifiedModelDownloadService;
   private config: AppConfig;
   private selectedTextService: SelectedTextService;
   private dictationWindowService: DictationWindowService;
@@ -85,9 +87,29 @@ class WhisperMacApp {
     // Initialize other services with potentially updated config
     this.audioService = new AudioCaptureService(this.config);
     this.modelManager = new ModelManager(this.config);
+    this.unifiedModelDownloadService = new UnifiedModelDownloadService(
+      this.config,
+      this.modelManager
+    );
     this.transcriptionPluginManager = createTranscriptionPluginManager(
       this.config
     );
+
+    // Set the transcription plugin manager reference in settings service
+    this.settingsService.setTranscriptionPluginManager(
+      this.transcriptionPluginManager
+    );
+
+    // Set the transcription plugin manager reference in unified download service
+    this.unifiedModelDownloadService.setTranscriptionPluginManager(
+      this.transcriptionPluginManager
+    );
+
+    // Set the unified model download service reference in settings service
+    this.settingsService.setUnifiedModelDownloadService(
+      this.unifiedModelDownloadService
+    );
+
     this.textInjector = new TextInjectionService();
     this.transformationService = new TransformationService(this.config);
     this.selectedTextService = new SelectedTextService();
@@ -422,6 +444,54 @@ class WhisperMacApp {
         }
       }
     );
+
+    // Plugin switching with unified download service
+    ipcMain.handle(
+      "plugin:switch",
+      async (event, payload: { pluginName: string; modelName?: string }) => {
+        try {
+          const { pluginName, modelName } = payload;
+          console.log(
+            `Switching to plugin: ${pluginName}, model: ${modelName}`
+          );
+
+          const onProgress = (progress: any) => {
+            event.sender.send("plugin:switchProgress", progress);
+          };
+
+          const onLog = (line: string) => {
+            event.sender.send("plugin:switchLog", { line });
+          };
+
+          const success = await this.unifiedModelDownloadService.switchToPlugin(
+            pluginName,
+            modelName,
+            onProgress,
+            onLog
+          );
+
+          return { success };
+        } catch (error: any) {
+          console.error("Plugin switch error:", error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Unknown error",
+          };
+        }
+      }
+    );
+
+    // Check if download is in progress (unified)
+    ipcMain.handle("unified:isDownloading", async () => {
+      const isDownloading = this.unifiedModelDownloadService.isDownloading();
+      const currentDownload =
+        this.unifiedModelDownloadService.getCurrentDownload();
+      return {
+        isDownloading,
+        currentDownload,
+      };
+    });
+
     // VAD+YAP: Audio processing is handled by Silero VAD in the browser
     // Audio segments are sent via 'vad-audio-segment' (handled by DictationWindowService)
 
@@ -435,6 +505,7 @@ class WhisperMacApp {
     ipcMain.handle("onboarding:getInitialState", () => ({
       ai: this.config.ai,
       model: this.config.get("whisperCppModel") || "ggml-base.en.bin",
+      voskModel: this.config.get("voskModel") || "vosk-model-small-en-us-0.15",
       plugin: this.config.get("transcriptionPlugin") || "yap",
     }));
 
@@ -454,6 +525,25 @@ class WhisperMacApp {
         .getSettingsManager()
         .set("whisperCpp.model", modelName);
       this.settingsService.getSettingsManager().saveSettings();
+
+      // Update the WhisperCppTranscriptionPlugin model path
+      const whisperPlugin =
+        this.transcriptionPluginManager.getPlugin("whisper-cpp");
+      if (whisperPlugin && "updateModelPath" in whisperPlugin) {
+        (whisperPlugin as any).updateModelPath();
+      }
+    });
+
+    ipcMain.handle("onboarding:setVoskModel", (_e, modelName: string) => {
+      this.config.set("voskModel", modelName);
+      this.settingsService.getSettingsManager().set("vosk.model", modelName);
+      this.settingsService.getSettingsManager().saveSettings();
+
+      // Update the VoskTranscriptionPlugin configuration
+      const voskPlugin = this.transcriptionPluginManager.getPlugin("vosk");
+      if (voskPlugin) {
+        voskPlugin.configure({ model: modelName });
+      }
     });
 
     ipcMain.handle("onboarding:setPlugin", async (_e, pluginName: string) => {
@@ -501,37 +591,49 @@ class WhisperMacApp {
         const sendLog = (line: string) =>
           event.sender.send("onboarding:log", { line });
 
+        const onProgress = (progress: any) => {
+          event.sender.send("onboarding:progress", {
+            status: "downloading-models",
+            message:
+              progress.message ||
+              `Preparing ${progress.pluginType || "model"}...`,
+            percent: progress.percent || 0,
+          });
+        };
+
         const activePlugin = this.config.get("transcriptionPlugin") || "yap";
+        sendLog(`Setting up ${activePlugin} plugin`);
+
         if (activePlugin === "whisper-cpp") {
           const modelName =
             this.config.get("whisperCppModel") || "ggml-base.en.bin";
 
-          // Check if model already exists
-          const modelPath = join(this.config.getModelsDir(), modelName);
-          if (!require("fs").existsSync(modelPath)) {
-            sendLog(`Starting download of model: ${modelName}`);
-
-            const onProgress = (progress: any) => {
-              event.sender.send("onboarding:progress", {
-                status: "downloading-models",
-                message: progress.message || `Downloading ${modelName}...`,
-                percent: progress.percent || 0,
-              });
-            };
-
-            await this.modelManager.downloadModel(
-              modelName,
-              onProgress,
-              sendLog
-            );
-            sendLog(`Model ${modelName} downloaded successfully`);
-          } else {
-            sendLog(`Model ${modelName} already exists`);
-          }
+          await this.unifiedModelDownloadService.ensureModelForPlugin(
+            "whisper-cpp",
+            modelName,
+            onProgress,
+            sendLog
+          );
 
           event.sender.send("onboarding:progress", {
             status: "service-ready",
             message: "Whisper.cpp ready",
+            percent: 100,
+          });
+        } else if (activePlugin === "vosk") {
+          const modelName =
+            this.config.get("voskModel") || "vosk-model-small-en-us-0.15";
+
+          await this.unifiedModelDownloadService.ensureModelForPlugin(
+            "vosk",
+            modelName,
+            onProgress,
+            sendLog
+          );
+
+          event.sender.send("onboarding:progress", {
+            status: "service-ready",
+            message: "Vosk ready",
             percent: 100,
           });
         } else {
@@ -541,6 +643,9 @@ class WhisperMacApp {
             percent: 100,
           });
         }
+
+        // Set the active plugin
+        await this.transcriptionPluginManager.setActivePlugin(activePlugin);
 
         event.sender.send("onboarding:progress", {
           status: "complete",

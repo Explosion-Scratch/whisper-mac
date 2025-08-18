@@ -4,6 +4,8 @@ import { readFileSync, writeFileSync } from "fs";
 import { AppConfig } from "../config/AppConfig";
 import { SettingsManager } from "../config/SettingsManager";
 import { SETTINGS_SCHEMA } from "../config/SettingsSchema";
+import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManager";
+import { UnifiedModelDownloadService } from "./UnifiedModelDownloadService";
 
 export class SettingsService {
   private settingsWindow: BrowserWindow | null = null;
@@ -11,6 +13,9 @@ export class SettingsService {
     new Set();
   private settingsManager: SettingsManager;
   private config: AppConfig;
+  private transcriptionPluginManager: TranscriptionPluginManager | null = null;
+  private unifiedModelDownloadService: UnifiedModelDownloadService | null =
+    null;
 
   constructor(config: AppConfig) {
     this.config = config;
@@ -19,6 +24,17 @@ export class SettingsService {
 
     // Load existing settings on startup
     this.loadSettings();
+  }
+
+  /**
+   * Set the transcription plugin manager reference
+   */
+  setTranscriptionPluginManager(manager: TranscriptionPluginManager): void {
+    this.transcriptionPluginManager = manager;
+  }
+
+  setUnifiedModelDownloadService(service: UnifiedModelDownloadService): void {
+    this.unifiedModelDownloadService = service;
   }
 
   private setupIpcHandlers(): void {
@@ -249,9 +265,64 @@ export class SettingsService {
             onLog(`Deleted old model: ${oldModel}`);
           }
 
+          // Update the config with the new model
+          this.config.set("whisperCppModel", newModel);
+
+          // Update the WhisperCppTranscriptionPlugin model path
+          if (this.transcriptionPluginManager) {
+            const whisperPlugin =
+              this.transcriptionPluginManager.getPlugin("whisper-cpp");
+            if (whisperPlugin && "updateModelPath" in whisperPlugin) {
+              (whisperPlugin as any).updateModelPath();
+              onLog(`Updated WhisperCppTranscriptionPlugin model path`);
+            }
+          }
+
           return { success: true };
         } catch (error: any) {
           throw new Error(error.message || "Model switch failed");
+        }
+      }
+    );
+
+    // Vosk model switching (download new, delete old)
+    ipcMain.handle(
+      "models:switchVosk",
+      async (event, payload: { newModel: string; oldModel?: string }) => {
+        const { newModel, oldModel } = payload;
+
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Transcription plugin manager not available");
+        }
+
+        const voskPlugin = this.transcriptionPluginManager.getPlugin("vosk");
+        if (!voskPlugin) {
+          throw new Error("Vosk plugin not available");
+        }
+
+        const onProgress = (progress: any) => {
+          event.sender.send("models:switchVoskProgress", progress);
+        };
+
+        const onLog = (line: string) => {
+          event.sender.send("models:switchVoskLog", { line });
+        };
+
+        try {
+          // Use the Vosk plugin's own model management
+          onLog(`Starting Vosk model switch to ${newModel}`);
+
+          // Update the config with the new model
+          this.config.set("voskModel", newModel);
+
+          // Update the VoskTranscriptionPlugin configuration
+          voskPlugin.configure({ model: newModel });
+
+          onLog(`Updated Vosk plugin model configuration`);
+
+          return { success: true };
+        } catch (error: any) {
+          throw new Error(error.message || "Vosk model switch failed");
         }
       }
     );
@@ -265,6 +336,40 @@ export class SettingsService {
         currentDownload: mgr.getCurrentDownload(),
       };
     });
+
+    // Handle plugin switching with model downloads
+    ipcMain.handle(
+      "settings:switchPlugin",
+      async (event, payload: { pluginName: string; modelName?: string }) => {
+        if (!this.unifiedModelDownloadService) {
+          throw new Error("Unified model download service not available");
+        }
+
+        const { pluginName, modelName } = payload;
+
+        const onProgress = (progress: any) => {
+          event.sender.send("settings:pluginSwitchProgress", progress);
+        };
+
+        const onLog = (line: string) => {
+          event.sender.send("settings:pluginSwitchLog", { line });
+        };
+
+        try {
+          await this.unifiedModelDownloadService.switchToPlugin(
+            pluginName,
+            modelName,
+            onProgress,
+            onLog
+          );
+
+          this.broadcastSettingsUpdate();
+          return { success: true };
+        } catch (error: any) {
+          throw new Error(error.message || "Plugin switch failed");
+        }
+      }
+    );
   }
 
   private broadcastSettingsUpdate(): void {
