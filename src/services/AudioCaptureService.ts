@@ -129,7 +129,7 @@ export class AudioCaptureService extends EventEmitter {
 
     // Load a simple HTML file for audio capture
     await this.audioWindow.loadFile(
-      join(__dirname, "../renderer/audioCapture.html")
+      join(__dirname, "../renderer/audioCapture.html"),
     );
 
     // Listen for audio data from renderer
@@ -156,7 +156,7 @@ export class AudioCaptureService extends EventEmitter {
           this.isRecording = false;
           this.emit("captureStopped");
         }
-      }
+      },
     );
   }
 

@@ -33,14 +33,14 @@ export class TransformationService {
    */
   async transformSegments(
     segments: Segment[],
-    savedState: SelectedTextResult
+    savedState: SelectedTextResult,
   ): Promise<SegmentTransformationResult> {
     console.log("=== TransformationService.transformSegments ===");
     console.log("Input segments:", segments);
 
     try {
       const transcribedSegments = segments.filter(
-        (s) => s.type === "transcribed"
+        (s) => s.type === "transcribed",
       ) as TranscribedSegment[];
 
       const combinedText = transcribedSegments
@@ -52,7 +52,7 @@ export class TransformationService {
 
       const transformedText = await this.transformText(
         combinedText,
-        savedState
+        savedState,
       );
 
       console.log("Final transformed text:", transformedText);
@@ -79,7 +79,7 @@ export class TransformationService {
    */
   private async transformText(
     text: string,
-    savedState: SelectedTextResult
+    savedState: SelectedTextResult,
   ): Promise<string> {
     console.log("=== TransformationService.transformText ===");
     console.log("Input text:", text);
@@ -90,7 +90,7 @@ export class TransformationService {
       transformedText = await this.transformWithAi(
         transformedText,
         this.config.ai,
-        savedState
+        savedState,
       );
     }
 
@@ -167,7 +167,7 @@ export class TransformationService {
   private async transformWithAi(
     text: string,
     aiConfig: AiTransformationConfig,
-    savedState: SelectedTextResult
+    savedState: SelectedTextResult,
   ): Promise<string> {
     console.log("=== TransformationService.transformWithAi ===");
     console.log("Input text:", text);
@@ -183,7 +183,7 @@ export class TransformationService {
     if (!apiKey) apiKey = process.env["AI_API_KEY"];
     if (!apiKey)
       throw new Error(
-        "AI API key not found. Please set it in onboarding or settings."
+        "AI API key not found. Please set it in onboarding or settings.",
       );
 
     // Get active window information
@@ -209,7 +209,7 @@ export class TransformationService {
     // Inject writing style into system prompt
     const systemPrompt = aiConfig.prompt.replace(
       /{writing_style}/g,
-      aiConfig.writingStyle || ""
+      aiConfig.writingStyle || "",
     );
 
     const response = await fetch(aiConfig.baseUrl, {

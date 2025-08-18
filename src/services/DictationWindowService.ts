@@ -45,7 +45,7 @@ export class DictationWindowService {
 
     console.log(
       "Dictation window shown at position:",
-      this.calculateWindowPositionSync()
+      this.calculateWindowPositionSync(),
     );
   }
 
@@ -91,7 +91,7 @@ export class DictationWindowService {
 
     // Load the dictation window HTML
     await this.dictationWindow.loadFile(
-      join(__dirname, "../renderer/dictationWindow.html")
+      join(__dirname, "../renderer/dictationWindow.html"),
     );
 
     // Set up window event handlers
@@ -141,7 +141,7 @@ export class DictationWindowService {
           default:
             console.log("Unknown IPC channel:", channel);
         }
-      }
+      },
     );
   }
 

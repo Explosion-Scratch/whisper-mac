@@ -10,7 +10,7 @@ export class AiProviderService {
    */
   async validateAndListModels(
     baseUrl: string,
-    apiKey: string
+    apiKey: string,
   ): Promise<{
     success: boolean;
     models: AiModelInfo[];
@@ -46,7 +46,7 @@ export class AiProviderService {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
           errorData.error?.message ||
-            `HTTP ${response.status}: ${response.statusText}`
+            `HTTP ${response.status}: ${response.statusText}`,
         );
       }
 
@@ -75,7 +75,7 @@ export class AiProviderService {
       if (completionsMatch) {
         return trimmed.substring(
           0,
-          completionsMatch.index + completionsMatch[1].length
+          completionsMatch.index + completionsMatch[1].length,
         );
       }
       return trimmed;
@@ -93,10 +93,10 @@ export class AiProviderService {
     const items = Array.isArray(data)
       ? data
       : Array.isArray(data?.data)
-      ? data.data
-      : Array.isArray(data?.models)
-      ? data.models
-      : [];
+        ? data.data
+        : Array.isArray(data?.models)
+          ? data.models
+          : [];
     for (const item of items) {
       if (!item) continue;
       const id = item.id || item.model || item.name;
