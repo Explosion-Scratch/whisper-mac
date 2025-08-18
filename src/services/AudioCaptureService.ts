@@ -109,6 +109,36 @@ export class AudioCaptureService extends EventEmitter {
     console.log("Audio capture window pre-loaded successfully");
   }
 
+  /**
+   * Hide the audio capture window instead of closing it
+   */
+  hideWindow(): void {
+    if (this.audioWindow && !this.audioWindow.isDestroyed()) {
+      console.log("Hiding audio capture window...");
+      this.audioWindow.hide();
+    }
+  }
+
+  /**
+   * Show the audio capture window if it exists
+   */
+  showWindow(): void {
+    if (this.audioWindow && !this.audioWindow.isDestroyed()) {
+      console.log("Showing audio capture window...");
+      this.audioWindow.show();
+    }
+  }
+
+  /**
+   * Enable or disable the media stream based on dictation window state
+   */
+  setMediaStreamEnabled(enabled: boolean): void {
+    if (this.audioWindow && !this.audioWindow.isDestroyed()) {
+      console.log(`Setting media stream enabled: ${enabled}`);
+      this.audioWindow.webContents.send("set-media-stream-enabled", enabled);
+    }
+  }
+
   private async createAudioWindow(): Promise<void> {
     console.log("Creating audio capture window...");
 
@@ -129,7 +159,7 @@ export class AudioCaptureService extends EventEmitter {
 
     // Load a simple HTML file for audio capture
     await this.audioWindow.loadFile(
-      join(__dirname, "../renderer/audioCapture.html"),
+      join(__dirname, "../renderer/audioCapture.html")
     );
 
     // Listen for audio data from renderer
@@ -156,7 +186,7 @@ export class AudioCaptureService extends EventEmitter {
           this.isRecording = false;
           this.emit("captureStopped");
         }
-      },
+      }
     );
   }
 
@@ -174,9 +204,9 @@ export class AudioCaptureService extends EventEmitter {
       // Give it a moment to clean up audio resources
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      console.log("Closing audio capture window...");
-      this.audioWindow.close();
-      this.audioWindow = null;
+      // Hide the window instead of closing it
+      console.log("Hiding audio capture window...");
+      this.hideWindow();
     }
 
     console.log("=== Audio capture stopped ===");
@@ -184,5 +214,12 @@ export class AudioCaptureService extends EventEmitter {
 
   getIsRecording(): boolean {
     return this.isRecording;
+  }
+
+  /**
+   * Check if the audio capture window exists and is not destroyed
+   */
+  isWindowAvailable(): boolean {
+    return this.audioWindow !== null && !this.audioWindow.isDestroyed();
   }
 }

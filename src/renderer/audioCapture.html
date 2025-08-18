@@ -12,12 +12,20 @@
       let stream = null;
       let buffer = [];
       let sampleCount = 0;
+      let isStreamEnabled = true;
 
-      // Listen for start capture command from main process
-      window.electronAPI.onStartCapture(async () => {
+      // Start media stream when window loads
+      window.addEventListener("load", async () => {
         try {
-          console.log("Starting audio capture...");
+          console.log("Starting media stream on window load...");
+          await startMediaStream();
+        } catch (error) {
+          console.error("Failed to start media stream on load:", error);
+        }
+      });
 
+      async function startMediaStream() {
+        try {
           stream = await navigator.mediaDevices.getUserMedia({
             audio: {
               sampleRate: 16000,
@@ -50,6 +58,9 @@
           processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
 
           processor.onaudioprocess = (event) => {
+            // Only process audio if stream is enabled
+            if (!isStreamEnabled) return;
+
             const inputBuffer = event.inputBuffer;
             const inputData = inputBuffer.getChannelData(0);
 
@@ -94,17 +105,15 @@
             processor.connect(audioContext.destination);
           } catch {}
 
-          console.log("Audio capture started in renderer");
-          window.electronAPI.sendAudioCaptureStarted();
+          console.log("Media stream started successfully");
         } catch (error) {
-          console.error("Failed to start audio capture:", error);
-          window.electronAPI.sendAudioError(error.message);
+          console.error("Failed to start media stream:", error);
+          throw error;
         }
-      });
+      }
 
-      // Listen for stop capture command from main process
-      window.electronAPI.onStopCapture(() => {
-        console.log("Stopping audio capture...");
+      function stopMediaStream() {
+        console.log("Stopping media stream...");
 
         if (processor) {
           processor.disconnect();
@@ -127,8 +136,44 @@
         buffer = [];
         sampleCount = 0;
 
+        console.log("Media stream stopped");
+      }
+
+      // Listen for start capture command from main process
+      window.electronAPI.onStartCapture(async () => {
+        try {
+          console.log("Starting audio capture...");
+
+          // If media stream doesn't exist, start it
+          if (!stream) {
+            await startMediaStream();
+          }
+
+          // Enable the stream for processing
+          isStreamEnabled = true;
+          console.log("Audio capture started in renderer");
+          window.electronAPI.sendAudioCaptureStarted();
+        } catch (error) {
+          console.error("Failed to start audio capture:", error);
+          window.electronAPI.sendAudioError(error.message);
+        }
+      });
+
+      // Listen for stop capture command from main process
+      window.electronAPI.onStopCapture(() => {
+        console.log("Stopping audio capture...");
+
+        // Disable the stream for processing but keep it running
+        isStreamEnabled = false;
+
         console.log("Audio capture stopped in renderer");
         window.electronAPI.sendAudioCaptureStopped();
+      });
+
+      // Listen for media stream enabled/disabled command
+      window.electronAPI.onSetMediaStreamEnabled((enabled) => {
+        console.log(`Setting media stream enabled: ${enabled}`);
+        isStreamEnabled = enabled;
       });
     </script>
   </body>

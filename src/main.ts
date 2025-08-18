@@ -18,6 +18,7 @@ import { AppConfig } from "./config/AppConfig";
 import { SelectedTextService } from "./services/SelectedTextService";
 import { DictationWindowService } from "./services/DictationWindowService";
 import { SettingsService } from "./services/SettingsService";
+import { ActionsHandlerService } from "./services/ActionsHandlerService";
 
 // Segment management
 import { SegmentManager } from "./services/SegmentManager";
@@ -58,6 +59,7 @@ class WhisperMacApp {
   private segmentManager: SegmentManager;
   private settingsService: SettingsService;
   private errorService: ErrorWindowService;
+  private actionsHandlerService: ActionsHandlerService;
 
   // Icon paths
   private readonly trayIconIdleRelPath = "../assets/icon-template.png";
@@ -103,12 +105,27 @@ class WhisperMacApp {
         this.transcriptionPluginManager.processAudioSegment(audioData);
       }
     );
+    this.actionsHandlerService = new ActionsHandlerService();
     this.segmentManager = new SegmentManager(
       this.transformationService,
       this.textInjector,
-      this.selectedTextService
+      this.selectedTextService,
+      this.actionsHandlerService
     );
     this.errorService = new ErrorWindowService();
+
+    // Listen for action detection events from segment manager
+    this.segmentManager.on("action-detected", async (actionMatch) => {
+      console.log(
+        `[Main] Action detected via segment manager: "${actionMatch.keyword}" with argument: "${actionMatch.argument}"`
+      );
+
+      // Execute the action
+      await this.actionsHandlerService.executeAction(actionMatch);
+
+      // Stop dictation, audio recording, and hide window
+      await this.stopDictation();
+    });
 
     this.onSetupStatusChange((status) => {
       if (status === "idle" && this.pendingToggle) {
@@ -809,6 +826,25 @@ class WhisperMacApp {
       this.trayService?.updateTrayIcon("recording");
       this.dictationWindowService.startRecording();
 
+      // 5. Start audio capture and enable media stream
+      const audioStartTime = Date.now();
+      try {
+        await this.audioService.startCapture();
+        // Enable media stream since dictation window is open
+        this.audioService.setMediaStreamEnabled(true);
+        const audioEndTime = Date.now();
+        console.log(`Audio capture setup: ${audioEndTime - audioStartTime}ms`);
+      } catch (error: any) {
+        console.error("Failed to start audio capture:", error);
+        await this.cancelDictationFlow();
+        await this.showError({
+          title: "Audio capture failed",
+          description: error.message || "Unknown error starting audio capture",
+          actions: ["ok"],
+        });
+        return;
+      }
+
       // Start transcription with active plugin (VAD runs in browser, no separate audio capture needed)
       const transcriptionStartTime = Date.now();
       try {
@@ -925,6 +961,8 @@ class WhisperMacApp {
       this.trayService?.updateTrayIcon("idle");
       this.dictationWindowService.stopRecording();
 
+      // Disable media stream and stop audio capture
+      this.audioService.setMediaStreamEnabled(false);
       await this.audioService.stopCapture();
 
       // Give a moment for final server updates
@@ -999,6 +1037,11 @@ class WhisperMacApp {
       this.isRecording = true;
       this.isFinishing = false;
       this.updateTrayIcon("recording");
+
+      // Ensure audio capture is enabled since dictation window is open
+      if (this.audioService.isWindowAvailable()) {
+        this.audioService.setMediaStreamEnabled(true);
+      }
     } catch (error) {
       console.error("Failed to flush segments while continuing:", error);
     }
@@ -1027,7 +1070,8 @@ class WhisperMacApp {
       // Set finishing state
       this.isFinishing = true;
 
-      // 1. Stop audio capture immediately (no new audio will be processed)
+      // 1. Disable media stream and stop audio capture immediately (no new audio will be processed)
+      this.audioService.setMediaStreamEnabled(false);
       await this.audioService.stopCapture();
 
       // 2. Set transforming status in UI immediately to give user feedback
@@ -1101,6 +1145,12 @@ class WhisperMacApp {
       // Clear the dictation window transcription to reset UI status
       this.dictationWindowService.clearTranscription();
 
+      // Ensure audio capture window is hidden and media stream is disabled
+      if (this.audioService.isWindowAvailable()) {
+        this.audioService.setMediaStreamEnabled(false);
+        this.audioService.hideWindow();
+      }
+
       console.log("=== Dictation completed successfully after finishing ===");
     } catch (error) {
       console.error("Failed to complete dictation after finishing:", error);
@@ -1123,6 +1173,8 @@ class WhisperMacApp {
     this.updateTrayIcon("idle");
 
     if (wasRecording) {
+      // Disable media stream and stop audio capture
+      this.audioService.setMediaStreamEnabled(false);
       await this.audioService.stopCapture();
       await this.transcriptionPluginManager.stopTranscription();
     }

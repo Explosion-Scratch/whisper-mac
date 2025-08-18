@@ -26,9 +26,17 @@
         overflow: hidden;
         user-select: none;
         -webkit-user-select: none;
-        transition: box-shadow 0.2s ease, border-color 0.2s ease,
-          background 0.2s ease;
+        transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+          transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease,
+          border-color 0.2s ease, background 0.2s ease;
         background-clip: padding-box;
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+      }
+
+      body.visible {
+        opacity: 1;
+        transform: scale(1) translateY(0);
       }
 
       body:hover {
@@ -494,6 +502,8 @@
           };
 
           const handleClose = () => {
+            // Play end sound before closing
+            playEndSound();
             // Close button now hides and reloads the window instead of closing it
             window.electronAPI.closeDictationWindow();
           };
@@ -585,7 +595,6 @@
             isRecording.value = true;
             currentStatus.value = "listening";
             resetTranscription();
-            playStartSound();
             await startVAD();
           };
 
@@ -661,21 +670,34 @@
                 newStatus[0] === "processing" ||
                 newStatus[0] === "complete")
             ) {
-              playEndSound();
+              // Removed end sound for segment transitions
             }
           });
 
           // Setup IPC listeners
           onMounted(async () => {
+            if (window.electronAPI && window.electronAPI.onAnimateIn) {
+              window.electronAPI.onAnimateIn(() => {
+                document.body.classList.add("visible");
+                // Play start sound when window opens
+                playStartSound();
+              });
+            }
             window.electronAPI.onInitializeDictation(initializeDictation);
             window.electronAPI.onStartRecording(startRecording);
             window.electronAPI.onStopRecording(stopRecording);
             window.electronAPI.onTranscriptionUpdate(updateTranscription);
             window.electronAPI.onDictationComplete(completeDictation);
             window.electronAPI.onDictationClear(clearDictation);
+            window.electronAPI.onPlayEndSound(playEndSound);
 
             // Prevent default drag behavior
             document.addEventListener("dragstart", (e) => e.preventDefault());
+
+            // Add beforeunload listener to play end sound when window is about to close
+            window.addEventListener("beforeunload", () => {
+              playEndSound();
+            });
 
             // Initialize VAD on mount
             console.log("Initializing VAD on mount...");

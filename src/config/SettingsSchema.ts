@@ -204,8 +204,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         label: "Writing Style",
         description:
           "Custom writing style instructions to inject into the system prompt. Use {writing_style} placeholder in the system prompt to include this content.",
-        defaultValue:
-          'I type all lowercase without punctuation except for exclamation points in messaging apps like instagram or imessage. Emails should be very concise, don\'t make them flowery. I frequently dictate instructions like "Set menu bar icon in electron" and in these instances I want you to simply correct and fix grammar or interpret the request but not fulfill it, e.g. you\'d respond "Set menu bar icon in Electron". Only if I explicitly ask you should you fulfill a request I\'m dictating, or when selected text is provided.',
+        defaultValue: readPrompt("writing_style"),
         placeholder: "Describe your preferred writing style and tone...",
       },
       {
