@@ -55,6 +55,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("settings:switchPlugin", { pluginName, modelName }),
   isUnifiedDownloading: () => ipcRenderer.invoke("unified:isDownloading"),
 
+  // Plugin management
+  getPluginOptions: () => ipcRenderer.invoke("plugins:getOptions"),
+  getActivePlugin: () => ipcRenderer.invoke("plugins:getActive"),
+  setActivePlugin: (pluginName: string, options?: Record<string, any>) =>
+    ipcRenderer.invoke("plugins:setActive", { pluginName, options }),
+  verifyPluginOptions: (pluginName: string, options: Record<string, any>) =>
+    ipcRenderer.invoke("plugins:verifyOptions", { pluginName, options }),
+  getPluginState: (pluginName: string) =>
+    ipcRenderer.invoke("plugins:getState", { pluginName }),
+  deleteInactivePlugin: (pluginName: string) =>
+    ipcRenderer.invoke("plugins:deleteInactive", { pluginName }),
+
   // Model download progress listeners
   onModelDownloadProgress: (callback: (progress: any) => void) => {
     ipcRenderer.on("models:downloadProgress", (_event, progress) =>

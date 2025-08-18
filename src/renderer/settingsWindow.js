@@ -5,6 +5,8 @@ class SettingsWindow {
     this.originalSettings = {};
     this.currentSectionId = null;
     this.validationErrors = {};
+    this.pluginData = { plugins: [], options: {} };
+    this.activePlugin = null;
 
     this.init();
   }
@@ -15,6 +17,10 @@ class SettingsWindow {
       this.schema = await window.electronAPI.getSettingsSchema();
       this.settings = await window.electronAPI.getSettings();
       this.originalSettings = JSON.parse(JSON.stringify(this.settings));
+
+      // Load plugin information
+      this.pluginData = await window.electronAPI.getPluginOptions();
+      this.activePlugin = await window.electronAPI.getActivePlugin();
 
       this.buildNavigation();
       this.buildSettingsForm();
@@ -232,6 +238,7 @@ class SettingsWindow {
           ${section.fields
             .map((field, fieldIndex) => this.buildField(field, fieldIndex))
             .join("")}
+          ${section.id === "transcription" ? this.buildPluginSection() : ""}
         </div>
       `;
 
@@ -457,6 +464,145 @@ class SettingsWindow {
     `;
   }
 
+  buildPluginSection() {
+    if (!this.pluginData || !this.pluginData.plugins) {
+      return "";
+    }
+
+    let html = `<div class="plugin-options-section">`;
+
+    // Plugin selector
+    html += `
+      <div class="form-group">
+        <label>
+          <i class="ph-duotone ph-gear" style="margin-right: 6px; font-size: 14px;"></i>
+          Active Plugin
+        </label>
+        <select class="form-control" data-key="transcription.plugin">
+          ${this.pluginData.plugins
+            .map(
+              (plugin) =>
+                `<option value="${plugin.name}" ${
+                  this.activePlugin === plugin.name ? "selected" : ""
+                }>${plugin.displayName}</option>`
+            )
+            .join("")}
+        </select>
+      </div>
+    `;
+
+    // Plugin-specific options for each plugin
+    for (const plugin of this.pluginData.plugins) {
+      const isActive = this.activePlugin === plugin.name;
+      const pluginOptions = this.pluginData.options[plugin.name] || [];
+
+      html += `
+        <div class="plugin-config-section" data-plugin="${plugin.name}" ${
+        !isActive ? 'style="display: none;"' : ""
+      }>
+          <div class="plugin-header">
+            <div class="plugin-info">
+              <h4>${plugin.displayName}</h4>
+              <p class="plugin-description">${plugin.description}</p>
+            </div>
+            ${
+              !isActive
+                ? `<button type="button" class="btn btn-danger plugin-delete-btn" data-plugin="${plugin.name}" title="Clear plugin data">
+                     <i class="ph-duotone ph-trash"></i>
+                   </button>`
+                : ""
+            }
+          </div>
+      `;
+
+      // Plugin options
+      for (const option of pluginOptions) {
+        const fieldKey = `plugin.${plugin.name}.${option.key}`;
+        const value = this.getSettingValue(fieldKey) || option.default;
+
+        html += `<div class="form-group plugin-option">`;
+
+        if (option.type === "model-select") {
+          html += `
+            <label>
+              <i class="ph-duotone ph-brain" style="margin-right: 6px; font-size: 14px;"></i>
+              ${option.label}
+            </label>
+            <select class="form-control" data-key="${fieldKey}">
+              ${option.options
+                .map(
+                  (opt) =>
+                    `<option value="${opt.value}" ${
+                      value === opt.value ? "selected" : ""
+                    }>${opt.label} ${opt.size ? `(${opt.size})` : ""}</option>`
+                )
+                .join("")}
+            </select>
+          `;
+        } else if (option.type === "select") {
+          html += `
+            <label>
+              <i class="ph-duotone ph-list" style="margin-right: 6px; font-size: 14px;"></i>
+              ${option.label}
+            </label>
+            <select class="form-control" data-key="${fieldKey}">
+              ${option.options
+                .map(
+                  (opt) =>
+                    `<option value="${opt.value}" ${
+                      value === opt.value ? "selected" : ""
+                    }>${opt.label}</option>`
+                )
+                .join("")}
+            </select>
+          `;
+        } else if (option.type === "boolean") {
+          html += `
+            <div class="checkbox-container">
+              <input type="checkbox" class="checkbox" data-key="${fieldKey}" ${
+            value ? "checked" : ""
+          }>
+              <label>
+                <i class="ph-duotone ph-toggle-left" style="margin-right: 6px; font-size: 14px;"></i>
+                ${option.label}
+              </label>
+            </div>
+          `;
+        } else if (option.type === "number") {
+          html += `
+            <label>
+              <i class="ph-duotone ph-hash" style="margin-right: 6px; font-size: 14px;"></i>
+              ${option.label}
+            </label>
+            <input type="number" class="form-control" data-key="${fieldKey}" 
+                   value="${value}" min="${option.min || ""}" max="${
+            option.max || ""
+          }">
+          `;
+        } else {
+          html += `
+            <label>
+              <i class="ph-duotone ph-text-aa" style="margin-right: 6px; font-size: 14px;"></i>
+              ${option.label}
+            </label>
+            <input type="text" class="form-control" data-key="${fieldKey}" value="${value}">
+          `;
+        }
+
+        if (option.description) {
+          html += `<div class="field-description">${option.description}</div>`;
+        }
+
+        html += `<div class="validation-error"></div></div>`;
+      }
+
+      html += `</div>`;
+    }
+
+    html += `</div>`;
+    return html;
+  }
+
   bindFieldEvents() {
     // Handle all input changes with enhanced feedback
     document.querySelectorAll("[data-key]").forEach((element) => {
@@ -565,6 +711,24 @@ class SettingsWindow {
         this.browseDirectory(key);
       });
     });
+
+    // Handle plugin delete buttons
+    document.querySelectorAll(".plugin-delete-btn").forEach((button) => {
+      const pluginName = button.dataset.plugin;
+      button.addEventListener("click", () => {
+        this.deleteInactivePlugin(pluginName);
+      });
+    });
+
+    // Handle plugin switching
+    const pluginSelector = document.querySelector(
+      '[data-key="transcription.plugin"]'
+    );
+    if (pluginSelector) {
+      pluginSelector.addEventListener("change", (e) => {
+        this.switchActivePlugin(e.target.value);
+      });
+    }
   }
 
   bindEvents() {
@@ -1213,6 +1377,104 @@ class SettingsWindow {
     } catch (error) {
       console.error("Failed to browse directory:", error);
       this.showStatus("Failed to browse directory", "error");
+    }
+  }
+
+  async deleteInactivePlugin(pluginName) {
+    try {
+      const pluginInfo = this.pluginData.plugins.find(
+        (p) => p.name === pluginName
+      );
+      const confirmDelete = await window.confirm(
+        `Clear all data for ${pluginInfo?.displayName || pluginName}?\n\n` +
+          `This will delete downloaded models and cached data. This action cannot be undone.`
+      );
+
+      if (!confirmDelete) return;
+
+      await window.electronAPI.deleteInactivePlugin(pluginName);
+      this.showStatus(
+        `Cleared data for ${pluginInfo?.displayName || pluginName}`,
+        "success"
+      );
+    } catch (error) {
+      console.error("Failed to delete plugin data:", error);
+      this.showStatus("Failed to clear plugin data", "error");
+    }
+  }
+
+  async switchActivePlugin(pluginName) {
+    try {
+      const oldPlugin = this.activePlugin;
+      if (oldPlugin === pluginName) return;
+
+      // Get current plugin options
+      const currentOptions = {};
+      const pluginOptions = this.pluginData.options[pluginName] || [];
+
+      for (const option of pluginOptions) {
+        const fieldKey = `plugin.${pluginName}.${option.key}`;
+        const value = this.getSettingValue(fieldKey);
+        if (value !== undefined && value !== null) {
+          currentOptions[option.key] = value;
+        }
+      }
+
+      // Verify options before switching
+      const validation = await window.electronAPI.verifyPluginOptions(
+        pluginName,
+        currentOptions
+      );
+      if (!validation.valid) {
+        this.showStatus(
+          `Cannot switch: ${validation.errors.join(", ")}`,
+          "error"
+        );
+        // Revert selection
+        const selector = document.querySelector(
+          '[data-key="transcription.plugin"]'
+        );
+        if (selector) selector.value = oldPlugin;
+        return;
+      }
+
+      // Check if plugin is downloading
+      const state = await window.electronAPI.getPluginState(pluginName);
+      if (
+        state?.isLoading &&
+        state?.downloadProgress?.status === "downloading"
+      ) {
+        this.showStatus(
+          `Cannot switch: ${pluginName} is currently downloading`,
+          "error"
+        );
+        // Revert selection
+        const selector = document.querySelector(
+          '[data-key="transcription.plugin"]'
+        );
+        if (selector) selector.value = oldPlugin;
+        return;
+      }
+
+      await window.electronAPI.setActivePlugin(pluginName, currentOptions);
+      this.activePlugin = pluginName;
+
+      // Update UI to show/hide plugin sections
+      document.querySelectorAll(".plugin-config-section").forEach((section) => {
+        const isCurrentPlugin = section.dataset.plugin === pluginName;
+        section.style.display = isCurrentPlugin ? "block" : "none";
+      });
+
+      this.showStatus(`Switched to ${pluginName}`, "success");
+    } catch (error) {
+      console.error("Failed to switch plugin:", error);
+      this.showStatus(`Failed to switch plugin: ${error.message}`, "error");
+
+      // Revert selection
+      const selector = document.querySelector(
+        '[data-key="transcription.plugin"]'
+      );
+      if (selector) selector.value = this.activePlugin;
     }
   }
 

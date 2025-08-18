@@ -5,12 +5,13 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
   checkAccessibility: () => ipcRenderer.invoke("onboarding:checkAccessibility"),
   resetAccessibilityCache: () =>
     ipcRenderer.invoke("onboarding:resetAccessibilityCache"),
+  getPluginOptions: () => ipcRenderer.invoke("onboarding:getPluginOptions"),
+  setPlugin: (pluginName: string, options?: Record<string, any>) =>
+    ipcRenderer.invoke("onboarding:setPlugin", { pluginName, options }),
   setModel: (modelName: string) =>
     ipcRenderer.invoke("onboarding:setModel", modelName),
   setVoskModel: (modelName: string) =>
     ipcRenderer.invoke("onboarding:setVoskModel", modelName),
-  setPlugin: (pluginName: string) =>
-    ipcRenderer.invoke("onboarding:setPlugin", pluginName),
   setAiEnabled: (enabled: boolean) =>
     ipcRenderer.invoke("onboarding:setAiEnabled", enabled),
   setAiProvider: (baseUrl: string, model: string) =>
@@ -24,6 +25,7 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
   switchPlugin: (pluginName: string, modelName?: string) =>
     ipcRenderer.invoke("plugin:switch", { pluginName, modelName }),
   isUnifiedDownloading: () => ipcRenderer.invoke("unified:isDownloading"),
+  complete: () => ipcRenderer.invoke("onboarding:complete"),
   onError: (callback: (payload: any) => void) => {
     ipcRenderer.on("error:data", (_e, payload) => callback(payload));
   },
@@ -49,7 +51,6 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
   onPluginSwitchLog: (callback: (payload: any) => void) => {
     ipcRenderer.on("plugin:switchLog", (_event, payload) => callback(payload));
   },
-  complete: () => ipcRenderer.invoke("onboarding:complete"),
 });
 
 // Also expose the AI key validation used by onboarding UI

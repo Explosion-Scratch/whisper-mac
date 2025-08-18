@@ -15,9 +15,10 @@ import { promisify } from "util";
 const pipelineAsync = promisify(pipeline);
 
 export type ModelDownloadProgress = {
-  status: "starting" | "downloading" | "complete" | "error";
+  status: "starting" | "downloading" | "extracting" | "complete" | "error";
   message: string;
   modelRepoId: string;
+  progress: number;
   percent?: number;
   downloadedBytes?: number;
   totalBytes?: number;
@@ -85,6 +86,7 @@ export class ModelManager {
         status: "starting",
         message: "Preparing to download model...",
         modelRepoId: modelName,
+        progress: 0,
       });
 
       const request = https.get(ggmlUrl, (response) => {
@@ -135,6 +137,7 @@ export class ModelManager {
           status: "error",
           message: `Download failed: ${error.message}`,
           modelRepoId: modelName,
+          progress: 0,
         });
         reject(error);
       });
@@ -209,6 +212,7 @@ export class ModelManager {
       status: "downloading",
       message: "Downloading model...",
       modelRepoId: modelName,
+      progress: 0,
       percent: 0,
       downloadedBytes: 0,
       totalBytes,
@@ -223,6 +227,7 @@ export class ModelManager {
         status: "downloading",
         message: `Downloading model... ${percent}%`,
         modelRepoId: modelName,
+        progress: percent,
         percent,
         downloadedBytes,
         totalBytes,
@@ -240,6 +245,7 @@ export class ModelManager {
         status: "complete",
         message: "Model downloaded successfully",
         modelRepoId: modelName,
+        progress: 100,
         percent: 100,
       });
 
@@ -253,6 +259,7 @@ export class ModelManager {
         status: "error",
         message: `Download failed: ${error.message}`,
         modelRepoId: modelName,
+        progress: 0,
       });
       reject?.(error);
     });
@@ -264,6 +271,7 @@ export class ModelManager {
         status: "error",
         message: `Download failed: ${error.message}`,
         modelRepoId: modelName,
+        progress: 0,
       });
       reject?.(error);
     });

@@ -6,6 +6,47 @@ export interface TranscriptionSetupProgress {
   message: string;
 }
 
+export interface ModelDownloadProgress {
+  status: "starting" | "downloading" | "extracting" | "complete" | "error";
+  progress: number;
+  message: string;
+  modelName?: string;
+}
+
+export interface PluginOption {
+  key: string;
+  type: "string" | "number" | "boolean" | "select" | "model-select";
+  label: string;
+  description: string;
+  default: any;
+  options?: Array<{
+    value: string;
+    label: string;
+    description?: string;
+    size?: string;
+  }>;
+  min?: number;
+  max?: number;
+  required?: boolean;
+  category?: "basic" | "advanced" | "model";
+}
+
+export interface PluginState {
+  isLoading: boolean;
+  loadingMessage?: string;
+  downloadProgress?: ModelDownloadProgress;
+  error?: string;
+}
+
+export interface PluginUIFunctions {
+  showProgress: (message: string, percent: number) => void;
+  hideProgress: () => void;
+  showDownloadProgress: (progress: ModelDownloadProgress) => void;
+  showError: (error: string) => void;
+  showSuccess: (message: string) => void;
+  confirmAction: (message: string) => Promise<boolean>;
+}
+
 export interface TranscriptionPluginConfigSchema {
   [key: string]: {
     type: "string" | "number" | "boolean" | "select";
@@ -26,10 +67,14 @@ export interface PostProcessedTranscription {
 }
 
 /**
- * Base class for transcription plugins
+ * Base class for transcription plugins with unified lifecycle management
  */
 export abstract class BaseTranscriptionPlugin extends EventEmitter {
   protected isRunning = false;
+  protected isInitialized = false;
+  protected isActive = false;
+  protected currentState: PluginState = { isLoading: false };
+  protected options: Record<string, any> = {};
   protected onTranscriptionCallback: ((update: SegmentUpdate) => void) | null =
     null;
 
@@ -40,6 +85,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   abstract readonly supportsRealtime: boolean;
   abstract readonly supportsBatchProcessing: boolean;
 
+  // Existing transcription methods
   abstract isAvailable(): Promise<boolean>;
   abstract startTranscription(
     onUpdate: (update: SegmentUpdate) => void,
@@ -53,6 +99,21 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   abstract getConfigSchema(): TranscriptionPluginConfigSchema;
   abstract configure(config: Record<string, any>): void;
 
+  // New unified plugin system methods
+  abstract getOptions(): PluginOption[];
+  abstract verifyOptions(
+    options: Record<string, any>
+  ): Promise<{ valid: boolean; errors: string[] }>;
+  abstract onActivated(uiFunctions?: PluginUIFunctions): Promise<void>;
+  abstract initialize(): Promise<void>;
+  abstract destroy(): Promise<void>;
+  abstract onDeactivate(): Promise<void>;
+  abstract clearData(): Promise<void>;
+  abstract updateOptions(
+    options: Record<string, any>,
+    uiFunctions?: PluginUIFunctions
+  ): Promise<void>;
+
   /**
    * Check if the plugin is currently transcribing
    */
@@ -61,10 +122,31 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   }
 
   /**
-   * Initialize the plugin (optional - can be overridden by subclasses)
+   * Get the current plugin state
    */
-  async initialize(): Promise<void> {
-    // Default implementation does nothing
+  getState(): PluginState {
+    return { ...this.currentState };
+  }
+
+  /**
+   * Check if the plugin is initialized
+   */
+  isPluginInitialized(): boolean {
+    return this.isInitialized;
+  }
+
+  /**
+   * Check if the plugin is active
+   */
+  isPluginActive(): boolean {
+    return this.isActive;
+  }
+
+  /**
+   * Get current options
+   */
+  getCurrentOptions(): Record<string, any> {
+    return { ...this.options };
   }
 
   protected setRunning(running: boolean): void {
@@ -75,6 +157,53 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
     callback: ((update: SegmentUpdate) => void) | null
   ): void {
     this.onTranscriptionCallback = callback;
+  }
+
+  /**
+   * Update the plugin loading state
+   */
+  protected setLoadingState(isLoading: boolean, message?: string): void {
+    this.currentState.isLoading = isLoading;
+    this.currentState.loadingMessage = message;
+    this.emit("stateChanged", this.getState());
+  }
+
+  /**
+   * Update download progress
+   */
+  protected setDownloadProgress(progress: ModelDownloadProgress): void {
+    this.currentState.downloadProgress = progress;
+    this.emit("downloadProgress", progress);
+    this.emit("stateChanged", this.getState());
+  }
+
+  /**
+   * Set error state
+   */
+  protected setError(error: string | null): void {
+    this.currentState.error = error || undefined;
+    this.emit("stateChanged", this.getState());
+  }
+
+  /**
+   * Mark plugin as initialized
+   */
+  protected setInitialized(initialized: boolean): void {
+    this.isInitialized = initialized;
+  }
+
+  /**
+   * Mark plugin as active
+   */
+  protected setActive(active: boolean): void {
+    this.isActive = active;
+  }
+
+  /**
+   * Update stored options
+   */
+  protected setOptions(options: Record<string, any>): void {
+    this.options = { ...options };
   }
 
   /**

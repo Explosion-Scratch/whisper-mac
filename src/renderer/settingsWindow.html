@@ -698,6 +698,72 @@
           flex-direction: column;
         }
       }
+
+      /* Plugin Options Styles */
+      .plugin-options-section {
+        margin-top: var(--spacing-md);
+      }
+
+      .plugin-config-section {
+        margin-top: var(--spacing-md);
+        padding: var(--spacing-md);
+        border: 1px solid var(--color-border-primary);
+        border-radius: var(--radius-lg);
+        background: var(--color-bg-secondary);
+        transition: var(--transition-fast);
+      }
+
+      .plugin-config-section:hover {
+        border-color: var(--color-border-secondary);
+      }
+
+      .plugin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: var(--spacing-md);
+      }
+
+      .plugin-info h4 {
+        margin: 0 0 var(--spacing-xs) 0;
+        font-size: var(--font-size-lg);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-primary);
+      }
+
+      .plugin-description {
+        margin: 0;
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+      }
+
+      .plugin-delete-btn {
+        background: var(--color-error);
+        color: var(--color-text-inverse);
+        border: none;
+        border-radius: var(--radius-sm);
+        padding: var(--spacing-xs) var(--spacing-sm);
+        font-size: var(--font-size-xs);
+        cursor: pointer;
+        transition: var(--transition-fast);
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+      }
+
+      .plugin-delete-btn:hover {
+        background: #d32f2f;
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+      }
+
+      .plugin-option {
+        margin-bottom: var(--spacing-md);
+      }
+
+      .plugin-option:last-child {
+        margin-bottom: 0;
+      }
     </style>
   </head>
   <body>
