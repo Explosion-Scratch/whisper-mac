@@ -5,6 +5,7 @@ import { AppConfig } from "../config/AppConfig";
 import { SettingsManager } from "../config/SettingsManager";
 import { SETTINGS_SCHEMA } from "../config/SettingsSchema";
 import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManager";
+import { PluginUIFunctions } from "../plugins/TranscriptionPlugin";
 import { UnifiedModelDownloadService } from "./UnifiedModelDownloadService";
 
 export class SettingsService {
@@ -233,100 +234,6 @@ export class SettingsService {
       }
     });
 
-    // Model switching (download new, delete old)
-    ipcMain.handle(
-      "models:switch",
-      async (event, payload: { newModel: string; oldModel?: string }) => {
-        const { ModelManager } = await import("./ModelManager");
-        const mgr = new ModelManager(this.config);
-        const { newModel, oldModel } = payload;
-
-        if (mgr.isDownloading()) {
-          throw new Error(
-            `Another model (${mgr.getCurrentDownload()}) is already downloading`
-          );
-        }
-
-        const onProgress = (progress: any) => {
-          event.sender.send("models:switchProgress", progress);
-        };
-
-        const onLog = (line: string) => {
-          event.sender.send("models:switchLog", { line });
-        };
-
-        try {
-          // Download new model first
-          await mgr.downloadModel(newModel, onProgress, onLog);
-
-          // Delete old model if specified
-          if (oldModel && oldModel !== newModel) {
-            mgr.deleteModel(oldModel);
-            onLog(`Deleted old model: ${oldModel}`);
-          }
-
-          // Update the config with the new model
-          this.config.set("whisperCppModel", newModel);
-
-          // Update the WhisperCppTranscriptionPlugin model path
-          if (this.transcriptionPluginManager) {
-            const whisperPlugin =
-              this.transcriptionPluginManager.getPlugin("whisper-cpp");
-            if (whisperPlugin && "updateModelPath" in whisperPlugin) {
-              (whisperPlugin as any).updateModelPath();
-              onLog(`Updated WhisperCppTranscriptionPlugin model path`);
-            }
-          }
-
-          return { success: true };
-        } catch (error: any) {
-          throw new Error(error.message || "Model switch failed");
-        }
-      }
-    );
-
-    // Vosk model switching (download new, delete old)
-    ipcMain.handle(
-      "models:switchVosk",
-      async (event, payload: { newModel: string; oldModel?: string }) => {
-        const { newModel, oldModel } = payload;
-
-        if (!this.transcriptionPluginManager) {
-          throw new Error("Transcription plugin manager not available");
-        }
-
-        const voskPlugin = this.transcriptionPluginManager.getPlugin("vosk");
-        if (!voskPlugin) {
-          throw new Error("Vosk plugin not available");
-        }
-
-        const onProgress = (progress: any) => {
-          event.sender.send("models:switchVoskProgress", progress);
-        };
-
-        const onLog = (line: string) => {
-          event.sender.send("models:switchVoskLog", { line });
-        };
-
-        try {
-          // Use the Vosk plugin's own model management
-          onLog(`Starting Vosk model switch to ${newModel}`);
-
-          // Update the config with the new model
-          this.config.set("voskModel", newModel);
-
-          // Update the VoskTranscriptionPlugin configuration
-          voskPlugin.configure({ model: newModel });
-
-          onLog(`Updated Vosk plugin model configuration`);
-
-          return { success: true };
-        } catch (error: any) {
-          throw new Error(error.message || "Vosk model switch failed");
-        }
-      }
-    );
-
     // Check if download is in progress
     ipcMain.handle("models:isDownloading", async () => {
       const { ModelManager } = await import("./ModelManager");
@@ -367,6 +274,200 @@ export class SettingsService {
           return { success: true };
         } catch (error: any) {
           throw new Error(error.message || "Plugin switch failed");
+        }
+      }
+    );
+
+    // Plugin management handlers
+    ipcMain.handle("plugins:getOptions", () => {
+      if (!this.transcriptionPluginManager) {
+        return { plugins: [], options: {} };
+      }
+
+      const plugins = this.transcriptionPluginManager
+        .getPlugins()
+        .map((plugin) => ({
+          name: plugin.name,
+          displayName: plugin.displayName,
+          description: plugin.description,
+          version: plugin.version,
+          supportsRealtime: plugin.supportsRealtime,
+          supportsBatchProcessing: plugin.supportsBatchProcessing,
+        }));
+
+      const options = this.transcriptionPluginManager.getAllPluginOptions();
+
+      return {
+        plugins,
+        options,
+      };
+    });
+
+    ipcMain.handle("plugins:getActive", () => {
+      if (!this.transcriptionPluginManager) {
+        return null;
+      }
+      return this.transcriptionPluginManager.getActivePlugin()?.name || null;
+    });
+
+    ipcMain.handle(
+      "plugins:setActive",
+      async (
+        _event,
+        payload: { pluginName: string; options?: Record<string, any> }
+      ) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Transcription plugin manager not available");
+        }
+
+        const { pluginName, options } = payload;
+
+        try {
+          await this.transcriptionPluginManager.setActivePlugin(pluginName);
+
+          if (options) {
+            const plugin =
+              this.transcriptionPluginManager.getPlugin(pluginName);
+            if (plugin) {
+              plugin.configure(options);
+            }
+          }
+
+          // Update config
+          this.config.set("transcriptionPlugin", pluginName);
+
+          return { success: true };
+        } catch (error: any) {
+          throw new Error(error.message || "Failed to set active plugin");
+        }
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:verifyOptions",
+      async (
+        _event,
+        payload: { pluginName: string; options: Record<string, any> }
+      ) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Transcription plugin manager not available");
+        }
+
+        const { pluginName, options } = payload;
+        const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
+
+        if (!plugin) {
+          throw new Error(`Plugin ${pluginName} not found`);
+        }
+
+        try {
+          // Verify options by attempting to configure with them
+          plugin.configure(options);
+          return { success: true };
+        } catch (error: any) {
+          throw new Error(error.message || "Invalid plugin options");
+        }
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:getState",
+      async (_event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Transcription plugin manager not available");
+        }
+
+        const { pluginName } = payload;
+        const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
+
+        if (!plugin) {
+          throw new Error(`Plugin ${pluginName} not found`);
+        }
+
+        return plugin.getState();
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:deleteInactive",
+      async (_event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Transcription plugin manager not available");
+        }
+
+        const { pluginName } = payload;
+        const activePlugin = this.transcriptionPluginManager.getActivePlugin();
+
+        if (activePlugin && activePlugin.name === pluginName) {
+          throw new Error("Cannot delete the currently active plugin");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
+
+        if (!plugin) {
+          throw new Error(`Plugin ${pluginName} not found`);
+        }
+
+        try {
+          await plugin.cleanup();
+          return { success: true };
+        } catch (error: any) {
+          throw new Error(error.message || "Failed to delete plugin");
+        }
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:updateActiveOptions",
+      async (event, payload: { options: Record<string, any> }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Transcription plugin manager not available");
+        }
+
+        const { options } = payload;
+
+        try {
+          // Provide UI functions for the plugin
+          const uiFunctions: PluginUIFunctions = {
+            showProgress: (message: string, percent: number) => {
+              event.sender.send("settings:pluginOptionProgress", {
+                message,
+                percent,
+              });
+            },
+            hideProgress: () => {
+              event.sender.send("settings:pluginOptionProgress", {
+                message: "",
+                percent: 100,
+              });
+            },
+            showDownloadProgress: (progress: any) => {
+              event.sender.send("settings:pluginOptionProgress", progress);
+            },
+            showError: (error: string) => {
+              event.sender.send("settings:pluginOptionLog", {
+                line: `ERROR: ${error}`,
+              });
+            },
+            showSuccess: (message: string) => {
+              event.sender.send("settings:pluginOptionLog", {
+                line: `SUCCESS: ${message}`,
+              });
+            },
+            confirmAction: async (message: string) => {
+              return true;
+            },
+          };
+
+          await this.transcriptionPluginManager.updateActivePluginOptions(
+            options,
+            uiFunctions
+          );
+
+          this.broadcastSettingsUpdate();
+          return { success: true };
+        } catch (error: any) {
+          throw new Error(error.message || "Plugin option update failed");
         }
       }
     );

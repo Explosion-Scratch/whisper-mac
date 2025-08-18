@@ -65,97 +65,9 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
           { value: "vosk", label: "Vosk" },
         ],
       },
-      {
-        key: "whisperCpp.model",
-        type: "select",
-        label: "Whisper.cpp Model",
-        description: "Model file to use when Whisper.cpp is active",
-        defaultValue: "ggml-base.en.bin",
-        options: [
-          { value: "ggml-tiny.bin", label: "tiny (multi)" },
-          { value: "ggml-tiny-q5_1.bin", label: "tiny q5_1" },
-          { value: "ggml-tiny-q8_0.bin", label: "tiny q8_0" },
-          { value: "ggml-tiny.en.bin", label: "tiny.en" },
-          { value: "ggml-tiny.en-q5_1.bin", label: "tiny.en q5_1" },
-          { value: "ggml-tiny.en-q8_0.bin", label: "tiny.en q8_0" },
-          { value: "ggml-base.bin", label: "base (multi)" },
-          { value: "ggml-base-q5_1.bin", label: "base q5_1" },
-          { value: "ggml-base-q8_0.bin", label: "base q8_0" },
-          { value: "ggml-base.en.bin", label: "base.en" },
-          { value: "ggml-base.en-q5_1.bin", label: "base.en q5_1" },
-          { value: "ggml-base.en-q8_0.bin", label: "base.en q8_0" },
-          { value: "ggml-small.bin", label: "small (multi)" },
-          { value: "ggml-small-q5_1.bin", label: "small q5_1" },
-          { value: "ggml-small-q8_0.bin", label: "small q8_0" },
-          { value: "ggml-small.en.bin", label: "small.en" },
-          { value: "ggml-small.en-q5_1.bin", label: "small.en q5_1" },
-          { value: "ggml-small.en-q8_0.bin", label: "small.en q8_0" },
-          { value: "ggml-medium.bin", label: "medium (multi)" },
-          { value: "ggml-medium-q5_0.bin", label: "medium q5_0" },
-          { value: "ggml-medium-q8_0.bin", label: "medium q8_0" },
-          { value: "ggml-medium.en.bin", label: "medium.en" },
-          { value: "ggml-medium.en-q5_0.bin", label: "medium.en q5_0" },
-          { value: "ggml-medium.en-q8_0.bin", label: "medium.en q8_0" },
-          { value: "ggml-large-v2.bin", label: "large-v2" },
-          { value: "ggml-large-v2-q5_0.bin", label: "large-v2 q5_0" },
-          { value: "ggml-large-v2-q8_0.bin", label: "large-v2 q8_0" },
-          { value: "ggml-large-v3.bin", label: "large-v3" },
-          { value: "ggml-large-v3-q5_0.bin", label: "large-v3 q5_0" },
-          { value: "ggml-large-v3-turbo.bin", label: "large-v3-turbo" },
-          {
-            value: "ggml-large-v3-turbo-q5_0.bin",
-            label: "large-v3-turbo q5_0",
-          },
-          {
-            value: "ggml-large-v3-turbo-q8_0.bin",
-            label: "large-v3-turbo q8_0",
-          },
-        ],
-      },
-      {
-        key: "vosk.model",
-        type: "select",
-        label: "Vosk Model",
-        description: "Model to use when Vosk is active",
-        defaultValue: "vosk-model-small-en-us-0.15",
-        options: [
-          {
-            value: "vosk-model-small-en-us-0.15",
-            label: "Small English US (40MB)",
-          },
-          {
-            value: "vosk-model-en-us-aspire-0.2",
-            label: "Large English US (1.4GB)",
-          },
-          { value: "vosk-model-small-cn-0.22", label: "Small Chinese (42MB)" },
-          { value: "vosk-model-small-ru-0.22", label: "Small Russian (45MB)" },
-          { value: "vosk-model-small-fr-0.22", label: "Small French (41MB)" },
-          { value: "vosk-model-small-de-0.15", label: "Small German (45MB)" },
-          { value: "vosk-model-small-es-0.42", label: "Small Spanish (39MB)" },
-          { value: "vosk-model-small-it-0.22", label: "Small Italian (48MB)" },
-        ],
-      },
-      {
-        key: "vosk.sampleRate",
-        type: "slider",
-        label: "Vosk Sample Rate",
-        description: "Audio sample rate for Vosk transcription (Hz)",
-        defaultValue: 16000,
-        min: 8000,
-        max: 48000,
-        step: 1000,
-      },
     ],
   },
-  {
-    id: "general",
-    title: "General",
-    description: "Basic application settings",
-    icon: "settings",
-    fields: [
-      // DefaultModel (legacy) retained for backward compatibility but hidden in UI consumers
-    ],
-  },
+
   {
     id: "dictation",
     title: "Dictation Window",
@@ -311,21 +223,6 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     description: "Advanced configuration options",
     icon: "slider",
     fields: [
-      {
-        key: "serverPort",
-        type: "number",
-        label: "Server Port",
-        description: "Port for the WhisperLive server",
-        defaultValue: 9090,
-        min: 1024,
-        max: 65535,
-        validation: (value) => {
-          if (value < 1024 || value > 65535) {
-            return "Port must be between 1024 and 65535";
-          }
-          return null;
-        },
-      },
       {
         key: "dataDir",
         type: "directory",

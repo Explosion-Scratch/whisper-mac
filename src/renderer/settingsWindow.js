@@ -126,8 +126,6 @@ class SettingsWindow {
       slider: "ph-slider-horizontal",
       directory: "ph-folder",
       // Specific field icons with better semantic mapping
-      serverPort: "ph-globe",
-      defaultModel: "ph-brain",
       dictationWindowPosition: "ph-app-window",
       dictationWindowWidth: "ph-resize-horizontal",
       dictationWindowHeight: "ph-resize-vertical",
@@ -265,8 +263,6 @@ class SettingsWindow {
         slider: "ph-slider-horizontal",
         directory: "ph-folder",
         // Specific field icons
-        serverPort: "ph-globe",
-        defaultModel: "ph-brain",
         dictationWindowPosition: "ph-app-window",
         dictationWindowWidth: "ph-resize-horizontal",
         dictationWindowHeight: "ph-resize-vertical",
@@ -633,57 +629,14 @@ class SettingsWindow {
           this.setSettingValue(key, element.value);
           this.validateField(key);
 
-          // Handle Whisper.cpp model changes with download progress
-          if (key === "whisperCpp.model" && element.value !== oldValue) {
-            await this.handleWhisperModelChange(element.value, oldValue);
-          }
-
-          // Handle Vosk model changes
-          if (key === "vosk.model" && element.value !== oldValue) {
-            await this.handleVoskModelChange(element.value, oldValue);
-          }
-
           // Handle transcription plugin changes
           if (key === "transcription.plugin" && element.value !== oldValue) {
             await this.handlePluginChange(element.value, oldValue);
           }
 
-          // Intercept defaultModel changes to prompt deletion of old models
-          if (key === "defaultModel" && element.value !== oldValue) {
-            try {
-              const models = await window.electronAPI.listDownloadedModels();
-              // Exclude newly selected model
-              const toConsider = (models || []).filter(
-                (m) => m.repoId !== element.value
-              );
-              if (toConsider.length > 0) {
-                const list = toConsider
-                  .map((m) => {
-                    const fmt = (n) => {
-                      const units = ["B", "KB", "MB", "GB"];
-                      let i = 0;
-                      let v = n;
-                      while (v >= 1024 && i < units.length - 1) {
-                        v /= 1024;
-                        i++;
-                      }
-                      return `${v.toFixed(1)} ${units[i]}`;
-                    };
-                    return `${m.repoId} — ${fmt(m.sizeBytes)}`;
-                  })
-                  .join("\n");
-                const confirmDelete = window.confirm(
-                  `Switch model to "${element.value}"?\n\nDelete previously downloaded models to save space?\n\n${list}`
-                );
-                if (confirmDelete) {
-                  await window.electronAPI.deleteModels(
-                    toConsider.map((m) => m.repoId)
-                  );
-                }
-              }
-            } catch (e) {
-              // non-fatal
-            }
+          // Handle plugin-specific option changes
+          if (key.startsWith("plugin.")) {
+            await this.handlePluginOptionChange(key, element.value, oldValue);
           }
         });
       }
@@ -720,15 +673,7 @@ class SettingsWindow {
       });
     });
 
-    // Handle plugin switching
-    const pluginSelector = document.querySelector(
-      '[data-key="transcription.plugin"]'
-    );
-    if (pluginSelector) {
-      pluginSelector.addEventListener("change", (e) => {
-        this.switchActivePlugin(e.target.value);
-      });
-    }
+    // Plugin switching is now handled by the main input event listeners
   }
 
   bindEvents() {
@@ -838,13 +783,6 @@ class SettingsWindow {
         error = `Value must be at least ${field.min}`;
       } else if (field.max !== undefined && value > field.max) {
         error = `Value must be at most ${field.max}`;
-      }
-
-      // Specific validation for server port
-      if (key === "serverPort") {
-        if (value < 1024 || value > 65535) {
-          error = "Port must be between 1024 and 65535";
-        }
       }
     } else if (field.type === "text" && field.placeholder) {
       // Basic required field validation
@@ -1068,156 +1006,137 @@ class SettingsWindow {
     return section ? section.title : "Unknown";
   }
 
-  async handleWhisperModelChange(newModel, oldModel) {
-    try {
-      // Check if already downloading
-      const downloadStatus = await window.electronAPI.isDownloading();
-      if (downloadStatus.isDownloading) {
-        this.showStatus(
-          `Cannot switch models: ${downloadStatus.currentDownload} is currently downloading`,
-          "error"
-        );
-        return;
+  // Helper methods for plugin operations
+  setupProgressListeners(eventType, defaultMessage) {
+    const progressHandler = (progress) => {
+      const message = progress.message || defaultMessage;
+      const percent = progress.percent || 0;
+      this.showModelSwitchProgress(message, percent);
+    };
+
+    const logHandler = (payload) => {
+      console.log(`${eventType} log:`, payload.line);
+    };
+
+    // Map event types to actual API method names
+    const apiMethodMap = {
+      PluginOption: {
+        progress: "onPluginOptionProgress",
+        log: "onPluginOptionLog",
+      },
+      PluginSwitch: {
+        progress: "onPluginSwitchProgress",
+        log: "onPluginSwitchLog",
+      },
+    };
+
+    const methods = apiMethodMap[eventType];
+    if (methods) {
+      window.electronAPI[methods.progress](progressHandler);
+      window.electronAPI[methods.log](logHandler);
+    }
+
+    return { progressHandler, logHandler };
+  }
+
+  cleanupProgressListeners(eventType) {
+    window.electronAPI.removeAllListeners(`settings:${eventType}Progress`);
+    window.electronAPI.removeAllListeners(`settings:${eventType}Log`);
+  }
+
+  disableField(key) {
+    const field = document.querySelector(`[data-key="${key}"]`);
+    if (field) field.disabled = true;
+    return field;
+  }
+
+  enableField(key) {
+    const field = document.querySelector(`[data-key="${key}"]`);
+    if (field) field.disabled = false;
+    return field;
+  }
+
+  revertFieldValue(key, oldValue) {
+    const field = document.querySelector(`[data-key="${key}"]`);
+    if (field) {
+      if (field.type === "checkbox") {
+        field.checked = oldValue;
+      } else {
+        field.value = oldValue;
       }
-
-      // Show confirmation dialog
-      const confirmSwitch = window.confirm(
-        `Switch to model "${newModel}"?\n\n` +
-          `This will download the new model and delete the old one to save space.`
-      );
-
-      if (!confirmSwitch) {
-        // Revert the selection
-        this.setSettingValue("whisperCpp.model", oldModel);
-        const field = document.querySelector(`[data-key="whisperCpp.model"]`);
-        if (field) field.value = oldModel;
-        return;
-      }
-
-      // Disable the field during download
-      const field = document.querySelector(`[data-key="whisperCpp.model"]`);
-      if (field) field.disabled = true;
-
-      // Show progress
-      this.showModelSwitchProgress(`Switching to ${newModel}...`, 0);
-
-      // Set up progress listeners
-      const progressHandler = (progress) => {
-        const message = progress.message || `Downloading ${newModel}...`;
-        const percent = progress.percent || 0;
-        this.showModelSwitchProgress(message, percent);
-      };
-
-      const logHandler = (payload) => {
-        console.log("Model switch log:", payload.line);
-      };
-
-      window.electronAPI.onModelSwitchProgress(progressHandler);
-      window.electronAPI.onModelSwitchLog(logHandler);
-
-      try {
-        // Perform the model switch
-        await window.electronAPI.switchModel(newModel, oldModel);
-        this.showModelSwitchProgress("Model switch completed!", 100);
-        this.showStatus(
-          `Successfully switched to model: ${newModel}`,
-          "success"
-        );
-      } catch (error) {
-        this.showModelSwitchProgress("Model switch failed", 0);
-        this.showStatus(`Failed to switch model: ${error.message}`, "error");
-        // Revert the selection
-        this.setSettingValue("whisperCpp.model", oldModel);
-        if (field) field.value = oldModel;
-      } finally {
-        // Clean up listeners
-        window.electronAPI.removeAllListeners("models:switchProgress");
-        window.electronAPI.removeAllListeners("models:switchLog");
-
-        // Re-enable the field
-        if (field) field.disabled = false;
-
-        // Hide progress after a delay
-        setTimeout(() => {
-          this.hideModelSwitchProgress();
-        }, 2000);
-      }
-    } catch (error) {
-      console.error("Error handling whisper model change:", error);
-      this.showStatus("Error switching model", "error");
     }
   }
 
-  async handleVoskModelChange(newModel, oldModel) {
+  async handlePluginOptionChange(key, newValue, oldValue) {
     try {
-      // Show confirmation dialog
-      const confirmSwitch = window.confirm(
-        `Switch to Vosk model "${newModel}"?\n\n` +
-          `This will download the new model if needed.`
-      );
-
-      if (!confirmSwitch) {
-        // Revert the selection
-        this.setSettingValue("vosk.model", oldModel);
-        const field = document.querySelector(`[data-key="vosk.model"]`);
-        if (field) field.value = oldModel;
+      // Parse the plugin key: plugin.{pluginName}.{optionKey}
+      const parts = key.split(".");
+      if (parts.length !== 3 || parts[0] !== "plugin") {
+        console.warn("Invalid plugin option key:", key);
         return;
       }
 
-      // Disable the field during download
-      const field = document.querySelector(`[data-key="vosk.model"]`);
-      if (field) field.disabled = true;
+      const pluginName = parts[1];
+      const optionKey = parts[2];
 
-      // Show progress
-      this.showModelSwitchProgress(`Switching to Vosk ${newModel}...`, 0);
+      // Only update options for the active plugin
+      if (pluginName !== this.activePlugin) {
+        console.log(
+          `Ignoring option change for inactive plugin: ${pluginName}`
+        );
+        return;
+      }
+
+      // Prepare the options update
+      const options = { [optionKey]: newValue };
+
+      // Disable the field during the update
+      const field = this.disableField(key);
 
       // Set up progress listeners
-      const progressHandler = (progress) => {
-        const message = progress.message || `Processing Vosk ${newModel}...`;
-        const percent = progress.percent || 0;
-        this.showModelSwitchProgress(message, percent);
-      };
-
-      const logHandler = (payload) => {
-        console.log("Vosk model switch log:", payload.line);
-      };
-
-      window.electronAPI.onVoskModelSwitchProgress(progressHandler);
-      window.electronAPI.onVoskModelSwitchLog(logHandler);
+      this.setupProgressListeners("PluginOption", `Updating ${optionKey}...`);
 
       try {
-        // Perform the Vosk model switch
-        await window.electronAPI.switchVoskModel(newModel, oldModel);
-        this.showModelSwitchProgress("Vosk model switch completed!", 100);
-        this.showStatus(
-          `Successfully switched to Vosk model: ${newModel}`,
-          "success"
-        );
+        // Show progress for significant changes (like model switches)
+        if (optionKey === "model") {
+          this.showModelSwitchProgress(`Switching to ${newValue}...`, 0);
+        }
+
+        // Update the plugin options
+        await window.electronAPI.updateActivePluginOptions(options);
+
+        if (optionKey === "model") {
+          this.showStatus(`Switched to ${newValue}`, "success");
+        } else {
+          this.showStatus(`Updated ${optionKey}`, "success");
+        }
       } catch (error) {
-        this.showModelSwitchProgress("Vosk model switch failed", 0);
+        console.error("Failed to update plugin option:", error);
         this.showStatus(
-          `Failed to switch Vosk model: ${error.message}`,
+          `Failed to update ${optionKey}: ${error.message}`,
           "error"
         );
-        // Revert the selection
-        this.setSettingValue("vosk.model", oldModel);
-        if (field) field.value = oldModel;
+
+        // Revert the setting and field value
+        this.setSettingValue(key, oldValue);
+        this.revertFieldValue(key, oldValue);
       } finally {
         // Clean up listeners
-        window.electronAPI.removeAllListeners("models:switchVoskProgress");
-        window.electronAPI.removeAllListeners("models:switchVoskLog");
+        this.cleanupProgressListeners("PluginOption");
 
         // Re-enable the field
-        if (field) field.disabled = false;
+        this.enableField(key);
 
-        // Hide progress after a delay
-        setTimeout(() => {
-          this.hideModelSwitchProgress();
-        }, 2000);
+        // Hide progress after a delay for model changes
+        if (optionKey === "model") {
+          setTimeout(() => {
+            this.hideModelSwitchProgress();
+          }, 2000);
+        }
       }
     } catch (error) {
-      console.error("Error handling Vosk model change:", error);
-      this.showStatus("Error switching Vosk model", "error");
+      console.error("Error handling plugin option change:", error);
+      this.showStatus("Error updating plugin option", "error");
     }
   }
 
@@ -1232,41 +1151,45 @@ class SettingsWindow {
       if (!confirmSwitch) {
         // Revert the selection
         this.setSettingValue("transcription.plugin", oldPlugin);
-        const field = document.querySelector(
-          `[data-key="transcription.plugin"]`
-        );
-        if (field) field.value = oldPlugin;
+        this.revertFieldValue("transcription.plugin", oldPlugin);
         return;
       }
 
       // Disable the field during switching
-      const field = document.querySelector(`[data-key="transcription.plugin"]`);
-      if (field) field.disabled = true;
+      const field = this.disableField("transcription.plugin");
 
       // Show progress
       this.showModelSwitchProgress(`Switching to ${newPlugin}...`, 0);
 
       // Set up progress listeners
-      const progressHandler = (progress) => {
-        const message = progress.message || `Setting up ${newPlugin}...`;
-        const percent = progress.percent || 0;
-        this.showModelSwitchProgress(message, percent);
-      };
-
-      const logHandler = (payload) => {
-        console.log("Plugin switch log:", payload.line);
-      };
-
-      window.electronAPI.onPluginSwitchProgress(progressHandler);
-      window.electronAPI.onPluginSwitchLog(logHandler);
+      this.setupProgressListeners("PluginSwitch", `Setting up ${newPlugin}...`);
 
       try {
-        // Perform the plugin switch using unified API
-        const result = await window.electronAPI.switchPlugin(newPlugin);
+        // Get default options for the new plugin
+        const pluginOptions = this.pluginData.options[newPlugin] || [];
+        const defaultOptions = {};
+        pluginOptions.forEach((option) => {
+          defaultOptions[option.key] = option.default;
+        });
+
+        // Perform the plugin switch using unified API with default options
+        const result = await window.electronAPI.setActivePlugin(
+          newPlugin,
+          defaultOptions
+        );
 
         if (result.success) {
+          this.activePlugin = newPlugin;
           this.showModelSwitchProgress(`${newPlugin} ready`, 100);
           this.showStatus(`Switched to ${newPlugin}`, "success");
+
+          // Update UI to show/hide plugin sections
+          document
+            .querySelectorAll(".plugin-config-section")
+            .forEach((section) => {
+              const isCurrentPlugin = section.dataset.plugin === newPlugin;
+              section.style.display = isCurrentPlugin ? "block" : "none";
+            });
         } else {
           throw new Error(result.error || "Plugin switch failed");
         }
@@ -1275,7 +1198,7 @@ class SettingsWindow {
 
         // Revert the setting
         this.setSettingValue("transcription.plugin", oldPlugin);
-        if (field) field.value = oldPlugin;
+        this.revertFieldValue("transcription.plugin", oldPlugin);
 
         this.showStatus(`Failed to switch to ${newPlugin}`, "error");
         throw switchError;
@@ -1285,12 +1208,10 @@ class SettingsWindow {
       this.showStatus("Error switching plugin", "error");
     } finally {
       // Clean up listeners
-      window.electronAPI.removeAllListeners("settings:pluginSwitchProgress");
-      window.electronAPI.removeAllListeners("settings:pluginSwitchLog");
+      this.cleanupProgressListeners("PluginSwitch");
 
       // Re-enable the field
-      const field = document.querySelector(`[data-key="transcription.plugin"]`);
-      if (field) field.disabled = false;
+      this.enableField("transcription.plugin");
 
       // Hide progress after a delay
       setTimeout(() => {
@@ -1400,81 +1321,6 @@ class SettingsWindow {
     } catch (error) {
       console.error("Failed to delete plugin data:", error);
       this.showStatus("Failed to clear plugin data", "error");
-    }
-  }
-
-  async switchActivePlugin(pluginName) {
-    try {
-      const oldPlugin = this.activePlugin;
-      if (oldPlugin === pluginName) return;
-
-      // Get current plugin options
-      const currentOptions = {};
-      const pluginOptions = this.pluginData.options[pluginName] || [];
-
-      for (const option of pluginOptions) {
-        const fieldKey = `plugin.${pluginName}.${option.key}`;
-        const value = this.getSettingValue(fieldKey);
-        if (value !== undefined && value !== null) {
-          currentOptions[option.key] = value;
-        }
-      }
-
-      // Verify options before switching
-      const validation = await window.electronAPI.verifyPluginOptions(
-        pluginName,
-        currentOptions
-      );
-      if (!validation.valid) {
-        this.showStatus(
-          `Cannot switch: ${validation.errors.join(", ")}`,
-          "error"
-        );
-        // Revert selection
-        const selector = document.querySelector(
-          '[data-key="transcription.plugin"]'
-        );
-        if (selector) selector.value = oldPlugin;
-        return;
-      }
-
-      // Check if plugin is downloading
-      const state = await window.electronAPI.getPluginState(pluginName);
-      if (
-        state?.isLoading &&
-        state?.downloadProgress?.status === "downloading"
-      ) {
-        this.showStatus(
-          `Cannot switch: ${pluginName} is currently downloading`,
-          "error"
-        );
-        // Revert selection
-        const selector = document.querySelector(
-          '[data-key="transcription.plugin"]'
-        );
-        if (selector) selector.value = oldPlugin;
-        return;
-      }
-
-      await window.electronAPI.setActivePlugin(pluginName, currentOptions);
-      this.activePlugin = pluginName;
-
-      // Update UI to show/hide plugin sections
-      document.querySelectorAll(".plugin-config-section").forEach((section) => {
-        const isCurrentPlugin = section.dataset.plugin === pluginName;
-        section.style.display = isCurrentPlugin ? "block" : "none";
-      });
-
-      this.showStatus(`Switched to ${pluginName}`, "success");
-    } catch (error) {
-      console.error("Failed to switch plugin:", error);
-      this.showStatus(`Failed to switch plugin: ${error.message}`, "error");
-
-      // Revert selection
-      const selector = document.querySelector(
-        '[data-key="transcription.plugin"]'
-      );
-      if (selector) selector.value = this.activePlugin;
     }
   }
 

@@ -191,23 +191,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   async isAvailable(): Promise<boolean> {
-    try {
-      // Refresh paths from current config in case onboarding updated them
-      this.modelPath = this.resolveModelPath();
-      this.vadModelPath = this.resolveVadModelPath();
-
-      // Check if whisper binary and model exist
-      if (!existsSync(this.modelPath)) {
-        console.log(`Whisper.cpp model not found at: ${this.modelPath}`);
-        return false;
-      }
-
-      // Check if whisper binary exists and is executable
-      return await this.isBinaryAvailable();
-    } catch (error) {
-      console.error("Whisper.cpp availability check failed:", error);
-      return false;
-    }
+    return await this.isBinaryAvailable();
   }
 
   async startTranscription(
