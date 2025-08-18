@@ -393,6 +393,30 @@ export class SettingsService {
         }
       }
     );
+
+    // Get plugin data information
+    ipcMain.handle(
+      "settings:getPluginDataInfo",
+      async (): Promise<
+        Array<{
+          name: string;
+          displayName: string;
+          isActive: boolean;
+          dataSize: number;
+          dataPath: string;
+        }>
+      > => {
+        try {
+          if (!this.transcriptionPluginManager) {
+            throw new Error("Plugin manager not initialized");
+          }
+          return await this.transcriptionPluginManager.getPluginDataInfo();
+        } catch (error: any) {
+          console.error("Failed to get plugin data info:", error);
+          throw new Error(error.message || "Failed to get plugin data info");
+        }
+      }
+    );
   }
 
   private broadcastSettingsUpdate(): void {

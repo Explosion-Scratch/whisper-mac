@@ -4,6 +4,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { v4 as uuidv4 } from "uuid";
 import { AppConfig } from "../config/AppConfig";
+import { FileSystemService } from "../services/FileSystemService";
 import {
   Segment,
   TranscribedSegment,
@@ -996,15 +997,38 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
   async clearData(): Promise<void> {
     // Clean temp files
     try {
-      const fs = await import("fs");
-      if (fs.existsSync(this.tempDir)) {
-        fs.rmSync(this.tempDir, { recursive: true, force: true });
+      if (FileSystemService.deleteDirectory(this.tempDir)) {
         this.tempDir = mkdtempSync(join(tmpdir(), "vosk-plugin-"));
       }
       console.log("Vosk plugin data cleared");
     } catch (error) {
       console.warn("Failed to clear Vosk plugin data:", error);
     }
+  }
+
+  async getDataSize(): Promise<number> {
+    try {
+      let totalSize = 0;
+
+      // Calculate temp directory size
+      totalSize += FileSystemService.calculateDirectorySize(this.tempDir);
+
+      // Calculate model file size if it exists
+      const modelPath = join(
+        this.config.getModelsDir(),
+        this.config.get("voskModel") || ""
+      );
+      totalSize += FileSystemService.calculateFileSize(modelPath);
+
+      return totalSize;
+    } catch (error) {
+      console.warn("Failed to calculate Vosk plugin data size:", error);
+      return 0;
+    }
+  }
+
+  getDataPath(): string {
+    return this.tempDir;
   }
 
   async updateOptions(

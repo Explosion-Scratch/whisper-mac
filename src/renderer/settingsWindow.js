@@ -237,6 +237,7 @@ class SettingsWindow {
             .map((field, fieldIndex) => this.buildField(field, fieldIndex))
             .join("")}
           ${section.id === "transcription" ? this.buildPluginSection() : ""}
+          ${section.id === "data" ? this.buildDataSection() : ""}
         </div>
       `;
 
@@ -599,6 +600,19 @@ class SettingsWindow {
     return html;
   }
 
+  buildDataSection() {
+    return `
+      <div class="data-management-section">
+        <div class="plugin-data-list" id="pluginDataList">
+          <div class="loading-indicator">
+            <i class="ph-duotone ph-circle-notch" style="animation: spin 1s linear infinite; margin-right: 8px;"></i>
+            Loading plugin data information...
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   bindFieldEvents() {
     // Handle all input changes with enhanced feedback
     document.querySelectorAll("[data-key]").forEach((element) => {
@@ -743,6 +757,11 @@ class SettingsWindow {
     }
 
     this.currentSectionId = sectionId;
+
+    // Load data for specific sections
+    if (sectionId === "data") {
+      this.loadPluginDataInfo();
+    }
   }
 
   getSettingValue(key) {
@@ -1344,6 +1363,123 @@ class SettingsWindow {
     const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  async loadPluginDataInfo() {
+    const dataList = document.getElementById("pluginDataList");
+    if (!dataList) return;
+
+    try {
+      const pluginData = await window.electronAPI.getPluginDataInfo();
+      this.renderPluginDataList(pluginData);
+    } catch (error) {
+      console.error("Failed to load plugin data info:", error);
+      dataList.innerHTML = `
+        <div class="error-message">
+          <i class="ph-duotone ph-warning"></i>
+          Failed to load plugin data information
+        </div>
+      `;
+    }
+  }
+
+  renderPluginDataList(pluginData) {
+    const dataList = document.getElementById("pluginDataList");
+    if (!dataList) return;
+
+    if (pluginData.length === 0) {
+      dataList.innerHTML = `
+        <div class="no-data-message">
+          <i class="ph-duotone ph-database"></i>
+          No plugins found
+        </div>
+      `;
+      return;
+    }
+
+    const formatBytes = (bytes) => {
+      if (bytes === 0) return "0 B";
+      const k = 1024;
+      const sizes = ["B", "KB", "MB", "GB", "TB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    };
+
+    const html = pluginData
+      .map(
+        (plugin) => `
+      <div class="plugin-data-item ${plugin.isActive ? "active" : ""}">
+        <div class="plugin-data-info">
+          <div class="plugin-name">
+            <i class="ph-duotone ph-gear"></i>
+            ${this.escapeHtml(plugin.displayName)}
+            ${plugin.isActive ? '<span class="active-badge">Active</span>' : ""}
+          </div>
+          <div class="plugin-data-details">
+            <span class="data-size">
+              <i class="ph-duotone ph-hard-drive"></i>
+              ${formatBytes(plugin.dataSize)}
+            </span>
+            <span class="data-path">
+              <i class="ph-duotone ph-folder"></i>
+              ${this.escapeHtml(plugin.dataPath)}
+            </span>
+          </div>
+        </div>
+        <div class="plugin-data-actions">
+          ${
+            !plugin.isActive
+              ? `
+            <button class="btn btn-negative btn-sm clear-data-btn" data-plugin="${plugin.name}" title="Clear plugin data">
+              <i class="ph-duotone ph-trash"></i>
+              Clear Data
+            </button>
+          `
+              : `
+            <span class="active-plugin-note">Active plugin - data cannot be cleared</span>
+          `
+          }
+        </div>
+      </div>
+    `
+      )
+      .join("");
+
+    dataList.innerHTML = html;
+
+    // Bind clear data buttons
+    document.querySelectorAll(".clear-data-btn").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const pluginName = button.dataset.plugin;
+        await this.clearPluginData(pluginName);
+      });
+    });
+  }
+
+  async clearPluginData(pluginName) {
+    try {
+      const pluginInfo = this.pluginData.plugins.find(
+        (p) => p.name === pluginName
+      );
+      const confirmDelete = await window.confirm(
+        `Clear all data for ${pluginInfo?.displayName || pluginName}?\n\n` +
+          `This will delete downloaded models and cached data. This action cannot be undone.`
+      );
+
+      if (!confirmDelete) return;
+
+      await window.electronAPI.deleteInactivePlugin(pluginName);
+      this.showStatus(
+        `Cleared data for ${pluginInfo?.displayName || pluginName}`,
+        "success"
+      );
+
+      // Reload the data list
+      this.loadPluginDataInfo();
+    } catch (error) {
+      console.error("Failed to clear plugin data:", error);
+      this.showStatus("Failed to clear plugin data", "error");
+    }
   }
 }
 

@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import { app } from "electron";
 import { v4 as uuidv4 } from "uuid";
 import { AppConfig } from "../config/AppConfig";
+import { FileSystemService } from "../services/FileSystemService";
 import { WavProcessor } from "../helpers/WavProcessor";
 import {
   Segment,
@@ -470,15 +471,31 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
   async clearData(): Promise<void> {
     // YAP doesn't store persistent data, just clean temp files
     try {
-      const fs = await import("fs");
-      if (fs.existsSync(this.tempDir)) {
-        fs.rmSync(this.tempDir, { recursive: true, force: true });
+      if (FileSystemService.deleteDirectory(this.tempDir)) {
         this.tempDir = mkdtempSync(join(tmpdir(), "yap-plugin-"));
       }
       console.log("YAP plugin data cleared");
     } catch (error) {
       console.warn("Failed to clear YAP plugin data:", error);
     }
+  }
+
+  async getDataSize(): Promise<number> {
+    try {
+      let totalSize = 0;
+
+      // Calculate temp directory size
+      totalSize += FileSystemService.calculateDirectorySize(this.tempDir);
+
+      return totalSize;
+    } catch (error) {
+      console.warn("Failed to calculate YAP plugin data size:", error);
+      return 0;
+    }
+  }
+
+  getDataPath(): string {
+    return this.tempDir;
   }
 
   async updateOptions(
