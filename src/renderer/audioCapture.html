@@ -8,10 +8,8 @@
     <script>
       let audioContext = null;
       let mediaStreamSource = null;
-      let processor = null;
+      let workletNode = null;
       let stream = null;
-      let buffer = [];
-      let sampleCount = 0;
       let isStreamEnabled = true;
 
       // Start media stream when window loads
@@ -53,56 +51,44 @@
           // Create media stream source
           mediaStreamSource = audioContext.createMediaStreamSource(stream);
 
-          // Create script processor for audio processing
-          const bufferSize = 4096;
-          processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+          // Load and create audio worklet processor
+          await audioContext.audioWorklet.addModule("./audiopreprocessor.js");
 
-          processor.onaudioprocess = (event) => {
+          // Create worklet node for audio processing
+          workletNode = new AudioWorkletNode(
+            audioContext,
+            "audiopreprocessor",
+            {
+              numberOfInputs: 1,
+              numberOfOutputs: 1,
+              outputChannelCount: [1],
+            }
+          );
+
+          workletNode.port.onmessage = (event) => {
             // Only process audio if stream is enabled
             if (!isStreamEnabled) return;
 
-            const inputBuffer = event.inputBuffer;
-            const inputData = inputBuffer.getChannelData(0);
+            const audioData = event.data;
 
-            // Add samples to buffer
-            for (let i = 0; i < inputData.length; i++) {
-              buffer.push(inputData[i]);
-              sampleCount++;
+            // Calculate audio energy (sum of absolute values)
+            let energy = 0;
+            for (let i = 0; i < audioData.length; i++) {
+              energy += Math.abs(audioData[i]);
+            }
 
-              // Send chunks of 8000 samples (0.5 seconds at 16kHz)
-              if (sampleCount >= 8000) {
-                const chunk = buffer.slice(0, 8000);
-                const float32Array = new Float32Array(chunk);
-
-                // Calculate audio energy (sum of absolute values)
-                let energy = 0;
-                for (let i = 0; i < float32Array.length; i++) {
-                  energy += Math.abs(float32Array[i]);
-                }
-
-                console.log("Energy:", energy);
-                // Only send if energy exceeds threshold (not silent)
-                if (energy > 20) {
-                  // Adjust threshold as needed
-                  console.log(
-                    "Sending audio chunk:",
-                    float32Array.length,
-                    "samples"
-                  );
-                  window.electronAPI.sendAudioData(float32Array);
-                }
-
-                // Remove sent samples from buffer
-                buffer = buffer.slice(8000);
-                sampleCount -= 8000;
-              }
+            console.log("Energy:", energy);
+            // Only send if energy exceeds threshold (not silent)
+            if (energy > 20) {
+              console.log("Sending audio chunk:", audioData.length, "samples");
+              window.electronAPI.sendAudioData(audioData);
             }
           };
 
           // Connect the audio graph
-          mediaStreamSource.connect(processor);
+          mediaStreamSource.connect(workletNode);
           try {
-            processor.connect(audioContext.destination);
+            workletNode.connect(audioContext.destination);
           } catch {}
 
           console.log("Media stream started successfully");
@@ -115,9 +101,9 @@
       function stopMediaStream() {
         console.log("Stopping media stream...");
 
-        if (processor) {
-          processor.disconnect();
-          processor = null;
+        if (workletNode) {
+          workletNode.disconnect();
+          workletNode = null;
         }
         if (mediaStreamSource) {
           mediaStreamSource.disconnect();
@@ -131,10 +117,6 @@
           stream.getTracks().forEach((track) => track.stop());
           stream = null;
         }
-
-        // Reset buffer
-        buffer = [];
-        sampleCount = 0;
 
         console.log("Media stream stopped");
       }

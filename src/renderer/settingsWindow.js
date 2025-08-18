@@ -18,7 +18,7 @@ class SettingsWindow {
       this.settings = await window.electronAPI.getSettings();
       this.originalSettings = JSON.parse(JSON.stringify(this.settings));
 
-      // Load plugin information
+      // Load plugin information using unified API
       this.pluginData = await window.electronAPI.getPluginOptions();
       this.activePlugin = await window.electronAPI.getActivePlugin();
 
@@ -474,7 +474,7 @@ class SettingsWindow {
           <i class="ph-duotone ph-gear" style="margin-right: 6px; font-size: 14px;"></i>
           Active Plugin
         </label>
-        <select class="form-control" data-key="transcription.plugin">
+        <select class="form-control" data-plugin-selector>
           ${this.pluginData.plugins
             .map(
               (plugin) =>
@@ -629,12 +629,7 @@ class SettingsWindow {
           this.setSettingValue(key, element.value);
           this.validateField(key);
 
-          // Handle transcription plugin changes
-          if (key === "transcription.plugin" && element.value !== oldValue) {
-            await this.handlePluginChange(element.value, oldValue);
-          }
-
-          // Handle plugin-specific option changes
+          // Handle plugin-specific option changes using unified API
           if (key.startsWith("plugin.")) {
             await this.handlePluginOptionChange(key, element.value, oldValue);
           }
@@ -673,7 +668,17 @@ class SettingsWindow {
       });
     });
 
-    // Plugin switching is now handled by the main input event listeners
+    // Handle plugin selector changes
+    document.querySelectorAll("[data-plugin-selector]").forEach((selector) => {
+      selector.addEventListener("change", async (event) => {
+        const newPlugin = event.target.value;
+        const oldPlugin = this.activePlugin;
+
+        if (newPlugin !== oldPlugin) {
+          await this.handlePluginChange(newPlugin, oldPlugin);
+        }
+      });
+    });
   }
 
   bindEvents() {
@@ -1117,7 +1122,7 @@ class SettingsWindow {
           this.showModelSwitchProgress(`Switching to ${newValue}...`, 0);
         }
 
-        // Update the plugin options
+        // Update the plugin options using unified API
         await window.electronAPI.updateActivePluginOptions(options);
 
         if (optionKey === "model") {
@@ -1165,13 +1170,16 @@ class SettingsWindow {
 
       if (!confirmSwitch) {
         // Revert the selection
-        this.setSettingValue("transcription.plugin", oldPlugin);
-        this.revertFieldValue("transcription.plugin", oldPlugin);
+        const selector = document.querySelector("[data-plugin-selector]");
+        if (selector) {
+          selector.value = oldPlugin;
+        }
         return;
       }
 
       // Disable the field during switching
-      const field = this.disableField("transcription.plugin");
+      const field = document.querySelector("[data-plugin-selector]");
+      if (field) field.disabled = true;
 
       // Show progress
       this.showModelSwitchProgress(`Switching to ${newPlugin}...`, 0);
@@ -1180,14 +1188,7 @@ class SettingsWindow {
       this.setupProgressListeners("PluginSwitch", `Setting up ${newPlugin}...`);
 
       try {
-        // Get default options for the new plugin
-        const pluginOptions = this.pluginData.options[newPlugin] || [];
-        const defaultOptions = {};
-        pluginOptions.forEach((option) => {
-          defaultOptions[option.key] = option.default;
-        });
-
-        // Perform the plugin switch using unified API with default options
+        // Perform the plugin switch using unified API
         const result = await window.electronAPI.switchPlugin(newPlugin);
 
         if (result.success) {
@@ -1209,8 +1210,10 @@ class SettingsWindow {
         console.error("Plugin switch failed:", switchError);
 
         // Revert the setting
-        this.setSettingValue("transcription.plugin", oldPlugin);
-        this.revertFieldValue("transcription.plugin", oldPlugin);
+        const selector = document.querySelector("[data-plugin-selector]");
+        if (selector) {
+          selector.value = oldPlugin;
+        }
 
         this.showStatus(`Failed to switch to ${newPlugin}`, "error");
         throw switchError;
@@ -1223,7 +1226,8 @@ class SettingsWindow {
       this.cleanupProgressListeners("PluginSwitch");
 
       // Re-enable the field
-      this.enableField("transcription.plugin");
+      const field = document.querySelector("[data-plugin-selector]");
+      if (field) field.disabled = false;
 
       // Hide progress after a delay
       setTimeout(() => {

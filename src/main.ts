@@ -569,7 +569,6 @@ class WhisperMacApp {
         const { pluginName, options = {} } = payload;
         this.config.set("transcriptionPlugin", pluginName);
         const sm = this.settingsService.getSettingsManager();
-        sm.set("transcription.plugin", pluginName);
         sm.saveSettings();
         try {
           await this.transcriptionPluginManager.setActivePlugin(

@@ -52,20 +52,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     title: "Transcription",
     description: "Choose transcription engine and model",
     icon: "microphone",
-    fields: [
-      {
-        key: "transcription.plugin",
-        type: "select",
-        label: "Transcription Plugin",
-        description: "Engine used for transcription",
-        defaultValue: "yap",
-        options: [
-          { value: "yap", label: "YAP (Apple Speech)" },
-          { value: "whisper-cpp", label: "Whisper.cpp" },
-          { value: "vosk", label: "Vosk" },
-        ],
-      },
-    ],
+    fields: [],
   },
 
   {

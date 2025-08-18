@@ -278,7 +278,7 @@ export class SettingsService {
       }
     );
 
-    // Plugin management handlers
+    // Unified plugin management handlers
     ipcMain.handle("plugins:getOptions", () => {
       if (!this.transcriptionPluginManager) {
         return { plugins: [], options: {} };
@@ -309,113 +309,6 @@ export class SettingsService {
       }
       return this.transcriptionPluginManager.getActivePlugin()?.name || null;
     });
-
-    ipcMain.handle(
-      "plugins:setActive",
-      async (
-        _event,
-        payload: { pluginName: string; options?: Record<string, any> }
-      ) => {
-        if (!this.transcriptionPluginManager) {
-          throw new Error("Transcription plugin manager not available");
-        }
-
-        const { pluginName, options } = payload;
-
-        try {
-          await this.transcriptionPluginManager.setActivePlugin(pluginName);
-
-          if (options) {
-            const plugin =
-              this.transcriptionPluginManager.getPlugin(pluginName);
-            if (plugin) {
-              plugin.configure(options);
-            }
-          }
-
-          // Update config
-          this.config.set("transcriptionPlugin", pluginName);
-
-          return { success: true };
-        } catch (error: any) {
-          throw new Error(error.message || "Failed to set active plugin");
-        }
-      }
-    );
-
-    ipcMain.handle(
-      "plugins:verifyOptions",
-      async (
-        _event,
-        payload: { pluginName: string; options: Record<string, any> }
-      ) => {
-        if (!this.transcriptionPluginManager) {
-          throw new Error("Transcription plugin manager not available");
-        }
-
-        const { pluginName, options } = payload;
-        const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
-
-        if (!plugin) {
-          throw new Error(`Plugin ${pluginName} not found`);
-        }
-
-        try {
-          // Verify options by attempting to configure with them
-          plugin.configure(options);
-          return { success: true };
-        } catch (error: any) {
-          throw new Error(error.message || "Invalid plugin options");
-        }
-      }
-    );
-
-    ipcMain.handle(
-      "plugins:getState",
-      async (_event, payload: { pluginName: string }) => {
-        if (!this.transcriptionPluginManager) {
-          throw new Error("Transcription plugin manager not available");
-        }
-
-        const { pluginName } = payload;
-        const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
-
-        if (!plugin) {
-          throw new Error(`Plugin ${pluginName} not found`);
-        }
-
-        return plugin.getState();
-      }
-    );
-
-    ipcMain.handle(
-      "plugins:deleteInactive",
-      async (_event, payload: { pluginName: string }) => {
-        if (!this.transcriptionPluginManager) {
-          throw new Error("Transcription plugin manager not available");
-        }
-
-        const { pluginName } = payload;
-        const activePlugin = this.transcriptionPluginManager.getActivePlugin();
-
-        if (activePlugin && activePlugin.name === pluginName) {
-          throw new Error("Cannot delete the currently active plugin");
-        }
-
-        const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
-
-        if (!plugin) {
-          throw new Error(`Plugin ${pluginName} not found`);
-        }
-
-        try {
-          await plugin.cleanup();
-          return { success: true };
-        } catch (error: any) {
-          throw new Error(error.message || "Failed to delete plugin");
-        }
-      }
-    );
 
     ipcMain.handle(
       "plugins:updateActiveOptions",
@@ -468,6 +361,35 @@ export class SettingsService {
           return { success: true };
         } catch (error: any) {
           throw new Error(error.message || "Plugin option update failed");
+        }
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:deleteInactive",
+      async (_event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Transcription plugin manager not available");
+        }
+
+        const { pluginName } = payload;
+        const activePlugin = this.transcriptionPluginManager.getActivePlugin();
+
+        if (activePlugin && activePlugin.name === pluginName) {
+          throw new Error("Cannot delete the currently active plugin");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
+
+        if (!plugin) {
+          throw new Error(`Plugin ${pluginName} not found`);
+        }
+
+        try {
+          await plugin.clearData();
+          return { success: true };
+        } catch (error: any) {
+          throw new Error(error.message || "Failed to delete plugin");
         }
       }
     );
