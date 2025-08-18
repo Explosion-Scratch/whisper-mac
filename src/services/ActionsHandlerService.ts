@@ -2,7 +2,8 @@ import { EventEmitter } from "events";
 import { shell } from "electron";
 import { exec } from "child_process";
 import { promisify } from "util";
-
+import { join } from "path";
+import { homedir } from "os";
 export interface ActionHandler {
   keyword: string;
   description: string;
@@ -18,6 +19,7 @@ export interface ActionMatch {
 export class ActionsHandlerService extends EventEmitter {
   private actionHandlers: Map<string, ActionHandler> = new Map();
   private installedApps: Set<string> = new Set();
+  private appNameMap: Map<string, string> = new Map();
 
   constructor() {
     super();
@@ -63,19 +65,29 @@ export class ActionsHandlerService extends EventEmitter {
   /**
    * Execute an action match
    */
-  async executeAction(match: ActionMatch): Promise<void> {
-    try {
-      console.log(
-        `[ActionsHandler] Executing action: "${match.keyword}" with argument: "${match.argument}"`
-      );
-      await match.handler.execute(match.argument);
+  executeAction(match: ActionMatch): void {
+    console.log(
+      `[ActionsHandler] Executing action: "${match.keyword}" with argument: "${match.argument}"`
+    );
+
+    // Fire and forget - don't wait for completion
+    const result = match.handler.execute(match.argument);
+
+    if (result instanceof Promise) {
+      result
+        .then(() => {
+          this.emit("action-executed", match);
+        })
+        .catch((error) => {
+          console.error(
+            `[ActionsHandler] Error executing action "${match.keyword}":`,
+            error
+          );
+          this.emit("action-error", { match, error });
+        });
+    } else {
+      // Synchronous execution completed immediately
       this.emit("action-executed", match);
-    } catch (error) {
-      console.error(
-        `[ActionsHandler] Error executing action "${match.keyword}":`,
-        error
-      );
-      this.emit("action-error", { match, error });
     }
   }
 
@@ -100,20 +112,42 @@ export class ActionsHandlerService extends EventEmitter {
     try {
       console.log("[ActionsHandler] Initializing installed apps list...");
 
-      // Get list of applications from /Applications directory
       const execAsync = promisify(exec);
-      const { stdout } = await execAsync("ls /Applications");
+      const appDirectories = [
+        "/Applications",
+        "/System/Applications",
+        "/System/Library/CoreServices/Applications",
+        join(homedir(), "Applications"),
+      ];
 
-      const apps = stdout
-        .split("\n")
-        .filter((app) => app.trim() && app.endsWith(".app"))
-        .map((app) => app.replace(".app", "").toLowerCase());
+      let allApps: string[] = [];
 
-      this.installedApps = new Set(apps);
+      for (const directory of appDirectories) {
+        try {
+          const { stdout } = await execAsync(`ls "${directory}"`);
+          const apps = stdout
+            .split("\n")
+            .filter((app) => app.trim() && app.endsWith(".app"))
+            .map((app) => app.replace(".app", ""));
+          allApps = allApps.concat(apps);
+        } catch (error) {
+          console.warn(
+            `[ActionsHandler] Could not read directory ${directory}:`,
+            error
+          );
+        }
+      }
+
+      this.installedApps = new Set(allApps.map((app) => app.toLowerCase()));
+
+      // Build mapping from normalized names to original names
+      allApps.forEach((app) => {
+        this.appNameMap.set(app.toLowerCase(), app);
+      });
+
       console.log(
         `[ActionsHandler] Found ${this.installedApps.size} installed applications`
       );
-      console.log(this.installedApps);
     } catch (error) {
       console.warn(
         "[ActionsHandler] Failed to initialize installed apps list:",
@@ -136,15 +170,7 @@ export class ActionsHandlerService extends EventEmitter {
    */
   private async openApplication(appName: string): Promise<void> {
     const normalizedAppName = this.normalizeText(appName);
-
-    // Find the actual app name that matches the normalized version
-    let actualAppName: string | null = null;
-    for (const installedApp of this.installedApps) {
-      if (this.normalizeText(installedApp) === normalizedAppName) {
-        actualAppName = installedApp;
-        break;
-      }
-    }
+    const actualAppName = this.appNameMap.get(normalizedAppName);
 
     if (!actualAppName) {
       throw new Error(`Application "${appName}" not found`);
@@ -159,15 +185,7 @@ export class ActionsHandlerService extends EventEmitter {
    */
   private async quitApplication(appName: string): Promise<void> {
     const normalizedAppName = this.normalizeText(appName);
-
-    // Find the actual app name that matches the normalized version
-    let actualAppName: string | null = null;
-    for (const installedApp of this.installedApps) {
-      if (this.normalizeText(installedApp) === normalizedAppName) {
-        actualAppName = installedApp;
-        break;
-      }
-    }
+    const actualAppName = this.appNameMap.get(normalizedAppName);
 
     if (!actualAppName) {
       throw new Error(`Application "${appName}" not found`);
@@ -267,7 +285,7 @@ export class ActionsHandlerService extends EventEmitter {
         );
 
         // Check if it's an installed application
-        if (this.isAppInstalled(argument)) {
+        if (await this.isAppInstalled(argument)) {
           console.log(
             `[ActionsHandler] Quitting installed application: "${argument}"`
           );
