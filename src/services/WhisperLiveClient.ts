@@ -83,6 +83,26 @@ export class TranscriptionClient {
   ): Promise<void> {
     console.log("=== Starting WhisperLive server ===");
 
+    if (this.serverProcess) {
+      const pid = this.serverProcess.pid;
+      let alive = false;
+      if (pid && this.serverProcess.exitCode === null) {
+        try {
+          process.kill(pid, 0);
+          alive = true;
+        } catch {
+          alive = false;
+        }
+      }
+      if (alive) {
+        onLog?.("[WhisperLive] Server already running; skipping launch\n");
+        onProgress?.({ status: "complete", message: "Whisper server ready" });
+        return;
+      } else {
+        this.serverProcess = null;
+      }
+    }
+
     // Best-effort cleanup of stale embedded python servers before starting
     await this.killStaleEmbeddedPythonProcesses();
 
