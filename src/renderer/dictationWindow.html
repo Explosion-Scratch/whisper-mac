@@ -374,6 +374,13 @@
         </button>
       </div>
     </div>
+    <!-- Audio elements for sound feedback -->
+    <audio id="startSound" preload="auto">
+      <source src="../assets/start.mp3" type="audio/mpeg" />
+    </audio>
+    <audio id="endSound" preload="auto">
+      <source src="../assets/end.mp3" type="audio/mpeg" />
+    </audio>
     <!-- Silero VAD Libraries (local) -->
     <script src="./ort.js"></script>
     <script src="./bundle.min.js"></script>
@@ -451,6 +458,27 @@
             transcriptionSegments.value = [];
             finalText.value = "";
             currentStatus.value = "listening";
+          };
+
+          // Sound feedback
+          const playStartSound = () => {
+            try {
+              const startSound = document.getElementById("startSound");
+              if (startSound) {
+                startSound.volume = 0.8;
+                startSound.play().catch(() => {});
+              }
+            } catch (_) {}
+          };
+
+          const playEndSound = () => {
+            try {
+              const endSound = document.getElementById("endSound");
+              if (endSound) {
+                endSound.volume = 0.8;
+                endSound.play().catch(() => {});
+              }
+            } catch (_) {}
           };
 
           const getSegmentClass = (segment) => {
@@ -557,6 +585,7 @@
             isRecording.value = true;
             currentStatus.value = "listening";
             resetTranscription();
+            playStartSound();
             await startVAD();
           };
 
@@ -621,6 +650,19 @@
             nextTick(() => {
               scrollToEnd();
             });
+          });
+
+          // Play end sound when leaving listening state
+          watch([currentStatus], (newStatus, oldStatus) => {
+            if (
+              oldStatus &&
+              oldStatus[0] === "listening" &&
+              (newStatus[0] === "transforming" ||
+                newStatus[0] === "processing" ||
+                newStatus[0] === "complete")
+            ) {
+              playEndSound();
+            }
           });
 
           // Setup IPC listeners

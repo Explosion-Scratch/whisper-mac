@@ -112,23 +112,6 @@ export class SegmentManager extends EventEmitter {
       );
     }
 
-    // Check for exact duplicates (e.g., re-processing the same completed segment)
-    const segmentKey = `${start}-${end}-${trimmedText}`;
-    const isDuplicate = this.segments.some((s) => {
-      if (s.type !== "transcribed") return false;
-      const existingKey = `${s.start}-${s.end}-${s.text.trim()}`;
-      return existingKey === segmentKey && s.completed === completed;
-    });
-
-    if (isDuplicate) {
-      console.log(
-        `[SegmentManager] Skipping duplicate segment: "${trimmedText}"`
-      );
-      return this.segments.find(
-        (s) => s.type === "transcribed" && s.text.trim() === trimmedText
-      ) as TranscribedSegment;
-    }
-
     const segment: TranscribedSegment = {
       id: uuidv4(),
       type: "transcribed",

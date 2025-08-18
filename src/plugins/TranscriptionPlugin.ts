@@ -102,14 +102,21 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
 
     // Parse timestamps if requested and present
     if (parseTimestamps) {
-      const timestampMatch = text.match(
-        /\[(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\]\s*(.*)/
-      );
-      if (timestampMatch) {
-        const [, startTime, endTime, timestampedText] = timestampMatch;
-        start = this.parseTimestamp(startTime);
-        end = this.parseTimestamp(endTime);
-        text = timestampedText.trim();
+      // Handle multiple timestamped lines by combining them
+      const timestampRegex =
+        /\[(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\]\s*(.*)/g;
+      const matches = Array.from(text.matchAll(timestampRegex));
+
+      if (matches.length > 0) {
+        // Use the first timestamp for start time
+        start = this.parseTimestamp(matches[0][1]);
+
+        // Use the last timestamp for end time
+        end = this.parseTimestamp(matches[matches.length - 1][2]);
+
+        // Combine all the text from all timestamped segments
+        const textParts = matches.map((match) => match[3].trim());
+        text = textParts.join(" ");
       }
     }
 
