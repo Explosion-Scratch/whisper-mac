@@ -492,6 +492,16 @@ class SettingsWindow {
             await this.handleWhisperModelChange(element.value, oldValue);
           }
 
+          // Handle Vosk model changes
+          if (key === "vosk.model" && element.value !== oldValue) {
+            await this.handleVoskModelChange(element.value, oldValue);
+          }
+
+          // Handle transcription plugin changes
+          if (key === "transcription.plugin" && element.value !== oldValue) {
+            await this.handlePluginChange(element.value, oldValue);
+          }
+
           // Intercept defaultModel changes to prompt deletion of old models
           if (key === "defaultModel" && element.value !== oldValue) {
             try {
@@ -971,6 +981,157 @@ class SettingsWindow {
     } catch (error) {
       console.error("Error handling whisper model change:", error);
       this.showStatus("Error switching model", "error");
+    }
+  }
+
+  async handleVoskModelChange(newModel, oldModel) {
+    try {
+      // Show confirmation dialog
+      const confirmSwitch = window.confirm(
+        `Switch to Vosk model "${newModel}"?\n\n` +
+          `This will download the new model if needed.`
+      );
+
+      if (!confirmSwitch) {
+        // Revert the selection
+        this.setSettingValue("vosk.model", oldModel);
+        const field = document.querySelector(`[data-key="vosk.model"]`);
+        if (field) field.value = oldModel;
+        return;
+      }
+
+      // Disable the field during download
+      const field = document.querySelector(`[data-key="vosk.model"]`);
+      if (field) field.disabled = true;
+
+      // Show progress
+      this.showModelSwitchProgress(`Switching to Vosk ${newModel}...`, 0);
+
+      // Set up progress listeners
+      const progressHandler = (progress) => {
+        const message = progress.message || `Processing Vosk ${newModel}...`;
+        const percent = progress.percent || 0;
+        this.showModelSwitchProgress(message, percent);
+      };
+
+      const logHandler = (payload) => {
+        console.log("Vosk model switch log:", payload.line);
+      };
+
+      window.electronAPI.onVoskModelSwitchProgress(progressHandler);
+      window.electronAPI.onVoskModelSwitchLog(logHandler);
+
+      try {
+        // Perform the Vosk model switch
+        await window.electronAPI.switchVoskModel(newModel, oldModel);
+        this.showModelSwitchProgress("Vosk model switch completed!", 100);
+        this.showStatus(
+          `Successfully switched to Vosk model: ${newModel}`,
+          "success"
+        );
+      } catch (error) {
+        this.showModelSwitchProgress("Vosk model switch failed", 0);
+        this.showStatus(
+          `Failed to switch Vosk model: ${error.message}`,
+          "error"
+        );
+        // Revert the selection
+        this.setSettingValue("vosk.model", oldModel);
+        if (field) field.value = oldModel;
+      } finally {
+        // Clean up listeners
+        window.electronAPI.removeAllListeners("models:switchVoskProgress");
+        window.electronAPI.removeAllListeners("models:switchVoskLog");
+
+        // Re-enable the field
+        if (field) field.disabled = false;
+
+        // Hide progress after a delay
+        setTimeout(() => {
+          this.hideModelSwitchProgress();
+        }, 2000);
+      }
+    } catch (error) {
+      console.error("Error handling Vosk model change:", error);
+      this.showStatus("Error switching Vosk model", "error");
+    }
+  }
+
+  async handlePluginChange(newPlugin, oldPlugin) {
+    try {
+      // Show confirmation dialog
+      const confirmSwitch = window.confirm(
+        `Switch to ${newPlugin} transcription plugin?\n\n` +
+          `This will download the required model if needed.`
+      );
+
+      if (!confirmSwitch) {
+        // Revert the selection
+        this.setSettingValue("transcription.plugin", oldPlugin);
+        const field = document.querySelector(
+          `[data-key="transcription.plugin"]`
+        );
+        if (field) field.value = oldPlugin;
+        return;
+      }
+
+      // Disable the field during switching
+      const field = document.querySelector(`[data-key="transcription.plugin"]`);
+      if (field) field.disabled = true;
+
+      // Show progress
+      this.showModelSwitchProgress(`Switching to ${newPlugin}...`, 0);
+
+      // Set up progress listeners
+      const progressHandler = (progress) => {
+        const message = progress.message || `Setting up ${newPlugin}...`;
+        const percent = progress.percent || 0;
+        this.showModelSwitchProgress(message, percent);
+      };
+
+      const logHandler = (payload) => {
+        console.log("Plugin switch log:", payload.line);
+      };
+
+      window.electronAPI.onPluginSwitchProgress(progressHandler);
+      window.electronAPI.onPluginSwitchLog(logHandler);
+
+      try {
+        // Perform the plugin switch using unified API
+        const result = await window.electronAPI.switchPlugin(newPlugin);
+
+        if (result.success) {
+          this.showModelSwitchProgress(`${newPlugin} ready`, 100);
+          this.showStatus(`Switched to ${newPlugin}`, "success");
+        } else {
+          throw new Error(result.error || "Plugin switch failed");
+        }
+      } catch (switchError) {
+        console.error("Plugin switch failed:", switchError);
+
+        // Revert the setting
+        this.setSettingValue("transcription.plugin", oldPlugin);
+        if (field) field.value = oldPlugin;
+
+        this.showStatus(`Failed to switch to ${newPlugin}`, "error");
+        throw switchError;
+      }
+    } catch (error) {
+      console.error("Error handling plugin change:", error);
+      this.showStatus("Error switching plugin", "error");
+    } finally {
+      // Clean up listeners
+      window.electronAPI.removeAllListeners("settings:pluginSwitchProgress");
+      window.electronAPI.removeAllListeners("settings:pluginSwitchLog");
+
+      // Re-enable the field
+      const field = document.querySelector(`[data-key="transcription.plugin"]`);
+      if (field) field.disabled = false;
+
+      // Hide progress after a delay
+      setTimeout(() => {
+        this.hideModelSwitchProgress();
+      }, 2000);
     }
   }
 

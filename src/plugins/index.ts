@@ -9,10 +9,12 @@ export {
 export { TranscriptionPluginManager } from "./TranscriptionPluginManager";
 export { YapTranscriptionPlugin } from "./YapTranscriptionPlugin";
 export { WhisperCppTranscriptionPlugin } from "./WhisperCppTranscriptionPlugin";
+export { VoskTranscriptionPlugin } from "./VoskTranscriptionPlugin";
 
 import { TranscriptionPluginManager } from "./TranscriptionPluginManager";
 import { YapTranscriptionPlugin } from "./YapTranscriptionPlugin";
 import { WhisperCppTranscriptionPlugin } from "./WhisperCppTranscriptionPlugin";
+import { VoskTranscriptionPlugin } from "./VoskTranscriptionPlugin";
 import { AppConfig } from "../config/AppConfig";
 
 /**
@@ -30,6 +32,10 @@ export function createTranscriptionPluginManager(
   // Register Whisper.cpp plugin
   const whisperCppPlugin = new WhisperCppTranscriptionPlugin(config);
   pluginManager.registerPlugin(whisperCppPlugin);
+
+  // Register Vosk plugin
+  const voskPlugin = new VoskTranscriptionPlugin(config);
+  pluginManager.registerPlugin(voskPlugin);
 
   return pluginManager;
 }

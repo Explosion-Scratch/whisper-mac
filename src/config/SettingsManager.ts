@@ -234,6 +234,19 @@ export class SettingsManager {
     );
     this.config.set("whisperCppModel", whisperModel);
 
+    // Vosk settings
+    const voskModel = this.get(
+      "vosk.model",
+      this.config.get("voskModel") || "vosk-model-small-en-us-0.15"
+    );
+    this.config.set("voskModel", voskModel);
+
+    const voskSampleRate = this.get(
+      "vosk.sampleRate",
+      this.config.get("voskSampleRate") || 16000
+    );
+    this.config.set("voskSampleRate", voskSampleRate);
+
     // Dictation window settings
     this.config.dictationWindowPosition = this.get(
       "dictationWindowPosition",

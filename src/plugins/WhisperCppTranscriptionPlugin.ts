@@ -461,6 +461,16 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   /**
+   * Update the model path after model switch
+   */
+  updateModelPath(): void {
+    this.modelPath = this.resolveModelPath();
+    console.log(
+      `WhisperCppTranscriptionPlugin: Updated model path to ${this.modelPath}`
+    );
+  }
+
+  /**
    * Convert Float32Array audio data to WAV file for whisper.cpp
    */
   private async saveAudioAsWav(audioData: Float32Array): Promise<string> {

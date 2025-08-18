@@ -62,6 +62,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         options: [
           { value: "yap", label: "YAP (Apple Speech)" },
           { value: "whisper-cpp", label: "Whisper.cpp" },
+          { value: "vosk", label: "Vosk" },
         ],
       },
       {
@@ -110,6 +111,39 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
             label: "large-v3-turbo q8_0",
           },
         ],
+      },
+      {
+        key: "vosk.model",
+        type: "select",
+        label: "Vosk Model",
+        description: "Model to use when Vosk is active",
+        defaultValue: "vosk-model-small-en-us-0.15",
+        options: [
+          {
+            value: "vosk-model-small-en-us-0.15",
+            label: "Small English US (40MB)",
+          },
+          {
+            value: "vosk-model-en-us-aspire-0.2",
+            label: "Large English US (1.4GB)",
+          },
+          { value: "vosk-model-small-cn-0.22", label: "Small Chinese (42MB)" },
+          { value: "vosk-model-small-ru-0.22", label: "Small Russian (45MB)" },
+          { value: "vosk-model-small-fr-0.22", label: "Small French (41MB)" },
+          { value: "vosk-model-small-de-0.15", label: "Small German (45MB)" },
+          { value: "vosk-model-small-es-0.42", label: "Small Spanish (39MB)" },
+          { value: "vosk-model-small-it-0.22", label: "Small Italian (48MB)" },
+        ],
+      },
+      {
+        key: "vosk.sampleRate",
+        type: "slider",
+        label: "Vosk Sample Rate",
+        description: "Audio sample rate for Vosk transcription (Hz)",
+        defaultValue: 16000,
+        min: 8000,
+        max: 48000,
+        step: 1000,
       },
     ],
   },

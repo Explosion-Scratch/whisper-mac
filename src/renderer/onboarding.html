@@ -394,6 +394,7 @@
                   >
                     <option value="yap">YAP (Apple Speech)</option>
                     <option value="whisper-cpp">Whisper.cpp</option>
+                    <option value="vosk">Vosk</option>
                   </select>
                 </div>
                 <div
@@ -410,6 +411,30 @@
                   <div class="hint" style="margin-top: 6px">
                     Defaults to the bundled model if available. Models are
                     downloaded from the official ggml repository.
+                  </div>
+                </div>
+                <div
+                  class="field"
+                  v-show="pluginSelect === 'vosk'"
+                  style="margin-top: 10px"
+                >
+                  <div class="label">Vosk model</div>
+                  <select
+                    id="voskModelSelect"
+                    class="select"
+                    v-model="voskModelSelect"
+                  >
+                    <option
+                      v-for="m in voskModels"
+                      :key="m.value"
+                      :value="m.value"
+                    >
+                      {{ m.label }}
+                    </option>
+                  </select>
+                  <div class="hint" style="margin-top: 6px">
+                    Models are downloaded automatically when first used.
+                    Downloaded from the official Vosk models repository.
                   </div>
                 </div>
               </div>
@@ -564,6 +589,7 @@
           const savingKey = ref(false);
           const pluginSelect = ref("yap");
           const modelSelect = ref("ggml-base.en.bin");
+          const voskModelSelect = ref("vosk-model-small-en-us-0.15");
           const whisperModels = ref([
             "ggml-tiny.bin",
             "ggml-tiny-q5_1.bin",
@@ -598,6 +624,34 @@
             "ggml-large-v3-turbo-q5_0.bin",
             "ggml-large-v3-turbo-q8_0.bin",
           ]);
+          const voskModels = ref([
+            {
+              value: "vosk-model-small-en-us-0.15",
+              label: "Small English US (40MB)",
+            },
+            {
+              value: "vosk-model-en-us-aspire-0.2",
+              label: "Large English US (1.4GB)",
+            },
+            {
+              value: "vosk-model-small-cn-0.22",
+              label: "Small Chinese (42MB)",
+            },
+            {
+              value: "vosk-model-small-ru-0.22",
+              label: "Small Russian (45MB)",
+            },
+            { value: "vosk-model-small-fr-0.22", label: "Small French (41MB)" },
+            { value: "vosk-model-small-de-0.15", label: "Small German (45MB)" },
+            {
+              value: "vosk-model-small-es-0.42",
+              label: "Small Spanish (39MB)",
+            },
+            {
+              value: "vosk-model-small-it-0.22",
+              label: "Small Italian (48MB)",
+            },
+          ]);
           const progressText = ref("Idle");
           const progressPercent = ref(0);
           const logs = ref([]);
@@ -627,6 +681,8 @@
             aiModel.value = initState.ai.model || "";
             aiEnabled.value = !!initState.ai.enabled;
             modelSelect.value = initState.model || modelSelect.value;
+            voskModelSelect.value =
+              initState.voskModel || voskModelSelect.value;
             pluginSelect.value = initState.plugin || pluginSelect.value;
           };
 
@@ -653,6 +709,8 @@
               await window.onboardingAPI.setPlugin(pluginSelect.value);
               if (pluginSelect.value === "whisper-cpp") {
                 await window.onboardingAPI.setModel(modelSelect.value);
+              } else if (pluginSelect.value === "vosk") {
+                await window.onboardingAPI.setVoskModel(voskModelSelect.value);
               }
             }
             if (idx.value === 3) {
@@ -784,7 +842,9 @@
             savingKey,
             pluginSelect,
             modelSelect,
+            voskModelSelect,
             whisperModels,
+            voskModels,
             progressText,
             progressPercent,
             logs,
