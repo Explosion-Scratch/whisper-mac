@@ -1040,8 +1040,23 @@ class SettingsWindow {
   }
 
   cleanupProgressListeners(eventType) {
-    window.electronAPI.removeAllListeners(`settings:${eventType}Progress`);
-    window.electronAPI.removeAllListeners(`settings:${eventType}Log`);
+    // Map event types to actual channel names
+    const channelMap = {
+      PluginOption: {
+        progress: "settings:pluginOptionProgress",
+        log: "settings:pluginOptionLog",
+      },
+      PluginSwitch: {
+        progress: "settings:pluginSwitchProgress",
+        log: "settings:pluginSwitchLog",
+      },
+    };
+
+    const channels = channelMap[eventType];
+    if (channels) {
+      window.electronAPI.removeAllListeners(channels.progress);
+      window.electronAPI.removeAllListeners(channels.log);
+    }
   }
 
   disableField(key) {
@@ -1173,10 +1188,7 @@ class SettingsWindow {
         });
 
         // Perform the plugin switch using unified API with default options
-        const result = await window.electronAPI.setActivePlugin(
-          newPlugin,
-          defaultOptions
-        );
+        const result = await window.electronAPI.switchPlugin(newPlugin);
 
         if (result.success) {
           this.activePlugin = newPlugin;
