@@ -904,7 +904,6 @@ class WhisperMacApp {
     // Update dictation window with all segments
     this.dictationWindowService.updateTranscription({
       segments: displaySegments,
-      status: update.status,
     });
 
     // In accumulating mode - segments are only displayed, never auto-flushed

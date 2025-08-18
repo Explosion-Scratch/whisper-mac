@@ -570,19 +570,29 @@
           const updateTranscription = (update) => {
             console.log("Transcription update:", update);
             transcriptionSegments.value = update.segments;
-            // Respect transforming state throughout transformation
-            if (
-              currentStatus.value === "transforming" ||
-              update.status === "transforming"
-            ) {
-              currentStatus.value = "transforming";
-            } else {
-              const hasInProgressSegments = update.segments.some(
-                (segment) => segment.type === "inprogress" || !segment.completed
-              );
-              currentStatus.value = hasInProgressSegments
-                ? "listening"
-                : "idle";
+
+            // If status is explicitly provided, use it (for transforming state)
+            if (update.status) {
+              currentStatus.value = update.status;
+              return;
+            }
+
+            // Determine status based on segments and current state
+            const hasInProgressSegments = update.segments.some(
+              (segment) => segment.type === "inprogress" || !segment.completed
+            );
+
+            // Only change status if we're not currently transforming
+            if (currentStatus.value !== "transforming") {
+              if (hasInProgressSegments) {
+                currentStatus.value = "listening";
+              } else if (update.segments.length > 0) {
+                // All segments are completed, show idle state
+                currentStatus.value = "idle";
+              } else {
+                // No segments, default to idle
+                currentStatus.value = "idle";
+              }
             }
           };
 
