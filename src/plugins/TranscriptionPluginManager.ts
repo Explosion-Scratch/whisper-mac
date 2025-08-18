@@ -377,6 +377,49 @@ export class TranscriptionPluginManager extends EventEmitter {
   }
 
   /**
+   * Get data information for all plugins
+   */
+  async getPluginDataInfo(): Promise<
+    Array<{
+      name: string;
+      displayName: string;
+      isActive: boolean;
+      dataSize: number;
+      dataPath: string;
+    }>
+  > {
+    const plugins = this.getPlugins();
+    const dataInfo = await Promise.all(
+      plugins.map(async (plugin) => {
+        try {
+          const dataSize = await plugin.getDataSize();
+          return {
+            name: plugin.name,
+            displayName: plugin.displayName,
+            isActive: this.activePlugin === plugin,
+            dataSize,
+            dataPath: plugin.getDataPath(),
+          };
+        } catch (error) {
+          console.error(
+            `Error getting data info for plugin ${plugin.displayName}:`,
+            error
+          );
+          return {
+            name: plugin.name,
+            displayName: plugin.displayName,
+            isActive: this.activePlugin === plugin,
+            dataSize: 0,
+            dataPath: plugin.getDataPath(),
+          };
+        }
+      })
+    );
+
+    return dataInfo;
+  }
+
+  /**
    * Cleanup all plugins
    */
   async cleanup(): Promise<void> {

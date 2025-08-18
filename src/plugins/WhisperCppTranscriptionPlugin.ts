@@ -4,6 +4,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { v4 as uuidv4 } from "uuid";
 import { AppConfig } from "../config/AppConfig";
+import { FileSystemService } from "../services/FileSystemService";
 import {
   Segment,
   TranscribedSegment,
@@ -801,15 +802,39 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   async clearData(): Promise<void> {
     // Clean temp files
     try {
-      const fs = await import("fs");
-      if (fs.existsSync(this.tempDir)) {
-        fs.rmSync(this.tempDir, { recursive: true, force: true });
+      if (FileSystemService.deleteDirectory(this.tempDir)) {
         this.tempDir = mkdtempSync(join(tmpdir(), "whisper-cpp-plugin-"));
       }
       console.log("Whisper.cpp plugin data cleared");
     } catch (error) {
       console.warn("Failed to clear Whisper.cpp plugin data:", error);
     }
+  }
+
+  async getDataSize(): Promise<number> {
+    try {
+      let totalSize = 0;
+
+      // Calculate temp directory size
+      totalSize += FileSystemService.calculateDirectorySize(this.tempDir);
+
+      // Calculate model file size if it exists
+      totalSize += FileSystemService.calculateFileSize(this.modelPath);
+
+      // Calculate VAD model size if it exists
+      if (this.vadModelPath) {
+        totalSize += FileSystemService.calculateFileSize(this.vadModelPath);
+      }
+
+      return totalSize;
+    } catch (error) {
+      console.warn("Failed to calculate Whisper.cpp plugin data size:", error);
+      return 0;
+    }
+  }
+
+  getDataPath(): string {
+    return this.tempDir;
   }
 
   async updateOptions(

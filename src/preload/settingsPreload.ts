@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("plugins:updateActiveOptions", { options }),
   deleteInactivePlugin: (pluginName: string) =>
     ipcRenderer.invoke("plugins:deleteInactive", { pluginName }),
+  getPluginDataInfo: () => ipcRenderer.invoke("settings:getPluginDataInfo"),
 
   // Model download progress listeners
   onModelDownloadProgress: (callback: (progress: any) => void) => {

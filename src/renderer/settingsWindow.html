@@ -766,6 +766,118 @@
       .plugin-option:last-child {
         margin-bottom: 0;
       }
+
+      /* Data Management Styles */
+      .data-management-section {
+        margin-top: var(--spacing-lg);
+      }
+
+      .plugin-data-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+      }
+
+      .plugin-data-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--spacing-md);
+        border: 1px solid var(--color-border-primary);
+        border-radius: var(--radius-md);
+        background: var(--color-bg-secondary);
+        transition: all var(--transition-fast);
+      }
+
+      .plugin-data-item:hover {
+        border-color: var(--color-border-secondary);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .plugin-data-item.active {
+        border-color: var(--color-primary);
+        background: rgba(0, 122, 255, 0.05);
+      }
+
+      .plugin-data-info {
+        flex: 1;
+      }
+
+      .plugin-name {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-primary);
+        margin-bottom: var(--spacing-xs);
+      }
+
+      .active-badge {
+        background: var(--color-success);
+        color: var(--color-text-inverse);
+        padding: 2px 6px;
+        border-radius: var(--radius-sm);
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-medium);
+      }
+
+      .plugin-data-details {
+        display: flex;
+        gap: var(--spacing-md);
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+      }
+
+      .data-size,
+      .data-path {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+      }
+
+      .plugin-data-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+      }
+
+      .btn-sm {
+        padding: 4px 8px;
+        font-size: var(--font-size-xs);
+        min-height: 24px;
+      }
+
+      .active-plugin-note {
+        font-size: var(--font-size-sm);
+        color: var(--color-text-tertiary);
+        font-style: italic;
+      }
+
+      .loading-indicator,
+      .error-message,
+      .no-data-message {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: var(--spacing-xl);
+        color: var(--color-text-secondary);
+        font-size: var(--font-size-md);
+        gap: var(--spacing-sm);
+      }
+
+      .error-message {
+        color: var(--color-error);
+      }
+
+      .no-data-message {
+        color: var(--color-text-tertiary);
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
     </style>
   </head>
   <body>

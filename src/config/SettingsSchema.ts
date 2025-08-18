@@ -223,6 +223,13 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
       },
     ],
   },
+  {
+    id: "data",
+    title: "Data Management",
+    description: "Manage plugin data and storage usage",
+    icon: "database",
+    fields: [],
+  },
 ];
 
 export function getDefaultSettings(): Record<string, any> {

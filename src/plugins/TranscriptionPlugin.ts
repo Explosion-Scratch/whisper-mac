@@ -109,6 +109,8 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   abstract destroy(): Promise<void>;
   abstract onDeactivate(): Promise<void>;
   abstract clearData(): Promise<void>;
+  abstract getDataSize(): Promise<number>;
+  abstract getDataPath(): string;
   abstract updateOptions(
     options: Record<string, any>,
     uiFunctions?: PluginUIFunctions
