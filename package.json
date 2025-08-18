@@ -14,6 +14,7 @@
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never",
     "icons": "node scripts/generate-icons.js",
+    "test:screenshot": "node scripts/test-screenshot.js",
     "build:mac:arm64": "bun run build && bun run icons && bun run prep:whisperlive && bun run prep:python:arm64 && bun run prep:wheels:arm64 && bun run stage:python:arm64 && electron-builder --mac --arm64 --publish=never",
     "build:mac:x64": "bun run build && bun run icons && bun run prep:whisperlive && bun run prep:python:x64 && bun run prep:wheels:x64 && bun run stage:python:x64 && electron-builder --mac --x64 --publish=never",
     "build:mac:all": "bun run build && bun run build:mac:arm64 && bun run build:mac:x64",
@@ -24,19 +25,22 @@
     "axios": "^1.4.0",
     "copy-paste": "^2.2.0",
     "keytar": "^7.9.0",
+    "sound-play": "^1.1.0",
+    "tesseract.js": "^6.0.1",
     "uuid": "^9.0.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {
-    "sharp": "^0.34.3",
     "@types/copy-paste": "^2.1.0",
     "@types/node": "^24.2.1",
+    "@types/sound-play": "^1.1.3",
     "@types/uuid": "^9.0.0",
     "@types/ws": "^8.5.0",
     "concurrently": "^8.0.0",
     "electron": "^25.0.0",
     "electron-builder": "^24.0.0",
     "nodemon": "^3.0.0",
+    "sharp": "^0.34.3",
     "typescript": "^5.0.0"
   },
   "build": {

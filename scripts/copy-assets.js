@@ -23,6 +23,7 @@ const EXTENSIONS = [
   ".eot",
   ".ttf",
   ".woff",
+  ".mp3",
 ];
 
 // Copy renderer files
