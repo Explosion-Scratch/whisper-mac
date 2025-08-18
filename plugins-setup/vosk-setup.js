@@ -156,89 +156,28 @@ class VoskPluginSetup {
   }
 
   async createTranscriptionScript() {
-    const scriptContent = `#!/usr/bin/env python3
-"""
-Vosk transcription script for WhisperMac
-Transcribes audio files using the Vosk speech recognition engine
-"""
+    const sourceScriptPath = path.join(
+      __dirname,
+      "..",
+      "scripts",
+      "vosk_transcribe.py"
+    );
 
-import json
-import wave
-import sys
-import argparse
-import vosk
-import logging
+    try {
+      // Read the existing transcription script
+      const scriptContent = fs.readFileSync(sourceScriptPath, "utf8");
 
-# Suppress vosk debug output
-logging.getLogger("vosk").setLevel(logging.WARNING)
-
-def transcribe_audio(audio_path, model_path, sample_rate=16000):
-    """Transcribe audio file using Vosk model"""
-    try:
-        # Load the model
-        if not vosk.Model.Exists(model_path):
-            print(f"Error: Model not found at {model_path}", file=sys.stderr)
-            sys.exit(1)
-            
-        model = vosk.Model(model_path)
-        rec = vosk.KaldiRecognizer(model, sample_rate)
-        
-        # Open the audio file
-        wf = wave.open(audio_path, 'rb')
-        
-        # Check audio format
-        if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != 'NONE':
-            print("Error: Audio file must be WAV format mono PCM.", file=sys.stderr)
-            sys.exit(1)
-            
-        results = []
-        
-        # Process audio in chunks
-        while True:
-            data = wf.readframes(4000)
-            if len(data) == 0:
-                break
-            if rec.AcceptWaveform(data):
-                result = json.loads(rec.Result())
-                if result.get('text', '').strip():
-                    results.append(result['text'])
-        
-        # Get final result
-        final_result = json.loads(rec.FinalResult())
-        if final_result.get('text', '').strip():
-            results.append(final_result['text'])
-        
-        wf.close()
-        
-        # Combine all results
-        full_text = ' '.join(results).strip()
-        return full_text if full_text else "[No speech detected]"
-        
-    except Exception as e:
-        print(f"Transcription error: {e}", file=sys.stderr)
-        sys.exit(1)
-
-def main():
-    parser = argparse.ArgumentParser(description='Transcribe audio using Vosk')
-    parser.add_argument('--audio', required=True, help='Path to audio file')
-    parser.add_argument('--model', required=True, help='Path to Vosk model directory')
-    parser.add_argument('--sample-rate', type=int, default=16000, help='Audio sample rate')
-    
-    args = parser.parse_args()
-    
-    # Transcribe the audio
-    transcription = transcribe_audio(args.audio, args.model, args.sample_rate)
-    
-    # Output the transcription
-    print(transcription)
-
-if __name__ == "__main__":
-    main()
-`;
-
-    fs.writeFileSync(this.transcriptScriptPath, scriptContent);
-    fs.chmodSync(this.transcriptScriptPath, 0o755);
-    console.log(`Created transcription script: ${this.transcriptScriptPath}`);
+      // Write to the vendor directory
+      fs.writeFileSync(this.transcriptScriptPath, scriptContent);
+      fs.chmodSync(this.transcriptScriptPath, 0o755);
+      console.log(`Created transcription script: ${this.transcriptScriptPath}`);
+    } catch (error) {
+      console.error(
+        `Error reading transcription script from ${sourceScriptPath}:`,
+        error.message
+      );
+      throw new Error(`Failed to read transcription script: ${error.message}`);
+    }
   }
 }
 
