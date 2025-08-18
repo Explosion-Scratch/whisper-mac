@@ -22,7 +22,7 @@ export class TrayService {
     private readonly getStatusMessage: (s: SetupStatus) => string,
     private readonly onLeftClick: () => void,
     private readonly onShowSettings: () => void,
-    private readonly onShowModels: () => void
+    private readonly onShowModels: () => void,
   ) {}
 
   createTray() {
@@ -101,7 +101,7 @@ export class TrayService {
   handleDockClick(
     getOnboardingVisible: () => boolean,
     showOnboarding: () => void,
-    showDictationWindow: () => void
+    showDictationWindow: () => void,
   ) {
     try {
       if (getOnboardingVisible()) {
@@ -109,7 +109,7 @@ export class TrayService {
         return;
       }
       const visibleWindows = BrowserWindow.getAllWindows().filter(
-        (w) => !w.isDestroyed() && w.isVisible()
+        (w) => !w.isDestroyed() && w.isVisible(),
       );
       if (visibleWindows.length > 0) {
         visibleWindows.forEach((w) => {

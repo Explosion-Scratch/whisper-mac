@@ -104,17 +104,19 @@ export class ModelManager {
                   resolve();
                 } else {
                   console.error(
-                    "Failed to initialize Git LFS after installation"
+                    "Failed to initialize Git LFS after installation",
                   );
                   reject(
-                    new Error("Failed to initialize Git LFS after installation")
+                    new Error(
+                      "Failed to initialize Git LFS after installation",
+                    ),
                   );
                 }
               });
 
               installProcess.on("error", (error) => {
                 console.error(
-                  `Failed to run git lfs install: ${error.message}`
+                  `Failed to run git lfs install: ${error.message}`,
                 );
                 reject(error);
               });
@@ -132,7 +134,9 @@ export class ModelManager {
               reject(new Error(msg));
               return;
             }
-            console.error(`Failed to start brew install: ${error?.message || error}`);
+            console.error(
+              `Failed to start brew install: ${error?.message || error}`,
+            );
             reject(error);
           });
         }
@@ -148,7 +152,7 @@ export class ModelManager {
   async ensureModelExists(
     modelRepoId: string,
     onProgress?: (progress: ModelDownloadProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean> {
     this.ensureDataDirectory();
     const modelDir = this.getModelPath(modelRepoId);
@@ -165,7 +169,7 @@ export class ModelManager {
       throw new Error(
         `Required Git LFS is missing or failed: ${
           err instanceof Error ? err.message : String(err)
-        }`
+        }`,
       );
     }
 
@@ -181,14 +185,14 @@ export class ModelManager {
   private async cloneModel(
     modelRepoId: string,
     onProgress?: (progress: ModelDownloadProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean> {
     return new Promise((resolve, reject) => {
       const modelDir = this.getModelPath(modelRepoId);
       const huggingfaceUrl = `https://huggingface.co/${modelRepoId}`;
 
       console.log(
-        `Cloning HuggingFace model ${modelRepoId} from ${huggingfaceUrl}`
+        `Cloning HuggingFace model ${modelRepoId} from ${huggingfaceUrl}`,
       );
 
       onProgress?.({
@@ -222,7 +226,7 @@ export class ModelManager {
       process.on("close", (code) => {
         if (code === 0 && existsSync(modelDir)) {
           console.log(
-            `Model ${modelRepoId} cloned successfully to ${modelDir}`
+            `Model ${modelRepoId} cloned successfully to ${modelDir}`,
           );
           onProgress?.({
             status: "complete",
@@ -261,7 +265,7 @@ export class ModelManager {
   async downloadModel(
     modelRepoId: string,
     onProgress?: (progress: ModelDownloadProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean> {
     // Ensure Git LFS is available for manual downloads as well
     try {
@@ -271,7 +275,7 @@ export class ModelManager {
       throw new Error(
         `Required Git LFS is missing or failed: ${
           err instanceof Error ? err.message : String(err)
-        }`
+        }`,
       );
     }
     return this.cloneModel(modelRepoId, onProgress, onLog);

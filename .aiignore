@@ -2,3 +2,4 @@ Pipfile
 bun.lock
 models
 dist
+vendor

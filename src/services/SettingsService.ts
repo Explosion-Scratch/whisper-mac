@@ -26,15 +26,15 @@ export class SettingsService {
     ipcMain.handle("settings:getSchema", () => {
       // Strip out validation functions since they can't be serialized through IPC
       // Also hide internal sections such as onboarding from the UI
-      const serializableSchema = SETTINGS_SCHEMA
-        .filter((section) => section.id !== "onboarding")
-        .map((section) => ({
-          ...section,
-          fields: section.fields.map((field) => {
-            const { validation, ...serializableField } = field;
-            return serializableField;
-          }),
-        }));
+      const serializableSchema = SETTINGS_SCHEMA.filter(
+        (section) => section.id !== "onboarding",
+      ).map((section) => ({
+        ...section,
+        fields: section.fields.map((field) => {
+          const { validation, ...serializableField } = field;
+          return serializableField;
+        }),
+      }));
       return serializableSchema;
     });
 
@@ -60,7 +60,7 @@ export class SettingsService {
           console.error("Failed to save settings:", error);
           throw error;
         }
-      }
+      },
     );
 
     // Reset all settings
@@ -95,7 +95,7 @@ export class SettingsService {
           console.error("Failed to reset settings section:", error);
           throw error;
         }
-      }
+      },
     );
 
     // Import settings
@@ -127,7 +127,7 @@ export class SettingsService {
           console.error("Failed to export settings:", error);
           throw error;
         }
-      }
+      },
     );
 
     // File dialogs
@@ -161,7 +161,7 @@ export class SettingsService {
         );
         const svc = new AiProviderService();
         return svc.validateAndListModels(baseUrl, apiKey);
-      }
+      },
     );
 
     // Save API key securely from settings
@@ -174,7 +174,7 @@ export class SettingsService {
         const secure = new SecureStorageService();
         await secure.setApiKey(payload.apiKey);
         return { success: true };
-      }
+      },
     );
 
     // Model management helpers
@@ -237,7 +237,7 @@ export class SettingsService {
 
     // Load the settings window HTML
     this.settingsWindow.loadFile(
-      join(__dirname, "../renderer/settingsWindow.html")
+      join(__dirname, "../renderer/settingsWindow.html"),
     );
 
     // Show window when ready
@@ -347,7 +347,7 @@ export class SettingsService {
    * The caller should present a dialog to the user with names and sizes and then call deleteModelsIfConfirmed.
    */
   formatDownloadedModelsForPrompt(
-    models: Array<{ repoId: string; sizeBytes: number }>
+    models: Array<{ repoId: string; sizeBytes: number }>,
   ): string {
     const fmt = (n: number) => {
       const units = ["B", "KB", "MB", "GB"];
