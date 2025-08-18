@@ -220,12 +220,7 @@ export class SettingsManager {
    * Apply current settings to the AppConfig instance
    */
   applyToConfig(): void {
-    // Preferred plugin setting
-    const pluginName = this.get(
-      "transcription.plugin",
-      this.config.get("transcriptionPlugin") || "yap"
-    );
-    this.config.set("transcriptionPlugin", pluginName);
+    // Plugin selection is now handled by the unified plugin system
 
     // Dictation window settings
     this.config.dictationWindowPosition = this.get(
@@ -277,11 +272,7 @@ export class SettingsManager {
    * Load settings from current AppConfig instance
    */
   loadFromConfig(): void {
-    // Plugin selection
-    this.set(
-      "transcription.plugin",
-      this.config.get("transcriptionPlugin") || "yap"
-    );
+    // Plugin selection is now handled by the unified plugin system
 
     // Dictation window settings
     this.set("dictationWindowPosition", this.config.dictationWindowPosition);
