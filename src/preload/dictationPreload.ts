@@ -77,6 +77,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   logMessage: (message: string) => {
     ipcRenderer.send("dictation-log", message);
   },
+
+  // VAD audio processing
+  sendAudioSegment: (audioData: Float32Array) => {
+    ipcRenderer.send("vad-audio-segment", Array.from(audioData));
+  },
 });
 
 // Declare the global interface for TypeScript

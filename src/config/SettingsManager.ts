@@ -222,10 +222,17 @@ export class SettingsManager {
   applyToConfig(): void {
     // Basic settings
     this.config.serverPort = this.get("serverPort", 9090);
-    this.config.defaultModel = this.get(
-      "defaultModel",
-      "Systran/faster-whisper-tiny.en"
+    // Preferred plugin and model settings
+    const pluginName = this.get(
+      "transcription.plugin",
+      this.config.get("transcriptionPlugin") || "yap"
     );
+    this.config.set("transcriptionPlugin", pluginName);
+    const whisperModel = this.get(
+      "whisperCpp.model",
+      this.config.get("whisperCppModel") || "ggml-base.en.bin"
+    );
+    this.config.set("whisperCppModel", whisperModel);
 
     // Dictation window settings
     this.config.dictationWindowPosition = this.get(
@@ -279,7 +286,14 @@ export class SettingsManager {
   loadFromConfig(): void {
     // Basic settings
     this.set("serverPort", this.config.serverPort);
-    this.set("defaultModel", this.config.defaultModel);
+    this.set(
+      "transcription.plugin",
+      this.config.get("transcriptionPlugin") || "yap"
+    );
+    this.set(
+      "whisperCpp.model",
+      this.config.get("whisperCppModel") || "ggml-base.en.bin"
+    );
 
     // Dictation window settings
     this.set("dictationWindowPosition", this.config.dictationWindowPosition);
@@ -362,7 +376,7 @@ export class SettingsManager {
       }
 
       // Ensure subdirectories exist in new location
-      const subdirs = ["models", "cache", "whisperlive"];
+      const subdirs = ["models", "cache"];
       subdirs.forEach((subdir) => {
         const subdirPath = join(newDir, subdir);
         if (!existsSync(subdirPath)) {
@@ -374,7 +388,7 @@ export class SettingsManager {
       this.copyDirectoryRecursive(oldDir, newDir);
 
       // Verify that the migration was successful by checking if key directories exist
-      const expectedDirs = ["models", "cache", "whisperlive"];
+      const expectedDirs = ["models", "cache"];
       const missingDirs = expectedDirs.filter(
         (dir) => !existsSync(join(newDir, dir))
       );

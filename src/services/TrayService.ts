@@ -8,7 +8,9 @@ export type SetupStatus =
   | "preparing-app"
   | "checking-permissions"
   | "starting-server"
-  | "loading-windows";
+  | "loading-windows"
+  | "initializing-plugins"
+  | "service-ready";
 
 export class TrayService {
   private tray: Tray | null = null;

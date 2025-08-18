@@ -35,6 +35,9 @@ export class AppConfig {
   // AI transformation configuration
   ai: AiTransformationConfig;
 
+  // Plugin configuration storage
+  private pluginConfig: Record<string, any> = {};
+
   constructor() {
     this.modelPath = "";
     this.serverPort = 9090;
@@ -94,7 +97,49 @@ export class AppConfig {
     return join(this.dataDir, "cache");
   }
 
-  getWhisperLiveDir(): string {
-    return join(this.dataDir, "whisperlive");
+  /**
+   * Generic getter for plugin configuration
+   */
+  get(key: string): any {
+    return this.pluginConfig[key];
+  }
+
+  /**
+   * Generic setter for plugin configuration
+   */
+  set(key: string, value: any): void {
+    this.pluginConfig[key] = value;
+  }
+
+  /**
+   * Check if a plugin config key exists
+   */
+  has(key: string): boolean {
+    return key in this.pluginConfig;
+  }
+
+  /**
+   * Delete a plugin config key
+   */
+  delete(key: string): boolean {
+    if (key in this.pluginConfig) {
+      delete this.pluginConfig[key];
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Get all plugin configuration
+   */
+  getPluginConfig(): Record<string, any> {
+    return { ...this.pluginConfig };
+  }
+
+  /**
+   * Set multiple plugin config values
+   */
+  setPluginConfig(config: Record<string, any>): void {
+    this.pluginConfig = { ...this.pluginConfig, ...config };
   }
 }
