@@ -333,23 +333,23 @@ export class DictationWindowService extends EventEmitter {
     console.log("Window destroyed:", this.dictationWindow?.isDestroyed());
 
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
-      console.log("Closing dictation window...");
-      // Send message to play end sound before closing
+      console.log("Hiding dictation window...");
+      // Send message to play end sound before hiding
       this.dictationWindow.webContents.send("play-end-sound");
-      this.dictationWindow.close();
-      console.log("Close command sent to window");
+      this.dictationWindow.hide();
+      console.log("Hide command sent to window");
     } else {
       console.log("Window is null or already destroyed");
     }
 
-    this.dictationWindow = null;
+    // Don't clear the window reference - keep it for reuse
     this.currentSegments = [];
     this.currentStatus = "listening";
-    console.log("Window reference cleared and transcription reset");
+    console.log("Transcription reset, window kept for reuse");
   }
 
   cancelDictation(): void {
-    this.hideAndReloadWindow();
+    this.hideWindow();
     // Emit cancellation event if needed
     console.log("Dictation cancelled by user");
   }
@@ -367,11 +367,8 @@ export class DictationWindowService extends EventEmitter {
       this.currentSegments = [];
       this.currentStatus = "listening";
 
-      // Reload the window content
-      console.log("Reloading window content...");
-      this.dictationWindow.webContents.reload();
-
-      console.log("Window hidden and reloaded successfully");
+      // Don't reload the window content - keep it ready for reuse
+      console.log("Window hidden successfully");
     } else {
       console.log("Window is null or already destroyed");
     }

@@ -453,6 +453,7 @@
           // VAD state
           const vadInstance = ref(null);
           const isVadInitialized = ref(false);
+          const mediaStream = ref(null);
 
           const scrollToEnd = () => {
             if (textScrollContainer.value) {
@@ -502,9 +503,11 @@
           };
 
           const handleClose = () => {
-            // Play end sound before closing
+            // Disable VAD stream for privacy before hiding
+            disableVADStream();
+            // Play end sound before hiding
             playEndSound();
-            // Close button now hides and reloads the window instead of closing it
+            // Close button now hides the window instead of closing it
             window.electronAPI.closeDictationWindow();
           };
 
@@ -517,10 +520,31 @@
                 throw new Error("VAD library not loaded");
               }
 
+              // Get media stream first
+              console.log("Getting media stream...");
+              const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  sampleRate: 16000,
+                  channelCount: 1,
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                },
+              });
+
+              mediaStream.value = stream;
+              console.log("Media stream obtained:", stream);
+
+              // Immediately disable the stream for privacy
+              stream.getAudioTracks().forEach((track) => {
+                track.enabled = false;
+              });
+              console.log("Media stream disabled for privacy");
+
               const myVAD = await window.vad.MicVAD.new({
                 baseAssetPath: "./",
                 onnxWASMBasePath: "./",
                 model: "v5",
+                stream: stream, // Pass the stream to MicVAD
                 onSpeechStart: () => {
                   console.log("VAD: Speech started");
                   if (isRecording.value) {
@@ -543,6 +567,9 @@
               vadInstance.value = myVAD;
               isVadInitialized.value = true;
               console.log("VAD initialized successfully");
+
+              // Start VAD immediately (stream is already disabled)
+              await startVAD();
             } catch (error) {
               console.error("Failed to initialize VAD:", error);
               window.electronAPI.logMessage(
@@ -570,6 +597,42 @@
             }
           };
 
+          const enableVADStream = async () => {
+            if (
+              mediaStream.value &&
+              mediaStream.value.getAudioTracks().length > 0
+            ) {
+              try {
+                console.log("Enabling VAD stream...");
+                // Enable the audio track
+                mediaStream.value.getAudioTracks().forEach((track) => {
+                  track.enabled = true;
+                });
+                console.log("VAD stream enabled");
+              } catch (error) {
+                console.error("Failed to enable VAD stream:", error);
+              }
+            }
+          };
+
+          const disableVADStream = async () => {
+            if (
+              mediaStream.value &&
+              mediaStream.value.getAudioTracks().length > 0
+            ) {
+              try {
+                console.log("Disabling VAD stream...");
+                // Disable the audio track
+                mediaStream.value.getAudioTracks().forEach((track) => {
+                  track.enabled = false;
+                });
+                console.log("VAD stream disabled");
+              } catch (error) {
+                console.error("Failed to disable VAD stream:", error);
+              }
+            }
+          };
+
           const stopVAD = async () => {
             if (vadInstance.value) {
               try {
@@ -585,6 +648,19 @@
             }
           };
 
+          const cleanupMediaStream = () => {
+            if (mediaStream.value) {
+              try {
+                console.log("Cleaning up media stream...");
+                mediaStream.value.getTracks().forEach((track) => track.stop());
+                mediaStream.value = null;
+                console.log("Media stream cleaned up");
+              } catch (error) {
+                console.error("Failed to cleanup media stream:", error);
+              }
+            }
+          };
+
           // IPC event handlers
           const initializeDictation = (data) => {
             console.log("Initializing dictation with data:", data);
@@ -596,14 +672,14 @@
             isRecording.value = true;
             currentStatus.value = "listening";
             resetTranscription();
-            await startVAD();
+            await enableVADStream();
           };
 
           const stopRecording = async () => {
             console.log("Recording stopped");
             isRecording.value = false;
             currentStatus.value = "processing";
-            await stopVAD();
+            await disableVADStream();
           };
 
           const updateTranscription = (update) => {
@@ -682,6 +758,8 @@
                 document.body.classList.add("visible");
                 // Play start sound when window opens
                 playStartSound();
+                // Enable VAD stream when window becomes visible
+                enableVADStream();
               });
             }
             window.electronAPI.onInitializeDictation(initializeDictation);
@@ -698,9 +776,10 @@
             // Add beforeunload listener to play end sound when window is about to close
             window.addEventListener("beforeunload", () => {
               playEndSound();
+              cleanupMediaStream();
             });
 
-            // Initialize VAD on mount
+            // Initialize VAD on mount (stream will be disabled for privacy)
             console.log("Initializing VAD on mount...");
             await initializeVAD();
           });
