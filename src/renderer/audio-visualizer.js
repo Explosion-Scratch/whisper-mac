@@ -21,7 +21,7 @@
             return 0;
           };
     const bars =
-      options?.bars && options.bars > 4 ? Math.min(options.bars, 256) : 64;
+      options?.bars && options.bars > 4 ? Math.min(options.bars, 256) : 48;
     const smoothing =
       typeof options?.smoothing === "number"
         ? Math.max(0, Math.min(0.99, options.smoothing))
@@ -45,8 +45,8 @@
       ctx.clearRect(0, 0, width, height);
       ctx.fillStyle = isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)";
 
-      const unitWidth = width / bars;
-      const barWidth = unitWidth * 0.7;
+      const unitWidth = Math.max(2, Math.floor(width / bars));
+      const barWidth = Math.max(1, Math.floor(unitWidth * 0.45));
       const minBarHeight = 2;
 
       // Shift history to the left
@@ -56,7 +56,7 @@
 
       // Calculate new value from level
       const level = clamp01(getLevel());
-      const curved = Math.pow(level, 0.6);
+      const curved = Math.pow(level, 0.5);
       const targetHeight = Math.max(
         minBarHeight,
         curved * height * maxHeightRatio
@@ -66,7 +66,7 @@
 
       for (let i = 0; i < bars; i++) {
         const h = heights[i];
-        const x = i * unitWidth;
+        const x = Math.floor(i * unitWidth);
         const y = centerY - h / 2;
         ctx.fillRect(x, y, barWidth, h);
       }

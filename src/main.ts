@@ -1181,9 +1181,19 @@ class WhisperMacApp {
       const selectedText = (this.segmentManager as any).initialSelectedText;
 
       if (!selectedText && allSegments.length === 0) {
-        console.log("No segments found, stopping dictation immediately");
-        await this.stopDictation();
-        return;
+        const criteria =
+          this.transcriptionPluginManager.getActivePluginActivationCriteria();
+        // If runOnAll buffering has audio, proceed to finalize instead of early stop
+        if (
+          !(
+            criteria?.runOnAll &&
+            this.transcriptionPluginManager.hasBufferedAudio()
+          )
+        ) {
+          console.log("No segments found, stopping dictation immediately");
+          await this.stopDictation();
+          return;
+        }
       }
 
       console.log(
@@ -1207,6 +1217,7 @@ class WhisperMacApp {
       // 5. Either run active plugin in runOnAll mode, or transform+inject normally
       const criteria =
         this.transcriptionPluginManager.getActivePluginActivationCriteria();
+      console.log("Criteria:", criteria);
       let transformResult: {
         success: boolean;
         segmentsProcessed: number;
@@ -1218,55 +1229,24 @@ class WhisperMacApp {
         transformedText: "",
       };
 
-      if (criteria?.runOnAll && this.vadAudioBuffer.length > 0) {
+      if (criteria?.runOnAll) {
         console.log(
-          "=== Active plugin runOnAll enabled: combining VAD audio and processing ==="
+          "=== Active plugin runOnAll enabled: finalizing buffered audio ==="
         );
         try {
-          const totalLength = this.vadAudioBuffer.reduce(
-            (acc, a) => acc + a.length,
-            0
-          );
-          const combined = new Float32Array(totalLength);
-          let offset = 0;
-          for (const chunk of this.vadAudioBuffer) {
-            combined.set(chunk, offset);
-            offset += chunk.length;
-          }
-          const active = this.transcriptionPluginManager.getActivePlugin();
-          if (!active || !active.transcribeFile) {
-            // Fallback to normal transform if plugin cannot batch here
-            console.log(
-              "Active plugin does not support batch in this context; falling back to transform pipeline"
-            );
-            transformResult =
-              await this.segmentManager.transformAndInjectAllSegmentsInternal({
-                skipTransformation: !!criteria?.skipTransformation,
-              });
-          } else {
-            // Provide a simple in-memory path workaround is non-trivial; instead allow plugins to expose a batch API via processAudioSegment
-            // As a portable fallback, push one more segment to indicate end; here we will just attempt normal pipeline by creating a single combined segment text using existing segments
-            transformResult =
-              await this.segmentManager.transformAndInjectAllSegmentsInternal({
-                skipTransformation: !!criteria?.skipTransformation,
-              });
-          }
-        } catch (e: any) {
-          console.error("runOnAll processing failed, falling back:", e);
-          transformResult =
-            await this.segmentManager.transformAndInjectAllSegmentsInternal({
-              skipTransformation: !!criteria?.skipTransformation,
-            });
+          await this.transcriptionPluginManager.finalizeBufferedAudio();
+        } catch (e) {
+          console.error("Failed to finalize buffered audio:", e);
         }
-      } else {
-        console.log(
-          "=== Transforming and injecting all accumulated segments ==="
-        );
-        transformResult =
-          await this.segmentManager.transformAndInjectAllSegmentsInternal({
-            skipTransformation: !!criteria?.skipTransformation,
-          });
       }
+
+      console.log(
+        "=== Transforming and injecting all accumulated segments ==="
+      );
+      transformResult =
+        await this.segmentManager.transformAndInjectAllSegmentsInternal({
+          skipTransformation: !!criteria?.skipTransformation,
+        });
 
       // 6. Show completed status briefly before closing window
       this.dictationWindowService.completeDictation(

@@ -73,13 +73,10 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
           stdio: ["ignore", "pipe", "pipe"],
         });
 
-        let hasOutput = false;
-        yapProcess.stdout?.on("data", () => {
-          hasOutput = true;
-        });
-
+        // Some versions print help to stderr or print nothing but still exit 0.
+        // Consider exit code 0 as success (align with Whisper behavior).
         yapProcess.on("close", (code) => {
-          resolve(hasOutput && code === 0);
+          resolve(code === 0);
         });
 
         yapProcess.on("error", () => {

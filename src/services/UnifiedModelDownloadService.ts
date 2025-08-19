@@ -157,7 +157,7 @@ export class UnifiedModelDownloadService extends EventEmitter {
       }
     }
 
-    // Switch to the plugin
+    // Switch to the plugin (re-check availability inside setActivePlugin)
     await this.transcriptionPluginManager.setActivePlugin(pluginName);
     this.config.set("transcriptionPlugin", pluginName);
 
