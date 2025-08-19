@@ -10,7 +10,7 @@
     "build": "tsc && node scripts/copy-assets.js && node scripts/prep-vad-assets.js",
     "start": "electron dist/main.js",
     "dev": "nodemon --exec \"bun run single-dev\" --ignore dist --ignore photon --ignore .crush",
-    "single-dev": "concurrently --raw -m 1 \"rm -rf dist\"  \"/Users/tjs/.local/bin/killport 9090\" \"bun run build\" \"bun run start\" --names \"cleanup, kill port, build, dev\"",
+    "single-dev": "concurrently --raw -m 1 \"rm -rf dist\"  \"pkill -f Electron && pkill -f electron && pkill -f whisper\" \"bun run build\" \"bun run start\" --names \"cleanup, kill port, build, dev\"",
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never",
     "setup:plugins": "node scripts/setup-plugins.js",

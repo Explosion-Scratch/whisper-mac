@@ -58,9 +58,12 @@ export class SettingsManager extends EventEmitter {
         const data = readFileSync(this.settingsPath, "utf8");
         const loaded = JSON.parse(data);
 
+        // Convert any nested plugin settings to flattened format
+        const normalizedLoaded = this.normalizePluginSettings(loaded);
+
         // Merge with defaults to ensure all keys exist
         const defaults = getDefaultSettings();
-        const settings = this.mergeDeep(defaults, loaded);
+        const settings = this.mergeDeep(defaults, normalizedLoaded);
 
         // Check if dataDir in loaded settings differs from current config
         const loadedDataDir = settings.dataDir;
@@ -82,6 +85,69 @@ export class SettingsManager extends EventEmitter {
     }
 
     return getDefaultSettings();
+  }
+
+  /**
+   * Normalize plugin settings from nested format to flattened format
+   * Converts { "plugin": { "whisper-cpp": { "model": "..." } } }
+   * To { "plugin.whisper-cpp.model": "..." }
+   */
+  private normalizePluginSettings(
+    settings: Record<string, any>
+  ): Record<string, any> {
+    const normalized = { ...settings };
+
+    // Check if there's a nested "plugin" object
+    if (normalized.plugin && typeof normalized.plugin === "object") {
+      const pluginSettings = normalized.plugin;
+
+      // Convert nested plugin settings to flattened keys
+      Object.keys(pluginSettings).forEach((pluginName) => {
+        const pluginConfig = pluginSettings[pluginName];
+        if (typeof pluginConfig === "object" && pluginConfig !== null) {
+          Object.keys(pluginConfig).forEach((optionKey) => {
+            const flattenedKey = `plugin.${pluginName}.${optionKey}`;
+            normalized[flattenedKey] = pluginConfig[optionKey];
+          });
+        }
+      });
+
+      // Remove the nested plugin object
+      delete normalized.plugin;
+      console.log("Normalized nested plugin settings to flattened format");
+    }
+
+    return normalized;
+  }
+
+  /**
+   * Ensure plugin settings are stored in flattened format when saving
+   * This prevents nested plugin objects from being saved to disk
+   */
+  private ensureFlattenedPluginSettings(
+    settings: Record<string, any>
+  ): Record<string, any> {
+    const flattened = { ...settings };
+
+    // If there's a nested "plugin" object, flatten it
+    if (flattened.plugin && typeof flattened.plugin === "object") {
+      const pluginSettings = flattened.plugin;
+
+      Object.keys(pluginSettings).forEach((pluginName) => {
+        const pluginConfig = pluginSettings[pluginName];
+        if (typeof pluginConfig === "object" && pluginConfig !== null) {
+          Object.keys(pluginConfig).forEach((optionKey) => {
+            const flattenedKey = `plugin.${pluginName}.${optionKey}`;
+            flattened[flattenedKey] = pluginConfig[optionKey];
+          });
+        }
+      });
+
+      // Remove the nested plugin object
+      delete flattened.plugin;
+    }
+
+    return flattened;
   }
 
   private mergeDeep(target: any, source: any): any {
@@ -116,14 +182,17 @@ export class SettingsManager extends EventEmitter {
         mkdirSync(dir, { recursive: true });
       }
 
+      // Ensure plugin settings are in flattened format before saving
+      const settingsToSave = this.ensureFlattenedPluginSettings(this.settings);
+
       // Validate settings before saving
-      const errors = validateSettings(this.settings);
+      const errors = validateSettings(settingsToSave);
       if (Object.keys(errors).length > 0) {
         console.error("Settings validation errors:", errors);
         // Still save, but log errors
       }
 
-      writeFileSync(this.settingsPath, JSON.stringify(this.settings, null, 2));
+      writeFileSync(this.settingsPath, JSON.stringify(settingsToSave, null, 2));
       console.log("Settings saved to:", this.settingsPath);
     } catch (error) {
       console.error("Failed to save settings:", error);
