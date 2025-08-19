@@ -125,9 +125,18 @@ export class TranscriptionPluginManager extends EventEmitter {
       throw new Error(`Plugin ${name} is not available`);
     }
 
+    // Load plugin options from config if none provided
+    let finalOptions = { ...options };
+    if (Object.keys(options).length === 0) {
+      const pluginConfig = this.config.getPluginConfig();
+      if (pluginConfig[name]) {
+        finalOptions = pluginConfig[name];
+      }
+    }
+
     // Verify options before proceeding
-    if (Object.keys(options).length > 0) {
-      const validation = await plugin.verifyOptions(options);
+    if (Object.keys(finalOptions).length > 0) {
+      const validation = await plugin.verifyOptions(finalOptions);
       if (!validation.valid) {
         throw new Error(`Invalid options: ${validation.errors.join(", ")}`);
       }
@@ -154,8 +163,8 @@ export class TranscriptionPluginManager extends EventEmitter {
 
     try {
       // Update options first
-      if (Object.keys(options).length > 0) {
-        await plugin.updateOptions(options, uiFunctions);
+      if (Object.keys(finalOptions).length > 0) {
+        await plugin.updateOptions(finalOptions, uiFunctions);
       }
 
       // Activate the plugin

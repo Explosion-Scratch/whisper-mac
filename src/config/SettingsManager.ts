@@ -223,7 +223,13 @@ export class SettingsManager extends EventEmitter {
    * Apply current settings to the AppConfig instance
    */
   applyToConfig(): void {
-    // Plugin selection is now handled by the unified plugin system
+    // Plugin selection and configuration
+    const transcriptionPlugin = this.get("transcriptionPlugin", "yap");
+    this.config.set("transcriptionPlugin", transcriptionPlugin);
+
+    // Apply plugin-specific settings to config
+    const pluginSettings = this.getPluginSettings();
+    this.config.setPluginConfig(pluginSettings);
 
     // Dictation window settings
     this.config.dictationWindowPosition = this.get(
@@ -278,7 +284,15 @@ export class SettingsManager extends EventEmitter {
    * Load settings from current AppConfig instance
    */
   loadFromConfig(): void {
-    // Plugin selection is now handled by the unified plugin system
+    // Plugin selection and configuration
+    const transcriptionPlugin = this.config.get("transcriptionPlugin");
+    if (transcriptionPlugin) {
+      this.set("transcriptionPlugin", transcriptionPlugin);
+    }
+
+    // Load plugin-specific settings from config
+    const pluginConfig = this.config.getPluginConfig();
+    this.setPluginSettings(pluginConfig);
 
     // Dictation window settings
     this.set("dictationWindowPosition", this.config.dictationWindowPosition);
@@ -305,6 +319,47 @@ export class SettingsManager extends EventEmitter {
 
     // Advanced settings
     this.set("dataDir", this.config.dataDir);
+  }
+
+  /**
+   * Get plugin settings from the settings object
+   */
+  private getPluginSettings(): Record<string, any> {
+    const pluginSettings: Record<string, any> = {};
+
+    // Extract all plugin.* settings and convert them to the format expected by AppConfig
+    Object.keys(this.settings).forEach((key) => {
+      if (key.startsWith("plugin.")) {
+        const parts = key.split(".");
+        if (parts.length >= 3) {
+          const pluginName = parts[1];
+          const optionKey = parts.slice(2).join(".");
+
+          if (!pluginSettings[pluginName]) {
+            pluginSettings[pluginName] = {};
+          }
+          pluginSettings[pluginName][optionKey] = this.settings[key];
+        }
+      }
+    });
+
+    return pluginSettings;
+  }
+
+  /**
+   * Set plugin settings in the settings object
+   */
+  private setPluginSettings(pluginConfig: Record<string, any>): void {
+    // Convert plugin config format to settings format
+    Object.keys(pluginConfig).forEach((pluginName) => {
+      const pluginOptions = pluginConfig[pluginName];
+      if (typeof pluginOptions === "object" && pluginOptions !== null) {
+        Object.keys(pluginOptions).forEach((optionKey) => {
+          const settingKey = `plugin.${pluginName}.${optionKey}`;
+          this.set(settingKey, pluginOptions[optionKey]);
+        });
+      }
+    });
   }
 
   exportSettings(): string {

@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 export interface DictationInitData {
   selectedText: string;
   hasSelection: boolean;
+  isRunOnAll?: boolean;
 }
 
 export interface TranscriptionSegment {
@@ -20,7 +21,7 @@ export interface TranscriptionSegment {
 
 export interface TranscriptionUpdate {
   segments: TranscriptionSegment[];
-  status?: "listening" | "transforming";
+  status?: "listening" | "transforming" | "processing";
 }
 
 // Expose protected methods that allow the renderer process to use

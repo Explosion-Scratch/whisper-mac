@@ -279,6 +279,10 @@ export class SettingsService {
             onLog
           );
 
+          // Save the active plugin setting
+          this.settingsManager.set("transcriptionPlugin", pluginName);
+          this.settingsManager.saveSettings();
+
           this.broadcastSettingsUpdate();
           return { success: true };
         } catch (error: any) {
@@ -365,6 +369,18 @@ export class SettingsService {
             options,
             uiFunctions
           );
+
+          // Save the updated plugin options to settings
+          const activePlugin =
+            this.transcriptionPluginManager.getActivePlugin();
+          if (activePlugin) {
+            const pluginName = activePlugin.name;
+            Object.keys(options).forEach((key) => {
+              const settingKey = `plugin.${pluginName}.${key}`;
+              this.settingsManager.set(settingKey, options[key]);
+            });
+            this.settingsManager.saveSettings();
+          }
 
           this.broadcastSettingsUpdate();
           return { success: true };

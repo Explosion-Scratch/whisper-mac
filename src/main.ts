@@ -567,6 +567,11 @@ class WhisperMacApp {
     ipcMain.handle("onboarding:setModel", (_e, modelName: string) => {
       this.config.set("whisperCppModel", modelName);
 
+      // Save to settings
+      const sm = this.settingsService.getSettingsManager();
+      sm.set("plugin.whisper-cpp.model", modelName);
+      sm.saveSettings();
+
       // Update the WhisperCppTranscriptionPlugin model path
       const whisperPlugin =
         this.transcriptionPluginManager.getPlugin("whisper-cpp");
@@ -577,6 +582,11 @@ class WhisperMacApp {
 
     ipcMain.handle("onboarding:setVoskModel", (_e, modelName: string) => {
       this.config.set("voskModel", modelName);
+
+      // Save to settings
+      const sm = this.settingsService.getSettingsManager();
+      sm.set("plugin.vosk.model", modelName);
+      sm.saveSettings();
 
       // Update the VoskTranscriptionPlugin configuration
       const voskPlugin = this.transcriptionPluginManager.getPlugin("vosk");
@@ -593,8 +603,16 @@ class WhisperMacApp {
       ) => {
         const { pluginName, options = {} } = payload;
         this.config.set("transcriptionPlugin", pluginName);
+
+        // Save plugin options to settings
         const sm = this.settingsService.getSettingsManager();
+        sm.set("transcriptionPlugin", pluginName);
+        Object.keys(options).forEach((key) => {
+          const settingKey = `plugin.${pluginName}.${key}`;
+          sm.set(settingKey, options[key]);
+        });
         sm.saveSettings();
+
         try {
           await this.transcriptionPluginManager.setActivePlugin(
             pluginName,
@@ -939,6 +957,11 @@ class WhisperMacApp {
         console.log("Already finishing dictation, ignoring toggle...");
         return;
       }
+
+      // Immediately stop audio recording and show processing state
+      console.log("Immediately stopping audio recording...");
+      this.dictationWindowService.stopRecording();
+
       // If the window is configured to always be shown, flush segments and continue
       if (this.config.showDictationWindowAlways) {
         console.log(
@@ -971,7 +994,11 @@ class WhisperMacApp {
 
       // 3. Show dictation window (pre-loaded for instant display)
       const windowStartTime = Date.now();
-      await this.dictationWindowService.showDictationWindow();
+      const criteria =
+        this.transcriptionPluginManager.getActivePluginActivationCriteria();
+      await this.dictationWindowService.showDictationWindow(
+        criteria?.runOnAll || false
+      );
       const windowEndTime = Date.now();
       console.log(`Window display: ${windowEndTime - windowStartTime}ms`);
 
@@ -1203,8 +1230,8 @@ class WhisperMacApp {
       // Set finishing state
       this.isFinishing = true;
 
-      // 2. Set transforming status in UI immediately to give user feedback
-      this.dictationWindowService.setTransformingStatus();
+      // 2. Set processing status in UI immediately to give user feedback (changed from transforming)
+      this.dictationWindowService.setProcessingStatus();
 
       // 3. Wait a bit longer for in-progress segments to complete
       // Allow time for transcription plugins to finish processing
