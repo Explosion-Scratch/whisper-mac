@@ -488,6 +488,9 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     if (config.threads !== undefined) {
       this.config.set("whisperCppThreads", config.threads);
     }
+    if (config.prompt !== undefined) {
+      this.config.set("whisperCppPrompt", config.prompt);
+    }
     if (config.useCoreML !== undefined) {
       this.config.set("whisperCppUseCoreML", config.useCoreML);
       this.useCoreML = config.useCoreML;
@@ -752,13 +755,9 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       ];
 
       // Add whisper prompt
-      try {
-        const whisperPrompt = readPrompt("whisper");
-        if (whisperPrompt.trim()) {
-          args.push("--prompt", whisperPrompt.trim());
-        }
-      } catch (error) {
-        console.warn("Failed to read whisper prompt:", error);
+      const whisperPrompt = this.options.prompt;
+      if (whisperPrompt && whisperPrompt.trim()) {
+        args.push("--prompt", whisperPrompt.trim());
       }
 
       // Add configuration options
@@ -975,6 +974,14 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         max: 16,
         category: "advanced",
       },
+      {
+        key: "prompt",
+        type: "string",
+        label: "Transcription Prompt",
+        description: "Custom prompt to guide the transcription (optional)",
+        default: readPrompt("whisper"),
+        category: "advanced",
+      },
     ];
 
     // Add Apple Metal option only on Apple Silicon
@@ -1020,6 +1027,11 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       typeof options.useCoreML !== "boolean"
     ) {
       errors.push("Apple Metal acceleration must be true or false");
+    }
+
+    // Validate prompt option - no specific validation needed, just check it's a string
+    if (options.prompt !== undefined && typeof options.prompt !== "string") {
+      errors.push("Prompt must be a string");
     }
 
     return { valid: errors.length === 0, errors };
