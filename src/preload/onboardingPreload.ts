@@ -19,9 +19,7 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
   saveApiKey: (apiKey: string) =>
     ipcRenderer.invoke("onboarding:saveApiKey", { apiKey }),
   runSetup: () => ipcRenderer.invoke("onboarding:runSetup"),
-  downloadModel: (modelName: string) =>
-    ipcRenderer.invoke("models:download", modelName),
-  isDownloading: () => ipcRenderer.invoke("models:isDownloading"),
+
   switchPlugin: (pluginName: string, modelName?: string) =>
     ipcRenderer.invoke("plugin:switch", { pluginName, modelName }),
   isUnifiedDownloading: () => ipcRenderer.invoke("unified:isDownloading"),
@@ -33,16 +31,7 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
     ipcRenderer.on("onboarding:progress", (_e, p) => cb(p)),
   onLog: (cb: (payload: any) => void) =>
     ipcRenderer.on("onboarding:log", (_e, p) => cb(p)),
-  onModelDownloadProgress: (callback: (progress: any) => void) => {
-    ipcRenderer.on("models:downloadProgress", (_event, progress) =>
-      callback(progress)
-    );
-  },
-  onModelDownloadLog: (callback: (payload: any) => void) => {
-    ipcRenderer.on("models:downloadLog", (_event, payload) =>
-      callback(payload)
-    );
-  },
+
   onPluginSwitchProgress: (callback: (progress: any) => void) => {
     ipcRenderer.on("plugin:switchProgress", (_event, progress) =>
       callback(progress)
