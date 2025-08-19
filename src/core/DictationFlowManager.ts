@@ -210,6 +210,9 @@ export class DictationFlowManager {
       this._isRecording = true;
       this._isFinishing = false;
       this.updateTrayIcon("recording");
+
+      // Properly reset the window state for continuing recording
+      this.dictationWindowService.startRecording();
     } catch (error) {
       console.error("Failed to flush segments while continuing:", error);
     }
