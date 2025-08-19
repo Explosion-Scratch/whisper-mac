@@ -152,11 +152,15 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
       },
       {
         key: "ai.model",
-        type: "text",
+        type: "select",
         label: "Model Name",
         description: "AI model to use for text enhancement",
         defaultValue: "qwen-3-32b",
-        placeholder: "gpt-4",
+        options: [
+          { value: "qwen-3-32b", label: "Qwen 3 32B" },
+          { value: "gpt-4", label: "GPT-4" },
+          { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+        ],
       },
       {
         key: "ai.maxTokens",
