@@ -33,6 +33,7 @@
         display: flex;
         flex-direction: column;
         background: var(--panel-bg);
+        overflow-y: scroll !important;
         -webkit-backdrop-filter: saturate(160%) blur(30px);
         backdrop-filter: saturate(160%) blur(30px);
         border: 1px solid rgba(255, 255, 255, 0.28);
@@ -53,18 +54,15 @@
       .slides {
         display: flex;
         height: 100%;
-        overflow-y: auto;
-        overflow-x: hidden;
+        overflow: hidden;
         position: relative;
       }
       .slide {
         flex: 0 0 100%;
         padding: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 100%;
-        width: 100%;
+        display: grid;
+        place-items: center;
+        overflow: auto;
       }
       .content {
         width: 100%;
@@ -75,9 +73,6 @@
         gap: 12px;
         align-items: center;
         text-align: center;
-        max-height: 100%;
-        overflow-y: auto;
-        padding: 8px 0;
       }
       h1 {
         font-size: 18px;

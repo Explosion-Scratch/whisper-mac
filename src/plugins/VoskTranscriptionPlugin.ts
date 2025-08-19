@@ -501,14 +501,6 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         return false;
       }
 
-      const modelName = this.getCurrentModelName();
-      const isModelReady = this.isModelDownloaded(modelName);
-
-      if (!isModelReady) {
-        console.log(`Vosk model ${modelName} not found`);
-        return false;
-      }
-
       return true;
     } catch (error) {
       console.error("Vosk availability check failed:", error);
