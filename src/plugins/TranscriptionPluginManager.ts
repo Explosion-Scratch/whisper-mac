@@ -21,6 +21,14 @@ export class TranscriptionPluginManager extends EventEmitter {
     super();
     this.config = config;
 
+    // Ensure models directory exists when plugin manager is created
+    const { existsSync, mkdirSync } = require("fs");
+    const modelsDir = this.config.getModelsDir();
+    if (!existsSync(modelsDir)) {
+      mkdirSync(modelsDir, { recursive: true });
+      console.log(`Created models directory: ${modelsDir}`);
+    }
+
     // Forward global dictation window visibility events to active plugin
     appEventBus.on("dictation-window-shown", () => {
       try {
@@ -329,6 +337,16 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   async initializePlugins(): Promise<void> {
     console.log("Initializing transcription plugins...");
+
+    // Ensure models directory exists before initializing plugins
+    const { existsSync, mkdirSync } = require("fs");
+    const { join } = require("path");
+
+    const modelsDir = this.config.getModelsDir();
+    if (!existsSync(modelsDir)) {
+      mkdirSync(modelsDir, { recursive: true });
+      console.log(`Created models directory: ${modelsDir}`);
+    }
 
     const plugins = this.getPlugins();
     const initPromises = plugins.map(async (plugin) => {

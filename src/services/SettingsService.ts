@@ -181,6 +181,26 @@ export class SettingsService {
       }
     );
 
+    // AI configuration validation
+    ipcMain.handle(
+      "ai:validateConfiguration",
+      async (
+        _event,
+        payload: { baseUrl: string; model: string; apiKey?: string }
+      ) => {
+        const { baseUrl, model, apiKey } = payload || {
+          baseUrl: "",
+          model: "",
+          apiKey: "",
+        };
+        const { AiValidationService } = await import(
+          "../services/AiValidationService"
+        );
+        const svc = new AiValidationService();
+        return svc.validateAiConfiguration(baseUrl, model, apiKey);
+      }
+    );
+
     // Save API key securely from settings
     ipcMain.handle(
       "settings:saveApiKey",

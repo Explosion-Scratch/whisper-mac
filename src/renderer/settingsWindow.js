@@ -37,6 +37,14 @@ class SettingsWindow {
       if (this.schema.length > 0) {
         this.showSection(this.schema[0].id);
       }
+
+      // Validate AI configuration if AI is enabled
+      if (this.getSettingValue("ai.enabled")) {
+        // Delay validation slightly to ensure UI is ready
+        setTimeout(() => {
+          this.validateAiConfiguration();
+        }, 500);
+      }
     } catch (error) {
       console.error("Failed to initialize settings window:", error);
       this.showStatus("Failed to load settings", "error");
@@ -657,7 +665,13 @@ class SettingsWindow {
           this.validateField(key);
         });
       } else if (element.type === "checkbox") {
-        element.addEventListener("change", () => {
+        element.addEventListener("change", async () => {
+          // Special handling for AI enabled checkbox
+          if (key === "ai.enabled" && element.checked) {
+            await this.handleAiEnabledChange(element);
+            return;
+          }
+
           this.setSettingValue(key, element.checked);
           this.validateField(key);
         });
@@ -682,6 +696,16 @@ class SettingsWindow {
           if (key === "ai.baseUrl") {
             this.aiModelsState.loadedForBaseUrl = null;
             this.maybeLoadAiModels(true);
+
+            // If AI is enabled, validate the new configuration
+            if (this.getSettingValue("ai.enabled")) {
+              this.validateAiConfiguration();
+            }
+          }
+
+          // Handle AI model changes - validate if AI is enabled
+          if (key === "ai.model" && this.getSettingValue("ai.enabled")) {
+            this.validateAiConfiguration();
           }
         });
       }
@@ -936,6 +960,120 @@ class SettingsWindow {
     return null;
   }
 
+  async handleAiEnabledChange(checkboxElement) {
+    try {
+      // Get current AI configuration
+      const baseUrl = this.getSettingValue("ai.baseUrl");
+      const model = this.getSettingValue("ai.model");
+
+      // Try to get API key from secure storage first
+      let apiKey = await this.getSecureApiKey();
+
+      // If no API key in secure storage, check if there's one in the inline input
+      if (!apiKey) {
+        const apiKeyInput = document.querySelector("#aiApiKeyInline");
+        if (apiKeyInput && apiKeyInput.value.trim()) {
+          apiKey = apiKeyInput.value;
+        }
+      }
+
+      // Validate AI configuration
+      const result = await window.electronAPI.validateAiConfiguration(
+        baseUrl,
+        model,
+        apiKey
+      );
+
+      if (!result.isValid) {
+        // Show error and revert the checkbox
+        checkboxElement.checked = false;
+        this.showStatus(result.error || "AI configuration is invalid", "error");
+        return;
+      }
+
+      // If validation succeeds, set the value and show success message
+      this.setSettingValue("ai.enabled", true);
+      this.showStatus("AI polishing enabled successfully", "success");
+
+      // If we have models from validation, update the model dropdown
+      if (result.models && result.models.length > 0) {
+        this.replaceModelFieldWithDropdown(result.models);
+      }
+    } catch (error) {
+      // Show error and revert the checkbox
+      checkboxElement.checked = false;
+      this.showStatus(
+        `AI validation failed: ${error.message || String(error)}`,
+        "error"
+      );
+    }
+  }
+
+  async validateAiConfiguration() {
+    try {
+      const baseUrl = this.getSettingValue("ai.baseUrl");
+      const model = this.getSettingValue("ai.model");
+
+      // Try to get API key from secure storage first
+      let apiKey = await this.getSecureApiKey();
+
+      // If no API key in secure storage, check if there's one in the inline input
+      if (!apiKey) {
+        const apiKeyInput = document.querySelector("#aiApiKeyInline");
+        if (apiKeyInput && apiKeyInput.value.trim()) {
+          apiKey = apiKeyInput.value;
+        }
+      }
+
+      // Validate AI configuration
+      const result = await window.electronAPI.validateAiConfiguration(
+        baseUrl,
+        model,
+        apiKey
+      );
+
+      if (!result.isValid) {
+        // Disable AI and show error
+        this.setSettingValue("ai.enabled", false);
+        this.showStatus(
+          result.error || "AI configuration is invalid - AI disabled",
+          "error"
+        );
+
+        // Update the checkbox to reflect the disabled state
+        const aiEnabledCheckbox = document.querySelector(
+          '[data-key="ai.enabled"]'
+        );
+        if (aiEnabledCheckbox) {
+          aiEnabledCheckbox.checked = false;
+        }
+      } else {
+        // Show success message if validation passes
+        this.showStatus("AI configuration is valid", "success");
+
+        // If we have models from validation, update the model dropdown
+        if (result.models && result.models.length > 0) {
+          this.replaceModelFieldWithDropdown(result.models);
+        }
+      }
+    } catch (error) {
+      // Disable AI and show error
+      this.setSettingValue("ai.enabled", false);
+      this.showStatus(
+        `AI validation failed: ${error.message || String(error)} - AI disabled`,
+        "error"
+      );
+
+      // Update the checkbox to reflect the disabled state
+      const aiEnabledCheckbox = document.querySelector(
+        '[data-key="ai.enabled"]'
+      );
+      if (aiEnabledCheckbox) {
+        aiEnabledCheckbox.checked = false;
+      }
+    }
+  }
+
   async saveSettings() {
     // Validate all fields
     const hasErrors = Object.keys(this.validationErrors).length > 0;
@@ -991,6 +1129,11 @@ class SettingsWindow {
         if (apiKeyInput) apiKeyInput.value = "";
         // Replace model field with a select built from models
         this.replaceModelFieldWithDropdown(modelsFromProvider);
+
+        // If AI is enabled, validate the configuration with the new key
+        if (this.getSettingValue("ai.enabled")) {
+          await this.validateAiConfiguration();
+        }
       }
 
       // Save the current active plugin setting

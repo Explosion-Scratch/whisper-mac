@@ -57,4 +57,6 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
 contextBridge.exposeInMainWorld("electronAPI", {
   validateApiKeyAndListModels: (baseUrl: string, apiKey: string) =>
     ipcRenderer.invoke("ai:validateKeyAndListModels", { baseUrl, apiKey }),
+  validateAiConfiguration: (baseUrl: string, model: string, apiKey?: string) =>
+    ipcRenderer.invoke("ai:validateConfiguration", { baseUrl, model, apiKey }),
 });
