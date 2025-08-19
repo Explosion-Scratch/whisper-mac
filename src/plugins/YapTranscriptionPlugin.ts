@@ -44,6 +44,8 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.config = config;
     this.tempDir = mkdtempSync(join(tmpdir(), "yap-plugin-"));
     this.yapBinaryPath = this.resolveYapBinaryPath();
+    // Declare default activation criteria
+    this.setActivationCriteria({ runOnAll: true, skipTransformation: false });
   }
 
   private resolveYapBinaryPath(): string {

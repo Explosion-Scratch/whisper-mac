@@ -31,6 +31,11 @@ export interface PluginOption {
   category?: "basic" | "advanced" | "model";
 }
 
+export interface PluginActivationCriteria {
+  runOnAll?: boolean;
+  skipTransformation?: boolean;
+}
+
 export interface PluginState {
   isLoading: boolean;
   loadingMessage?: string;
@@ -75,6 +80,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   protected isActive = false;
   protected currentState: PluginState = { isLoading: false };
   protected options: Record<string, any> = {};
+  protected activationCriteria: PluginActivationCriteria = {};
   protected onTranscriptionCallback: ((update: SegmentUpdate) => void) | null =
     null;
 
@@ -115,6 +121,14 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
     options: Record<string, any>,
     uiFunctions?: PluginUIFunctions
   ): Promise<void>;
+
+  /** Plugins can override to declare activation criteria */
+  getActivationCriteria(): PluginActivationCriteria {
+    return { ...this.activationCriteria };
+  }
+  setActivationCriteria(criteria: PluginActivationCriteria) {
+    this.activationCriteria = { ...criteria };
+  }
 
   /**
    * Called when the dictation window is shown. Default is no-op.

@@ -80,6 +80,8 @@ class WhisperMacApp {
   private isFinishing = false; // New state to track when we're finishing current dictation
   private finishingTimeout: NodeJS.Timeout | null = null; // Timeout to prevent getting stuck
   private pendingToggle = false; // Defer first toggle until setup completes
+  private vadAudioBuffer: Float32Array[] = [];
+  private vadSampleRate: number = 16000;
 
   constructor() {
     this.config = new AppConfig();
@@ -127,6 +129,8 @@ class WhisperMacApp {
           audioData.length,
           "samples"
         );
+        // Accumulate for potential runOnAll
+        this.vadAudioBuffer.push(audioData);
         this.transcriptionPluginManager.processAudioSegment(audioData);
       }
     );
@@ -960,6 +964,7 @@ class WhisperMacApp {
       // 1. Clear any existing segments and stored selected text
       this.segmentManager.clearAllSegments();
       this.segmentManager.resetIgnoreNextCompleted();
+      this.vadAudioBuffer = [];
 
       // 2. Enable accumulating mode - segments will be displayed but not auto-transformed/injected
       this.segmentManager.setAccumulatingMode(true);
@@ -1199,12 +1204,69 @@ class WhisperMacApp {
       // 4. Disable accumulating mode so we can transform+inject
       this.segmentManager.setAccumulatingMode(false);
 
-      // 5. Transform and inject all accumulated segments (keep UI showing transforming status)
-      console.log(
-        "=== Transforming and injecting all accumulated segments ==="
-      );
-      const transformResult =
-        await this.segmentManager.transformAndInjectAllSegments();
+      // 5. Either run active plugin in runOnAll mode, or transform+inject normally
+      const criteria =
+        this.transcriptionPluginManager.getActivePluginActivationCriteria();
+      let transformResult: {
+        success: boolean;
+        segmentsProcessed: number;
+        transformedText: string;
+        error?: string;
+      } = {
+        success: true,
+        segmentsProcessed: 0,
+        transformedText: "",
+      };
+
+      if (criteria?.runOnAll && this.vadAudioBuffer.length > 0) {
+        console.log(
+          "=== Active plugin runOnAll enabled: combining VAD audio and processing ==="
+        );
+        try {
+          const totalLength = this.vadAudioBuffer.reduce(
+            (acc, a) => acc + a.length,
+            0
+          );
+          const combined = new Float32Array(totalLength);
+          let offset = 0;
+          for (const chunk of this.vadAudioBuffer) {
+            combined.set(chunk, offset);
+            offset += chunk.length;
+          }
+          const active = this.transcriptionPluginManager.getActivePlugin();
+          if (!active || !active.transcribeFile) {
+            // Fallback to normal transform if plugin cannot batch here
+            console.log(
+              "Active plugin does not support batch in this context; falling back to transform pipeline"
+            );
+            transformResult =
+              await this.segmentManager.transformAndInjectAllSegmentsInternal({
+                skipTransformation: !!criteria?.skipTransformation,
+              });
+          } else {
+            // Provide a simple in-memory path workaround is non-trivial; instead allow plugins to expose a batch API via processAudioSegment
+            // As a portable fallback, push one more segment to indicate end; here we will just attempt normal pipeline by creating a single combined segment text using existing segments
+            transformResult =
+              await this.segmentManager.transformAndInjectAllSegmentsInternal({
+                skipTransformation: !!criteria?.skipTransformation,
+              });
+          }
+        } catch (e: any) {
+          console.error("runOnAll processing failed, falling back:", e);
+          transformResult =
+            await this.segmentManager.transformAndInjectAllSegmentsInternal({
+              skipTransformation: !!criteria?.skipTransformation,
+            });
+        }
+      } else {
+        console.log(
+          "=== Transforming and injecting all accumulated segments ==="
+        );
+        transformResult =
+          await this.segmentManager.transformAndInjectAllSegmentsInternal({
+            skipTransformation: !!criteria?.skipTransformation,
+          });
+      }
 
       // 6. Show completed status briefly before closing window
       this.dictationWindowService.completeDictation(

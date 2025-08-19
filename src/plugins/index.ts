@@ -5,6 +5,7 @@ export {
   BaseTranscriptionPlugin,
   TranscriptionSetupProgress,
   TranscriptionPluginConfigSchema,
+  PluginActivationCriteria,
 } from "./TranscriptionPlugin";
 export { TranscriptionPluginManager } from "./TranscriptionPluginManager";
 export { YapTranscriptionPlugin } from "./YapTranscriptionPlugin";

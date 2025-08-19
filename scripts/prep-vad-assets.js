@@ -78,4 +78,14 @@ function copyDirFiltered(fromDir, toDir, allowedExtensions) {
       `WARN: ${ortWebDist} not found; skipping onnxruntime-web copy.`
     );
   }
+
+  // Copy audio visualizer script into dist/renderer
+  const visualizerSrc = path.join(
+    projectRoot,
+    "src/renderer/audio-visualizer.js"
+  );
+  const visualizerDest = path.join(distRendererDir, "audio-visualizer.js");
+  if (fs.existsSync(visualizerSrc)) {
+    copyFile(visualizerSrc, visualizerDest);
+  }
 })();

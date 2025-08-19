@@ -203,6 +203,11 @@ export class TranscriptionPluginManager extends EventEmitter {
     await this.activePlugin.stopTranscription();
   }
 
+  /** Expose activation criteria of active plugin */
+  getActivePluginActivationCriteria() {
+    return this.activePlugin?.getActivationCriteria() || {};
+  }
+
   /**
    * Process audio segment with the active plugin
    */
