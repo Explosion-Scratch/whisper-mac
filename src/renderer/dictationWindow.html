@@ -108,6 +108,10 @@
         background: rgba(52, 199, 89, 0.92);
       }
 
+      .status-icon.processing {
+        background: rgba(255, 159, 10, 0.92);
+      }
+
       .status-icon svg {
         width: 14px;
         height: 14px;
@@ -241,7 +245,8 @@
         }
       }
 
-      .status-icon.transforming svg {
+      .status-icon.transforming svg,
+      .status-icon.processing svg {
         animation: fastSpin 0.6s linear infinite;
       }
 
@@ -362,8 +367,11 @@
             </g>
           </svg>
 
-          <!-- Loading spinner for transforming state -->
-          <svg v-else-if="currentStatus === 'transforming'" viewBox="0 0 24 24">
+          <!-- Loading spinner for transforming/processing state -->
+          <svg
+            v-else-if="currentStatus === 'transforming' || currentStatus === 'processing'"
+            viewBox="0 0 24 24"
+          >
             <g fill="none" fill-rule="evenodd">
               <path
                 d="m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z"
@@ -401,6 +409,9 @@
               :class="[getSegmentClass(segment), segment.type === 'inprogress' ? 'no-caret' : '']"
             >
               <template v-if="segment.type === 'inprogress'">
+                <template v-if="displaySegments.length === 1">
+                  {{ getSegmentDisplayText(segment) }}
+                </template>
                 <svg
                   class="in-progress-spinner"
                   xmlns="http://www.w3.org/2000/svg"
@@ -415,7 +426,17 @@
               <template v-else> {{ getSegmentDisplayText(segment) }} </template>
             </span>
             <span
-              v-if="displaySegments.length === 0"
+              v-if="displaySegments.length === 0 && currentStatus === 'processing'"
+              class="text-segment in-progress"
+              >Processing...</span
+            >
+            <span
+              v-else-if="displaySegments.length === 0 && currentStatus === 'transforming'"
+              class="text-segment in-progress"
+              >Transforming...</span
+            >
+            <span
+              v-else-if="displaySegments.length === 0"
               class="text-segment in-progress"
               style="opacity: 0"
               >&nbsp;</span
@@ -456,17 +477,29 @@
           const transcriptionSegments = ref([]);
           const finalText = ref("");
           const currentAudioLevel = ref(0);
+          const isRunOnAllPlugin = ref(false);
+          const selectedText = ref("");
 
           // Computed properties
           const statusIconClass = computed(() => ({
             recording: currentStatus.value === "listening",
             idle: currentStatus.value === "idle",
             transforming: currentStatus.value === "transforming",
+            processing: currentStatus.value === "processing",
             complete: currentStatus.value === "complete",
           }));
 
-          // Visualizer should show when no segments exist OR only in-progress segments exist
+          // Visualizer should show when no segments exist OR only in-progress segments exist,
+          // but NOT when in processing or transforming state
           const showVisualizer = computed(() => {
+            // Don't show visualizer when processing or transforming
+            if (
+              currentStatus.value === "processing" ||
+              currentStatus.value === "transforming"
+            ) {
+              return false;
+            }
+
             const segs = transcriptionSegments.value || [];
             if (segs.length === 0) return true;
             const hasCompleted = segs.some(
@@ -652,7 +685,11 @@
                   if (isRecording.value && audio.length > 0) {
                     // Send audio segment to main process for transcription (plugin-agnostic)
                     window.electronAPI.sendAudioSegment(audio);
-                    currentStatus.value = "transforming";
+                    // Don't set transforming status here for runOnAll plugins to prevent loading between chunks
+                    // Only set transforming for non-runOnAll plugins
+                    if (!isRunOnAllPlugin.value) {
+                      currentStatus.value = "transforming";
+                    }
                   }
                 },
                 onVADMisfire: () => {
@@ -790,6 +827,9 @@
           // IPC event handlers
           const initializeDictation = (data) => {
             console.log("Initializing dictation with data:", data);
+            selectedText.value = data.selectedText || "";
+            // Store plugin info for runOnAll handling
+            isRunOnAllPlugin.value = data.isRunOnAll || false;
             resetTranscription();
           };
 
@@ -816,9 +856,13 @@
             console.log("Transcription update:", update);
             transcriptionSegments.value = update.segments;
 
-            // If status is explicitly provided, use it (for transforming state)
+            // If status is explicitly provided, use it (for transforming/processing state)
             if (update.status) {
               currentStatus.value = update.status;
+              nextTick(() => {
+                if (showVisualizer.value) setupVisualizer();
+                else teardownVisualizer();
+              });
               return;
             }
 
@@ -827,8 +871,11 @@
               (segment) => segment.type === "inprogress" || !segment.completed
             );
 
-            // Only change status if we're not currently transforming
-            if (currentStatus.value !== "transforming") {
+            // Only change status if we're not currently transforming or processing
+            if (
+              currentStatus.value !== "transforming" &&
+              currentStatus.value !== "processing"
+            ) {
               if (hasInProgressSegments) {
                 currentStatus.value = "listening";
               } else if (update.segments.length > 0) {
@@ -960,6 +1007,8 @@
             transcriptionSegments,
             finalText,
             showVisualizer,
+            isRunOnAllPlugin,
+            selectedText,
 
             // Computed
             statusIconClass,

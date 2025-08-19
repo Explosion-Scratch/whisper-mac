@@ -14,14 +14,15 @@ export class DictationWindowService extends EventEmitter {
   private dictationWindow: BrowserWindow | null = null;
   private config: AppConfig;
   private currentSegments: Segment[] = [];
-  private currentStatus: "listening" | "transforming" = "listening";
+  private currentStatus: "listening" | "transforming" | "processing" =
+    "listening";
 
   constructor(config: AppConfig) {
     super();
     this.config = config;
   }
 
-  async showDictationWindow(): Promise<void> {
+  async showDictationWindow(isRunOnAll: boolean = false): Promise<void> {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       // Window already exists, just show it
       this.dictationWindow.showInactive();
@@ -36,6 +37,7 @@ export class DictationWindowService extends EventEmitter {
           this.dictationWindow.webContents.send("initialize-dictation", {
             selectedText: "",
             hasSelection: false,
+            isRunOnAll,
           });
         }
       }, 100);
@@ -51,6 +53,7 @@ export class DictationWindowService extends EventEmitter {
       this.dictationWindow!.webContents.send("initialize-dictation", {
         selectedText: "",
         hasSelection: false,
+        isRunOnAll,
       });
     });
 
@@ -280,8 +283,11 @@ export class DictationWindowService extends EventEmitter {
       (segment) => segment.type === "inprogress" || !segment.completed
     );
 
-    // Only update status if we're not currently transforming
-    if (this.currentStatus !== "transforming") {
+    // Only update status if we're not currently transforming or processing
+    if (
+      this.currentStatus !== "transforming" &&
+      this.currentStatus !== "processing"
+    ) {
       if (hasInProgressSegments) {
         this.currentStatus = "listening";
       } else if (update.segments.length > 0) {
@@ -313,6 +319,16 @@ export class DictationWindowService extends EventEmitter {
       this.dictationWindow.webContents.send("dictation-transcription-update", {
         segments: this.currentSegments,
         status: "transforming",
+      });
+    }
+  }
+
+  setProcessingStatus(): void {
+    this.currentStatus = "processing";
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      this.dictationWindow.webContents.send("dictation-transcription-update", {
+        segments: this.currentSegments,
+        status: "processing",
       });
     }
   }
@@ -390,7 +406,7 @@ export class DictationWindowService extends EventEmitter {
     return this.currentSegments;
   }
 
-  getCurrentStatus(): "listening" | "transforming" {
+  getCurrentStatus(): "listening" | "transforming" | "processing" {
     return this.currentStatus;
   }
 
