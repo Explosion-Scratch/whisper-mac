@@ -217,7 +217,7 @@ export class TransformationService {
       .replace(/{app}/g, windowInfo.appName);
 
     if (!savedState.hasSelection) {
-      messagePrompt = messagePrompt.replace(/<sel>[^<]+<\/sel>/, "");
+      messagePrompt = messagePrompt.replace(/<sel>.*?<\/sel>/g, "");
     }
 
     console.log("MESSAGE_PROMPT:", messagePrompt);
