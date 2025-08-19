@@ -1,6 +1,7 @@
 import { resolve } from "path";
 import { readPrompt } from "../helpers/getPrompt";
 import { app } from "electron";
+import { getDefaultActionsConfig } from "./DefaultActions";
 
 export interface SettingsField {
   key: string;
@@ -11,7 +12,8 @@ export interface SettingsField {
     | "select"
     | "textarea"
     | "slider"
-    | "directory";
+    | "directory"
+    | "actions-editor";
   label: string;
   description?: string;
   defaultValue: any;
@@ -201,6 +203,22 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         description:
           "Template for formatting messages sent to AI service (use {selection}, {text}, {title}, {app} placeholders)",
         defaultValue: readPrompt("message"),
+      },
+    ],
+  },
+  {
+    id: "actions",
+    title: "Actions",
+    description: "Configure voice-activated actions and commands",
+    icon: "lightning",
+    fields: [
+      {
+        key: "actions",
+        type: "actions-editor",
+        label: "Voice Actions",
+        description:
+          "Configure actions that can be triggered by voice commands during dictation",
+        defaultValue: getDefaultActionsConfig(),
       },
     ],
   },

@@ -10,6 +10,7 @@ import { TransformationService } from "./TransformationService";
 import { TextInjectionService } from "./TextInjectionService";
 import { SelectedTextResult, SelectedTextService } from "./SelectedTextService";
 import { ActionsHandlerService } from "./ActionsHandlerService";
+import { ConfigurableActionsService } from "./ConfigurableActionsService";
 import { clipboard } from "electron";
 
 export class SegmentManager extends EventEmitter {
@@ -19,7 +20,7 @@ export class SegmentManager extends EventEmitter {
   private transformationService: TransformationService;
   private textInjectionService: TextInjectionService;
   private selectedTextService: SelectedTextService;
-  private actionsHandlerService: ActionsHandlerService | null = null;
+  private configurableActionsService: ConfigurableActionsService | null = null;
   private isAccumulatingMode: boolean = false; // New: track if we're in accumulate-only mode
   private ignoreNextCompleted: boolean = false;
 
@@ -27,13 +28,13 @@ export class SegmentManager extends EventEmitter {
     transformationService: TransformationService,
     textInjectionService: TextInjectionService,
     selectedTextService: SelectedTextService,
-    actionsHandlerService?: ActionsHandlerService
+    configurableActionsService?: ConfigurableActionsService
   ) {
     super();
     this.transformationService = transformationService;
     this.textInjectionService = textInjectionService;
     this.selectedTextService = selectedTextService;
-    this.actionsHandlerService = actionsHandlerService || null;
+    this.configurableActionsService = configurableActionsService || null;
   }
 
   setAccumulatingMode(enabled: boolean): void {
@@ -106,11 +107,14 @@ export class SegmentManager extends EventEmitter {
     );
 
     // Check for actions in completed segments before processing
-    if (completed && this.actionsHandlerService) {
-      const actionMatch = this.actionsHandlerService.detectAction(trimmedText);
+    if (completed && this.configurableActionsService) {
+      const actionMatch =
+        this.configurableActionsService.detectAction(trimmedText);
       if (actionMatch) {
         console.log(
-          `[SegmentManager] Action detected: "${actionMatch.keyword}" with argument: "${actionMatch.argument}"`
+          `[SegmentManager] Action detected: "${
+            actionMatch.actionId
+          }" with argument: "${actionMatch.extractedArgument || "none"}"`
         );
 
         // Emit action detected event

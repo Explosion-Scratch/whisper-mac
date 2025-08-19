@@ -39,7 +39,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   private tempDir: string;
   private whisperBinaryPath: string;
   private modelPath: string;
-  private vadModelPath?: string;
 
   constructor(config: AppConfig) {
     super();
@@ -47,7 +46,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.tempDir = mkdtempSync(join(tmpdir(), "whisper-cpp-plugin-"));
     this.whisperBinaryPath = this.resolveWhisperBinaryPath();
     this.modelPath = this.resolveModelPath();
-    this.vadModelPath = this.resolveVadModelPath();
   }
 
   private resolveWhisperBinaryPath(): string {
@@ -106,41 +104,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     // Return expected path for download
     return userModelPath;
-  }
-
-  private resolveVadModelPath(): string | undefined {
-    const vadModelName = "ggml-silero-v5.1.2.bin";
-
-    // Prefer user-downloaded models directory first
-    const userVadPath = join(this.config.getModelsDir(), vadModelName);
-    if (existsSync(userVadPath)) {
-      return userVadPath;
-    }
-
-    // Try production bundled path first
-    const packagedPath = join(
-      process.resourcesPath,
-      "whisper-cpp",
-      "models",
-      vadModelName
-    );
-    if (existsSync(packagedPath)) {
-      return packagedPath;
-    }
-
-    // Fall back to development vendor path
-    const devPath = join(
-      process.cwd(),
-      "vendor",
-      "whisper-cpp",
-      "models",
-      vadModelName
-    );
-    if (existsSync(devPath)) {
-      return devPath;
-    }
-
-    return undefined;
   }
 
   async isBinaryAvailable(): Promise<boolean> {
@@ -206,7 +169,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     try {
       // Refresh paths in case onboarding updated them
       this.modelPath = this.resolveModelPath();
-      this.vadModelPath = this.resolveVadModelPath();
 
       onProgress?.({
         status: "starting",
@@ -438,9 +400,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     if (config.language !== undefined) {
       this.config.set("whisperCppLanguage", config.language);
     }
-    if (config.useVad !== undefined) {
-      this.config.set("whisperCppUseVad", config.useVad);
-    }
     if (config.threads !== undefined) {
       this.config.set("whisperCppThreads", config.threads);
     }
@@ -494,12 +453,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       const language = this.config.get("whisperCppLanguage");
       if (language && language !== "auto") {
         args.push("--language", language);
-      }
-
-      const useVad = this.config.get("whisperCppUseVad");
-      if (useVad && this.vadModelPath) {
-        args.push("--vad");
-        args.push("--vad-model", this.vadModelPath);
       }
 
       const threads = this.config.get("whisperCppThreads");
@@ -699,14 +652,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
           { value: "zh", label: "Chinese" },
         ],
       },
-      {
-        key: "useVad",
-        type: "boolean" as const,
-        label: "Use Voice Activity Detection",
-        description: "Use VAD for better performance and accuracy",
-        default: true,
-        category: "advanced" as const,
-      },
+
       {
         key: "threads",
         type: "number" as const,
@@ -820,11 +766,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
       // Calculate model file size if it exists
       totalSize += FileSystemService.calculateFileSize(this.modelPath);
-
-      // Calculate VAD model size if it exists
-      if (this.vadModelPath) {
-        totalSize += FileSystemService.calculateFileSize(this.vadModelPath);
-      }
 
       return totalSize;
     } catch (error) {
