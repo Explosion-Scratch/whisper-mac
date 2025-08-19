@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from "child_process";
 import { unlinkSync, mkdtempSync, existsSync, readFileSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
+import { tmpdir, arch, platform } from "os";
 import { v4 as uuidv4 } from "uuid";
 import { AppConfig } from "../config/AppConfig";
 import { FileSystemService } from "../services/FileSystemService";
@@ -39,16 +39,44 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   private tempDir: string;
   private whisperBinaryPath: string;
   private modelPath: string;
+  private isAppleSilicon: boolean;
+  private resolvedBinaryPath: string;
 
   constructor(config: AppConfig) {
     super();
     this.config = config;
     this.tempDir = mkdtempSync(join(tmpdir(), "whisper-cpp-plugin-"));
-    this.whisperBinaryPath = this.resolveWhisperBinaryPath();
+    this.isAppleSilicon = arch() === "arm64" && platform() === "darwin";
+    this.whisperBinaryPath = this.resolveWhisperBinaryPath(); // Keep for backward compatibility
     this.modelPath = this.resolveModelPath();
+    this.resolvedBinaryPath = this.getBinaryPath(true); // Resolve once and store
   }
 
   private resolveWhisperBinaryPath(): string {
+    // On Apple Silicon, prefer Metal version if available
+    if (this.isAppleSilicon) {
+      // Try production bundled Metal path first
+      const packagedMetalPath = join(
+        process.resourcesPath,
+        "whisper-cpp",
+        "whisper-cli-metal"
+      );
+      if (existsSync(packagedMetalPath)) {
+        return packagedMetalPath;
+      }
+
+      // Fall back to development vendor Metal path
+      const devMetalPath = join(
+        process.cwd(),
+        "vendor",
+        "whisper-cpp",
+        "whisper-cli-metal"
+      );
+      if (existsSync(devMetalPath)) {
+        return devMetalPath;
+      }
+    }
+
     // Try production bundled path first
     const packagedPath = join(
       process.resourcesPath,
@@ -110,10 +138,13 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     try {
       // Check if whisper binary exists and is executable
       return new Promise((resolve) => {
-        const whisperProcess = spawn(this.whisperBinaryPath, ["--help"], {
+        const whisperProcess = spawn(this.resolvedBinaryPath, ["--help"], {
           stdio: ["ignore", "pipe", "pipe"],
         });
-        console.log("Whisper.cpp binary check started", this.whisperBinaryPath);
+        console.log(
+          "Whisper.cpp binary check started",
+          this.resolvedBinaryPath
+        );
 
         let hasOutput = false;
         whisperProcess.stdout?.on("data", (data) => {
@@ -174,6 +205,24 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         status: "starting",
         message: "Initializing Whisper.cpp plugin",
       });
+
+      // Log which binary and Core ML model will be used
+      const modelName =
+        this.config.get("whisperCppModel") || "ggml-base.en.bin";
+      const coreMLPath = this.getCoreMLModelPath(modelName);
+
+      console.log(`Whisper.cpp binary: ${this.resolvedBinaryPath}`);
+      if (this.isAppleSilicon) {
+        if (coreMLPath) {
+          console.log(`Core ML model available: ${coreMLPath}`);
+          onLog?.("[Whisper.cpp Plugin] Apple Metal acceleration enabled");
+        } else {
+          console.log("Core ML model not found, using regular binary");
+          onLog?.(
+            "[Whisper.cpp Plugin] Apple Metal acceleration not available"
+          );
+        }
+      }
 
       this.setTranscriptionCallback(onUpdate);
       this.sessionUid = uuidv4();
@@ -416,6 +465,146 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   /**
+   * Download Core ML model for a given model name
+   */
+  async downloadCoreMLModel(modelName: string): Promise<string | null> {
+    if (!this.isAppleSilicon) {
+      console.log("Core ML models are only supported on Apple Silicon");
+      return null;
+    }
+
+    // Strip quantization suffix if present (e.g., "ggml-base.en-q4_0.bin" -> "ggml-base.en")
+    const baseModelName = modelName
+      .replace(/-\w+\.bin$/, "")
+      .replace(/\.bin$/, "");
+    const coreMLModelName = `${baseModelName}-encoder.mlmodelc`;
+    const coreMLZipName = `${coreMLModelName}.zip`;
+    const coreMLUrl = `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${coreMLZipName}`;
+    const localZipPath = join(this.config.getModelsDir(), coreMLZipName);
+    const localModelPath = join(this.config.getModelsDir(), coreMLModelName);
+
+    // Check if already exists
+    if (existsSync(localModelPath)) {
+      console.log(`Core ML model ${coreMLModelName} already exists`);
+      return localModelPath;
+    }
+
+    try {
+      console.log(`Downloading Core ML model: ${coreMLModelName}`);
+
+      // Download using curl
+      await this.downloadFile(coreMLUrl, localZipPath);
+
+      // Extract the zip
+      await this.extractZip(localZipPath, this.config.getModelsDir());
+
+      // Clean up zip file
+      unlinkSync(localZipPath);
+
+      console.log(`Core ML model ${coreMLModelName} downloaded successfully`);
+      return localModelPath;
+    } catch (error) {
+      console.warn(
+        `Failed to download Core ML model ${coreMLModelName}: ${error}`
+      );
+      return null;
+    }
+  }
+
+  private async downloadFile(url: string, destPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const child = spawn("curl", ["-L", "-o", destPath, url], {
+        stdio: "inherit",
+      });
+
+      child.on("close", (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Download failed with code ${code}`));
+        }
+      });
+
+      child.on("error", (error) => {
+        reject(new Error(`Download failed: ${error.message}`));
+      });
+    });
+  }
+
+  private async extractZip(zipPath: string, extractDir: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const child = spawn("unzip", ["-o", zipPath, "-d", extractDir], {
+        stdio: "inherit",
+      });
+
+      child.on("close", (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Extraction failed with code ${code}`));
+        }
+      });
+
+      child.on("error", (error) => {
+        reject(new Error(`Extraction failed: ${error.message}`));
+      });
+    });
+  }
+
+  /**
+   * Get the appropriate binary path for the current platform
+   * @param preferMetal - Whether to prefer Metal version on Apple Silicon
+   * @returns Path to the appropriate binary
+   */
+  getBinaryPath(preferMetal = true): string {
+    if (this.isAppleSilicon && preferMetal) {
+      // Try production bundled Metal path first
+      const packagedMetalPath = join(
+        process.resourcesPath,
+        "whisper-cpp",
+        "whisper-cli-metal"
+      );
+      if (existsSync(packagedMetalPath)) {
+        return packagedMetalPath;
+      }
+
+      // Fall back to development vendor Metal path
+      const devMetalPath = join(
+        process.cwd(),
+        "vendor",
+        "whisper-cpp",
+        "whisper-cli-metal"
+      );
+      if (existsSync(devMetalPath)) {
+        return devMetalPath;
+      }
+    }
+
+    // Fall back to regular binary
+    return this.resolveWhisperBinaryPath();
+  }
+
+  /**
+   * Check if Core ML model exists for a given model name
+   * @param modelName - The model name to check
+   * @returns Path to Core ML model if it exists, null otherwise
+   */
+  getCoreMLModelPath(modelName: string): string | null {
+    if (!this.isAppleSilicon) {
+      return null;
+    }
+
+    // Strip quantization suffix if present (e.g., "ggml-base.en-q4_0.bin" -> "ggml-base.en")
+    const baseModelName = modelName
+      .replace(/-\w+\.bin$/, "")
+      .replace(/\.bin$/, "");
+    const coreMLModelName = `${baseModelName}-encoder.mlmodelc`;
+    const coreMLModelPath = join(this.config.getModelsDir(), coreMLModelName);
+
+    return existsSync(coreMLModelPath) ? coreMLModelPath : null;
+  }
+
+  /**
    * Convert Float32Array audio data to WAV file for whisper.cpp
    */
   private async saveAudioAsWav(audioData: Float32Array): Promise<string> {
@@ -461,10 +650,10 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       }
 
       console.log(
-        `Running Whisper.cpp: ${this.whisperBinaryPath} ${args.join(" ")}`
+        `Running Whisper.cpp: ${this.resolvedBinaryPath} ${args.join(" ")}`
       );
 
-      const whisperProcess = spawn(this.whisperBinaryPath, args, {
+      const whisperProcess = spawn(this.resolvedBinaryPath, args, {
         stdio: ["ignore", "pipe", "pipe"],
       });
 
@@ -846,9 +1035,48 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         uiFunctions.showDownloadProgress(downloadProgress);
       }
 
-      // Implement actual download logic here
+      // Download the main model using existing system
       // This would integrate with the existing model download system
       // For now, just simulate the process
+
+      // If on Apple Silicon, also download Core ML model
+      if (this.isAppleSilicon) {
+        if (uiFunctions) {
+          uiFunctions.showProgress(
+            `Downloading Core ML model for ${modelName}...`,
+            50
+          );
+        }
+
+        try {
+          const coreMLPath = await this.downloadCoreMLModel(modelName);
+          if (coreMLPath) {
+            console.log(`Core ML model downloaded: ${coreMLPath}`);
+            if (uiFunctions) {
+              uiFunctions.showProgress(
+                `Core ML model downloaded successfully`,
+                100
+              );
+            }
+          } else {
+            console.warn(`Failed to download Core ML model for ${modelName}`);
+            if (uiFunctions) {
+              uiFunctions.showProgress(
+                `Core ML model download failed, continuing with regular model`,
+                100
+              );
+            }
+          }
+        } catch (error) {
+          console.warn(`Core ML model download error: ${error}`);
+          if (uiFunctions) {
+            uiFunctions.showProgress(
+              `Core ML model download failed, continuing with regular model`,
+              100
+            );
+          }
+        }
+      }
 
       throw new Error(
         "Download functionality not yet implemented - please use the existing model download system"
