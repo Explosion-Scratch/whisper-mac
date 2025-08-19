@@ -540,10 +540,22 @@
                 <h1>Enable AI polishing?</h1>
               </div>
               <div class="toggle">
-                <input id="aiEnabled" type="checkbox" v-model="aiEnabled" />
+                <input
+                  id="aiEnabled"
+                  type="checkbox"
+                  v-model="aiEnabled"
+                  @change="onAiEnabledChange"
+                />
                 <label for="aiEnabled"
                   >Use AI to clean up and format dictation</label
                 >
+              </div>
+              <div
+                v-if="aiValidationError"
+                class="error-message"
+                style="color: #ef4444; font-size: 14px; margin-top: 8px"
+              >
+                {{ aiValidationError }}
               </div>
               <div id="aiConfig" class="card" v-show="aiEnabled">
                 <div class="form-grid">
@@ -677,6 +689,7 @@
           const aiApiKey = ref("");
           const keyStatus = ref("");
           const savingKey = ref(false);
+          const aiValidationError = ref("");
           const pluginSelect = ref("yap");
           const pluginOptions = ref({});
           const pluginStates = ref({});
@@ -695,6 +708,12 @@
             // On accessibility step (idx === 1), check if permissions are enabled
             if (idx.value === 1) {
               return accessStatus.value === "Enabled";
+            }
+            // On AI step (idx === 3), check if AI is properly configured when enabled
+            if (idx.value === 3) {
+              if (aiEnabled.value && aiValidationError.value) {
+                return false;
+              }
             }
             // On setup step (idx === 4), check if setup is done
             if (idx.value === 4) {
@@ -779,6 +798,21 @@
               );
             }
             if (idx.value === 3) {
+              // If AI is enabled, validate configuration before proceeding
+              if (aiEnabled.value) {
+                const result = await window.electronAPI.validateAiConfiguration(
+                  aiBaseUrl.value,
+                  aiModel.value,
+                  aiApiKey.value
+                );
+
+                if (!result.isValid) {
+                  aiValidationError.value =
+                    result.error || "AI configuration is invalid";
+                  return;
+                }
+              }
+
               await window.onboardingAPI.setAiEnabled(aiEnabled.value);
               if (aiEnabled.value) {
                 await window.onboardingAPI.setAiProvider(
@@ -850,11 +884,56 @@
               await window.onboardingAPI.saveApiKey(aiApiKey.value);
               keyStatus.value = "Saved to Keychain";
               aiApiKey.value = "";
+
+              // Clear validation error since key is now valid
+              aiValidationError.value = "";
             } catch (e) {
               keyStatus.value = "Failed to save key";
             } finally {
               savingKey.value = false;
             }
+          };
+
+          const validateAiConfig = async () => {
+            if (aiEnabled.value) {
+              aiValidationError.value = "";
+
+              try {
+                const result = await window.electronAPI.validateAiConfiguration(
+                  aiBaseUrl.value,
+                  aiModel.value,
+                  aiApiKey.value
+                );
+
+                if (!result.isValid) {
+                  aiValidationError.value =
+                    result.error || "AI configuration is invalid";
+                  aiEnabled.value = false; // Revert the toggle
+                  return;
+                }
+
+                // If validation succeeds and we have models, update the model list
+                if (result.models && result.models.length > 0) {
+                  aiModels.value = result.models;
+                  // If current model is not in the list, select the first one
+                  if (!result.models.some((m) => m.id === aiModel.value)) {
+                    aiModel.value = result.models[0].id;
+                  }
+                }
+              } catch (error) {
+                aiValidationError.value = `Validation failed: ${
+                  error.message || String(error)
+                }`;
+                aiEnabled.value = false; // Revert the toggle
+              }
+            } else {
+              // Clear validation error when disabling AI
+              aiValidationError.value = "";
+            }
+          };
+
+          const onAiEnabledChange = async () => {
+            await validateAiConfig();
           };
 
           const runSetup = async () => {
@@ -868,6 +947,26 @@
 
             // Start accessibility monitoring
             const cleanupMonitoring = startAccessibilityMonitoring();
+
+            // Add watchers for AI configuration changes
+            const aiBaseUrlInput = document.getElementById("aiBaseUrl");
+            const aiModelSelect = document.getElementById("aiModelSelect");
+
+            if (aiBaseUrlInput) {
+              aiBaseUrlInput.addEventListener("input", () => {
+                if (aiEnabled.value) {
+                  validateAiConfig();
+                }
+              });
+            }
+
+            if (aiModelSelect) {
+              aiModelSelect.addEventListener("change", () => {
+                if (aiEnabled.value) {
+                  validateAiConfig();
+                }
+              });
+            }
 
             window.onboardingAPI.onProgress((p) => {
               progressText.value = p.message || p.status || "";
@@ -905,6 +1004,7 @@
             aiApiKey,
             keyStatus,
             savingKey,
+            aiValidationError,
             pluginSelect,
             availablePlugins,
             pluginOptions,
@@ -922,6 +1022,8 @@
             onPluginChange,
             updateSelectedOption,
             checkAccess,
+            onAiEnabledChange,
+            validateAiConfig,
             startAccessibilityMonitoring,
             saveKey,
             runSetup,

@@ -261,6 +261,13 @@ export class SettingsManager extends EventEmitter {
       prompt: this.get("ai.prompt", this.config.ai.prompt),
       messagePrompt: this.get("ai.messagePrompt", this.config.ai.messagePrompt),
     };
+
+    // Validate AI configuration if AI is being enabled
+    if (aiConfig.enabled && !this.config.ai.enabled) {
+      // AI is being enabled, validate the configuration
+      this.validateAiConfiguration(aiConfig);
+    }
+
     this.config.ai = aiConfig;
 
     // Advanced settings
@@ -278,6 +285,27 @@ export class SettingsManager extends EventEmitter {
 
     // Notify about actions configuration changes
     this.emit?.("actions-updated", this.get<DefaultActionsConfig>("actions"));
+  }
+
+  /**
+   * Validate AI configuration and disable AI if invalid
+   */
+  private validateAiConfiguration(aiConfig: AiTransformationConfig): void {
+    // Basic validation - check if required fields are present
+    if (!aiConfig.baseUrl || aiConfig.baseUrl.trim() === "") {
+      console.warn("AI base URL is required, disabling AI");
+      aiConfig.enabled = false;
+      return;
+    }
+
+    if (!aiConfig.model || aiConfig.model.trim() === "") {
+      console.warn("AI model is required, disabling AI");
+      aiConfig.enabled = false;
+      return;
+    }
+
+    // Note: API key validation would require async operations and secure storage access
+    // This is handled in the UI layer and TransformationService
   }
 
   /**

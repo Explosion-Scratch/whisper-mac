@@ -1,7 +1,13 @@
-import { EventEmitter } from 'events';
-import { exec } from 'child_process';
-import { shell } from 'electron';
-import { ActionHandler, ActionMatch, MatchPattern, ActionHandlerConfig, HandlerConfig } from '../types/ActionTypes';
+import { EventEmitter } from "events";
+import { exec } from "child_process";
+import { shell } from "electron";
+import {
+  ActionHandler,
+  ActionMatch,
+  MatchPattern,
+  ActionHandlerConfig,
+  HandlerConfig,
+} from "../types/ActionTypes";
 
 export class ConfigurableActionsService extends EventEmitter {
   private actions: ActionHandler[] = [];
@@ -14,26 +20,33 @@ export class ConfigurableActionsService extends EventEmitter {
 
   private async initializeInstalledApps(): Promise<void> {
     try {
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
       const execAsync = promisify(exec);
 
-      const { stdout } = await execAsync('ls /Applications');
+      const { stdout } = await execAsync("ls /Applications");
       const apps = stdout
-        .split('\n')
-        .filter(app => app.endsWith('.app'))
-        .map(app => app.replace('.app', '').toLowerCase());
+        .split("\n")
+        .filter((app) => app.endsWith(".app"))
+        .map((app) => app.replace(".app", "").toLowerCase());
 
       this.installedApps = new Set(apps);
-      console.log(`[ConfigurableActions] Discovered ${apps.length} installed applications`);
+      console.log(
+        `[ConfigurableActions] Discovered ${apps.length} installed applications`
+      );
     } catch (error) {
-      console.error('[ConfigurableActions] Failed to discover installed applications:', error);
+      console.error(
+        "[ConfigurableActions] Failed to discover installed applications:",
+        error
+      );
     }
   }
 
   setActions(actions: ActionHandler[]): void {
-    this.actions = actions.filter(action => action.enabled);
-    console.log(`[ConfigurableActions] Loaded ${this.actions.length} enabled actions`);
+    this.actions = actions.filter((action) => action.enabled);
+    console.log(
+      `[ConfigurableActions] Loaded ${this.actions.length} enabled actions`
+    );
   }
 
   detectAction(text: string): ActionMatch | null {
@@ -48,7 +61,7 @@ export class ConfigurableActionsService extends EventEmitter {
             matchedPattern: pattern,
             originalText: text,
             extractedArgument: match.argument,
-            handlers: action.handlers.sort((a, b) => a.order - b.order)
+            handlers: action.handlers.sort((a, b) => a.order - b.order),
           };
         }
       }
@@ -58,39 +71,54 @@ export class ConfigurableActionsService extends EventEmitter {
   }
 
   async executeAction(match: ActionMatch): Promise<void> {
-    console.log(`[ConfigurableActions] Executing action: ${match.actionId} with argument: "${match.extractedArgument}"`);
+    console.log(
+      `[ConfigurableActions] Executing action: ${match.actionId} with argument: "${match.extractedArgument}"`
+    );
 
     for (const handler of match.handlers) {
       try {
         const success = await this.executeHandler(handler, match);
         if (success) {
-          this.emit('action-executed', match);
+          this.emit("action-executed", match);
           return;
         }
       } catch (error) {
-        console.warn(`[ConfigurableActions] Handler ${handler.id} failed:`, error);
+        console.warn(
+          `[ConfigurableActions] Handler ${handler.id} failed:`,
+          error
+        );
         continue;
       }
     }
 
-    console.error(`[ConfigurableActions] All handlers failed for action: ${match.actionId}`);
-    this.emit('action-error', { match, error: new Error('All handlers failed') });
+    console.error(
+      `[ConfigurableActions] All handlers failed for action: ${match.actionId}`
+    );
+    this.emit("action-error", {
+      match,
+      error: new Error("All handlers failed"),
+    });
   }
 
-  private async executeHandler(handler: ActionHandlerConfig, match: ActionMatch): Promise<boolean> {
+  private async executeHandler(
+    handler: ActionHandlerConfig,
+    match: ActionMatch
+  ): Promise<boolean> {
     const config = this.interpolateConfig(handler.config, match);
 
     switch (handler.type) {
-      case 'openUrl':
+      case "openUrl":
         return this.executeOpenUrl(config);
-      case 'openApplication':
+      case "openApplication":
         return this.executeOpenApplication(config);
-      case 'quitApplication':
+      case "quitApplication":
         return this.executeQuitApplication(config);
-      case 'executeShell':
+      case "executeShell":
         return this.executeShell(config);
       default:
-        console.warn(`[ConfigurableActions] Unknown handler type: ${handler.type}`);
+        console.warn(
+          `[ConfigurableActions] Unknown handler type: ${handler.type}`
+        );
         return false;
     }
   }
@@ -98,16 +126,20 @@ export class ConfigurableActionsService extends EventEmitter {
   private async executeOpenUrl(config: any): Promise<boolean> {
     try {
       const url = config.urlTemplate;
-      
+
       // Validate URL
-      if (!url || typeof url !== 'string') {
+      if (!url || typeof url !== "string") {
         return false;
       }
 
       // Check if it's a valid URL or needs protocol
       let finalUrl = url;
-      if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://')) {
-        if (url.startsWith('www.') || url.includes('.')) {
+      if (
+        !url.startsWith("http://") &&
+        !url.startsWith("https://") &&
+        !url.startsWith("file://")
+      ) {
+        if (url.startsWith("www.") || url.includes(".")) {
           finalUrl = `https://${url}`;
         } else {
           return false;
@@ -117,7 +149,7 @@ export class ConfigurableActionsService extends EventEmitter {
       await shell.openExternal(finalUrl);
       return true;
     } catch (error) {
-      console.error('[ConfigurableActions] Failed to open URL:', error);
+      console.error("[ConfigurableActions] Failed to open URL:", error);
       return false;
     }
   }
@@ -134,15 +166,15 @@ export class ConfigurableActionsService extends EventEmitter {
         return false;
       }
 
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
       const execAsync = promisify(exec);
 
       const command = `open -a "${appName}"`;
       await execAsync(command);
       return true;
     } catch (error) {
-      console.error('[ConfigurableActions] Failed to open application:', error);
+      console.error("[ConfigurableActions] Failed to open application:", error);
       return false;
     }
   }
@@ -154,23 +186,23 @@ export class ConfigurableActionsService extends EventEmitter {
 
       if (!appName) {
         // Quit WhisperMac itself
-        const { app } = await import('electron');
+        const { app } = await import("electron");
         app.quit();
         return true;
       }
 
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
       const execAsync = promisify(exec);
 
-      const command = forceQuit 
-        ? `pkill -f "${appName}"` 
+      const command = forceQuit
+        ? `pkill -f "${appName}"`
         : `osascript -e 'tell application "${appName}" to quit'`;
-      
+
       await execAsync(command);
       return true;
     } catch (error) {
-      console.error('[ConfigurableActions] Failed to quit application:', error);
+      console.error("[ConfigurableActions] Failed to quit application:", error);
       return false;
     }
   }
@@ -186,14 +218,14 @@ export class ConfigurableActionsService extends EventEmitter {
         return false;
       }
 
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
       const execAsync = promisify(exec);
 
       const execOptions = {
         cwd: workingDirectory,
         timeout,
-        env: { ...process.env, ...config.environment }
+        env: { ...process.env, ...config.environment },
       };
 
       if (runInBackground) {
@@ -204,7 +236,10 @@ export class ConfigurableActionsService extends EventEmitter {
         return true;
       }
     } catch (error) {
-      console.error('[ConfigurableActions] Failed to execute shell command:', error);
+      console.error(
+        "[ConfigurableActions] Failed to execute shell command:",
+        error
+      );
       return false;
     }
   }
@@ -212,21 +247,24 @@ export class ConfigurableActionsService extends EventEmitter {
   private interpolateConfig(config: HandlerConfig, match: ActionMatch): any {
     const interpolated = JSON.parse(JSON.stringify(config));
     const replacements = {
-      '{match}': match.originalText,
-      '{argument}': match.extractedArgument || '',
-      '{pattern}': match.matchedPattern.pattern
+      "{match}": match.originalText,
+      "{argument}": match.extractedArgument || "",
+      "{pattern}": match.matchedPattern.pattern,
     };
 
     const interpolateValue = (value: any): any => {
-      if (typeof value === 'string') {
+      if (typeof value === "string") {
         let result = value;
         Object.entries(replacements).forEach(([key, replacement]) => {
-          result = result.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'g'), replacement);
+          result = result.replace(
+            new RegExp(key.replace(/[{}]/g, "\\$&"), "g"),
+            replacement
+          );
         });
         return result;
       } else if (Array.isArray(value)) {
         return value.map(interpolateValue);
-      } else if (typeof value === 'object' && value !== null) {
+      } else if (typeof value === "object" && value !== null) {
         const result: any = {};
         Object.entries(value).forEach(([key, val]) => {
           result[key] = interpolateValue(val);
@@ -239,31 +277,38 @@ export class ConfigurableActionsService extends EventEmitter {
     return interpolateValue(interpolated);
   }
 
-  private testPattern(text: string, pattern: MatchPattern): { argument?: string } | null {
+  private testPattern(
+    text: string,
+    pattern: MatchPattern
+  ): { argument?: string } | null {
     const testText = pattern.caseSensitive ? text : text.toLowerCase();
-    const testPattern = pattern.caseSensitive ? pattern.pattern : pattern.pattern.toLowerCase();
+    const testPattern = pattern.caseSensitive
+      ? pattern.pattern
+      : pattern.pattern.toLowerCase();
 
     switch (pattern.type) {
-      case 'exact':
+      case "exact":
         return testText === testPattern ? {} : null;
 
-      case 'startsWith':
+      case "startsWith":
         if (testText.startsWith(testPattern)) {
           const argument = text.substring(pattern.pattern.length).trim();
           return { argument };
         }
         return null;
 
-      case 'endsWith':
+      case "endsWith":
         if (testText.endsWith(testPattern)) {
-          const argument = text.substring(0, text.length - pattern.pattern.length).trim();
+          const argument = text
+            .substring(0, text.length - pattern.pattern.length)
+            .trim();
           return { argument };
         }
         return null;
 
-      case 'regex':
+      case "regex":
         try {
-          const flags = pattern.caseSensitive ? 'g' : 'gi';
+          const flags = pattern.caseSensitive ? "g" : "gi";
           const regex = new RegExp(testPattern, flags);
           const match = regex.exec(text);
           if (match) {
@@ -271,7 +316,10 @@ export class ConfigurableActionsService extends EventEmitter {
             return { argument };
           }
         } catch (error) {
-          console.error(`[ConfigurableActions] Invalid regex pattern: ${pattern.pattern}`, error);
+          console.error(
+            `[ConfigurableActions] Invalid regex pattern: ${pattern.pattern}`,
+            error
+          );
         }
         return null;
 
@@ -281,7 +329,7 @@ export class ConfigurableActionsService extends EventEmitter {
   }
 
   private normalizeText(text: string): string {
-    return text.trim().replace(/[^\w\s]/g, '');
+    return text.trim().replace(/[^\w\s]/g, "");
   }
 
   getActions(): ActionHandler[] {

@@ -140,7 +140,6 @@ export class DictationWindowService extends EventEmitter {
       (event, channel, ...args) => {
         console.log("=== DictationWindowService: IPC message received ===");
         console.log("Channel:", channel);
-        console.log("Args:", args);
 
         switch (channel) {
           case "close-dictation-window":
