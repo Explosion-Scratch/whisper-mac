@@ -1,6 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-const https = require("https");
 const { spawn } = require("child_process");
 
 /**
@@ -42,6 +41,7 @@ class YapPluginSetup {
         return;
       }
     } catch (error) {
+      console.log(error);
       console.log("⚠️  YAP installation failed");
       console.log("Please install YAP manually:");
       console.log("  brew install finnvoor/tools/yap");
@@ -117,34 +117,25 @@ class YapPluginSetup {
   }
 
   async downloadFile(url, filePath) {
-    return new Promise((resolve, reject) => {
-      const file = fs.createWriteStream(filePath);
+    const response = await fetch(url);
 
-      https
-        .get(url, (response) => {
-          if (response.statusCode !== 200) {
-            reject(
-              new Error(`Download failed with status ${response.statusCode}`)
-            );
-            return;
-          }
+    if (!response.ok) {
+      throw new Error(`Download failed with status ${response.status}`);
+    }
 
-          response.pipe(file);
+    const fileStream = fs.createWriteStream(filePath);
+    const reader = response.body.getReader();
 
-          file.on("finish", () => {
-            file.close();
-            resolve();
-          });
-
-          file.on("error", (error) => {
-            fs.unlink(filePath, () => {}); // Delete the file on error
-            reject(error);
-          });
-        })
-        .on("error", (error) => {
-          reject(error);
-        });
-    });
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        fileStream.write(value);
+      }
+    } finally {
+      fileStream.end();
+      reader.releaseLock();
+    }
   }
 
   async extractTarGz(archivePath, extractPath) {
@@ -168,31 +159,13 @@ class YapPluginSetup {
   }
 
   async fetchJson(url) {
-    return new Promise((resolve, reject) => {
-      https
-        .get(url, (response) => {
-          if (response.statusCode !== 200) {
-            reject(new Error(`HTTP ${response.statusCode}`));
-            return;
-          }
+    const response = await fetch(url);
 
-          let data = "";
-          response.on("data", (chunk) => {
-            data += chunk;
-          });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
 
-          response.on("end", () => {
-            try {
-              resolve(JSON.parse(data));
-            } catch (error) {
-              reject(new Error("Invalid JSON response"));
-            }
-          });
-        })
-        .on("error", (error) => {
-          reject(error);
-        });
-    });
+    return await response.json();
   }
 
   async isYapAvailable() {
@@ -210,6 +183,7 @@ class YapPluginSetup {
   }
 
   async testYapBinary(binaryPath) {
+    console.log("Testing YAP binary:", binaryPath);
     return new Promise((resolve) => {
       const child = spawn(binaryPath, ["--help"], {
         stdio: ["ignore", "pipe", "pipe"],

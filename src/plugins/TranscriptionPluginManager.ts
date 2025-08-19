@@ -14,6 +14,8 @@ export class TranscriptionPluginManager extends EventEmitter {
   private plugins: Map<string, BaseTranscriptionPlugin> = new Map();
   private activePlugin: BaseTranscriptionPlugin | null = null;
   private config: AppConfig;
+  private bufferingEnabled: boolean = false;
+  private bufferedAudioChunks: Float32Array[] = [];
 
   constructor(config: AppConfig) {
     super();
@@ -109,7 +111,17 @@ export class TranscriptionPluginManager extends EventEmitter {
       throw new Error(`Plugin ${name} not found`);
     }
 
-    if (!(await plugin.isAvailable())) {
+    // Re-check availability on every switch
+    const available = await plugin.isAvailable().catch(() => false);
+    if (!available) {
+      // Try running initialization to see if it becomes available
+      try {
+        if (!plugin.isPluginInitialized()) {
+          await plugin.initialize();
+        }
+      } catch {}
+    }
+    if (!(await plugin.isAvailable().catch(() => false))) {
       throw new Error(`Plugin ${name} is not available`);
     }
 
@@ -149,6 +161,13 @@ export class TranscriptionPluginManager extends EventEmitter {
       // Activate the plugin
       await plugin.onActivated(uiFunctions);
 
+      // Initialize runOnAll buffering state for the active plugin
+      try {
+        const criteria = plugin.getActivationCriteria?.() || {};
+        this.bufferingEnabled = !!criteria.runOnAll;
+        this.bufferedAudioChunks = [];
+      } catch {}
+
       this.emit("active-plugin-changed", plugin);
       console.log(`Active transcription plugin set to: ${plugin.displayName}`);
     } catch (error) {
@@ -187,6 +206,13 @@ export class TranscriptionPluginManager extends EventEmitter {
       `Starting transcription with plugin: ${this.activePlugin.displayName}`
     );
     await this.activePlugin.startTranscription(onUpdate, onProgress, onLog);
+
+    // Reset buffering at start
+    try {
+      const criteria = this.activePlugin.getActivationCriteria?.() || {};
+      this.bufferingEnabled = !!criteria.runOnAll;
+      this.bufferedAudioChunks = [];
+    } catch {}
   }
 
   /**
@@ -208,11 +234,48 @@ export class TranscriptionPluginManager extends EventEmitter {
     return this.activePlugin?.getActivationCriteria() || {};
   }
 
+  /** Check if any buffered audio exists (runOnAll). */
+  hasBufferedAudio(): boolean {
+    return this.bufferingEnabled && this.bufferedAudioChunks.length > 0;
+  }
+
+  /**
+   * When runOnAll is enabled, combine all buffered chunks and send one call to the plugin.
+   */
+  async finalizeBufferedAudio(): Promise<void> {
+    if (!this.activePlugin) return;
+    if (!this.bufferingEnabled) return;
+    const total = this.bufferedAudioChunks.reduce(
+      (acc, cur) => acc + cur.length,
+      0
+    );
+    if (total === 0) return;
+    const combined = new Float32Array(total);
+    let offset = 0;
+    for (const chunk of this.bufferedAudioChunks) {
+      combined.set(chunk, offset);
+      offset += chunk.length;
+    }
+    // Clear buffer before processing to avoid recursion capturing
+    this.bufferedAudioChunks = [];
+    // Bypass manager buffering and call plugin directly
+    try {
+      await this.activePlugin.processAudioSegment(combined);
+    } catch (e) {
+      this.emit("plugin-error", { plugin: this.activePlugin.name, error: e });
+    }
+  }
+
   /**
    * Process audio segment with the active plugin
    */
   async processAudioSegment(audioData: Float32Array): Promise<void> {
     if (!this.activePlugin || !this.activePlugin.processAudioSegment) {
+      return;
+    }
+
+    if (this.bufferingEnabled) {
+      this.bufferedAudioChunks.push(audioData);
       return;
     }
 
