@@ -6,7 +6,7 @@ import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
 
 // Core services
-import { AudioCaptureService } from "./services/AudioCaptureService";
+
 import {
   TranscriptionPluginManager,
   createTranscriptionPluginManager,
@@ -51,7 +51,7 @@ class WhisperMacApp {
   private settingsWindow: BrowserWindow | null = null;
   private onboardingWindow: BrowserWindow | null = null;
   private modelManagerWindow: BrowserWindow | null = null;
-  private audioService: AudioCaptureService;
+
   private transcriptionPluginManager: TranscriptionPluginManager;
   private textInjector: TextInjectionService;
   private transformationService: TransformationService;
@@ -88,7 +88,7 @@ class WhisperMacApp {
     this.settingsService = new SettingsService(this.config);
 
     // Initialize other services with potentially updated config
-    this.audioService = new AudioCaptureService(this.config);
+
     this.modelManager = new ModelManager(this.config);
     this.unifiedModelDownloadService = new UnifiedModelDownloadService(
       this.config,
@@ -374,10 +374,7 @@ class WhisperMacApp {
       // Pre-load windows in parallel for faster startup
       console.log("Pre-loading windows for faster startup...");
       this.setSetupStatus("loading-windows");
-      await Promise.allSettled([
-        this.dictationWindowService.preloadWindow(),
-        this.audioService.preloadWindow(),
-      ]);
+      await Promise.allSettled([this.dictationWindowService.preloadWindow()]);
 
       console.log("Windows pre-loaded successfully");
     } catch (error) {
@@ -978,25 +975,6 @@ class WhisperMacApp {
       this.trayService?.updateTrayIcon("recording");
       this.dictationWindowService.startRecording();
 
-      // 5. Start audio capture and enable media stream
-      const audioStartTime = Date.now();
-      try {
-        await this.audioService.startCapture();
-        // Enable media stream since dictation window is open
-        this.audioService.setMediaStreamEnabled(true);
-        const audioEndTime = Date.now();
-        console.log(`Audio capture setup: ${audioEndTime - audioStartTime}ms`);
-      } catch (error: any) {
-        console.error("Failed to start audio capture:", error);
-        await this.cancelDictationFlow();
-        await this.showError({
-          title: "Audio capture failed",
-          description: error.message || "Unknown error starting audio capture",
-          actions: ["ok"],
-        });
-        return;
-      }
-
       // Start transcription with active plugin (VAD runs in browser, no separate audio capture needed)
       const transcriptionStartTime = Date.now();
       try {
@@ -1113,10 +1091,6 @@ class WhisperMacApp {
       this.trayService?.updateTrayIcon("idle");
       this.dictationWindowService.stopRecording();
 
-      // Disable media stream and stop audio capture
-      this.audioService.setMediaStreamEnabled(false);
-      await this.audioService.stopCapture();
-
       // Give a moment for final server updates
       await new Promise((r) => setTimeout(r, 250));
 
@@ -1189,11 +1163,6 @@ class WhisperMacApp {
       this.isRecording = true;
       this.isFinishing = false;
       this.updateTrayIcon("recording");
-
-      // Ensure audio capture is enabled since dictation window is open
-      if (this.audioService.isWindowAvailable()) {
-        this.audioService.setMediaStreamEnabled(true);
-      }
     } catch (error) {
       console.error("Failed to flush segments while continuing:", error);
     }
@@ -1221,10 +1190,6 @@ class WhisperMacApp {
 
       // Set finishing state
       this.isFinishing = true;
-
-      // 1. Disable media stream and stop audio capture immediately (no new audio will be processed)
-      this.audioService.setMediaStreamEnabled(false);
-      await this.audioService.stopCapture();
 
       // 2. Set transforming status in UI immediately to give user feedback
       this.dictationWindowService.setTransformingStatus();
@@ -1297,12 +1262,6 @@ class WhisperMacApp {
       // Clear the dictation window transcription to reset UI status
       this.dictationWindowService.clearTranscription();
 
-      // Ensure audio capture window is hidden and media stream is disabled
-      if (this.audioService.isWindowAvailable()) {
-        this.audioService.setMediaStreamEnabled(false);
-        this.audioService.hideWindow();
-      }
-
       console.log("=== Dictation completed successfully after finishing ===");
     } catch (error) {
       console.error("Failed to complete dictation after finishing:", error);
@@ -1325,9 +1284,6 @@ class WhisperMacApp {
     this.updateTrayIcon("idle");
 
     if (wasRecording) {
-      // Disable media stream and stop audio capture
-      this.audioService.setMediaStreamEnabled(false);
-      await this.audioService.stopCapture();
       await this.transcriptionPluginManager.stopTranscription();
     }
 
@@ -1360,9 +1316,6 @@ class WhisperMacApp {
 
       // Stop transcription and close WebSocket
       await this.transcriptionPluginManager.stopTranscription();
-
-      // Stop audio capture and close audio window
-      this.audioService.stopCapture();
 
       // Close dictation window
       this.dictationWindowService.cleanup();
