@@ -18,7 +18,8 @@ import { AppConfig } from "./config/AppConfig";
 import { SelectedTextService } from "./services/SelectedTextService";
 import { DictationWindowService } from "./services/DictationWindowService";
 import { SettingsService } from "./services/SettingsService";
-import { ActionsHandlerService } from "./services/ActionsHandlerService";
+import { ConfigurableActionsService } from "./services/ConfigurableActionsService";
+import { SettingsManager } from "./config/SettingsManager";
 
 // Segment management
 import { SegmentManager } from "./services/SegmentManager";
@@ -32,6 +33,7 @@ import {
   SetupStatus as TraySetupStatus,
 } from "./services/TrayService";
 import { SegmentUpdate } from "./types/SegmentTypes";
+import { DefaultActionsConfig } from "./types/ActionTypes";
 
 type SetupStatus =
   | "idle"
@@ -60,8 +62,9 @@ class WhisperMacApp {
   private dictationWindowService: DictationWindowService;
   private segmentManager: SegmentManager;
   private settingsService: SettingsService;
+  private settingsManager: SettingsManager;
   private errorService: ErrorWindowService;
-  private actionsHandlerService: ActionsHandlerService;
+  private configurableActionsService: ConfigurableActionsService | null = null;
 
   // Icon paths
   private readonly trayIconIdleRelPath = "../assets/icon-template.png";
@@ -127,14 +130,15 @@ class WhisperMacApp {
         this.transcriptionPluginManager.processAudioSegment(audioData);
       }
     );
-    this.actionsHandlerService = new ActionsHandlerService();
+    this.configurableActionsService = new ConfigurableActionsService();
     this.segmentManager = new SegmentManager(
       this.transformationService,
       this.textInjector,
       this.selectedTextService,
-      this.actionsHandlerService
+      this.configurableActionsService
     );
     this.errorService = new ErrorWindowService();
+    this.settingsManager = new SettingsManager(this.config);
 
     // Listen for action detection events from segment manager
     this.segmentManager.on("action-detected", async (actionMatch) => {
@@ -143,7 +147,9 @@ class WhisperMacApp {
       );
 
       // Execute the action
-      await this.actionsHandlerService.executeAction(actionMatch);
+      if (this.configurableActionsService) {
+        await this.configurableActionsService.executeAction(actionMatch);
+      }
 
       // Stop dictation, audio recording, and hide window
       await this.stopDictation();
@@ -155,6 +161,24 @@ class WhisperMacApp {
         this.toggleRecording();
       }
     });
+
+    // Listen for actions configuration updates
+    this.settingsManager.on(
+      "actions-updated",
+      (actionsConfig: DefaultActionsConfig) => {
+        if (this.configurableActionsService && actionsConfig?.actions) {
+          this.configurableActionsService.setActions(actionsConfig.actions);
+        }
+      }
+    );
+
+    // Initialize actions from current settings
+    const actionsConfig = this.settingsManager.get(
+      "actions"
+    ) as DefaultActionsConfig;
+    if (this.configurableActionsService && actionsConfig?.actions) {
+      this.configurableActionsService.setActions(actionsConfig.actions);
+    }
   }
 
   private setSetupStatus(status: SetupStatus) {

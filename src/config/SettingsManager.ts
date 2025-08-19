@@ -8,24 +8,27 @@ import {
   copyFileSync,
   rmSync,
 } from "fs";
+import { EventEmitter } from "events";
 import {
   AppConfig,
   AiTransformationConfig,
   DictationWindowPosition,
 } from "./AppConfig";
+import { DefaultActionsConfig } from "../types/ActionTypes";
 import {
   getDefaultSettings,
   validateSettings,
   SETTINGS_SCHEMA,
 } from "./SettingsSchema";
 
-export class SettingsManager {
+export class SettingsManager extends EventEmitter {
   private settingsPath: string;
   private settings: Record<string, any>;
   private config: AppConfig;
   private previousDataDir: string;
 
   constructor(config: AppConfig) {
+    super();
     this.config = config;
     this.settingsPath = join(config.dataDir, "settings.json");
     this.settings = this.loadSettings();
@@ -266,6 +269,9 @@ export class SettingsManager {
       // Update settings path to new location
       this.updateSettingsPath();
     }
+
+    // Notify about actions configuration changes
+    this.emit?.("actions-updated", this.get<DefaultActionsConfig>("actions"));
   }
 
   /**

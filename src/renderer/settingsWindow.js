@@ -246,6 +246,9 @@ class SettingsWindow {
 
     // Bind field events after DOM is created
     this.bindFieldEvents();
+
+    // Initialize actions editors
+    this.initializeActionsEditors();
   }
 
   buildField(field, fieldIndex) {
@@ -432,6 +435,26 @@ class SettingsWindow {
               <i class="ph-duotone ph-folder-open"></i>
               Browse
             </button>
+          </div>
+        `;
+        break;
+
+      case "actions-editor":
+        fieldHtml = `
+          <div class="actions-editor-container" id="${fieldId}">
+            <div class="actions-editor-toolbar">
+              <button type="button" class="btn btn-primary btn-sm add-action-btn">
+                <i class="ph-duotone ph-plus"></i>
+                Add Action
+              </button>
+              <button type="button" class="btn btn-default btn-sm reset-actions-btn">
+                <i class="ph-duotone ph-arrow-clockwise"></i>
+                Reset to Defaults
+              </button>
+            </div>
+            <div class="actions-list" data-key="${field.key}">
+              <!-- Actions will be rendered here -->
+            </div>
           </div>
         `;
         break;
@@ -1363,6 +1386,694 @@ class SettingsWindow {
     const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  initializeActionsEditors() {
+    document
+      .querySelectorAll(".actions-editor-container")
+      .forEach((container) => {
+        const key = container.querySelector(".actions-list").dataset.key;
+        this.renderActionsEditor(container, key);
+        this.bindActionsEditorEvents(container, key);
+      });
+  }
+
+  renderActionsEditor(container, key) {
+    const actionsList = container.querySelector(".actions-list");
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+
+    actionsList.innerHTML = "";
+
+    if (!actionsConfig.actions || actionsConfig.actions.length === 0) {
+      actionsList.innerHTML = `
+        <div class="empty-actions-state">
+          <i class="ph-duotone ph-lightning"></i>
+          <p>No actions configured</p>
+          <p class="empty-subtitle">Add your first voice action to get started</p>
+        </div>
+      `;
+      return;
+    }
+
+    actionsConfig.actions.forEach((action, index) => {
+      const actionCard = this.createActionCard(action, index, key);
+      actionsList.appendChild(actionCard);
+    });
+  }
+
+  createActionCard(action, index, key) {
+    const card = document.createElement("div");
+    card.className = "action-card";
+    card.dataset.actionIndex = index;
+
+    const matchPatternsHtml = action.matchPatterns
+      .map((pattern, patternIndex) =>
+        this.createMatchPatternHtml(pattern, index, patternIndex, key)
+      )
+      .join("");
+
+    const handlersHtml = action.handlers
+      .map((handler, handlerIndex) =>
+        this.createHandlerHtml(handler, index, handlerIndex, key)
+      )
+      .join("");
+
+    card.innerHTML = `
+      <div class="action-card-header">
+        <div class="action-info">
+          <div class="action-toggle">
+            <input type="checkbox" class="action-enabled-checkbox" 
+                   ${action.enabled ? "checked" : ""} 
+                   data-action-index="${index}" data-key="${key}">
+            <h4 class="action-name">${this.escapeHtml(action.name)}</h4>
+          </div>
+          <p class="action-description">${this.escapeHtml(
+            action.description
+          )}</p>
+        </div>
+        <div class="action-controls">
+          <button type="button" class="btn btn-icon-only expand-action-btn" title="Toggle details">
+            <i class="ph-duotone ph-caret-down"></i>
+          </button>
+          <button type="button" class="btn btn-icon-only btn-negative delete-action-btn" 
+                  data-action-index="${index}" data-key="${key}" title="Delete action">
+            <i class="ph-duotone ph-trash"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div class="action-card-body collapsed">
+        <div class="action-form-group">
+          <label>Action Name</label>
+          <input type="text" class="form-control action-name-input" 
+                 value="${this.escapeHtml(action.name)}" 
+                 data-action-index="${index}" data-key="${key}">
+        </div>
+        
+        <div class="action-form-group">
+          <label>Description</label>
+          <input type="text" class="form-control action-description-input" 
+                 value="${this.escapeHtml(action.description)}" 
+                 data-action-index="${index}" data-key="${key}">
+        </div>
+
+        <div class="patterns-section">
+          <div class="section-header-small">
+            <h5>Match Patterns</h5>
+            <button type="button" class="btn btn-sm add-pattern-btn" 
+                    data-action-index="${index}" data-key="${key}">
+              <i class="ph-duotone ph-plus"></i>
+              Add Pattern
+            </button>
+          </div>
+          <div class="patterns-list">
+            ${matchPatternsHtml}
+          </div>
+        </div>
+
+        <div class="handlers-section">
+          <div class="section-header-small">
+            <h5>Action Handlers</h5>
+            <button type="button" class="btn btn-sm add-handler-btn" 
+                    data-action-index="${index}" data-key="${key}">
+              <i class="ph-duotone ph-plus"></i>
+              Add Handler
+            </button>
+          </div>
+          <div class="handlers-list">
+            ${handlersHtml}
+          </div>
+        </div>
+      </div>
+    `;
+
+    return card;
+  }
+
+  createMatchPatternHtml(pattern, actionIndex, patternIndex, key) {
+    return `
+      <div class="pattern-item" data-pattern-index="${patternIndex}">
+        <div class="pattern-controls">
+          <select class="form-control pattern-type-select" 
+                  data-action-index="${actionIndex}" 
+                  data-pattern-index="${patternIndex}" 
+                  data-key="${key}">
+            <option value="startsWith" ${
+              pattern.type === "startsWith" ? "selected" : ""
+            }>Starts with</option>
+            <option value="endsWith" ${
+              pattern.type === "endsWith" ? "selected" : ""
+            }>Ends with</option>
+            <option value="exact" ${
+              pattern.type === "exact" ? "selected" : ""
+            }>Exact match</option>
+            <option value="regex" ${
+              pattern.type === "regex" ? "selected" : ""
+            }>Regular expression</option>
+          </select>
+          <input type="text" class="form-control pattern-input" 
+                 placeholder="Pattern text..." 
+                 value="${this.escapeHtml(pattern.pattern)}"
+                 data-action-index="${actionIndex}" 
+                 data-pattern-index="${patternIndex}" 
+                 data-key="${key}">
+          <label class="case-sensitive-label">
+            <input type="checkbox" class="pattern-case-sensitive" 
+                   ${pattern.caseSensitive ? "checked" : ""}
+                   data-action-index="${actionIndex}" 
+                   data-pattern-index="${patternIndex}" 
+                   data-key="${key}">
+            Case sensitive
+          </label>
+          <button type="button" class="btn btn-icon-only btn-negative delete-pattern-btn" 
+                  data-action-index="${actionIndex}" 
+                  data-pattern-index="${patternIndex}" 
+                  data-key="${key}">
+            <i class="ph-duotone ph-x"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  createHandlerHtml(handler, actionIndex, handlerIndex, key) {
+    const handlerConfig = this.createHandlerConfigHtml(
+      handler,
+      actionIndex,
+      handlerIndex,
+      key
+    );
+
+    return `
+      <div class="handler-item" data-handler-index="${handlerIndex}">
+        <div class="handler-header">
+          <select class="form-control handler-type-select" 
+                  data-action-index="${actionIndex}" 
+                  data-handler-index="${handlerIndex}" 
+                  data-key="${key}">
+            <option value="openUrl" ${
+              handler.type === "openUrl" ? "selected" : ""
+            }>Open URL</option>
+            <option value="openApplication" ${
+              handler.type === "openApplication" ? "selected" : ""
+            }>Open Application</option>
+            <option value="quitApplication" ${
+              handler.type === "quitApplication" ? "selected" : ""
+            }>Quit Application</option>
+            <option value="executeShell" ${
+              handler.type === "executeShell" ? "selected" : ""
+            }>Execute Shell Command</option>
+          </select>
+          <input type="number" class="form-control handler-order-input" 
+                 min="1" value="${handler.order}" 
+                 title="Execution order (lower numbers run first)"
+                 data-action-index="${actionIndex}" 
+                 data-handler-index="${handlerIndex}" 
+                 data-key="${key}">
+          <button type="button" class="btn btn-icon-only btn-negative delete-handler-btn" 
+                  data-action-index="${actionIndex}" 
+                  data-handler-index="${handlerIndex}" 
+                  data-key="${key}">
+            <i class="ph-duotone ph-x"></i>
+          </button>
+        </div>
+        <div class="handler-config">
+          ${handlerConfig}
+        </div>
+      </div>
+    `;
+  }
+
+  createHandlerConfigHtml(handler, actionIndex, handlerIndex, key) {
+    switch (handler.type) {
+      case "openUrl":
+        return `
+          <div class="config-field">
+            <label>URL Template</label>
+            <input type="text" class="form-control" 
+                   placeholder="Use {argument}, {match}, etc." 
+                   value="${this.escapeHtml(handler.config.urlTemplate || "")}"
+                   data-config-field="urlTemplate"
+                   data-action-index="${actionIndex}" 
+                   data-handler-index="${handlerIndex}" 
+                   data-key="${key}">
+            <small class="field-help">Use {argument} for the matched text after the trigger</small>
+          </div>
+          <div class="config-field">
+            <label>
+              <input type="checkbox" 
+                     ${handler.config.openInBackground ? "checked" : ""}
+                     data-config-field="openInBackground"
+                     data-action-index="${actionIndex}" 
+                     data-handler-index="${handlerIndex}" 
+                     data-key="${key}">
+              Open in background
+            </label>
+          </div>
+        `;
+
+      case "openApplication":
+        return `
+          <div class="config-field">
+            <label>Application Name</label>
+            <input type="text" class="form-control" 
+                   placeholder="Leave empty to use matched text" 
+                   value="${this.escapeHtml(
+                     handler.config.applicationName || ""
+                   )}"
+                   data-config-field="applicationName"
+                   data-action-index="${actionIndex}" 
+                   data-handler-index="${handlerIndex}" 
+                   data-key="${key}">
+          </div>
+          <div class="config-field">
+            <label>
+              <input type="checkbox" 
+                     ${handler.config.waitForExit ? "checked" : ""}
+                     data-config-field="waitForExit"
+                     data-action-index="${actionIndex}" 
+                     data-handler-index="${handlerIndex}" 
+                     data-key="${key}">
+              Wait for application to exit
+            </label>
+          </div>
+        `;
+
+      case "quitApplication":
+        return `
+          <div class="config-field">
+            <label>Application Name</label>
+            <input type="text" class="form-control" 
+                   placeholder="Leave empty to quit WhisperMac" 
+                   value="${this.escapeHtml(
+                     handler.config.applicationName || ""
+                   )}"
+                   data-config-field="applicationName"
+                   data-action-index="${actionIndex}" 
+                   data-handler-index="${handlerIndex}" 
+                   data-key="${key}">
+          </div>
+          <div class="config-field">
+            <label>
+              <input type="checkbox" 
+                     ${handler.config.forceQuit ? "checked" : ""}
+                     data-config-field="forceQuit"
+                     data-action-index="${actionIndex}" 
+                     data-handler-index="${handlerIndex}" 
+                     data-key="${key}">
+              Force quit
+            </label>
+          </div>
+        `;
+
+      case "executeShell":
+        return `
+          <div class="config-field">
+            <label>Command</label>
+            <textarea class="form-control" rows="3" 
+                      placeholder="Shell command to execute"
+                      data-config-field="command"
+                      data-action-index="${actionIndex}" 
+                      data-handler-index="${handlerIndex}" 
+                      data-key="${key}">${this.escapeHtml(
+          handler.config.command || ""
+        )}</textarea>
+            <small class="field-help">Use {argument}, {match} for dynamic values</small>
+          </div>
+          <div class="config-field">
+            <label>Working Directory</label>
+            <input type="text" class="form-control" 
+                   placeholder="Optional working directory" 
+                   value="${this.escapeHtml(
+                     handler.config.workingDirectory || ""
+                   )}"
+                   data-config-field="workingDirectory"
+                   data-action-index="${actionIndex}" 
+                   data-handler-index="${handlerIndex}" 
+                   data-key="${key}">
+          </div>
+          <div class="config-field">
+            <label>Timeout (ms)</label>
+            <input type="number" class="form-control" 
+                   placeholder="10000" 
+                   value="${handler.config.timeout || ""}"
+                   data-config-field="timeout"
+                   data-action-index="${actionIndex}" 
+                   data-handler-index="${handlerIndex}" 
+                   data-key="${key}">
+          </div>
+          <div class="config-field">
+            <label>
+              <input type="checkbox" 
+                     ${handler.config.runInBackground ? "checked" : ""}
+                     data-config-field="runInBackground"
+                     data-action-index="${actionIndex}" 
+                     data-handler-index="${handlerIndex}" 
+                     data-key="${key}">
+              Run in background
+            </label>
+          </div>
+        `;
+
+      default:
+        return '<div class="config-field">Unknown handler type</div>';
+    }
+  }
+
+  bindActionsEditorEvents(container, key) {
+    // Add action button
+    container
+      .querySelector(".add-action-btn")
+      ?.addEventListener("click", () => {
+        this.addNewAction(key);
+      });
+
+    // Reset actions button
+    container
+      .querySelector(".reset-actions-btn")
+      ?.addEventListener("click", () => {
+        this.resetActionsToDefaults(key);
+      });
+
+    // Action card events
+    container.addEventListener("click", (e) => {
+      if (e.target.closest(".expand-action-btn")) {
+        this.toggleActionCard(e.target.closest(".action-card"));
+      } else if (e.target.closest(".delete-action-btn")) {
+        const actionIndex = parseInt(
+          e.target.closest(".delete-action-btn").dataset.actionIndex
+        );
+        this.deleteAction(key, actionIndex);
+      } else if (e.target.closest(".add-pattern-btn")) {
+        const actionIndex = parseInt(
+          e.target.closest(".add-pattern-btn").dataset.actionIndex
+        );
+        this.addNewPattern(key, actionIndex);
+      } else if (e.target.closest(".delete-pattern-btn")) {
+        const btn = e.target.closest(".delete-pattern-btn");
+        const actionIndex = parseInt(btn.dataset.actionIndex);
+        const patternIndex = parseInt(btn.dataset.patternIndex);
+        this.deletePattern(key, actionIndex, patternIndex);
+      } else if (e.target.closest(".add-handler-btn")) {
+        const actionIndex = parseInt(
+          e.target.closest(".add-handler-btn").dataset.actionIndex
+        );
+        this.addNewHandler(key, actionIndex);
+      } else if (e.target.closest(".delete-handler-btn")) {
+        const btn = e.target.closest(".delete-handler-btn");
+        const actionIndex = parseInt(btn.dataset.actionIndex);
+        const handlerIndex = parseInt(btn.dataset.handlerIndex);
+        this.deleteHandler(key, actionIndex, handlerIndex);
+      }
+    });
+
+    // Form input events
+    container.addEventListener("input", (e) => {
+      this.handleActionsEditorInput(e, key);
+    });
+
+    container.addEventListener("change", (e) => {
+      this.handleActionsEditorInput(e, key);
+    });
+  }
+
+  handleActionsEditorInput(e, key) {
+    const target = e.target;
+
+    if (target.classList.contains("action-enabled-checkbox")) {
+      const actionIndex = parseInt(target.dataset.actionIndex);
+      this.updateActionField(key, actionIndex, "enabled", target.checked);
+    } else if (target.classList.contains("action-name-input")) {
+      const actionIndex = parseInt(target.dataset.actionIndex);
+      this.updateActionField(key, actionIndex, "name", target.value);
+    } else if (target.classList.contains("action-description-input")) {
+      const actionIndex = parseInt(target.dataset.actionIndex);
+      this.updateActionField(key, actionIndex, "description", target.value);
+    } else if (target.classList.contains("pattern-type-select")) {
+      const actionIndex = parseInt(target.dataset.actionIndex);
+      const patternIndex = parseInt(target.dataset.patternIndex);
+      this.updatePatternField(
+        key,
+        actionIndex,
+        patternIndex,
+        "type",
+        target.value
+      );
+    } else if (target.classList.contains("pattern-input")) {
+      const actionIndex = parseInt(target.dataset.actionIndex);
+      const patternIndex = parseInt(target.dataset.patternIndex);
+      this.updatePatternField(
+        key,
+        actionIndex,
+        patternIndex,
+        "pattern",
+        target.value
+      );
+    } else if (target.classList.contains("pattern-case-sensitive")) {
+      const actionIndex = parseInt(target.dataset.actionIndex);
+      const patternIndex = parseInt(target.dataset.patternIndex);
+      this.updatePatternField(
+        key,
+        actionIndex,
+        patternIndex,
+        "caseSensitive",
+        target.checked
+      );
+    } else if (target.classList.contains("handler-type-select")) {
+      const actionIndex = parseInt(target.dataset.actionIndex);
+      const handlerIndex = parseInt(target.dataset.handlerIndex);
+      this.updateHandlerType(key, actionIndex, handlerIndex, target.value);
+    } else if (target.classList.contains("handler-order-input")) {
+      const actionIndex = parseInt(target.dataset.actionIndex);
+      const handlerIndex = parseInt(target.dataset.handlerIndex);
+      this.updateHandlerField(
+        key,
+        actionIndex,
+        handlerIndex,
+        "order",
+        parseInt(target.value) || 1
+      );
+    } else if (target.dataset.configField) {
+      const actionIndex = parseInt(target.dataset.actionIndex);
+      const handlerIndex = parseInt(target.dataset.handlerIndex);
+      const field = target.dataset.configField;
+      const value = target.type === "checkbox" ? target.checked : target.value;
+      this.updateHandlerConfig(key, actionIndex, handlerIndex, field, value);
+    }
+  }
+
+  addNewAction(key) {
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    const newAction = {
+      id: `action-${Date.now()}`,
+      name: "New Action",
+      description: "Description for new action",
+      enabled: true,
+      matchPatterns: [
+        {
+          id: `pattern-${Date.now()}`,
+          type: "startsWith",
+          pattern: "trigger ",
+          caseSensitive: false,
+        },
+      ],
+      handlers: [
+        {
+          id: `handler-${Date.now()}`,
+          type: "openUrl",
+          config: {
+            urlTemplate: "{argument}",
+            openInBackground: false,
+          },
+          order: 1,
+        },
+      ],
+    };
+
+    actionsConfig.actions.push(newAction);
+    this.setSettingValue(key, actionsConfig);
+
+    const container = document
+      .querySelector(`[data-key="${key}"]`)
+      .closest(".actions-editor-container");
+    this.renderActionsEditor(container, key);
+  }
+
+  deleteAction(key, actionIndex) {
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    if (confirm("Are you sure you want to delete this action?")) {
+      actionsConfig.actions.splice(actionIndex, 1);
+      this.setSettingValue(key, actionsConfig);
+
+      const container = document
+        .querySelector(`[data-key="${key}"]`)
+        .closest(".actions-editor-container");
+      this.renderActionsEditor(container, key);
+    }
+  }
+
+  addNewPattern(key, actionIndex) {
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    const newPattern = {
+      id: `pattern-${Date.now()}`,
+      type: "startsWith",
+      pattern: "",
+      caseSensitive: false,
+    };
+
+    actionsConfig.actions[actionIndex].matchPatterns.push(newPattern);
+    this.setSettingValue(key, actionsConfig);
+
+    const container = document
+      .querySelector(`[data-key="${key}"]`)
+      .closest(".actions-editor-container");
+    this.renderActionsEditor(container, key);
+  }
+
+  deletePattern(key, actionIndex, patternIndex) {
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    if (actionsConfig.actions[actionIndex].matchPatterns.length <= 1) {
+      alert("Each action must have at least one match pattern.");
+      return;
+    }
+
+    actionsConfig.actions[actionIndex].matchPatterns.splice(patternIndex, 1);
+    this.setSettingValue(key, actionsConfig);
+
+    const container = document
+      .querySelector(`[data-key="${key}"]`)
+      .closest(".actions-editor-container");
+    this.renderActionsEditor(container, key);
+  }
+
+  addNewHandler(key, actionIndex) {
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    const newHandler = {
+      id: `handler-${Date.now()}`,
+      type: "openUrl",
+      config: {
+        urlTemplate: "{argument}",
+        openInBackground: false,
+      },
+      order: actionsConfig.actions[actionIndex].handlers.length + 1,
+    };
+
+    actionsConfig.actions[actionIndex].handlers.push(newHandler);
+    this.setSettingValue(key, actionsConfig);
+
+    const container = document
+      .querySelector(`[data-key="${key}"]`)
+      .closest(".actions-editor-container");
+    this.renderActionsEditor(container, key);
+  }
+
+  deleteHandler(key, actionIndex, handlerIndex) {
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    if (actionsConfig.actions[actionIndex].handlers.length <= 1) {
+      alert("Each action must have at least one handler.");
+      return;
+    }
+
+    actionsConfig.actions[actionIndex].handlers.splice(handlerIndex, 1);
+    this.setSettingValue(key, actionsConfig);
+
+    const container = document
+      .querySelector(`[data-key="${key}"]`)
+      .closest(".actions-editor-container");
+    this.renderActionsEditor(container, key);
+  }
+
+  updateActionField(key, actionIndex, field, value) {
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    actionsConfig.actions[actionIndex][field] = value;
+    this.setSettingValue(key, actionsConfig);
+  }
+
+  updatePatternField(key, actionIndex, patternIndex, field, value) {
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    actionsConfig.actions[actionIndex].matchPatterns[patternIndex][field] =
+      value;
+    this.setSettingValue(key, actionsConfig);
+  }
+
+  updateHandlerField(key, actionIndex, handlerIndex, field, value) {
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    actionsConfig.actions[actionIndex].handlers[handlerIndex][field] = value;
+    this.setSettingValue(key, actionsConfig);
+  }
+
+  updateHandlerType(key, actionIndex, handlerIndex, newType) {
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    const handler = actionsConfig.actions[actionIndex].handlers[handlerIndex];
+
+    handler.type = newType;
+
+    // Reset config to defaults for new type
+    switch (newType) {
+      case "openUrl":
+        handler.config = { urlTemplate: "{argument}", openInBackground: false };
+        break;
+      case "openApplication":
+        handler.config = { applicationName: "{argument}", waitForExit: false };
+        break;
+      case "quitApplication":
+        handler.config = { applicationName: "{argument}", forceQuit: false };
+        break;
+      case "executeShell":
+        handler.config = {
+          command: "",
+          runInBackground: false,
+          timeout: 10000,
+        };
+        break;
+    }
+
+    this.setSettingValue(key, actionsConfig);
+
+    const container = document
+      .querySelector(`[data-key="${key}"]`)
+      .closest(".actions-editor-container");
+    this.renderActionsEditor(container, key);
+  }
+
+  updateHandlerConfig(key, actionIndex, handlerIndex, field, value) {
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    actionsConfig.actions[actionIndex].handlers[handlerIndex].config[field] =
+      value;
+    this.setSettingValue(key, actionsConfig);
+  }
+
+  toggleActionCard(card) {
+    const body = card.querySelector(".action-card-body");
+    const icon = card.querySelector(".expand-action-btn i");
+
+    if (body.classList.contains("collapsed")) {
+      body.classList.remove("collapsed");
+      icon.className = "ph-duotone ph-caret-up";
+    } else {
+      body.classList.add("collapsed");
+      icon.className = "ph-duotone ph-caret-down";
+    }
+  }
+
+  resetActionsToDefaults(key) {
+    if (
+      confirm(
+        "Reset all actions to defaults? This will remove any custom actions you have created."
+      )
+    ) {
+      // We need to get the default from the schema
+      const field = this.schema
+        .find((s) => s.id === "actions")
+        ?.fields.find((f) => f.key === key);
+      if (field) {
+        this.setSettingValue(key, field.defaultValue);
+        const container = document
+          .querySelector(`[data-key="${key}"]`)
+          .closest(".actions-editor-container");
+        this.renderActionsEditor(container, key);
+      }
+    }
   }
 
   async loadPluginDataInfo() {
