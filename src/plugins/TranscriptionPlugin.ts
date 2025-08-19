@@ -117,6 +117,16 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   ): Promise<void>;
 
   /**
+   * Called when the dictation window is shown. Default is no-op.
+   */
+  onDictationWindowShow(): void {}
+
+  /**
+   * Called when the dictation window is hidden. Default is no-op.
+   */
+  onDictationWindowHide(): void {}
+
+  /**
    * Check if the plugin is currently transcribing
    */
   isTranscribing(): boolean {

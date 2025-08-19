@@ -165,6 +165,18 @@
         line-height: 1.2;
       }
 
+      .text-segment.in-progress.no-caret::after {
+        content: none;
+      }
+
+      .in-progress-spinner {
+        width: 14px;
+        height: 14px;
+        animation: spin 0.9s linear infinite;
+        display: inline-block;
+        vertical-align: text-bottom;
+      }
+
       .separator {
         color: #6e6e73;
         font-size: 12px;
@@ -359,9 +371,21 @@
               v-for="(segment, index) in displaySegments"
               :key="segment.id || index"
               class="text-segment"
-              :class="getSegmentClass(segment)"
+              :class="[getSegmentClass(segment), segment.type === 'inprogress' ? 'no-caret' : '']"
             >
-              {{ getSegmentDisplayText(segment) }}
+              <template v-if="segment.type === 'inprogress'">
+                <svg
+                  class="in-progress-spinner"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 256 256"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M134 32v32a6 6 0 0 1-12 0V32a6 6 0 0 1 12 0m39.25 56.75A6 6 0 0 0 177.5 87l22.62-22.63a6 6 0 0 0-8.48-8.48L169 78.5a6 6 0 0 0 4.24 10.25ZM224 122h-32a6 6 0 0 0 0 12h32a6 6 0 0 0 0-12m-46.5 47a6 6 0 0 0-8.5 8.5l22.63 22.62a6 6 0 0 0 8.48-8.48ZM128 186a6 6 0 0 0-6 6v32a6 6 0 0 0 12 0v-32a6 6 0 0 0-6-6m-49.5-17l-22.62 22.64a6 6 0 1 0 8.48 8.48L87 177.5a6 6 0 1 0-8.5-8.5M70 128a6 6 0 0 0-6-6H32a6 6 0 0 0 0 12h32a6 6 0 0 0 6-6m-5.64-72.12a6 6 0 0 0-8.48 8.48L78.5 87a6 6 0 1 0 8.5-8.5Z"
+                  />
+                </svg>
+              </template>
+              <template v-else> {{ getSegmentDisplayText(segment) }} </template>
             </span>
             <span
               v-if="displaySegments.length === 0"
@@ -544,6 +568,13 @@
                 baseAssetPath: "./",
                 onnxWASMBasePath: "./",
                 model: "v5",
+                positiveSpeechThreshold: 0.5,
+                negativeSpeechThreshold: 0.35,
+                preSpeechPadFrames: 40,
+                redemptionFrames: 10,
+                frameSamples: 512,
+                minSpeechFrames: 3,
+                submitUserSpeechOnPause: true,
                 stream: stream, // Pass the stream to MicVAD
                 onSpeechStart: () => {
                   console.log("VAD: Speech started");

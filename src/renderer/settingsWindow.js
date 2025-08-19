@@ -7,6 +7,7 @@ class SettingsWindow {
     this.validationErrors = {};
     this.pluginData = { plugins: [], options: {} };
     this.activePlugin = null;
+    this.aiModelsState = { loading: false, loadedForBaseUrl: null };
 
     this.init();
   }
@@ -673,7 +674,8 @@ class SettingsWindow {
 
           // Handle AI base URL changes to reload models
           if (key === "ai.baseUrl") {
-            this.loadAiModels();
+            this.aiModelsState.loadedForBaseUrl = null;
+            this.maybeLoadAiModels(true);
           }
         });
       }
@@ -836,7 +838,7 @@ class SettingsWindow {
     if (sectionId === "data") {
       this.loadPluginDataInfo();
     } else if (sectionId === "ai") {
-      this.loadAiModels();
+      this.maybeLoadAiModels();
     }
   }
 
@@ -1003,6 +1005,13 @@ class SettingsWindow {
     if (!section) return;
     const field = section.fields.find((f) => f.key === "ai.model");
     if (!field) return;
+    // Mark models as loaded for current baseUrl to prevent immediate re-validation loops
+    try {
+      const currentBaseUrl = this.getSettingValue("ai.baseUrl");
+      if (currentBaseUrl) {
+        this.aiModelsState.loadedForBaseUrl = currentBaseUrl;
+      }
+    } catch {}
     field.type = "select";
     field.options = models.map((m) => ({ value: m.id, label: m.name || m.id }));
     // If the current setting is not in the list, set the first model
@@ -1016,9 +1025,19 @@ class SettingsWindow {
     this.showSection("ai");
   }
 
+  maybeLoadAiModels(force = false) {
+    const baseUrl = this.getSettingValue("ai.baseUrl");
+    if (!baseUrl) return;
+    if (this.aiModelsState.loading) return;
+    if (!force && this.aiModelsState.loadedForBaseUrl === baseUrl) return;
+    this.loadAiModels();
+  }
+
   async loadAiModels() {
     const baseUrl = this.getSettingValue("ai.baseUrl");
     if (!baseUrl) return;
+    if (this.aiModelsState.loading) return;
+    this.aiModelsState.loading = true;
 
     try {
       // Try to get the API key from secure storage
@@ -1039,6 +1058,7 @@ class SettingsWindow {
       );
 
       if (result?.success && result.models?.length > 0) {
+        this.aiModelsState.loadedForBaseUrl = baseUrl;
         this.replaceModelFieldWithDropdown(result.models);
       } else {
         // Restore original state if loading failed
@@ -1055,6 +1075,8 @@ class SettingsWindow {
         modelField.disabled = false;
         this.rebuildForm();
       }
+    } finally {
+      this.aiModelsState.loading = false;
     }
   }
 

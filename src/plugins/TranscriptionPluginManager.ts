@@ -8,6 +8,7 @@ import {
 } from "./TranscriptionPlugin";
 import { SegmentUpdate } from "../types/SegmentTypes";
 import { AppConfig } from "../config/AppConfig";
+import { appEventBus } from "../services/AppEventBus";
 
 export class TranscriptionPluginManager extends EventEmitter {
   private plugins: Map<string, BaseTranscriptionPlugin> = new Map();
@@ -17,6 +18,18 @@ export class TranscriptionPluginManager extends EventEmitter {
   constructor(config: AppConfig) {
     super();
     this.config = config;
+
+    // Forward global dictation window visibility events to active plugin
+    appEventBus.on("dictation-window-shown", () => {
+      try {
+        this.activePlugin?.onDictationWindowShow?.();
+      } catch {}
+    });
+    appEventBus.on("dictation-window-hidden", () => {
+      try {
+        this.activePlugin?.onDictationWindowHide?.();
+      } catch {}
+    });
   }
 
   /**
@@ -149,6 +162,13 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   getActivePlugin(): BaseTranscriptionPlugin | null {
     return this.activePlugin;
+  }
+
+  /**
+   * Get the name of the active transcription plugin
+   */
+  getActivePluginName(): string | null {
+    return this.activePlugin?.name || null;
   }
 
   /**
