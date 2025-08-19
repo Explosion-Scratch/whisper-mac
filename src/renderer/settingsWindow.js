@@ -38,13 +38,8 @@ class SettingsWindow {
         this.showSection(this.schema[0].id);
       }
 
-      // Validate AI configuration if AI is enabled
-      if (this.getSettingValue("ai.enabled")) {
-        // Delay validation slightly to ensure UI is ready
-        setTimeout(() => {
-          this.validateAiConfiguration();
-        }, 500);
-      }
+      // AI validation will only happen when user manually interacts with API key
+      // No automatic validation on window open
     } catch (error) {
       console.error("Failed to initialize settings window:", error);
       this.showStatus("Failed to load settings", "error");
@@ -696,16 +691,12 @@ class SettingsWindow {
           if (key === "ai.baseUrl") {
             this.aiModelsState.loadedForBaseUrl = null;
             this.maybeLoadAiModels(true);
-
-            // If AI is enabled, validate the new configuration
-            if (this.getSettingValue("ai.enabled")) {
-              this.validateAiConfiguration();
-            }
+            // No automatic validation - only validate when user manually interacts with API key
           }
 
-          // Handle AI model changes - validate if AI is enabled
-          if (key === "ai.model" && this.getSettingValue("ai.enabled")) {
-            this.validateAiConfiguration();
+          // Handle AI model changes - no automatic validation
+          if (key === "ai.model") {
+            // Model changes don't require immediate validation
           }
         });
       }
@@ -869,6 +860,7 @@ class SettingsWindow {
       this.loadPluginDataInfo();
     } else if (sectionId === "ai") {
       this.maybeLoadAiModels();
+      // No automatic validation on section navigation - only validate when user manually interacts
     }
   }
 
@@ -1174,7 +1166,7 @@ class SettingsWindow {
     }
     // Rebuild just the AI section to reflect the dropdown
     this.rebuildForm();
-    this.showSection("ai");
+    // Don't force navigation to AI section - stay on current section
   }
 
   maybeLoadAiModels(force = false) {
