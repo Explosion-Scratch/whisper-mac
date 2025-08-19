@@ -45,12 +45,14 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   private currentSegments: Segment[] = [];
   private tempDir: string;
   private whisperBinaryPath: string;
-  private modelPath: string;
+  private modelPath: string = "";
   private isAppleSilicon: boolean;
   private resolvedBinaryPath: string;
   private warmupTimer: NodeJS.Timeout | null = null;
   private isWarmupRunning = false;
   private isWindowVisible = false;
+  private isCurrentlyTranscribing = false;
+  private useCoreML = false;
 
   constructor(config: AppConfig) {
     super();
@@ -58,9 +60,12 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.tempDir = mkdtempSync(join(tmpdir(), "whisper-cpp-plugin-"));
     this.isAppleSilicon = arch() === "arm64" && platform() === "darwin";
     this.whisperBinaryPath = this.resolveWhisperBinaryPath(); // Keep for backward compatibility
-    this.modelPath = this.resolveModelPath();
+    // Don't set modelPath here - wait for options to be applied
     this.resolvedBinaryPath = this.getBinaryPath(true); // Resolve once and store
     this.setActivationCriteria({ runOnAll: false, skipTransformation: false });
+
+    // Load Core ML setting
+    this.useCoreML = this.config.get("whisperCppUseCoreML") || false;
   }
 
   private resolveWhisperBinaryPath(): string {
@@ -161,6 +166,11 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         whisperProcess.stdout?.on("data", (data) => {
           console.log("Whisper.cpp data: ", data.toString());
           hasOutput = true;
+          resolve(true);
+        });
+        whisperProcess.stderr?.on("data", (data) => {
+          hasOutput = true;
+          resolve(true);
         });
 
         whisperProcess.on("close", (code) => {
@@ -209,8 +219,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
 
     try {
-      // Refresh paths in case onboarding updated them
-      this.modelPath = this.resolveModelPath();
+      // Model path should already be set by the unified plugin system
+      // Don't override it here
 
       onProgress?.({
         status: "starting",
@@ -218,8 +228,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       });
 
       // Log which binary and Core ML model will be used
-      const modelName =
-        this.config.get("whisperCppModel") || "ggml-base.en.bin";
+      const modelName = this.options.model || "ggml-base.en.bin";
       const coreMLPath = this.getCoreMLModelPath(modelName);
 
       console.log(`Whisper.cpp binary: ${this.resolvedBinaryPath}`);
@@ -264,6 +273,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
 
     try {
+      this.isCurrentlyTranscribing = true;
       console.log(`Processing audio segment: ${audioData.length} samples`);
 
       // Create temporary WAV file for whisper.cpp
@@ -340,6 +350,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
           sessionUid: this.sessionUid,
         });
       }
+    } finally {
+      this.isCurrentlyTranscribing = false;
     }
   }
 
@@ -359,6 +371,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.setRunning(false);
     this.setTranscriptionCallback(null);
     this.currentSegments = [];
+    this.isCurrentlyTranscribing = false;
 
     console.log("Whisper.cpp transcription plugin stopped");
   }
@@ -379,7 +392,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   getConfigSchema(): TranscriptionPluginConfigSchema {
-    return {
+    const schema: TranscriptionPluginConfigSchema = {
       model: {
         type: "select",
         label: "Model",
@@ -450,6 +463,18 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         max: 16,
       },
     };
+
+    // Add Core ML option only on Apple Silicon
+    if (this.isAppleSilicon) {
+      schema.useCoreML = {
+        type: "boolean",
+        label: "Use Core ML Acceleration",
+        description: "Use Apple Metal acceleration for faster transcription",
+        default: false,
+      };
+    }
+
+    return schema;
   }
 
   configure(config: Record<string, any>): void {
@@ -462,6 +487,12 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
     if (config.threads !== undefined) {
       this.config.set("whisperCppThreads", config.threads);
+    }
+    if (config.useCoreML !== undefined) {
+      this.config.set("whisperCppUseCoreML", config.useCoreML);
+      this.useCoreML = config.useCoreML;
+      // Update binary path when Core ML setting changes
+      this.resolvedBinaryPath = this.getBinaryPath(true);
     }
   }
 
@@ -645,7 +676,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
    * @returns Path to the appropriate binary
    */
   getBinaryPath(preferMetal = true): string {
-    if (this.isAppleSilicon && preferMetal) {
+    if (this.isAppleSilicon && this.useCoreML) {
       // Try production bundled Metal path first
       const packagedMetalPath = join(
         process.resourcesPath,
@@ -791,18 +822,19 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         reject(error);
       });
 
-      // Set timeout to prevent hanging
+      // Set timeout to prevent hanging (3 minutes)
       setTimeout(() => {
         if (!whisperProcess.killed) {
+          console.error("Whisper.cpp transcription timeout after 3 minutes");
           whisperProcess.kill();
           reject(new Error("Whisper.cpp transcription timeout"));
         }
-      }, 60000); // 60 second timeout (whisper.cpp can be slower than YAP)
+      }, 180000); // 3 minute timeout
     });
   }
 
   // New unified plugin system methods
-  getOptions() {
+  getOptions(): PluginOption[] {
     const whisperModels = [
       {
         value: "ggml-tiny.bin",
@@ -896,7 +928,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       },
     ];
 
-    return [
+    const options = [
       {
         key: "model",
         type: "model-select" as const,
@@ -929,7 +961,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
           { value: "zh", label: "Chinese" },
         ],
       },
-
       {
         key: "threads",
         type: "number" as const,
@@ -941,6 +972,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         category: "advanced" as const,
       },
     ];
+
+    return options;
   }
 
   async verifyOptions(
@@ -972,9 +1005,11 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.setActive(true);
 
     try {
-      // Check if model exists - this is required for activation
+      // Get model from stored options (unified plugin system), fallback to default
       const modelName =
-        this.config.get("whisperCppModel") || "ggml-base.en.bin";
+        this.options.model ||
+        this.getOptions().find((opt) => opt.key === "model")?.default ||
+        "ggml-base.en.bin";
       const modelPath = join(this.config.getModelsDir(), modelName);
 
       if (!existsSync(modelPath)) {
@@ -983,9 +1018,14 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         throw new Error(error);
       }
 
+      // Update the model path with the correct model
+      this.modelPath = modelPath;
       this.setError(null);
       console.log(`Whisper.cpp plugin activated with model: ${modelName}`);
+
+      // Start warmup loop and run initial warmup
       this.startWarmupLoop();
+      this.runWarmupIfIdle();
     } catch (error) {
       this.setActive(false);
       throw error;
@@ -1063,26 +1103,98 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   ): Promise<void> {
     this.setOptions(options);
 
+    // Handle Core ML setting changes
+    if (
+      options.useCoreML !== undefined &&
+      options.useCoreML !== this.useCoreML
+    ) {
+      const modelName = this.options.model || "ggml-base.en.bin";
+
+      if (options.useCoreML) {
+        // Enable Core ML - download Core ML model
+        if (uiFunctions) {
+          uiFunctions.showProgress(
+            `Downloading Core ML model for ${modelName}...`,
+            0
+          );
+        }
+        this.setLoadingState(
+          true,
+          `Downloading Core ML model for ${modelName}...`
+        );
+
+        try {
+          const coreMLPath = await this.downloadCoreMLModel(modelName);
+          if (coreMLPath) {
+            this.useCoreML = true;
+            this.config.set("whisperCppUseCoreML", true);
+            this.resolvedBinaryPath = this.getBinaryPath(true);
+
+            if (uiFunctions) {
+              uiFunctions.showSuccess(`Core ML model downloaded successfully`);
+              uiFunctions.hideProgress();
+            }
+          } else {
+            throw new Error("Failed to download Core ML model");
+          }
+        } catch (error) {
+          const errorMsg = `Failed to download Core ML model: ${error}`;
+          this.setError(errorMsg);
+          this.setLoadingState(false);
+          if (uiFunctions) {
+            uiFunctions.showError(errorMsg);
+            uiFunctions.hideProgress();
+          }
+        }
+      } else {
+        // Disable Core ML - delete Core ML models
+        if (uiFunctions) {
+          uiFunctions.showProgress("Removing Core ML models...", 0);
+        }
+        this.setLoadingState(true, "Removing Core ML models...");
+
+        try {
+          await this.deleteCoreMLModels();
+          this.useCoreML = false;
+          this.config.set("whisperCppUseCoreML", false);
+          this.resolvedBinaryPath = this.getBinaryPath(true);
+
+          if (uiFunctions) {
+            uiFunctions.showSuccess("Core ML models removed successfully");
+            uiFunctions.hideProgress();
+          }
+        } catch (error) {
+          const errorMsg = `Failed to remove Core ML models: ${error}`;
+          this.setError(errorMsg);
+          this.setLoadingState(false);
+          if (uiFunctions) {
+            uiFunctions.showError(errorMsg);
+            uiFunctions.hideProgress();
+          }
+        }
+      }
+    }
+
     // Handle model changes
-    if (options.model && options.model !== this.config.get("whisperCppModel")) {
+    if (options.model && options.model !== this.options.model) {
       if (uiFunctions) {
         uiFunctions.showProgress(`Switching to model ${options.model}...`, 0);
       }
       this.setLoadingState(true, `Switching to model ${options.model}...`);
 
       try {
-        // Update model path
-        this.config.set("whisperCppModel", options.model);
-        this.modelPath = this.resolveModelPath();
+        // Update model path using the new model
+        const modelPath = join(this.config.getModelsDir(), options.model);
 
         // Check if new model exists
-        if (!existsSync(this.modelPath)) {
+        if (!existsSync(modelPath)) {
           const message = `Model ${options.model} not found, may need to download...`;
           this.setLoadingState(true, message);
           if (uiFunctions) {
             uiFunctions.showError(message);
           }
         } else {
+          this.modelPath = modelPath;
           this.setLoadingState(false);
           if (uiFunctions) {
             uiFunctions.showSuccess(`Switched to model ${options.model}`);
@@ -1118,7 +1230,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     if (this.warmupTimer) return;
     this.warmupTimer = setInterval(() => {
       this.runWarmupIfIdle();
-    }, 10000);
+    }, 5000);
   }
 
   private stopWarmupLoop() {
@@ -1129,20 +1241,29 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   private async runWarmupIfIdle() {
-    if (this.isWarmupRunning) return;
+    if (this.isWarmupRunning) return; // Don't start another warmup if one is already running
     if (!this.isPluginActive()) return;
-    if (this.isWindowVisible) return;
-    if (this.isRunning) return;
+    if (this.isCurrentlyTranscribing) return;
+    if (this.isWindowVisible) return; // Don't run warmup during active dictation
 
     this.isWarmupRunning = true;
     try {
+      console.log("Whisper.cpp: Running warmup with dummy audio");
+
       // Run a tiny silent segment to keep binary/model hot
+      // Bypass transcription state management and call whisper.cpp directly
       const dummy = new Float32Array(16000);
-      await this.startTranscription(() => {});
-      await this.processAudioSegment(dummy);
-      await this.stopTranscription();
+      const tempAudioPath = await this.saveAudioAsWav(dummy);
+
+      try {
+        await this.transcribeWithWhisperCpp(tempAudioPath);
+        // Clean up temp file
+        unlinkSync(tempAudioPath);
+      } catch (e) {
+        console.warn("Whisper.cpp warmup transcription failed:", e);
+      }
     } catch (e) {
-      // best-effort
+      console.warn("Whisper.cpp warmup failed:", e);
     } finally {
       this.isWarmupRunning = false;
     }
@@ -1244,7 +1365,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       }
 
       // Update model path after successful download
-      this.modelPath = this.resolveModelPath();
+      this.modelPath = join(this.config.getModelsDir(), modelName);
 
       const finalProgress = {
         status: "complete" as const,
@@ -1268,6 +1389,38 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         uiFunctions.showError(errorMsg);
         uiFunctions.hideProgress();
       }
+      throw error;
+    }
+  }
+
+  /**
+   * Delete all Core ML models
+   */
+  private async deleteCoreMLModels(): Promise<void> {
+    if (!this.isAppleSilicon) {
+      return;
+    }
+
+    try {
+      const { readdirSync, unlinkSync, rmdirSync } = require("fs");
+      const modelsDir = this.config.getModelsDir();
+      const files = readdirSync(modelsDir);
+
+      for (const file of files) {
+        if (file.endsWith(".mlmodelc")) {
+          const modelPath = join(modelsDir, file);
+          try {
+            // Remove the .mlmodelc directory
+            const { rmSync } = require("fs");
+            rmSync(modelPath, { recursive: true, force: true });
+            console.log(`Deleted Core ML model: ${file}`);
+          } catch (err) {
+            console.warn(`Failed to delete Core ML model ${file}:`, err);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to delete Core ML models:", error);
       throw error;
     }
   }
