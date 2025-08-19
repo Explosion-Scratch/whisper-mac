@@ -224,22 +224,22 @@ export class SegmentManager extends EventEmitter {
       console.log("State restored");
     };
 
+    console.log("[SegmentManager] Transform and inject all segments");
+
+    const segmentsToProcess = this.segments.filter(
+      (s) => s.type === "transcribed"
+    ) as TranscribedSegment[];
+
+    if (segmentsToProcess.length === 0) {
+      console.log("[SegmentManager] No segments to transform and inject");
+      return { transformedText: "", segmentsProcessed: 0, success: true };
+    }
+
+    console.log(
+      `[SegmentManager] Transforming and injecting ${segmentsToProcess.length} segments`
+    );
+
     try {
-      console.log("[SegmentManager] Transform and inject all segments");
-
-      const segmentsToProcess = this.segments.filter(
-        (s) => s.type === "transcribed"
-      ) as TranscribedSegment[];
-
-      if (segmentsToProcess.length === 0) {
-        console.log("[SegmentManager] No segments to transform and inject");
-        return { transformedText: "", segmentsProcessed: 0, success: true };
-      }
-
-      console.log(
-        `[SegmentManager] Transforming and injecting ${segmentsToProcess.length} segments`
-      );
-
       // Transform all segments
       const transformResult =
         await this.transformationService.transformSegments(
@@ -252,12 +252,11 @@ export class SegmentManager extends EventEmitter {
           "[SegmentManager] Transformation failed:",
           transformResult.error
         );
-        return {
-          transformedText: "",
-          segmentsProcessed: 0,
-          success: false,
-          error: transformResult.error,
-        };
+        return this.handleTransformationFallback(
+          segmentsToProcess,
+          RESTORE_STATE,
+          transformResult.error || "Transformation failed"
+        );
       }
 
       const transformedText = transformResult.transformedText;
@@ -282,14 +281,45 @@ export class SegmentManager extends EventEmitter {
       };
     } catch (error) {
       console.error("[SegmentManager] Transform and inject failed:", error);
-      return {
-        transformedText: "",
-        segmentsProcessed: 0,
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
-      RESTORE_STATE();
+      return this.handleTransformationFallback(
+        segmentsToProcess,
+        RESTORE_STATE,
+        error instanceof Error ? error.message : "Unknown error"
+      );
     }
+  }
+
+  /**
+   * Handle fallback to original text when transformation fails
+   */
+  private handleTransformationFallback(
+    segmentsToProcess: TranscribedSegment[],
+    restoreState: () => Promise<void>,
+    error: string
+  ): FlushResult {
+    const originalText = segmentsToProcess
+      .map((segment) => segment.text.trim())
+      .filter((text) => text.length > 0)
+      .join(" ");
+
+    if (originalText) {
+      console.log(
+        `[SegmentManager] Falling back to injecting original text: "${originalText}"`
+      );
+      this.textInjectionService
+        .insertText(originalText + " ")
+        .then(restoreState);
+    }
+
+    // Clear all segments after fallback injection
+    this.clearAllSegments();
+
+    return {
+      transformedText: originalText,
+      segmentsProcessed: segmentsToProcess.length,
+      success: true,
+      error,
+    };
   }
 
   /**

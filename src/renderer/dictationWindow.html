@@ -520,6 +520,7 @@
               const myVAD = await window.vad.MicVAD.new({
                 baseAssetPath: "./",
                 onnxWASMBasePath: "./",
+                model: "v5",
                 onSpeechStart: () => {
                   console.log("VAD: Speech started");
                   if (isRecording.value) {

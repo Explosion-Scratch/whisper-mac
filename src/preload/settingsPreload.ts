@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   saveApiKeySecure: (apiKey: string) =>
     ipcRenderer.invoke("settings:saveApiKey", { apiKey }),
+  getApiKeySecure: () => ipcRenderer.invoke("settings:getApiKey"),
 
   // Legacy model management helpers (kept for compatibility)
   listDownloadedModels: () => ipcRenderer.invoke("models:listDownloaded"),

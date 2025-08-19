@@ -670,6 +670,11 @@ class SettingsWindow {
           if (key.startsWith("plugin.")) {
             await this.handlePluginOptionChange(key, element.value, oldValue);
           }
+
+          // Handle AI base URL changes to reload models
+          if (key === "ai.baseUrl") {
+            this.loadAiModels();
+          }
         });
       }
 
@@ -716,6 +721,52 @@ class SettingsWindow {
         }
       });
     });
+
+    // Handle API key input for model loading
+    const apiKeyInput = document.getElementById("aiApiKeyInline");
+    if (apiKeyInput) {
+      let debounceTimer;
+      apiKeyInput.addEventListener("input", () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          const apiKey = apiKeyInput.value.trim();
+          const baseUrl = this.getSettingValue("ai.baseUrl");
+
+          if (apiKey && baseUrl) {
+            try {
+              const result =
+                await window.electronAPI.validateApiKeyAndListModels(
+                  baseUrl,
+                  apiKey
+                );
+
+              if (result?.success && result.models?.length > 0) {
+                this.replaceModelFieldWithDropdown(result.models);
+                // Save the API key securely
+                try {
+                  await window.electronAPI.saveApiKeySecure(apiKey);
+                  apiKeyInput.value = ""; // Clear the input after saving
+                  this.showStatus(
+                    "API key validated and models loaded",
+                    "success"
+                  );
+                } catch (error) {
+                  console.error("Failed to save API key:", error);
+                }
+              } else {
+                this.showStatus(
+                  `Failed to load models: ${result?.error || "Unknown error"}`,
+                  "error"
+                );
+              }
+            } catch (error) {
+              console.error("Failed to validate API key:", error);
+              this.showStatus("Failed to validate API key", "error");
+            }
+          }
+        }, 1000); // Debounce for 1 second
+      });
+    }
   }
 
   bindEvents() {
@@ -784,6 +835,8 @@ class SettingsWindow {
     // Load data for specific sections
     if (sectionId === "data") {
       this.loadPluginDataInfo();
+    } else if (sectionId === "ai") {
+      this.loadAiModels();
     }
   }
 
@@ -961,6 +1014,56 @@ class SettingsWindow {
     // Rebuild just the AI section to reflect the dropdown
     this.rebuildForm();
     this.showSection("ai");
+  }
+
+  async loadAiModels() {
+    const baseUrl = this.getSettingValue("ai.baseUrl");
+    if (!baseUrl) return;
+
+    try {
+      // Try to get the API key from secure storage
+      const apiKey = await this.getSecureApiKey();
+      if (!apiKey) return;
+
+      // Show loading state
+      const modelField = document.querySelector('[data-key="ai.model"]');
+      if (modelField) {
+        modelField.disabled = true;
+        const originalValue = modelField.value;
+        modelField.innerHTML = "<option>Loading models...</option>";
+      }
+
+      const result = await window.electronAPI.validateApiKeyAndListModels(
+        baseUrl,
+        apiKey
+      );
+
+      if (result?.success && result.models?.length > 0) {
+        this.replaceModelFieldWithDropdown(result.models);
+      } else {
+        // Restore original state if loading failed
+        if (modelField) {
+          modelField.disabled = false;
+          this.rebuildForm();
+        }
+      }
+    } catch (error) {
+      console.log("Failed to load AI models:", error);
+      // Restore original state if loading failed
+      const modelField = document.querySelector('[data-key="ai.model"]');
+      if (modelField) {
+        modelField.disabled = false;
+        this.rebuildForm();
+      }
+    }
+  }
+
+  async getSecureApiKey() {
+    try {
+      return await window.electronAPI.getApiKeySecure();
+    } catch (error) {
+      return null;
+    }
   }
 
   cancelChanges() {

@@ -194,6 +194,15 @@ export class SettingsService {
       }
     );
 
+    // Get API key securely from settings
+    ipcMain.handle("settings:getApiKey", async () => {
+      const { SecureStorageService } = await import(
+        "../services/SecureStorageService"
+      );
+      const secure = new SecureStorageService();
+      return await secure.getApiKey();
+    });
+
     // Model management helpers
     ipcMain.handle("models:listDownloaded", async () => {
       const { ModelManager } = await import("./ModelManager");
