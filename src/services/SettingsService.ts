@@ -218,12 +218,15 @@ export class SettingsService {
 
     // Model downloading with progress
     ipcMain.handle("models:download", async (event, modelName: string) => {
-      const { ModelManager } = await import("./ModelManager");
-      const mgr = new ModelManager(this.config);
+      if (!this.unifiedModelDownloadService) {
+        throw new Error("Unified model download service not available");
+      }
 
-      if (mgr.isDownloading()) {
+      if (this.unifiedModelDownloadService.isDownloading()) {
+        const currentDownload =
+          this.unifiedModelDownloadService.getCurrentDownload();
         throw new Error(
-          `Another model (${mgr.getCurrentDownload()}) is already downloading`
+          `Another model (${currentDownload?.plugin}:${currentDownload?.model}) is already downloading`
         );
       }
 
@@ -236,7 +239,16 @@ export class SettingsService {
       };
 
       try {
-        await mgr.downloadModel(modelName, onProgress, onLog);
+        // Determine which plugin should handle this download
+        const activePlugin =
+          this.config.get("transcriptionPlugin") || "whisper-cpp";
+
+        await this.unifiedModelDownloadService.ensureModelForPlugin(
+          activePlugin,
+          modelName,
+          onProgress,
+          onLog
+        );
         return { success: true };
       } catch (error: any) {
         throw new Error(error.message || "Download failed");
@@ -245,11 +257,16 @@ export class SettingsService {
 
     // Check if download is in progress
     ipcMain.handle("models:isDownloading", async () => {
-      const { ModelManager } = await import("./ModelManager");
-      const mgr = new ModelManager(this.config);
+      if (!this.unifiedModelDownloadService) {
+        return {
+          isDownloading: false,
+          currentDownload: null,
+        };
+      }
+
       return {
-        isDownloading: mgr.isDownloading(),
-        currentDownload: mgr.getCurrentDownload(),
+        isDownloading: this.unifiedModelDownloadService.isDownloading(),
+        currentDownload: this.unifiedModelDownloadService.getCurrentDownload(),
       };
     });
 

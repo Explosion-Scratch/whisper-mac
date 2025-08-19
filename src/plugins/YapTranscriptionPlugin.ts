@@ -512,4 +512,16 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     console.log("YAP plugin options updated:", options);
   }
+
+  async downloadModel(
+    modelName: string,
+    uiFunctions?: PluginUIFunctions
+  ): Promise<void> {
+    // YAP doesn't use local models - it uses external APIs
+    // This is a no-op implementation
+    if (uiFunctions) {
+      uiFunctions.showSuccess("YAP plugin doesn't require model downloads");
+    }
+    console.log("YAP plugin: downloadModel called but not needed");
+  }
 }

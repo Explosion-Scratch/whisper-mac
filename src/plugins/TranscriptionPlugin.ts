@@ -122,6 +122,14 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
     uiFunctions?: PluginUIFunctions
   ): Promise<void>;
 
+  /**
+   * Download a model for this plugin. Should handle all plugin-specific download requirements.
+   */
+  abstract downloadModel(
+    modelName: string,
+    uiFunctions?: PluginUIFunctions
+  ): Promise<void>;
+
   /** Plugins can override to declare activation criteria */
   getActivationCriteria(): PluginActivationCriteria {
     return { ...this.activationCriteria };

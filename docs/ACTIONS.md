@@ -40,13 +40,15 @@ Performs a web search for the specified query.
 - "search how to make coffee" - Searches Google for coffee making instructions
 - "search weather in New York" - Searches for weather information
 
-### `quit`
+### `quit [application]`
 
-Exits the WhisperMac application.
+Quits a specific application.
 
-**Example:**
+**Examples:**
 
-- "quit" - Closes the application
+- "quit Cursor" - Quits the Cursor application
+- "quit Safari" - Quits the Safari browser
+- "quit Calculator" - Quits the Calculator app
 
 ## Action Detection Rules
 

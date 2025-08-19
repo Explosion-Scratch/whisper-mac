@@ -1,8 +1,15 @@
 import { spawn, ChildProcess } from "child_process";
-import { unlinkSync, mkdtempSync, existsSync, readFileSync } from "fs";
+import {
+  unlinkSync,
+  mkdtempSync,
+  existsSync,
+  readFileSync,
+  createWriteStream,
+} from "fs";
 import { join } from "path";
 import { tmpdir, arch, platform } from "os";
 import { v4 as uuidv4 } from "uuid";
+import * as https from "https";
 import { AppConfig } from "../config/AppConfig";
 import { FileSystemService } from "../services/FileSystemService";
 import {
@@ -531,6 +538,83 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
       child.on("error", (error) => {
         reject(new Error(`Download failed: ${error.message}`));
+      });
+    });
+  }
+
+  private async downloadFileWithProgress(
+    url: string,
+    destPath: string,
+    modelName: string,
+    onProgress?: (percent: number) => void
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const request = https.get(url, (response) => {
+        if (response.statusCode === 302 || response.statusCode === 301) {
+          // Handle redirect
+          const redirectUrl = response.headers.location;
+          if (redirectUrl) {
+            this.downloadFileWithProgress(
+              redirectUrl,
+              destPath,
+              modelName,
+              onProgress
+            )
+              .then(resolve)
+              .catch(reject);
+          } else {
+            reject(new Error("Redirect without location header"));
+          }
+          return;
+        }
+
+        if (response.statusCode !== 200) {
+          reject(
+            new Error(`Failed to download model: HTTP ${response.statusCode}`)
+          );
+          return;
+        }
+
+        const totalBytes = parseInt(
+          response.headers["content-length"] || "0",
+          10
+        );
+        let downloadedBytes = 0;
+        const fileStream = createWriteStream(destPath);
+
+        response.on("data", (chunk: Buffer) => {
+          downloadedBytes += chunk.length;
+          const percent =
+            totalBytes > 0
+              ? Math.round((downloadedBytes / totalBytes) * 100)
+              : 0;
+          onProgress?.(percent);
+        });
+
+        response.pipe(fileStream);
+
+        fileStream.on("finish", () => {
+          console.log(
+            `Model ${modelName} downloaded successfully to ${destPath}`
+          );
+          onProgress?.(100);
+          resolve();
+        });
+
+        fileStream.on("error", (error) => {
+          console.error(`File write error: ${error.message}`);
+          reject(error);
+        });
+
+        response.on("error", (error: Error) => {
+          console.error(`Download error: ${error.message}`);
+          reject(error);
+        });
+      });
+
+      request.on("error", (error) => {
+        console.error(`Failed to start download: ${error.message}`);
+        reject(error);
       });
     });
   }
@@ -1083,16 +1167,49 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         uiFunctions.showDownloadProgress(downloadProgress);
       }
 
-      // Download the main model using existing system
-      // This would integrate with the existing model download system
-      // For now, just simulate the process
+      // Download the main GGML model first
+      const modelPath = join(this.config.getModelsDir(), modelName);
+      const ggmlUrl = `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${modelName}`;
+
+      if (!existsSync(modelPath)) {
+        if (uiFunctions) {
+          uiFunctions.showProgress(`Downloading ${modelName}...`, 10);
+        }
+
+        await this.downloadFileWithProgress(
+          ggmlUrl,
+          modelPath,
+          modelName,
+          (progress) => {
+            const adjustedProgress = Math.min(Math.round(progress * 0.5), 50); // Use first 50% for main model
+            uiFunctions?.showProgress(
+              `Downloading ${modelName}... ${adjustedProgress}%`,
+              adjustedProgress
+            );
+            this.setDownloadProgress({
+              status: "downloading",
+              progress: adjustedProgress,
+              message: `Downloading ${modelName}... ${adjustedProgress}%`,
+              modelName,
+            });
+          }
+        );
+
+        if (uiFunctions) {
+          uiFunctions.showProgress(`${modelName} downloaded successfully`, 50);
+        }
+      } else {
+        if (uiFunctions) {
+          uiFunctions.showProgress(`${modelName} already exists`, 50);
+        }
+      }
 
       // If on Apple Silicon, also download Core ML model
       if (this.isAppleSilicon) {
         if (uiFunctions) {
           uiFunctions.showProgress(
             `Downloading Core ML model for ${modelName}...`,
-            50
+            60
           );
         }
 
@@ -1103,7 +1220,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
             if (uiFunctions) {
               uiFunctions.showProgress(
                 `Core ML model downloaded successfully`,
-                100
+                90
               );
             }
           } else {
@@ -1111,7 +1228,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
             if (uiFunctions) {
               uiFunctions.showProgress(
                 `Core ML model download failed, continuing with regular model`,
-                100
+                90
               );
             }
           }
@@ -1120,21 +1237,36 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
           if (uiFunctions) {
             uiFunctions.showProgress(
               `Core ML model download failed, continuing with regular model`,
-              100
+              90
             );
           }
         }
       }
 
-      throw new Error(
-        "Download functionality not yet implemented - please use the existing model download system"
-      );
+      // Update model path after successful download
+      this.modelPath = this.resolveModelPath();
+
+      const finalProgress = {
+        status: "complete" as const,
+        progress: 100,
+        message: `${modelName} download complete`,
+        modelName,
+      };
+
+      this.setDownloadProgress(finalProgress);
+      this.setLoadingState(false);
+
+      if (uiFunctions) {
+        uiFunctions.showProgress(`${modelName} ready`, 100);
+        uiFunctions.hideProgress();
+      }
     } catch (error) {
       const errorMsg = `Failed to download ${modelName}: ${error}`;
       this.setError(errorMsg);
       this.setLoadingState(false);
       if (uiFunctions) {
         uiFunctions.showError(errorMsg);
+        uiFunctions.hideProgress();
       }
       throw error;
     }
