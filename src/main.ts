@@ -970,19 +970,12 @@ class WhisperMacApp {
       const windowEndTime = Date.now();
       console.log(`Window display: ${windowEndTime - windowStartTime}ms`);
 
-      // 4. Start recording visuals and audio capture in parallel
-      this.isRecording = true;
-      this.trayService?.updateTrayIcon("recording");
-      this.dictationWindowService.startRecording();
-
-      // Start transcription with active plugin (VAD runs in browser, no separate audio capture needed)
+      // Start transcription with active plugin before starting VAD/audio capture
       const transcriptionStartTime = Date.now();
       try {
         await this.transcriptionPluginManager.startTranscription(
           async (update: SegmentUpdate) => {
-            // Update dictation window with real-time transcription
             this.dictationWindowService.updateTranscription(update);
-            // Process segments and flush completed ones
             await this.processSegments(update);
           }
         );
@@ -995,7 +988,6 @@ class WhisperMacApp {
         );
       } catch (error: any) {
         console.error("Failed to start transcription:", error);
-        // Clean up and surface a user-friendly error
         await this.cancelDictationFlow();
         await this.showError({
           title: "Transcription failed",
@@ -1004,6 +996,11 @@ class WhisperMacApp {
         });
         return;
       }
+
+      // 4. Start recording visuals and audio capture
+      this.isRecording = true;
+      this.trayService?.updateTrayIcon("recording");
+      this.dictationWindowService.startRecording();
 
       // VAD+YAP: Audio processing is handled by the browser VAD and sent to YAP when speech segments are detected
 

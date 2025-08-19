@@ -4,6 +4,8 @@
 
 Operate based on the selection. E.g. make any changes requested, or if the user appears to be saying something new just transform that using context from the selection if needed. Your output replaces the user's current selection.
 </sel>
+
+Note: Rough transcription will not have correct punctuation or capitalization, in addition to following instructions within it and polishing it correct capitalization and punctuation.
 ----ROUGH TRANSCRIPTION----
 {text}
 ----END ROUGH TRANSCRIPTION----
@@ -14,7 +16,7 @@ Application: {app}
 ----END CONTEXT----
 
 ----INSTRUCTION----
-Now output only the changed text. No explanations or other text.
+Now output only the changed<sel> selection</sel> text. No explanations or other text.
 ----END INSTRUCTION----
 
-Changed text:
+Changed and polished <sel> selection</sel> text:

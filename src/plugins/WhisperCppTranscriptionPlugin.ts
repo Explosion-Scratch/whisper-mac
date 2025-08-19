@@ -41,6 +41,9 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   private modelPath: string;
   private isAppleSilicon: boolean;
   private resolvedBinaryPath: string;
+  private warmupTimer: NodeJS.Timeout | null = null;
+  private isWarmupRunning = false;
+  private isWindowVisible = false;
 
   constructor(config: AppConfig) {
     super();
@@ -897,6 +900,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
       this.setError(null);
       console.log(`Whisper.cpp plugin activated with model: ${modelName}`);
+      this.startWarmupLoop();
     } catch (error) {
       this.setActive(false);
       throw error;
@@ -932,6 +936,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   async onDeactivate(): Promise<void> {
     this.setActive(false);
     console.log("Whisper.cpp plugin deactivated");
+    this.stopWarmupLoop();
   }
 
   async clearData(): Promise<void> {
@@ -1014,6 +1019,48 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.configure(options);
 
     console.log("Whisper.cpp plugin options updated:", options);
+  }
+
+  onDictationWindowShow(): void {
+    this.isWindowVisible = true;
+  }
+
+  onDictationWindowHide(): void {
+    this.isWindowVisible = false;
+  }
+
+  private startWarmupLoop() {
+    if (this.warmupTimer) return;
+    this.warmupTimer = setInterval(() => {
+      this.runWarmupIfIdle();
+    }, 10000);
+  }
+
+  private stopWarmupLoop() {
+    if (this.warmupTimer) {
+      clearInterval(this.warmupTimer);
+      this.warmupTimer = null;
+    }
+  }
+
+  private async runWarmupIfIdle() {
+    if (this.isWarmupRunning) return;
+    if (!this.isPluginActive()) return;
+    if (this.isWindowVisible) return;
+    if (this.isRunning) return;
+
+    this.isWarmupRunning = true;
+    try {
+      // Run a tiny silent segment to keep binary/model hot
+      const dummy = new Float32Array(16000);
+      await this.startTranscription(() => {});
+      await this.processAudioSegment(dummy);
+      await this.stopTranscription();
+    } catch (e) {
+      // best-effort
+    } finally {
+      this.isWarmupRunning = false;
+    }
   }
 
   async downloadModel(

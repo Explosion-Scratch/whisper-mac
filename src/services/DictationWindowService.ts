@@ -2,6 +2,7 @@ import { BrowserWindow, screen, app } from "electron";
 import { join } from "path";
 import { EventEmitter } from "events";
 import { AppConfig } from "../config/AppConfig";
+import { appEventBus } from "./AppEventBus";
 import { Segment, SegmentUpdate } from "../types/SegmentTypes";
 
 export interface WindowPosition {
@@ -27,6 +28,7 @@ export class DictationWindowService extends EventEmitter {
 
       // Trigger the animation in the renderer process
       this.dictationWindow.webContents.send("animate-in");
+      appEventBus.emit("dictation-window-shown");
 
       // Wait a moment for the window to be ready, then initialize
       setTimeout(() => {
@@ -56,6 +58,7 @@ export class DictationWindowService extends EventEmitter {
 
     // Trigger the animation in the renderer process
     this.dictationWindow!.webContents.send("animate-in");
+    appEventBus.emit("dictation-window-shown");
 
     console.log(
       "Dictation window shown at position:",
@@ -400,13 +403,24 @@ export class DictationWindowService extends EventEmitter {
   hideWindow(): void {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.hide();
+      appEventBus.emit("dictation-window-hidden");
     }
   }
 
   showWindow(): void {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.showInactive();
+      appEventBus.emit("dictation-window-shown");
     }
+  }
+
+  isWindowVisible(): boolean {
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      try {
+        return this.dictationWindow.isVisible();
+      } catch {}
+    }
+    return false;
   }
 
   cleanup(): void {

@@ -1,1 +1,1 @@
-technical writing transcript with no punctuation or capitalization including app names framework names and jargon uejs react svelte textedit cursor zed spotify jsdocs you can also output: open [app] quit [app name] search [query]
+technical writing transcript with no punctuation or capitalization including app names framework names and jargon vuejs react svelte textedit cursor zed spotify jsdocs you can also output: open [app] quit [app name] search [query]
