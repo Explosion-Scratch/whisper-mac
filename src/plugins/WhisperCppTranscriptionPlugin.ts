@@ -64,8 +64,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.resolvedBinaryPath = this.getBinaryPath(true); // Resolve once and store
     this.setActivationCriteria({ runOnAll: false, skipTransformation: false });
 
-    // Load Core ML setting
-    this.useCoreML = this.config.get("whisperCppUseCoreML") || false;
+    // Load Core ML setting from options with fallback to old config
+    this.useCoreML = false; // Will be set properly when options are loaded
   }
 
   private resolveWhisperBinaryPath(): string {
@@ -114,8 +114,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   private resolveModelPath(): string {
-    // Default to base.en model
-    const modelName = this.config.get("whisperCppModel") || "ggml-base.en.bin";
+    // Get model from plugin options with fallback to default
+    const modelName = this.options.model || "ggml-base.en.bin";
 
     // Models are now stored directly as files in the models directory
     const userModelPath = join(this.config.getModelsDir(), modelName);
@@ -493,6 +493,10 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       this.useCoreML = config.useCoreML;
       // Update binary path when Core ML setting changes
       this.resolvedBinaryPath = this.getBinaryPath(true);
+    } else if (this.options.useCoreML !== undefined) {
+      // Initialize from options if not explicitly provided
+      this.useCoreML = this.options.useCoreML;
+      this.resolvedBinaryPath = this.getBinaryPath(true);
     }
   }
 
@@ -758,12 +762,12 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       }
 
       // Add configuration options
-      const language = this.config.get("whisperCppLanguage");
+      const language = this.options.language || "auto";
       if (language && language !== "auto") {
         args.push("--language", language);
       }
 
-      const threads = this.config.get("whisperCppThreads");
+      const threads = this.options.threads || 4;
       if (threads) {
         args.push("--threads", threads.toString());
       }
@@ -928,25 +932,25 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       },
     ];
 
-    const options = [
+    const options: PluginOption[] = [
       {
         key: "model",
-        type: "model-select" as const,
+        type: "model-select",
         label: "Whisper Model",
         description: "Choose the Whisper model to use for transcription",
         default: "ggml-base.en.bin",
-        category: "model" as const,
+        category: "model",
         options: whisperModels,
         required: true,
       },
       {
         key: "language",
-        type: "select" as const,
+        type: "select",
         label: "Language",
         description:
           "Language for transcription (auto-detect if not specified)",
         default: "auto",
-        category: "basic" as const,
+        category: "basic",
         options: [
           { value: "auto", label: "Auto-detect" },
           { value: "en", label: "English" },
@@ -963,15 +967,28 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       },
       {
         key: "threads",
-        type: "number" as const,
+        type: "number",
         label: "Thread Count",
         description: "Number of threads to use for transcription",
         default: 4,
         min: 1,
         max: 16,
-        category: "advanced" as const,
+        category: "advanced",
       },
     ];
+
+    // Add Apple Metal option only on Apple Silicon
+    if (this.isAppleSilicon) {
+      options.push({
+        key: "useCoreML",
+        type: "boolean",
+        label: "Use Apple Metal Acceleration",
+        description:
+          "Enable Apple Metal acceleration for faster transcription on Apple Silicon Macs",
+        default: true,
+        category: "advanced",
+      });
+    }
 
     return options;
   }
@@ -998,6 +1015,13 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       }
     }
 
+    if (
+      options.useCoreML !== undefined &&
+      typeof options.useCoreML !== "boolean"
+    ) {
+      errors.push("Apple Metal acceleration must be true or false");
+    }
+
     return { valid: errors.length === 0, errors };
   }
 
@@ -1005,6 +1029,13 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.setActive(true);
 
     try {
+      // Initialize useCoreML from options with fallback to config
+      this.useCoreML =
+        this.options.useCoreML !== undefined
+          ? this.options.useCoreML
+          : this.config.get("whisperCppUseCoreML") || false;
+      this.resolvedBinaryPath = this.getBinaryPath(true);
+
       // Get model from stored options (unified plugin system), fallback to default
       const modelName =
         this.options.model ||
@@ -1102,6 +1133,12 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     uiFunctions?: PluginUIFunctions
   ): Promise<void> {
     this.setOptions(options);
+
+    // Initialize useCoreML from options if not already set
+    if (this.useCoreML === false && options.useCoreML !== undefined) {
+      this.useCoreML = options.useCoreML;
+      this.resolvedBinaryPath = this.getBinaryPath(true);
+    }
 
     // Handle Core ML setting changes
     if (

@@ -41,14 +41,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("settings:saveApiKey", { apiKey }),
   getApiKeySecure: () => ipcRenderer.invoke("settings:getApiKey"),
 
-  // Legacy model management helpers (kept for compatibility)
-  listDownloadedModels: () => ipcRenderer.invoke("models:listDownloaded"),
-  deleteModels: (repoIds: string[]) =>
-    ipcRenderer.invoke("models:delete", repoIds),
-  downloadModel: (modelName: string) =>
-    ipcRenderer.invoke("models:download", modelName),
-  isDownloading: () => ipcRenderer.invoke("models:isDownloading"),
-
   // Unified plugin switching
   switchPlugin: (pluginName: string, modelName?: string) =>
     ipcRenderer.invoke("settings:switchPlugin", { pluginName, modelName }),
@@ -62,18 +54,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   deleteInactivePlugin: (pluginName: string) =>
     ipcRenderer.invoke("plugins:deleteInactive", { pluginName }),
   getPluginDataInfo: () => ipcRenderer.invoke("settings:getPluginDataInfo"),
-
-  // Model download progress listeners
-  onModelDownloadProgress: (callback: (progress: any) => void) => {
-    ipcRenderer.on("models:downloadProgress", (_event, progress) =>
-      callback(progress)
-    );
-  },
-  onModelDownloadLog: (callback: (payload: any) => void) => {
-    ipcRenderer.on("models:downloadLog", (_event, payload) =>
-      callback(payload)
-    );
-  },
 
   // Unified plugin switching progress listeners
   onPluginSwitchProgress: (callback: (progress: any) => void) => {
