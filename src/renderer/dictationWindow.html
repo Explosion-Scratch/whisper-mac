@@ -405,14 +405,16 @@
             <span
               v-for="(segment, index) in displaySegments"
               :key="segment.id || index"
+              v-if="!showVisualizer"
               class="text-segment"
               :class="[getSegmentClass(segment), segment.type === 'inprogress' ? 'no-caret' : '']"
             >
               <template v-if="segment.type === 'inprogress'">
-                <template v-if="displaySegments.length === 1">
+                <template v-if="showInProgressSpinner.text">
                   {{ getSegmentDisplayText(segment) }}
                 </template>
                 <svg
+                  v-if="showInProgressSpinner.show"
                   class="in-progress-spinner"
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 256 256"
@@ -426,12 +428,12 @@
               <template v-else> {{ getSegmentDisplayText(segment) }} </template>
             </span>
             <span
-              v-if="displaySegments.length === 0 && currentStatus === 'processing'"
+              v-if="displaySegments.length === 0 && currentStatus === 'processing' && !showVisualizer"
               class="text-segment in-progress"
               >Processing...</span
             >
             <span
-              v-else-if="displaySegments.length === 0 && currentStatus === 'transforming'"
+              v-else-if="displaySegments.length === 0 && currentStatus === 'transforming' && !showVisualizer"
               class="text-segment in-progress"
               >Transforming...</span
             >
@@ -480,6 +482,7 @@
           const isRunOnAllPlugin = ref(false);
           const selectedText = ref("");
 
+          const isSpeaking = ref(false);
           // Computed properties
           const statusIconClass = computed(() => ({
             recording: currentStatus.value === "listening",
@@ -489,23 +492,33 @@
             complete: currentStatus.value === "complete",
           }));
 
+          const showInProgressSpinner = computed(() => {
+            const completedSegments = transcriptionSegments.value.filter(
+              (s) => s.type === "transcribed" && s.completed
+            );
+            const inProgressSegments = transcriptionSegments.value.filter(
+              (s) => s.type === "inprogress"
+            );
+            // If we're in progress with no other segments show both text + spinner
+            // If we're in progress with other segments show only spinner
+            return {
+              show: inProgressSegments.length > 0,
+              text: completedSegments.length == 0,
+            };
+          });
+
           // Visualizer should show when no segments exist OR only in-progress segments exist,
           // but NOT when in processing or transforming state
           const showVisualizer = computed(() => {
             // Don't show visualizer when processing or transforming
-            if (
-              currentStatus.value === "processing" ||
-              currentStatus.value === "transforming"
-            ) {
+            if (currentStatus.value === "processing") {
               return false;
             }
 
-            const segs = transcriptionSegments.value || [];
-            if (segs.length === 0) return true;
-            const hasCompleted = segs.some(
-              (s) => s.type === "transcribed" && s.completed
-            );
-            return !hasCompleted;
+            if (currentStatus.value === "transforming") return true;
+            if (showInProgressSpinner.value.show) return false;
+            if (transcriptionSegments.value.length === 0) return true;
+            return isSpeaking.value;
           });
 
           const hasTranscription = computed(() => {
@@ -607,8 +620,6 @@
 
           // Drive visualizer level from WebAudio analyser RMS.
           setInterval(() => {
-            if (!showVisualizer.value || currentStatus.value !== "listening")
-              return;
             if (analyser && rmsArray) {
               try {
                 analyser.getFloatTimeDomainData(rmsArray);
@@ -675,12 +686,14 @@
                 submitUserSpeechOnPause: true,
                 stream: stream, // Pass the stream to MicVAD
                 onSpeechStart: () => {
+                  isSpeaking.value = true;
                   console.log("VAD: Speech started");
                   if (isRecording.value) {
                     currentStatus.value = "listening";
                   }
                 },
                 onSpeechEnd: (audio) => {
+                  isSpeaking.value = false;
                   console.log("VAD: Speech ended, audio length:", audio.length);
                   if (isRecording.value && audio.length > 0) {
                     // Send audio segment to main process for transcription (plugin-agnostic)
@@ -694,11 +707,6 @@
                 },
                 onVADMisfire: () => {
                   console.log("VAD: Misfire detected");
-                },
-                // Optional hook for audio level; if available in library, map to visualizer level
-                onAudioFrame: (rms) => {
-                  // rms expected 0..1; fallback if not present
-                  currentAudioLevel.value = Math.max(0, Math.min(1, rms || 0));
                 },
               });
 
@@ -859,10 +867,6 @@
             // If status is explicitly provided, use it (for transforming/processing state)
             if (update.status) {
               currentStatus.value = update.status;
-              nextTick(() => {
-                if (showVisualizer.value) setupVisualizer();
-                else teardownVisualizer();
-              });
               return;
             }
 
@@ -886,10 +890,6 @@
                 currentStatus.value = "idle";
               }
             }
-            nextTick(() => {
-              if (showVisualizer.value) setupVisualizer();
-              else teardownVisualizer();
-            });
           };
 
           const completeDictation = (text) => {
@@ -981,8 +981,9 @@
                   bars: 64,
                   smoothing: 0.6,
                 });
+                // Start the visualizer once and keep it running
+                visualizer.start();
               }
-              if (showVisualizer.value) visualizer.start();
 
               if (!resizeObserver) {
                 resizeObserver = new ResizeObserver(() => {
@@ -996,7 +997,8 @@
 
           function teardownVisualizer() {
             try {
-              if (visualizer) visualizer.stop();
+              // Don't stop the visualizer, just let it run continuously
+              // The visibility is controlled by CSS classes
             } catch (_) {}
           }
 

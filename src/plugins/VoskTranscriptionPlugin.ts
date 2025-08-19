@@ -1092,7 +1092,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         uiFunctions.showDownloadProgress(downloadProgress);
       }
 
-      // Use the existing ModelManager for downloading
+      // Use the existing ensureModelAvailable method which handles all Vosk model download logic
       const onProgress = (progress: ModelDownloadProgress) => {
         this.setDownloadProgress(progress);
         if (uiFunctions) {
@@ -1100,7 +1100,11 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         }
       };
 
-      await this.modelManager.downloadModel(modelName, onProgress);
+      const onLog = (line: string) => {
+        console.log(`[Vosk Download] ${line}`);
+      };
+
+      await this.ensureModelAvailable(modelName, onProgress, onLog);
 
       const completedProgress = {
         status: "complete" as const,

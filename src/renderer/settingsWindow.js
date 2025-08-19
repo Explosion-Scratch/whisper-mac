@@ -21,7 +21,13 @@ class SettingsWindow {
 
       // Load plugin information using unified API
       this.pluginData = await window.electronAPI.getPluginOptions();
-      this.activePlugin = await window.electronAPI.getActivePlugin();
+
+      // Get active plugin from both the plugin manager and saved settings
+      const pluginManagerActive = await window.electronAPI.getActivePlugin();
+      const settingsActive = this.settings.transcriptionPlugin;
+
+      // Prefer the plugin manager's active plugin, but fall back to settings
+      this.activePlugin = pluginManagerActive || settingsActive || "yap";
 
       this.buildNavigation();
       this.buildSettingsForm();
@@ -986,6 +992,9 @@ class SettingsWindow {
         // Replace model field with a select built from models
         this.replaceModelFieldWithDropdown(modelsFromProvider);
       }
+
+      // Save the current active plugin setting
+      this.settings.transcriptionPlugin = this.activePlugin;
 
       await window.electronAPI.saveSettings(this.settings);
       this.originalSettings = JSON.parse(JSON.stringify(this.settings));

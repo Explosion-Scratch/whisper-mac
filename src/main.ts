@@ -421,28 +421,34 @@ class WhisperMacApp {
             modelRepoId,
           });
 
-          const success = await this.modelManager.downloadModel(
-            modelRepoId,
-            (progress) => {
-              // Update tray status based on progress
-              if (progress.status === "starting") {
-                this.setSetupStatus("downloading-models");
-              } else if (progress.status === "downloading") {
-                this.setSetupStatus("downloading-models");
-              } else if (progress.status === "complete") {
-                this.setSetupStatus("idle");
-              } else if (progress.status === "error") {
-                this.setSetupStatus("idle");
-              }
+          // Determine which plugin should handle this download
+          const activePlugin =
+            this.config.get("transcriptionPlugin") || "whisper-cpp";
 
-              // Send progress update to renderer
-              event.reply("download-model-progress", {
-                status: progress.status,
-                modelRepoId: progress.modelRepoId,
-                message: progress.message,
-              });
-            }
-          );
+          const success =
+            await this.unifiedModelDownloadService.ensureModelForPlugin(
+              activePlugin,
+              modelRepoId,
+              (progress) => {
+                // Update tray status based on progress
+                if (progress.status === "starting") {
+                  this.setSetupStatus("downloading-models");
+                } else if (progress.status === "downloading") {
+                  this.setSetupStatus("downloading-models");
+                } else if (progress.status === "complete") {
+                  this.setSetupStatus("idle");
+                } else if (progress.status === "error") {
+                  this.setSetupStatus("idle");
+                }
+
+                // Send progress update to renderer
+                event.reply("download-model-progress", {
+                  status: progress.status,
+                  modelRepoId: progress.modelRepoId,
+                  message: progress.message,
+                });
+              }
+            );
 
           if (success) {
             event.reply("download-model-complete", {

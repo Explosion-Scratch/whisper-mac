@@ -1,4 +1,6 @@
 import { EventEmitter } from "events";
+import { join } from "path";
+import { existsSync } from "fs";
 import { AppConfig } from "../config/AppConfig";
 import { ModelManager, ModelDownloadProgress } from "./ModelManager";
 import { VoskTranscriptionPlugin } from "../plugins/VoskTranscriptionPlugin";
@@ -36,79 +38,59 @@ export class UnifiedModelDownloadService extends EventEmitter {
       );
     }
 
-    this.activeDownload = { plugin: pluginName, model: modelName };
-
-    try {
-      switch (pluginName) {
-        case "whisper-cpp":
-          return await this.ensureWhisperModel(modelName, onProgress, onLog);
-        case "vosk":
-          return await this.ensureVoskModel(modelName, onProgress, onLog);
-        default:
-          throw new Error(`Unsupported plugin: ${pluginName}`);
-      }
-    } finally {
-      this.activeDownload = null;
-    }
-  }
-
-  private async ensureWhisperModel(
-    modelName: string,
-    onProgress?: (progress: UnifiedModelDownloadProgress) => void,
-    onLog?: (line: string) => void
-  ): Promise<boolean> {
-    if (await this.modelManager.isModelDownloaded(modelName)) {
-      onLog?.(`Whisper model ${modelName} already downloaded`);
-      return true;
-    }
-
-    const wrappedProgress = onProgress
-      ? (progress: ModelDownloadProgress) => {
-          onProgress({ ...progress, pluginType: "whisper-cpp" });
-        }
-      : undefined;
-
-    return await this.modelManager.downloadModel(
-      modelName,
-      wrappedProgress,
-      onLog
-    );
-  }
-
-  private async ensureVoskModel(
-    modelName: string,
-    onProgress?: (progress: UnifiedModelDownloadProgress) => void,
-    onLog?: (line: string) => void
-  ): Promise<boolean> {
     if (!this.transcriptionPluginManager) {
       throw new Error("Transcription plugin manager not available");
     }
 
-    const voskPlugin = this.transcriptionPluginManager.getPlugin(
-      "vosk"
-    ) as VoskTranscriptionPlugin;
-    if (!voskPlugin) {
-      throw new Error("Vosk plugin not available");
+    const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
+    if (!plugin) {
+      throw new Error(`Plugin ${pluginName} not available`);
     }
 
-    // Check if model is already downloaded
-    if (voskPlugin.isModelDownloaded(modelName)) {
-      onLog?.(`Vosk model ${modelName} already downloaded`);
+    // YAP doesn't need model downloads
+    if (pluginName === "yap") {
+      onLog?.(`YAP plugin doesn't require model downloads`);
       return true;
     }
 
-    const wrappedProgress = onProgress
-      ? (progress: ModelDownloadProgress) => {
-          onProgress({ ...progress, pluginType: "vosk" });
-        }
-      : undefined;
+    this.activeDownload = { plugin: pluginName, model: modelName };
 
-    // Use the Vosk plugin's ensureModelAvailable method
-    return await voskPlugin.ensureModelAvailable(
-      modelName,
-      wrappedProgress,
-      onLog
-    );
+    try {
+      const wrappedProgress = onProgress
+        ? (progress: ModelDownloadProgress) => {
+            onProgress({ ...progress, pluginType: pluginName as any });
+          }
+        : undefined;
+
+      // Create unified UI functions interface for the plugin
+      const uiFunctions = {
+        showProgress: (message: string, percent: number) => {
+          wrappedProgress?.({
+            status: "downloading",
+            progress: percent,
+            message,
+            modelRepoId: modelName,
+          });
+        },
+        hideProgress: () => {},
+        showDownloadProgress: (progress: ModelDownloadProgress) => {
+          wrappedProgress?.(progress);
+        },
+        showError: (error: string) => {
+          onLog?.(`Error: ${error}`);
+        },
+        showSuccess: (message: string) => {
+          onLog?.(message);
+        },
+        confirmAction: async (message: string) => true,
+      };
+
+      // Use the plugin's download method - each plugin handles its own requirements
+      await (plugin as any).downloadModel(modelName, uiFunctions);
+      return true;
+    } finally {
+      this.activeDownload = null;
+    }
   }
 
   async switchToPlugin(
