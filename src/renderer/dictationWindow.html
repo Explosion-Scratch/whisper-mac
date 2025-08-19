@@ -572,18 +572,11 @@
             return segment.text;
           };
 
-          // Drive visualizer level from VAD RMS or WebAudio analyser RMS.
+          // Drive visualizer level from WebAudio analyser RMS.
           setInterval(() => {
             if (!showVisualizer.value || currentStatus.value !== "listening")
               return;
-            let levelFromVad = null;
-            if (typeof window.vad?.getCurrentRms === "function") {
-              try {
-                const lvl = window.vad.getCurrentRms();
-                if (typeof lvl === "number") levelFromVad = lvl;
-              } catch (_) {}
-            }
-            if (levelFromVad == null && analyser && rmsArray) {
+            if (analyser && rmsArray) {
               try {
                 analyser.getFloatTimeDomainData(rmsArray);
                 let sum = 0;
@@ -595,8 +588,6 @@
                 const scaled = Math.min(1, rms * 8);
                 currentAudioLevel.value = scaled;
               } catch (_) {}
-            } else if (levelFromVad != null) {
-              currentAudioLevel.value = Math.max(0, Math.min(1, levelFromVad));
             }
           }, 50);
 
