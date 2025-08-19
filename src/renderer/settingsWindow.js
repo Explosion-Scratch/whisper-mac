@@ -564,7 +564,7 @@ class SettingsWindow {
                   (opt) =>
                     `<option value="${opt.value}" ${
                       value === opt.value ? "selected" : ""
-                    }>${opt.label} ${opt.size ? `(${opt.size})` : ""}</option>`
+                    }>${opt.label}${opt.size ? ` (${opt.size})` : ""}</option>`
                 )
                 .join("")}
             </select>

@@ -469,7 +469,7 @@
                       :key="modelOpt.value"
                       :value="modelOpt.value"
                     >
-                      {{ modelOpt.label }}
+                      {{ modelOpt.label }}{{ modelOpt.size ? ` (${modelOpt.size})` : '' }}
                     </option>
                   </select>
 
