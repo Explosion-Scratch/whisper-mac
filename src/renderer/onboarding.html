@@ -53,15 +53,18 @@
       .slides {
         display: flex;
         height: 100%;
-        overflow: hidden;
+        overflow-y: auto;
+        overflow-x: hidden;
         position: relative;
       }
       .slide {
         flex: 0 0 100%;
         padding: 24px;
-        display: grid;
-        place-items: center;
-        overflow: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100%;
+        width: 100%;
       }
       .content {
         width: 100%;
@@ -72,6 +75,9 @@
         gap: 12px;
         align-items: center;
         text-align: center;
+        max-height: 100%;
+        overflow-y: auto;
+        padding: 8px 0;
       }
       h1 {
         font-size: 18px;
