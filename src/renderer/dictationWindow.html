@@ -130,6 +130,29 @@
         display: none;
       }
 
+      .wave-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+        pointer-events: none;
+      }
+
+      .wave-container.active {
+        opacity: 1;
+      }
+
+      .wave-canvas {
+        width: 100%;
+        height: 24px;
+      }
+
       .text-content {
         display: flex;
         align-items: baseline;
@@ -366,6 +389,9 @@
         </div>
 
         <div class="text-scroll-container" ref="textScrollContainer">
+          <div class="wave-container" :class="{ active: showVisualizer }">
+            <canvas id="waveCanvas" class="wave-canvas" height="24"></canvas>
+          </div>
           <div class="text-content" ref="textContent">
             <span
               v-for="(segment, index) in displaySegments"
@@ -390,9 +416,9 @@
             <span
               v-if="displaySegments.length === 0"
               class="text-segment in-progress"
+              style="opacity: 0"
+              >&nbsp;</span
             >
-              Listening...
-            </span>
           </div>
         </div>
 
@@ -417,6 +443,7 @@
     <script src="./ort.js"></script>
     <script src="./bundle.min.js"></script>
     <script src="./vue.js"></script>
+    <script src="./audio-visualizer.js"></script>
     <script>
       const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
 
@@ -427,6 +454,7 @@
           const currentStatus = ref("idle");
           const transcriptionSegments = ref([]);
           const finalText = ref("");
+          const currentAudioLevel = ref(0);
 
           // Computed properties
           const statusIconClass = computed(() => ({
@@ -435,6 +463,16 @@
             transforming: currentStatus.value === "transforming",
             complete: currentStatus.value === "complete",
           }));
+
+          // Visualizer should show when no segments exist OR only in-progress segments exist
+          const showVisualizer = computed(() => {
+            const segs = transcriptionSegments.value || [];
+            if (segs.length === 0) return true;
+            const hasCompleted = segs.some(
+              (s) => s.type === "transcribed" && s.completed
+            );
+            return !hasCompleted;
+          });
 
           const hasTranscription = computed(() => {
             return transcriptionSegments.value.length > 0 || finalText.value;
@@ -473,6 +511,8 @@
 
           const textContent = ref(null);
           const textScrollContainer = ref(null);
+          let visualizer = null;
+          let resizeObserver = null;
 
           // VAD state
           const vadInstance = ref(null);
@@ -491,6 +531,7 @@
             transcriptionSegments.value = [];
             finalText.value = "";
             currentStatus.value = "listening";
+            currentAudioLevel.value = 0;
           };
 
           // Sound feedback
@@ -525,6 +566,19 @@
           const getSegmentDisplayText = (segment) => {
             return segment.text;
           };
+
+          // Drive visualizer level from VAD envelope when available. Fallback to simple heuristic.
+          setInterval(() => {
+            if (!showVisualizer.value || currentStatus.value !== "listening")
+              return;
+            if (typeof window.vad?.getCurrentRms === "function") {
+              try {
+                const lvl = window.vad.getCurrentRms();
+                if (typeof lvl === "number")
+                  currentAudioLevel.value = Math.max(0, Math.min(1, lvl));
+              } catch (_) {}
+            }
+          }, 50);
 
           const handleClose = () => {
             // Disable VAD stream for privacy before hiding
@@ -592,6 +646,11 @@
                 },
                 onVADMisfire: () => {
                   console.log("VAD: Misfire detected");
+                },
+                // Optional hook for audio level; if available in library, map to visualizer level
+                onAudioFrame: (rms) => {
+                  // rms expected 0..1; fallback if not present
+                  currentAudioLevel.value = Math.max(0, Math.min(1, rms || 0));
                 },
               });
 
@@ -704,6 +763,9 @@
             currentStatus.value = "listening";
             resetTranscription();
             await enableVADStream();
+            nextTick(() => {
+              setupVisualizer();
+            });
           };
 
           const stopRecording = async () => {
@@ -711,6 +773,7 @@
             isRecording.value = false;
             currentStatus.value = "processing";
             await disableVADStream();
+            teardownVisualizer();
           };
 
           const updateTranscription = (update) => {
@@ -740,6 +803,10 @@
                 currentStatus.value = "idle";
               }
             }
+            nextTick(() => {
+              if (showVisualizer.value) setupVisualizer();
+              else teardownVisualizer();
+            });
           };
 
           const completeDictation = (text) => {
@@ -801,6 +868,9 @@
             window.electronAPI.onDictationClear(clearDictation);
             window.electronAPI.onPlayEndSound(playEndSound);
 
+            // Visualizer bootstrap
+            setupVisualizer();
+
             // Prevent default drag behavior
             document.addEventListener("dragstart", (e) => e.preventDefault());
 
@@ -815,12 +885,45 @@
             await initializeVAD();
           });
 
+          function setupVisualizer() {
+            try {
+              const container = textScrollContainer.value;
+              const canvas = document.getElementById("waveCanvas");
+              if (!container || !canvas) return;
+
+              canvas.width = container.offsetWidth;
+              if (!visualizer) {
+                visualizer = window.createAudioVisualizer(canvas, {
+                  getLevel: () => currentAudioLevel.value,
+                  bars: 64,
+                  smoothing: 0.6,
+                });
+              }
+              if (showVisualizer.value) visualizer.start();
+
+              if (!resizeObserver) {
+                resizeObserver = new ResizeObserver(() => {
+                  canvas.width = container.offsetWidth;
+                  if (visualizer) visualizer.resize();
+                });
+                resizeObserver.observe(container);
+              }
+            } catch (_) {}
+          }
+
+          function teardownVisualizer() {
+            try {
+              if (visualizer) visualizer.stop();
+            } catch (_) {}
+          }
+
           return {
             // State
             isRecording,
             currentStatus,
             transcriptionSegments,
             finalText,
+            showVisualizer,
 
             // Computed
             statusIconClass,

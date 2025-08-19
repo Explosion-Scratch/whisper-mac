@@ -217,6 +217,14 @@ export class SegmentManager extends EventEmitter {
    * Used when manually triggering the transform+inject flow
    */
   async transformAndInjectAllSegments(): Promise<FlushResult> {
+    return this.transformAndInjectAllSegmentsInternal({
+      skipTransformation: false,
+    });
+  }
+
+  async transformAndInjectAllSegmentsInternal(options: {
+    skipTransformation?: boolean;
+  }): Promise<FlushResult> {
     const SAVED_STATE = await this.saveState();
     const RESTORE_STATE = async () => {
       console.log("Restoring state");
@@ -240,6 +248,30 @@ export class SegmentManager extends EventEmitter {
     );
 
     try {
+      if (options?.skipTransformation) {
+        // Bypass transformation and inject original text combined
+        const originalText = segmentsToProcess
+          .map((segment) => segment.text.trim())
+          .filter((text) => text.length > 0)
+          .join(" ");
+
+        if (originalText) {
+          this.textInjectionService
+            .insertText(originalText + " ")
+            .then(RESTORE_STATE);
+          console.log(
+            `[SegmentManager] Direct-injected text: "${originalText}"`
+          );
+        }
+
+        this.clearAllSegments();
+        return {
+          transformedText: originalText,
+          segmentsProcessed: segmentsToProcess.length,
+          success: true,
+        };
+      }
+
       // Transform all segments
       const transformResult =
         await this.transformationService.transformSegments(
@@ -287,6 +319,16 @@ export class SegmentManager extends EventEmitter {
         error instanceof Error ? error.message : "Unknown error"
       );
     }
+  }
+
+  /** Inject raw text directly, bypassing transformation */
+  async injectDirectText(text: string): Promise<void> {
+    const trimmed = (text || "").trim();
+    if (!trimmed) return;
+    const SAVED_STATE = await this.saveState();
+    await this.textInjectionService.insertText(trimmed + " ");
+    await this.restoreState(SAVED_STATE);
+    this.clearAllSegments();
   }
 
   /**

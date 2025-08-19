@@ -46,6 +46,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.tempDir = mkdtempSync(join(tmpdir(), "vosk-plugin-"));
     this.modelManager = new ModelManager(config);
     this.voskScriptPath = this.resolveVoskScriptPath();
+    this.setActivationCriteria({ runOnAll: false, skipTransformation: false });
   }
 
   /**

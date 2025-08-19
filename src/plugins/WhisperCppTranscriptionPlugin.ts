@@ -53,6 +53,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.whisperBinaryPath = this.resolveWhisperBinaryPath(); // Keep for backward compatibility
     this.modelPath = this.resolveModelPath();
     this.resolvedBinaryPath = this.getBinaryPath(true); // Resolve once and store
+    this.setActivationCriteria({ runOnAll: false, skipTransformation: false });
   }
 
   private resolveWhisperBinaryPath(): string {

@@ -34,3 +34,8 @@ export interface FlushResult {
   success: boolean;
   error?: string;
 }
+
+export interface CombinedAudioData {
+  sampleRate: number;
+  data: Float32Array;
+}
