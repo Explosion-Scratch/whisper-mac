@@ -36,7 +36,8 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         id: "fallback-search",
         type: "openUrl",
         config: {
-          urlTemplate: "https://www.google.com/search?q={argument}",
+          urlTemplate:
+            "https://www.google.com/search?q={argument}&btnI=I%27m+Feeling+Lucky",
           openInBackground: false,
         },
         order: 3,
