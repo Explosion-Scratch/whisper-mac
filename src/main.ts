@@ -89,6 +89,9 @@ class WhisperMacApp {
       this.configurableActionsService
     );
     this.settingsManager = new SettingsManager(this.config);
+
+    // Set circular reference so ConfigurableActionsService can access SegmentManager
+    this.configurableActionsService.setSegmentManager(this.segmentManager);
   }
 
   private initializeManagers(): void {

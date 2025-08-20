@@ -97,11 +97,35 @@ This ensures fast application launching while providing a useful fallback for un
 
 ### Extensibility
 
-The system is designed to be easily extensible. New actions can be registered by:
+The system is designed to be easily extensible. New actions can be configured by:
 
-1. Creating a new `ActionHandler` object
-2. Registering it with the `ActionsHandlerService`
+1. Creating a new `ActionHandler` object in the default actions config
+2. Adding it to the actions configuration through the Settings UI
 3. The action will automatically be available for use
+
+### Segment Management Actions
+
+The system supports advanced segment manipulation actions that can be triggered by voice:
+
+#### Basic Actions
+
+- **Clear**: Say "clear" or "clear." to remove all transcribed segments
+- **Undo**: Say "undo" or "undo." to delete only the last segment
+
+#### Content Replacement
+
+- **Replace Segment**: Say "replace this with [text]" to replace current segment content
+- **Shell Command**: Say "shell" to replace with "Write a shell command to"
+
+#### Bulk Operations
+
+- **Delete Previous**: Say "delete this and the previous" to delete current and previous segments
+- **Delete All**: Say "delete all past transcribed text" to clear all segments
+
+#### Conditional Transforms
+
+- **Ellipses Transform**: Automatically removes trailing "..." and applies transformations to subsequent segments
+- **Smart Replacements**: Context-aware text replacements based on patterns
 
 ### Error Handling
 

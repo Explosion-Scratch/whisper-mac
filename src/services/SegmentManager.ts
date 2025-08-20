@@ -9,7 +9,6 @@ import {
 import { TransformationService } from "./TransformationService";
 import { TextInjectionService } from "./TextInjectionService";
 import { SelectedTextResult, SelectedTextService } from "./SelectedTextService";
-import { ActionsHandlerService } from "./ActionsHandlerService";
 import { ConfigurableActionsService } from "./ConfigurableActionsService";
 import { clipboard } from "electron";
 
@@ -375,6 +374,133 @@ export class SegmentManager extends EventEmitter {
     this.initialSelectedText = null;
     this.isAccumulatingMode = false; // Reset accumulating mode when clearing
     this.emit("segments-cleared");
+  }
+
+  /**
+   * Delete only the last segment (undo functionality)
+   */
+  deleteLastSegment(): boolean {
+    if (this.segments.length === 0) {
+      console.log("[SegmentManager] No segments to delete");
+      return false;
+    }
+
+    const lastSegment = this.segments.pop();
+    console.log(
+      `[SegmentManager] Deleted last segment: "${lastSegment?.text}" (${lastSegment?.id})`
+    );
+    this.emit("segment-deleted", lastSegment);
+    return true;
+  }
+
+  /**
+   * Replace the content of the last segment
+   */
+  replaceLastSegmentContent(newContent: string): boolean {
+    if (this.segments.length === 0) {
+      console.log("[SegmentManager] No segments to replace");
+      return false;
+    }
+
+    const lastSegment = this.segments[this.segments.length - 1];
+    const oldContent = lastSegment.text;
+    lastSegment.text = newContent.trim();
+
+    console.log(
+      `[SegmentManager] Replaced segment content: "${oldContent}" -> "${newContent}"`
+    );
+    this.emit("segment-content-replaced", {
+      segment: lastSegment,
+      oldContent,
+      newContent,
+    });
+    return true;
+  }
+
+  /**
+   * Delete the last N segments
+   */
+  deleteLastNSegments(count: number): number {
+    if (count <= 0 || this.segments.length === 0) {
+      return 0;
+    }
+
+    const actualCount = Math.min(count, this.segments.length);
+    const deletedSegments = this.segments.splice(-actualCount, actualCount);
+
+    console.log(
+      `[SegmentManager] Deleted ${actualCount} segments: ${deletedSegments
+        .map((s) => `"${s.text}"`)
+        .join(", ")}`
+    );
+    this.emit("segments-deleted", deletedSegments);
+    return actualCount;
+  }
+
+  /**
+   * Transform last segment by removing trailing ellipses and queue action for next segment
+   */
+  transformLastSegmentEllipses(): { success: boolean; hadEllipses: boolean } {
+    if (this.segments.length === 0) {
+      return { success: false, hadEllipses: false };
+    }
+
+    const lastSegment = this.segments[this.segments.length - 1];
+    const originalText = lastSegment.text;
+    const hasEllipses = originalText.endsWith("...");
+
+    if (hasEllipses) {
+      lastSegment.text = originalText.replace(/\.\.\.+$/, "").trim();
+      console.log(
+        `[SegmentManager] Removed ellipses from segment: "${originalText}" -> "${lastSegment.text}"`
+      );
+      this.emit("segment-ellipses-removed", {
+        segment: lastSegment,
+        originalText,
+      });
+    }
+
+    return { success: true, hadEllipses: hasEllipses };
+  }
+
+  /**
+   * Apply lowercase transformation to the first word of the last segment
+   */
+  lowercaseFirstWordOfLastSegment(): boolean {
+    if (this.segments.length === 0) {
+      return false;
+    }
+
+    const lastSegment = this.segments[this.segments.length - 1];
+    const originalText = lastSegment.text;
+
+    if (!originalText) {
+      return false;
+    }
+
+    // Make first letter lowercase
+    const transformedText =
+      originalText.charAt(0).toLowerCase() + originalText.slice(1);
+    lastSegment.text = transformedText;
+
+    console.log(
+      `[SegmentManager] Lowercased first word: "${originalText}" -> "${transformedText}"`
+    );
+    this.emit("segment-first-word-lowercased", {
+      segment: lastSegment,
+      originalText,
+    });
+
+    return true;
+  }
+
+  /**
+   * Get the last segment
+   */
+  getLastSegment(): Segment | null {
+    return this.segments.length > 0
+      ? this.segments[this.segments.length - 1]
+      : null;
   }
 
   /**
