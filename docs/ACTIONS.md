@@ -7,8 +7,36 @@ The Actions Handler System allows you to trigger specific actions by speaking ce
 When you're dictating, the system continuously monitors your transcribed text for action patterns. If an action is detected, it immediately:
 
 1. Executes the corresponding action
-2. Stops dictation and audio recording
-3. Hides the dictation window
+2. **Conditionally** stops dictation and audio recording (based on action type)
+3. **Conditionally** skips AI transformation (based on action type)
+4. Hides the dictation window (only if transcription is stopped)
+
+## Action Behavior Types
+
+Actions can be configured with two key behavioral properties:
+
+- **Closes Transcription**: When enabled, the action stops listening and closes the dictation window immediately after execution
+- **Skips Transformation**: When enabled, the action bypasses AI transformation and injects the original transcribed text
+
+### One-off Actions (Close Transcription + Skip Transformation)
+
+These actions perform immediate tasks and end the dictation session:
+
+- `open` - Opens applications, URLs, or files
+- `search` - Performs web searches
+- `quit` - Quits applications
+- `launch/start` - Launches applications
+- `close` - Closes current window/application
+
+### Continuous Actions (Continue Transcription)
+
+These actions modify the current dictation and allow you to continue speaking:
+
+- `shell` - Transforms to "Write a shell command to..."
+- `clear` - Clears all segments
+- `undo` - Removes last segment
+- Text replacement actions
+- Conditional transforms
 
 ## Built-in Actions
 
@@ -49,6 +77,14 @@ Quits a specific application.
 - "quit Cursor" - Quits the Cursor application
 - "quit Safari" - Quits the Safari browser
 - "quit Calculator" - Quits the Calculator app
+
+### `close`
+
+Closes the current application window using Cmd+W.
+
+**Examples:**
+
+- "close" - Closes the current window or tab
 
 ## Action Detection Rules
 
@@ -103,6 +139,14 @@ The system is designed to be easily extensible. New actions can be configured by
 2. Adding it to the actions configuration through the Settings UI
 3. The action will automatically be available for use
 
+### Action Ordering
+
+Actions can be reordered in the Settings UI using the up/down arrow buttons:
+
+- **Priority**: Actions are processed in order, so higher-priority actions should have lower order numbers
+- **UI Controls**: Use the ↑ and ↓ buttons in the Actions settings to reorder
+- **Automatic Numbering**: When actions are moved, their order numbers are automatically updated
+
 ### Segment Management Actions
 
 The system supports advanced segment manipulation actions that can be triggered by voice:
@@ -115,7 +159,10 @@ The system supports advanced segment manipulation actions that can be triggered 
 #### Content Replacement
 
 - **Replace Segment**: Say "replace this with [text]" to replace current segment content
-- **Shell Command**: Say "shell" to replace with "Write a shell command to"
+- **Shell Command Helper**:
+  - Say "shell" to replace with "Write a shell command to"
+  - Say "shell [task]" to replace with "Write a shell command to [task]"
+  - Examples: "shell add commit and push" → "Write a shell command to add commit and push"
 
 #### Bulk Operations
 

@@ -170,9 +170,24 @@ class WhisperMacApp {
 
       if (this.configurableActionsService) {
         await this.configurableActionsService.executeAction(actionMatch);
-      }
 
-      await this.dictationFlowManager.stopDictation();
+        // Find the action to check if it should close transcription
+        const actions = this.configurableActionsService.getActions();
+        const action = actions.find((a) => a.id === actionMatch.actionId);
+
+        if (action?.closesTranscription) {
+          console.log(
+            `[Main] Action ${action.id} closes transcription, stopping dictation`
+          );
+          await this.dictationFlowManager.stopDictation();
+        } else {
+          console.log(
+            `[Main] Action ${
+              action?.id || actionMatch.actionId
+            } continues transcription`
+          );
+        }
+      }
     });
 
     this.settingsManager.on(

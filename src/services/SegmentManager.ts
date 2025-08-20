@@ -22,6 +22,10 @@ export class SegmentManager extends EventEmitter {
   private configurableActionsService: ConfigurableActionsService | null = null;
   private isAccumulatingMode: boolean = false; // New: track if we're in accumulate-only mode
   private ignoreNextCompleted: boolean = false;
+  private lastExecutedAction: {
+    actionId: string;
+    skipsTransformation?: boolean;
+  } | null = null;
 
   constructor(
     transformationService: TransformationService,
@@ -115,6 +119,14 @@ export class SegmentManager extends EventEmitter {
             actionMatch.actionId
           }" with argument: "${actionMatch.extractedArgument || "none"}"`
         );
+
+        // Store action information for potential transformation skipping
+        const actions = this.configurableActionsService.getActions();
+        const action = actions.find((a) => a.id === actionMatch.actionId);
+        this.lastExecutedAction = {
+          actionId: actionMatch.actionId,
+          skipsTransformation: action?.skipsTransformation,
+        };
 
         // Emit action detected event
         this.emit("action-detected", actionMatch);
@@ -247,7 +259,12 @@ export class SegmentManager extends EventEmitter {
     );
 
     try {
-      if (options?.skipTransformation) {
+      // Check if transformation should be skipped due to plugin criteria or last executed action
+      const shouldSkipTransformation =
+        options?.skipTransformation ||
+        this.lastExecutedAction?.skipsTransformation;
+
+      if (shouldSkipTransformation) {
         // Bypass transformation and inject original text combined
         const originalText = segmentsToProcess
           .map((segment) => segment.text.trim())
@@ -259,11 +276,14 @@ export class SegmentManager extends EventEmitter {
             .insertText(originalText + " ")
             .then(RESTORE_STATE);
           console.log(
-            `[SegmentManager] Direct-injected text: "${originalText}"`
+            `[SegmentManager] Direct-injected text (skip reason: ${
+              options?.skipTransformation ? "plugin" : "action"
+            }): "${originalText}"`
           );
         }
 
         this.clearAllSegments();
+        this.lastExecutedAction = null; // Reset after use
         return {
           transformedText: originalText,
           segmentsProcessed: segmentsToProcess.length,
@@ -300,6 +320,7 @@ export class SegmentManager extends EventEmitter {
 
       // Clear all segments after successful transform+inject
       this.clearAllSegments();
+      this.lastExecutedAction = null; // Reset after use
 
       console.log(
         `[SegmentManager] Transform and inject completed successfully`

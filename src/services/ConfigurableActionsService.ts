@@ -49,7 +49,9 @@ export class ConfigurableActionsService extends EventEmitter {
   }
 
   setActions(actions: ActionHandler[]): void {
-    this.actions = actions.filter((action) => action.enabled);
+    this.actions = actions
+      .filter((action) => action.enabled)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
     console.log(
       `[ConfigurableActions] Loaded ${this.actions.length} enabled actions`
     );
@@ -283,9 +285,17 @@ export class ConfigurableActionsService extends EventEmitter {
             );
             return false;
           }
-          return this.segmentManager.replaceLastSegmentContent(
-            config.replacementText
-          );
+          // Handle case where {argument} is empty (for shell action without args)
+          let finalText = config.replacementText;
+          if (
+            finalText.includes("{argument}") &&
+            (!match.extractedArgument || match.extractedArgument.trim() === "")
+          ) {
+            finalText = finalText
+              .replace(" {argument}", "")
+              .replace("{argument}", "");
+          }
+          return this.segmentManager.replaceLastSegmentContent(finalText);
 
         case "deleteLastN":
           const count = config.count || 1;
@@ -495,6 +505,6 @@ export class ConfigurableActionsService extends EventEmitter {
   }
 
   getActions(): ActionHandler[] {
-    return [...this.actions];
+    return [...this.actions].sort((a, b) => (a.order || 0) - (b.order || 0));
   }
 }
