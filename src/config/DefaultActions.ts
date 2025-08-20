@@ -168,7 +168,8 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
   {
     id: "undo-action",
     name: "Undo Last Segment",
-    description: "Delete the last transcribed segment and the current 'undo' segment",
+    description:
+      "Delete the last transcribed segment and the current 'undo' segment",
     enabled: true,
     order: 6,
     closesTranscription: false,
@@ -260,113 +261,6 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
             removePattern: "\\.\\.\\.",
             onNextSegment: "lowercase",
           },
-        },
-        order: 1,
-      },
-    ],
-  },
-  {
-    id: "delete-previous-action",
-    name: "Delete This and Previous",
-    description: "Delete current and previous transcription chunks",
-    enabled: true,
-    order: 9,
-    closesTranscription: false,
-    skipsTransformation: false,
-    matchPatterns: [
-      {
-        id: "delete-previous-pattern-1",
-        type: "regex",
-        pattern: "^delete this and the previous.*",
-        caseSensitive: false,
-      },
-      {
-        id: "delete-previous-pattern-2",
-        type: "regex",
-        pattern: "^delete previous.*",
-        caseSensitive: false,
-      },
-    ],
-    handlers: [
-      {
-        id: "delete-last-two-segments",
-        type: "segmentAction",
-        config: {
-          action: "deleteLastN",
-          count: 2,
-        },
-        order: 1,
-      },
-    ],
-  },
-  {
-    id: "delete-all-action",
-    name: "Delete All Transcribed Text",
-    description: "Delete all past transcribed text",
-    enabled: true,
-    order: 10,
-    closesTranscription: false,
-    skipsTransformation: false,
-    matchPatterns: [
-      {
-        id: "delete-all-pattern-1",
-        type: "regex",
-        pattern: "^delete all past.*",
-        caseSensitive: false,
-      },
-      {
-        id: "delete-all-pattern-2",
-        type: "regex",
-        pattern: "^delete all transcribed.*",
-        caseSensitive: false,
-      },
-    ],
-    handlers: [
-      {
-        id: "clear-all-transcribed-segments",
-        type: "segmentAction",
-        config: {
-          action: "clear",
-        },
-        order: 1,
-      },
-    ],
-  },
-  {
-    id: "replace-segment-action",
-    name: "Replace This Segment",
-    description: "Replace current segment with specified text",
-    enabled: true,
-    order: 11,
-    closesTranscription: false,
-    skipsTransformation: false,
-    matchPatterns: [
-      {
-        id: "replace-segment-pattern-1",
-        type: "startsWith",
-        pattern: "replace this segment with ",
-        caseSensitive: false,
-      },
-      {
-        id: "replace-segment-pattern-2",
-        type: "startsWith",
-        pattern: "replace this with ",
-        caseSensitive: false,
-      },
-      {
-        id: "replace-segment-pattern-3",
-        type: "startsWith",
-        pattern: "change this to ",
-        caseSensitive: false,
-      },
-    ],
-    handlers: [
-      {
-        id: "replace-segment-with-argument",
-        type: "segmentAction",
-        config: {
-          action: "replace",
-          replacementText: "{argument}",
         },
         order: 1,
       },

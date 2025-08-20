@@ -315,15 +315,11 @@ export class TransformationService {
 
     console.log("Active window info:", windowInfo);
 
-    let messagePrompt = aiConfig.messagePrompt
-      .replace(/{text}/g, text)
-      .replace(/{selection}/, savedState.text)
-      .replace(/{title}/g, windowInfo.title)
-      .replace(/{app}/g, windowInfo.appName);
-
-    if (!savedState.hasSelection) {
-      messagePrompt = messagePrompt.replace(/<sel>.*?<\/sel>/g, "");
-    }
+    let messagePrompt = TransformationService.processPrompt(
+      aiConfig.messagePrompt,
+      savedState,
+      windowInfo
+    );
 
     console.log("MESSAGE_PROMPT:", messagePrompt);
 
