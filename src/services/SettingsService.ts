@@ -458,6 +458,63 @@ export class SettingsService {
       }
     );
 
+    // New data management handlers
+    ipcMain.handle(
+      "plugins:listData",
+      async (event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(
+          payload.pluginName
+        );
+        if (!plugin) {
+          throw new Error(`Plugin ${payload.pluginName} not found`);
+        }
+
+        return await plugin.listData();
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:deleteDataItem",
+      async (event, payload: { pluginName: string; itemId: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(
+          payload.pluginName
+        );
+        if (!plugin) {
+          throw new Error(`Plugin ${payload.pluginName} not found`);
+        }
+
+        await plugin.deleteDataItem(payload.itemId);
+        return { success: true };
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:deleteAllData",
+      async (event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(
+          payload.pluginName
+        );
+        if (!plugin) {
+          throw new Error(`Plugin ${payload.pluginName} not found`);
+        }
+
+        await plugin.deleteAllData();
+        return { success: true };
+      }
+    );
+
     ipcMain.handle(
       "plugins:exportSecureData",
       async (event, payload: { pluginName: string }) => {

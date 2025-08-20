@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from "child_process";
-import { unlinkSync, mkdtempSync, existsSync } from "fs";
+import { unlinkSync, mkdtempSync, existsSync, readdirSync } from "fs";
 import { join, resolve } from "path";
 import { tmpdir } from "os";
 import { app } from "electron";
@@ -512,6 +512,104 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
 
   getDataPath(): string {
     return this.tempDir;
+  }
+
+  async listData(): Promise<
+    Array<{ name: string; description: string; size: number; id: string }>
+  > {
+    const dataItems: Array<{
+      name: string;
+      description: string;
+      size: number;
+      id: string;
+    }> = [];
+
+    try {
+      // List temp files (YAP doesn't store models locally)
+      if (existsSync(this.tempDir)) {
+        const tempFiles = readdirSync(this.tempDir);
+        for (const tempFile of tempFiles) {
+          const tempPath = join(this.tempDir, tempFile);
+          try {
+            const stats = require("fs").statSync(tempPath);
+            dataItems.push({
+              name: tempFile,
+              description: `Temporary audio file`,
+              size: stats.size,
+              id: `temp:${tempFile}`,
+            });
+          } catch (error) {
+            console.warn(`Failed to stat temp file ${tempFile}:`, error);
+          }
+        }
+      }
+
+      // List secure storage keys
+      const secureKeys = await this.listSecureKeys();
+      for (const key of secureKeys) {
+        dataItems.push({
+          name: key,
+          description: `Secure storage item`,
+          size: 0,
+          id: `secure:${key}`,
+        });
+      }
+    } catch (error) {
+      console.warn("Failed to list YAP plugin data:", error);
+    }
+
+    return dataItems;
+  }
+
+  async deleteDataItem(id: string): Promise<void> {
+    const [type, identifier] = id.split(":", 2);
+
+    try {
+      switch (type) {
+        case "temp":
+          const tempPath = join(this.tempDir, identifier);
+          if (existsSync(tempPath)) {
+            require("fs").unlinkSync(tempPath);
+            console.log(`Deleted temp file: ${identifier}`);
+          }
+          break;
+
+        case "secure":
+          await this.deleteSecureValue(identifier);
+          console.log(`Deleted secure data: ${identifier}`);
+          break;
+
+        default:
+          throw new Error(`Unknown data type: ${type}`);
+      }
+    } catch (error) {
+      console.error(`Failed to delete data item ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async deleteAllData(): Promise<void> {
+    try {
+      // Clear temp files
+      if (existsSync(this.tempDir)) {
+        const tempFiles = readdirSync(this.tempDir);
+        for (const file of tempFiles) {
+          try {
+            require("fs").unlinkSync(join(this.tempDir, file));
+          } catch (error) {
+            console.warn(`Failed to delete temp file ${file}:`, error);
+          }
+        }
+      }
+
+      // Clear secure storage
+      await this.clearSecureData();
+
+      console.log("YAP plugin: all data cleared");
+    } catch (error) {
+      console.error("Failed to clear all YAP plugin data:", error);
+      throw error;
+    }
   }
 
   async updateOptions(

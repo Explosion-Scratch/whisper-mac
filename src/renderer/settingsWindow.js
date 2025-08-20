@@ -2663,7 +2663,7 @@ class SettingsWindow {
 
     try {
       const pluginData = await window.electronAPI.getPluginDataInfo();
-      this.renderPluginDataList(pluginData);
+      await this.renderEnhancedPluginDataList(pluginData);
     } catch (error) {
       console.error("Failed to load plugin data info:", error);
       dataList.innerHTML = `
@@ -2760,7 +2760,7 @@ class SettingsWindow {
 
       if (!confirmDelete) return;
 
-      await window.electronAPI.deleteInactivePlugin(pluginName);
+      await window.electronAPI.deleteAllPluginData(pluginName);
       this.showStatus(
         `Cleared data for ${pluginInfo?.displayName || pluginName}`,
         "success"
@@ -2772,6 +2772,185 @@ class SettingsWindow {
       console.error("Failed to clear plugin data:", error);
       this.showStatus("Failed to clear plugin data", "error");
     }
+  }
+
+  async deletePluginDataItem(pluginName, itemId, itemName) {
+    try {
+      const confirmDelete = await window.confirm(
+        `Delete "${itemName}"?\n\nThis action cannot be undone.`
+      );
+
+      if (!confirmDelete) return;
+
+      await window.electronAPI.deletePluginDataItem(pluginName, itemId);
+      this.showStatus(`Deleted "${itemName}"`, "success");
+
+      // Reload the data list
+      this.loadPluginDataInfo();
+    } catch (error) {
+      console.error("Failed to delete data item:", error);
+      this.showStatus(`Failed to delete "${itemName}"`, "error");
+    }
+  }
+
+  async renderEnhancedPluginDataList(pluginData) {
+    const dataList = document.getElementById("pluginDataList");
+    if (!dataList) return;
+
+    this.pluginData = pluginData;
+
+    if (!pluginData.plugins || pluginData.plugins.length === 0) {
+      dataList.innerHTML = `
+        <div class="empty-state">
+          <i class="ph-duotone ph-database"></i>
+          <p>No plugin data found</p>
+        </div>
+      `;
+      return;
+    }
+
+    let html = "";
+    for (const plugin of pluginData.plugins) {
+      const isActive = plugin.isActive;
+      const sizeFormatted = this.formatBytes(plugin.dataSize);
+
+      html += `
+        <div class="plugin-data-item ${isActive ? "active" : ""}">
+          <div class="plugin-data-info">
+            <div class="plugin-name">
+              <span>${plugin.displayName}</span>
+              ${isActive ? '<span class="active-badge">Active</span>' : ""}
+            </div>
+            <div class="plugin-data-stats">
+              <span class="data-size">${sizeFormatted}</span>
+              <span class="data-path">${plugin.dataPath}</span>
+            </div>
+          </div>
+          <div class="plugin-data-actions">
+            <button class="btn btn-sm plugin-details-btn" data-plugin="${
+              plugin.name
+            }">
+              <i class="ph-duotone ph-list-bullets"></i>
+              View Details
+            </button>
+            ${
+              !isActive
+                ? `<button class="btn btn-sm btn-negative plugin-delete-btn" data-plugin="${plugin.name}">
+                     <i class="ph-duotone ph-trash"></i>
+                     Clear All
+                   </button>`
+                : ""
+            }
+          </div>
+        </div>
+        <div class="plugin-data-details" id="details-${
+          plugin.name
+        }" style="display: none;">
+          <div class="loading-indicator">
+            <i class="ph-duotone ph-circle-notch" style="animation: spin 1s linear infinite; margin-right: 8px;"></i>
+            Loading plugin data...
+          </div>
+        </div>
+      `;
+    }
+
+    dataList.innerHTML = html;
+
+    // Bind events for the new buttons
+    this.bindPluginDataEvents();
+  }
+
+  bindPluginDataEvents() {
+    // Handle plugin delete buttons
+    document.querySelectorAll(".plugin-delete-btn").forEach((button) => {
+      const pluginName = button.dataset.plugin;
+      button.addEventListener("click", () => {
+        this.clearPluginData(pluginName);
+      });
+    });
+
+    // Handle plugin details buttons
+    document.querySelectorAll(".plugin-details-btn").forEach((button) => {
+      const pluginName = button.dataset.plugin;
+      button.addEventListener("click", () => {
+        this.togglePluginDetails(pluginName);
+      });
+    });
+  }
+
+  async togglePluginDetails(pluginName) {
+    const detailsContainer = document.getElementById(`details-${pluginName}`);
+    if (!detailsContainer) return;
+
+    if (detailsContainer.style.display === "none") {
+      // Show details
+      detailsContainer.style.display = "block";
+
+      try {
+        const dataItems = await window.electronAPI.listPluginData(pluginName);
+        this.renderPluginDataItems(detailsContainer, pluginName, dataItems);
+      } catch (error) {
+        console.error("Failed to load plugin data items:", error);
+        detailsContainer.innerHTML = `
+          <div class="error-message">
+            <i class="ph-duotone ph-warning"></i>
+            Failed to load plugin data items
+          </div>
+        `;
+      }
+    } else {
+      // Hide details
+      detailsContainer.style.display = "none";
+    }
+  }
+
+  renderPluginDataItems(container, pluginName, dataItems) {
+    if (!dataItems || dataItems.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <i class="ph-duotone ph-folder-open"></i>
+          <p>No data items found</p>
+        </div>
+      `;
+      return;
+    }
+
+    let html = '<div class="plugin-data-items">';
+
+    for (const item of dataItems) {
+      const sizeFormatted = this.formatBytes(item.size);
+      html += `
+        <div class="plugin-data-item-detail">
+          <div class="item-info">
+            <div class="item-name">${item.name}</div>
+            <div class="item-description">${item.description}</div>
+            <div class="item-size">${sizeFormatted}</div>
+          </div>
+          <div class="item-actions">
+            <button class="btn btn-xs btn-negative delete-item-btn" 
+                    data-plugin="${pluginName}" 
+                    data-item-id="${item.id}"
+                    data-item-name="${item.name}">
+              <i class="ph-duotone ph-trash"></i>
+              Delete
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    html += "</div>";
+    container.innerHTML = html;
+
+    // Bind delete events for individual items
+    container.querySelectorAll(".delete-item-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        const pluginName = button.dataset.plugin;
+        const itemId = button.dataset.itemId;
+        const itemName = button.dataset.itemName;
+        this.deletePluginDataItem(pluginName, itemId, itemName);
+      });
+    });
   }
 }
 

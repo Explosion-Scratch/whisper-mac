@@ -134,6 +134,16 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   }
   abstract getDataSize(): Promise<number>;
   abstract getDataPath(): string;
+
+  // Data management methods
+  abstract listData(): Promise<
+    Array<{ name: string; description: string; size: number; id: string }>
+  >;
+  abstract deleteDataItem(id: string): Promise<void>;
+  async deleteAllData(): Promise<void> {
+    // Default implementation uses clearData
+    await this.clearData();
+  }
   abstract updateOptions(
     options: Record<string, any>,
     uiFunctions?: PluginUIFunctions
