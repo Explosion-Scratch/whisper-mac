@@ -1,5 +1,6 @@
 import { EventEmitter } from "events";
 import { SegmentUpdate } from "../types/SegmentTypes";
+import { SecureStorageService } from "../services/SecureStorageService";
 
 export interface TranscriptionSetupProgress {
   status: "starting" | "complete" | "error";
@@ -83,6 +84,8 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   protected activationCriteria: PluginActivationCriteria = {};
   protected onTranscriptionCallback: ((update: SegmentUpdate) => void) | null =
     null;
+  protected secureStorage: SecureStorageService;
+  protected pluginManager: any = null;
 
   abstract readonly name: string;
   abstract readonly displayName: string;
@@ -90,6 +93,11 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   abstract readonly description: string;
   abstract readonly supportsRealtime: boolean;
   abstract readonly supportsBatchProcessing: boolean;
+
+  constructor() {
+    super();
+    this.secureStorage = new SecureStorageService();
+  }
 
   // Existing transcription methods
   abstract isAvailable(): Promise<boolean>;
@@ -100,6 +108,11 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   ): Promise<void>;
   abstract processAudioSegment(audioData: Float32Array): Promise<void>;
   abstract transcribeFile(filePath: string): Promise<string>;
+
+  /**
+   * Optional method for plugins that need to process all buffered audio at once
+   */
+  finalizeBufferedAudio?(): Promise<void>;
   abstract stopTranscription(): Promise<void>;
   abstract cleanup(): Promise<void>;
   abstract getConfigSchema(): TranscriptionPluginConfigSchema;
@@ -114,7 +127,11 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   abstract initialize(): Promise<void>;
   abstract destroy(): Promise<void>;
   abstract onDeactivate(): Promise<void>;
-  abstract clearData(): Promise<void>;
+  async clearData(): Promise<void> {
+    // Clear secure storage by default
+    await this.clearSecureData();
+    // Plugins can override to add additional cleanup
+  }
   abstract getDataSize(): Promise<number>;
   abstract getDataPath(): string;
   abstract updateOptions(
@@ -236,8 +253,46 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   /**
    * Update stored options
    */
-  protected setOptions(options: Record<string, any>): void {
+  setOptions(options: Record<string, any>): void {
+    console.log(`[${this.name}] Setting options:`, options);
     this.options = { ...options };
+    console.log(`[${this.name}] Options set successfully`);
+  }
+
+  // Plugin secure storage methods
+  async setSecureValue(key: string, value: string): Promise<void> {
+    await this.secureStorage.setSecureValue(this.name, key, value);
+  }
+
+  async getSecureValue(key: string): Promise<string | null> {
+    return this.secureStorage.getSecureValue(this.name, key);
+  }
+
+  async deleteSecureValue(key: string): Promise<void> {
+    await this.secureStorage.deleteSecureValue(this.name, key);
+  }
+
+  async setSecureData(key: string, data: any): Promise<void> {
+    await this.secureStorage.setSecureData(this.name, key, data);
+  }
+
+  async getSecureData(key: string): Promise<any | null> {
+    return this.secureStorage.getSecureData(this.name, key);
+  }
+
+  async listSecureKeys(): Promise<string[]> {
+    return this.secureStorage.listSecureKeys(this.name);
+  }
+
+  async clearSecureData(): Promise<void> {
+    await this.secureStorage.clearPluginData(this.name);
+  }
+
+  /**
+   * Set the plugin manager reference (called by the manager)
+   */
+  setPluginManager(manager: any): void {
+    this.pluginManager = manager;
   }
 
   /**

@@ -11,11 +11,13 @@ export { TranscriptionPluginManager } from "./TranscriptionPluginManager";
 export { YapTranscriptionPlugin } from "./YapTranscriptionPlugin";
 export { WhisperCppTranscriptionPlugin } from "./WhisperCppTranscriptionPlugin";
 export { VoskTranscriptionPlugin } from "./VoskTranscriptionPlugin";
+export { GeminiTranscriptionPlugin } from "./GeminiTranscriptionPlugin";
 
 import { TranscriptionPluginManager } from "./TranscriptionPluginManager";
 import { YapTranscriptionPlugin } from "./YapTranscriptionPlugin";
 import { WhisperCppTranscriptionPlugin } from "./WhisperCppTranscriptionPlugin";
 import { VoskTranscriptionPlugin } from "./VoskTranscriptionPlugin";
+import { GeminiTranscriptionPlugin } from "./GeminiTranscriptionPlugin";
 import { AppConfig } from "../config/AppConfig";
 
 /**
@@ -37,6 +39,10 @@ export function createTranscriptionPluginManager(
   // Register Vosk plugin
   const voskPlugin = new VoskTranscriptionPlugin(config);
   pluginManager.registerPlugin(voskPlugin);
+
+  // Register Gemini plugin
+  const geminiPlugin = new GeminiTranscriptionPlugin(config);
+  pluginManager.registerPlugin(geminiPlugin);
 
   return pluginManager;
 }
