@@ -412,6 +412,76 @@ export class SettingsService {
         }
       }
     );
+
+    // Secure storage management handlers
+    ipcMain.handle(
+      "plugins:getSecureStorageInfo",
+      async (event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(
+          payload.pluginName
+        );
+        if (!plugin) {
+          throw new Error(`Plugin ${payload.pluginName} not found`);
+        }
+
+        const keys = await plugin.listSecureKeys();
+        const dataSize = await plugin.getDataSize();
+
+        return {
+          keys: keys.map((key) => ({ name: key, type: "secure" })),
+          totalSize: dataSize,
+          hasSecureData: keys.length > 0,
+        };
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:clearSecureData",
+      async (event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(
+          payload.pluginName
+        );
+        if (!plugin) {
+          throw new Error(`Plugin ${payload.pluginName} not found`);
+        }
+
+        await plugin.clearSecureData();
+        return { success: true };
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:exportSecureData",
+      async (event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(
+          payload.pluginName
+        );
+        if (!plugin) {
+          throw new Error(`Plugin ${payload.pluginName} not found`);
+        }
+
+        const keys = await plugin.listSecureKeys();
+        const data: Record<string, any> = {};
+
+        for (const key of keys) {
+          data[key] = await plugin.getSecureData(key);
+        }
+
+        return { data, timestamp: new Date().toISOString() };
+      }
+    );
   }
 
   private broadcastSettingsUpdate(): void {

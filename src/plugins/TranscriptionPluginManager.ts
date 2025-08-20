@@ -51,6 +51,9 @@ export class TranscriptionPluginManager extends EventEmitter {
     );
     this.plugins.set(plugin.name, plugin);
 
+    // Set plugin manager reference
+    plugin.setPluginManager(this);
+
     // Forward plugin events
     plugin.on("error", (error: any) => {
       console.error(`Plugin ${plugin.name} error:`, error);
@@ -119,20 +122,6 @@ export class TranscriptionPluginManager extends EventEmitter {
       throw new Error(`Plugin ${name} not found`);
     }
 
-    // Re-check availability on every switch
-    const available = await plugin.isAvailable().catch(() => false);
-    if (!available) {
-      // Try running initialization to see if it becomes available
-      try {
-        if (!plugin.isPluginInitialized()) {
-          await plugin.initialize();
-        }
-      } catch {}
-    }
-    if (!(await plugin.isAvailable().catch(() => false))) {
-      throw new Error(`Plugin ${name} is not available`);
-    }
-
     // Load plugin options from config if none provided
     let finalOptions = { ...options };
     if (Object.keys(options).length === 0) {
@@ -140,6 +129,45 @@ export class TranscriptionPluginManager extends EventEmitter {
       if (pluginConfig[name]) {
         finalOptions = pluginConfig[name];
       }
+    }
+
+    // Set options before checking availability (for plugins that need options to be available)
+    if (Object.keys(finalOptions).length > 0) {
+      console.log(
+        `Setting options for ${name} before availability check:`,
+        finalOptions
+      );
+      plugin.setOptions(finalOptions);
+    }
+
+    // Re-check availability on every switch
+    console.log(`Checking availability for ${name}...`);
+    const available = await plugin.isAvailable().catch((error) => {
+      console.error(`Error checking availability for ${name}:`, error);
+      return false;
+    });
+    console.log(`Initial availability check for ${name}:`, available);
+
+    if (!available) {
+      // Try running initialization to see if it becomes available
+      console.log(`Plugin ${name} not available, trying initialization...`);
+      try {
+        if (!plugin.isPluginInitialized()) {
+          await plugin.initialize();
+        }
+      } catch (error) {
+        console.error(`Failed to initialize ${name}:`, error);
+      }
+    }
+
+    const finalAvailable = await plugin.isAvailable().catch((error) => {
+      console.error(`Error in final availability check for ${name}:`, error);
+      return false;
+    });
+    console.log(`Final availability check for ${name}:`, finalAvailable);
+
+    if (!finalAvailable) {
+      throw new Error(`Plugin ${name} is not available`);
     }
 
     // Verify options before proceeding
@@ -170,9 +198,11 @@ export class TranscriptionPluginManager extends EventEmitter {
     this.activePlugin = plugin;
 
     try {
-      // Update options first
+      // Update options with full updateOptions call (for plugins that need to store securely, etc.)
       if (Object.keys(finalOptions).length > 0) {
+        console.log(`Calling updateOptions for ${name} with:`, finalOptions);
         await plugin.updateOptions(finalOptions, uiFunctions);
+        console.log(`updateOptions completed for ${name}`);
       }
 
       // Activate the plugin
@@ -256,6 +286,11 @@ export class TranscriptionPluginManager extends EventEmitter {
     return this.bufferingEnabled && this.bufferedAudioChunks.length > 0;
   }
 
+  /** Get buffered audio chunks for plugins that need them. */
+  getBufferedAudioChunks(): Float32Array[] {
+    return [...this.bufferedAudioChunks];
+  }
+
   /**
    * When runOnAll is enabled, combine all buffered chunks and send one call to the plugin.
    */
@@ -267,6 +302,20 @@ export class TranscriptionPluginManager extends EventEmitter {
       0
     );
     if (total === 0) return;
+
+    // Check if plugin has its own finalizeBufferedAudio method
+    if (typeof this.activePlugin.finalizeBufferedAudio === "function") {
+      // Clear buffer before processing to avoid recursion capturing
+      this.bufferedAudioChunks = [];
+      try {
+        await this.activePlugin.finalizeBufferedAudio();
+      } catch (e) {
+        this.emit("plugin-error", { plugin: this.activePlugin.name, error: e });
+      }
+      return;
+    }
+
+    // Fallback to combining chunks and calling processAudioSegment
     const combined = new Float32Array(total);
     let offset = 0;
     for (const chunk of this.bufferedAudioChunks) {

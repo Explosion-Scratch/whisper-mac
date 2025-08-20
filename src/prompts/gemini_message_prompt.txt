@@ -1,0 +1,16 @@
+----CONTEXT----
+Application: {app}
+Window title: {title}
+<sel>
+Selected text: Your output will replace this - if the user has some instructions revolving around editing it then follow them
+<SELECTED_TEXT>
+{selection}
+</SELECTED_TEXT>
+</sel>
+----CONTEXT----
+
+----INSTRUCTION----
+Output only the <sel>changed selection</sel>text from the audio.<sel> This text will replace the current selection on screen</sel>. Process the user's audio input according to their instructions.  Be flexible and follow the user's intent.
+----END INSTRUCTION----
+
+Output <sel>selection </sel>text:

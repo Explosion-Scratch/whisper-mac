@@ -48,6 +48,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Unified plugin management
   getPluginOptions: () => ipcRenderer.invoke("plugins:getOptions"),
+  getCurrentPluginInfo: () =>
+    ipcRenderer.invoke("onboarding:getCurrentPluginInfo"),
   getActivePlugin: () => ipcRenderer.invoke("plugins:getActive"),
   updateActivePluginOptions: (options: Record<string, any>) =>
     ipcRenderer.invoke("plugins:updateActiveOptions", { options }),

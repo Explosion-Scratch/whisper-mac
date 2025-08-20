@@ -210,6 +210,20 @@ export class IpcHandlerManager {
         options,
       };
     });
+
+    ipcMain.handle("onboarding:getCurrentPluginInfo", () => {
+      const activePlugin = this.transcriptionPluginManager.getActivePlugin();
+      if (!activePlugin) {
+        return { hasSkipTransformation: false };
+      }
+
+      const criteria = activePlugin.getActivationCriteria();
+      return {
+        hasSkipTransformation: criteria.skipTransformation || false,
+        pluginName: activePlugin.name,
+        displayName: activePlugin.displayName,
+      };
+    });
   }
 
   private setupOnboardingActionHandlers(): void {
@@ -272,11 +286,28 @@ export class IpcHandlerManager {
             pluginName,
             options
           );
-        } catch {}
+        } catch (error) {
+          console.error(`Failed to set active plugin ${pluginName}:`, error);
+          // Re-throw the error so the frontend can handle it
+          throw error;
+        }
       }
     );
 
     ipcMain.handle("onboarding:setAiEnabled", async (_e, enabled: boolean) => {
+      // Check if current plugin has skipTransformation
+      const activePlugin = this.transcriptionPluginManager.getActivePlugin();
+      if (activePlugin) {
+        const criteria = activePlugin.getActivationCriteria();
+        if (criteria.skipTransformation) {
+          // Plugin handles transformation internally, so AI enhancement is not needed
+          console.log(
+            `Plugin ${activePlugin.name} has skipTransformation, AI enhancement not needed`
+          );
+          return { success: true, skipped: true };
+        }
+      }
+
       if (enabled) {
         const { AiValidationService } = await import(
           "../services/AiValidationService"

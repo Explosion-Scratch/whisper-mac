@@ -954,6 +954,18 @@ class SettingsWindow {
 
   async handleAiEnabledChange(checkboxElement) {
     try {
+      // Check if current plugin has skipTransformation
+      const pluginInfo = await window.electronAPI.getCurrentPluginInfo();
+      if (pluginInfo.hasSkipTransformation) {
+        // Plugin handles transformation internally, so AI enhancement is not needed
+        checkboxElement.checked = false;
+        this.showStatus(
+          `AI enhancement is not needed for ${pluginInfo.displayName} plugin as it handles text enhancement internally.`,
+          "info"
+        );
+        return;
+      }
+
       // Get current AI configuration
       const baseUrl = this.getSettingValue("ai.baseUrl");
       const model = this.getSettingValue("ai.model");
@@ -1049,20 +1061,67 @@ class SettingsWindow {
         }
       }
     } catch (error) {
-      // Disable AI and show error
-      this.setSettingValue("ai.enabled", false);
+      console.error("AI configuration validation failed:", error);
       this.showStatus(
-        `AI validation failed: ${error.message || String(error)} - AI disabled`,
+        `AI validation failed: ${error.message || String(error)}`,
         "error"
       );
+    }
+  }
 
-      // Update the checkbox to reflect the disabled state
+  async updateAiEnhancementSection() {
+    try {
+      const pluginInfo = await window.electronAPI.getCurrentPluginInfo();
       const aiEnabledCheckbox = document.querySelector(
         '[data-key="ai.enabled"]'
       );
-      if (aiEnabledCheckbox) {
-        aiEnabledCheckbox.checked = false;
+      const aiSection = document.querySelector('[data-section="ai"]');
+
+      if (pluginInfo.hasSkipTransformation) {
+        // Disable AI enhancement section
+        if (aiEnabledCheckbox) {
+          aiEnabledCheckbox.checked = false;
+          aiEnabledCheckbox.disabled = true;
+          aiEnabledCheckbox.title = `AI enhancement is not needed for ${pluginInfo.displayName} plugin as it handles text enhancement internally.`;
+        }
+
+        if (aiSection) {
+          const infoMessage = document.createElement("div");
+          infoMessage.className = "field-help";
+          infoMessage.style.color = "var(--color-text-secondary)";
+          infoMessage.style.fontStyle = "normal";
+          infoMessage.innerHTML = `<i class="ph ph-info"></i> AI enhancement is disabled because ${pluginInfo.displayName} plugin handles text enhancement internally.`;
+
+          // Remove any existing info message
+          const existingMessage = aiSection.querySelector(".field-help");
+          if (existingMessage) {
+            existingMessage.remove();
+          }
+
+          // Add the new message after the checkbox
+          if (aiEnabledCheckbox && aiEnabledCheckbox.parentNode) {
+            aiEnabledCheckbox.parentNode.appendChild(infoMessage);
+          }
+        }
+
+        this.setSettingValue("ai.enabled", false);
+      } else {
+        // Enable AI enhancement section
+        if (aiEnabledCheckbox) {
+          aiEnabledCheckbox.disabled = false;
+          aiEnabledCheckbox.title = "Enable AI-powered text enhancement";
+        }
+
+        if (aiSection) {
+          // Remove any existing info message
+          const existingMessage = aiSection.querySelector(".field-help");
+          if (existingMessage) {
+            existingMessage.remove();
+          }
+        }
       }
+    } catch (error) {
+      console.error("Failed to update AI enhancement section:", error);
     }
   }
 
