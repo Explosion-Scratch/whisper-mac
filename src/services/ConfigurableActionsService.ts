@@ -7,15 +7,21 @@ import {
   MatchPattern,
   ActionHandlerConfig,
   HandlerConfig,
+  SegmentActionConfig,
 } from "../types/ActionTypes";
 
 export class ConfigurableActionsService extends EventEmitter {
   private actions: ActionHandler[] = [];
   private installedApps: Set<string> = new Set();
+  private segmentManager: any = null; // Will be set by main app
 
   constructor() {
     super();
     this.initializeInstalledApps();
+  }
+
+  setSegmentManager(segmentManager: any): void {
+    this.segmentManager = segmentManager;
   }
 
   private async initializeInstalledApps(): Promise<void> {
@@ -115,6 +121,8 @@ export class ConfigurableActionsService extends EventEmitter {
         return this.executeQuitApplication(config);
       case "executeShell":
         return this.executeShell(config);
+      case "segmentAction":
+        return this.executeSegmentAction(config as SegmentActionConfig, match);
       default:
         console.warn(
           `[ConfigurableActions] Unknown handler type: ${handler.type}`
@@ -244,6 +252,160 @@ export class ConfigurableActionsService extends EventEmitter {
     }
   }
 
+  private async executeSegmentAction(
+    config: SegmentActionConfig,
+    match: ActionMatch
+  ): Promise<boolean> {
+    if (!this.segmentManager) {
+      console.error(
+        "[ConfigurableActions] SegmentManager not available for segment action"
+      );
+      return false;
+    }
+
+    try {
+      console.log(
+        `[ConfigurableActions] Executing segment action: ${config.action}`
+      );
+
+      switch (config.action) {
+        case "clear":
+          this.segmentManager.clearAllSegments();
+          return true;
+
+        case "undo":
+          return this.segmentManager.deleteLastSegment();
+
+        case "replace":
+          if (!config.replacementText) {
+            console.warn(
+              "[ConfigurableActions] No replacement text provided for replace action"
+            );
+            return false;
+          }
+          return this.segmentManager.replaceLastSegmentContent(
+            config.replacementText
+          );
+
+        case "deleteLastN":
+          const count = config.count || 1;
+          const deletedCount = this.segmentManager.deleteLastNSegments(count);
+          return deletedCount > 0;
+
+        case "conditionalTransform":
+          return this.executeConditionalTransform(config, match);
+
+        default:
+          console.warn(
+            `[ConfigurableActions] Unknown segment action: ${config.action}`
+          );
+          return false;
+      }
+    } catch (error) {
+      console.error(
+        "[ConfigurableActions] Failed to execute segment action:",
+        error
+      );
+      return false;
+    }
+  }
+
+  private async executeConditionalTransform(
+    config: SegmentActionConfig,
+    match: ActionMatch
+  ): Promise<boolean> {
+    if (!config.condition || !config.conditionalAction) {
+      console.warn(
+        "[ConfigurableActions] Conditional transform missing condition or action"
+      );
+      return false;
+    }
+
+    const lastSegment = this.segmentManager.getLastSegment();
+    if (!lastSegment) {
+      console.log(
+        "[ConfigurableActions] No segments available for conditional transform"
+      );
+      return false;
+    }
+
+    // Check condition
+    const conditionMet = this.checkCondition(
+      lastSegment.text,
+      config.condition
+    );
+    if (!conditionMet) {
+      console.log(
+        "[ConfigurableActions] Condition not met for conditional transform"
+      );
+      return false;
+    }
+
+    console.log(
+      "[ConfigurableActions] Condition met, applying transformations"
+    );
+
+    // Apply current segment transformations
+    if (
+      config.conditionalAction.onCurrentSegment === "removePattern" &&
+      config.conditionalAction.removePattern
+    ) {
+      const pattern = config.conditionalAction.removePattern;
+      const newText = lastSegment.text
+        .replace(
+          new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "+$"),
+          ""
+        )
+        .trim();
+      this.segmentManager.replaceLastSegmentContent(newText);
+    } else if (
+      config.conditionalAction.onCurrentSegment === "replace" &&
+      config.conditionalAction.replaceWith
+    ) {
+      this.segmentManager.replaceLastSegmentContent(
+        config.conditionalAction.replaceWith
+      );
+    }
+
+    // Store action for next segment if specified
+    if (config.conditionalAction.onNextSegment) {
+      // We'll need to queue this action somehow for the next segment
+      // For now, apply it immediately to the last segment as a demo
+      if (config.conditionalAction.onNextSegment === "lowercase") {
+        this.segmentManager.lowercaseFirstWordOfLastSegment();
+      }
+    }
+
+    return true;
+  }
+
+  private checkCondition(
+    text: string,
+    condition: { type: string; value: string }
+  ): boolean {
+    switch (condition.type) {
+      case "endsWith":
+        return text.endsWith(condition.value);
+      case "startsWith":
+        return text.startsWith(condition.value);
+      case "contains":
+        return text.includes(condition.value);
+      case "regex":
+        try {
+          const regex = new RegExp(condition.value);
+          return regex.test(text);
+        } catch (error) {
+          console.error(
+            "[ConfigurableActions] Invalid regex in condition:",
+            error
+          );
+          return false;
+        }
+      default:
+        return false;
+    }
+  }
+
   private interpolateConfig(config: HandlerConfig, match: ActionMatch): any {
     const interpolated = JSON.parse(JSON.stringify(config));
     const replacements = {
@@ -310,7 +472,7 @@ export class ConfigurableActionsService extends EventEmitter {
         try {
           const flags = pattern.caseSensitive ? "g" : "gi";
           const regex = new RegExp(testPattern, flags);
-          const match = regex.exec(text);
+          const match = regex.exec(testText);
           if (match) {
             const argument = match[1] || match[0];
             return { argument };
@@ -329,7 +491,7 @@ export class ConfigurableActionsService extends EventEmitter {
   }
 
   private normalizeText(text: string): string {
-    return text.trim().replace(/[^\w\s]/g, "");
+    return text.trim().replace(/[^\w\s.]/g, "");
   }
 
   getActions(): ActionHandler[] {

@@ -1911,6 +1911,9 @@ class SettingsWindow {
             <option value="executeShell" ${
               handler.type === "executeShell" ? "selected" : ""
             }>Execute Shell Command</option>
+            <option value="segmentAction" ${
+              handler.type === "segmentAction" ? "selected" : ""
+            }>Segment Action</option>
           </select>
           <input type="number" class="form-control handler-order-input" 
                  min="1" value="${handler.order}" 
@@ -2061,6 +2064,124 @@ class SettingsWindow {
               Run in background
             </label>
           </div>
+        `;
+
+      case "segmentAction":
+        return `
+          <div class="config-field">
+            <label>Segment Action</label>
+            <select class="form-control" 
+                    data-config-field="action"
+                    data-action-index="${actionIndex}" 
+                    data-handler-index="${handlerIndex}" 
+                    data-key="${key}">
+              <option value="clear" ${
+                handler.config.action === "clear" ? "selected" : ""
+              }>Clear All Segments</option>
+              <option value="undo" ${
+                handler.config.action === "undo" ? "selected" : ""
+              }>Undo Last Segment</option>
+              <option value="replace" ${
+                handler.config.action === "replace" ? "selected" : ""
+              }>Replace Segment Content</option>
+              <option value="deleteLastN" ${
+                handler.config.action === "deleteLastN" ? "selected" : ""
+              }>Delete Last N Segments</option>
+              <option value="conditionalTransform" ${
+                handler.config.action === "conditionalTransform"
+                  ? "selected"
+                  : ""
+              }>Conditional Transform</option>
+            </select>
+          </div>
+          ${
+            handler.config.action === "replace"
+              ? `
+          <div class="config-field">
+            <label>Replacement Text</label>
+            <input type="text" class="form-control" 
+                   placeholder="Use {argument}, {match}, etc." 
+                   value="${this.escapeHtml(
+                     handler.config.replacementText || ""
+                   )}" 
+                   data-config-field="replacementText"
+                   data-action-index="${actionIndex}" 
+                   data-handler-index="${handlerIndex}" 
+                   data-key="${key}">
+            <small class="field-help">Use {argument} to include text after the trigger phrase</small>
+          </div>
+          `
+              : ""
+          }
+          ${
+            handler.config.action === "deleteLastN"
+              ? `
+          <div class="config-field">
+            <label>Number of Segments to Delete</label>
+            <input type="number" class="form-control" 
+                   placeholder="1" min="1"
+                   value="${handler.config.count || 1}" 
+                   data-config-field="count"
+                   data-action-index="${actionIndex}" 
+                   data-handler-index="${handlerIndex}" 
+                   data-key="${key}">
+          </div>
+          `
+              : ""
+          }
+          ${
+            handler.config.action === "conditionalTransform"
+              ? `
+          <div class="config-field">
+            <label>Condition Type</label>
+            <select class="form-control" 
+                    data-config-field="condition.type"
+                    data-action-index="${actionIndex}" 
+                    data-handler-index="${handlerIndex}" 
+                    data-key="${key}">
+              <option value="endsWith" ${
+                handler.config.condition?.type === "endsWith" ? "selected" : ""
+              }>Ends With</option>
+              <option value="startsWith" ${
+                handler.config.condition?.type === "startsWith"
+                  ? "selected"
+                  : ""
+              }>Starts With</option>
+              <option value="contains" ${
+                handler.config.condition?.type === "contains" ? "selected" : ""
+              }>Contains</option>
+              <option value="regex" ${
+                handler.config.condition?.type === "regex" ? "selected" : ""
+              }>Regex Pattern</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Condition Value</label>
+            <input type="text" class="form-control" 
+                   placeholder="Text to match against" 
+                   value="${this.escapeHtml(
+                     handler.config.condition?.value || ""
+                   )}" 
+                   data-config-field="condition.value"
+                   data-action-index="${actionIndex}" 
+                   data-handler-index="${handlerIndex}" 
+                   data-key="${key}">
+          </div>
+          <div class="config-field">
+            <label>Remove Pattern (from current segment)</label>
+            <input type="text" class="form-control" 
+                   placeholder="e.g., \\.\\.\\. for ellipses" 
+                   value="${this.escapeHtml(
+                     handler.config.conditionalAction?.removePattern || ""
+                   )}" 
+                   data-config-field="conditionalAction.removePattern"
+                   data-action-index="${actionIndex}" 
+                   data-handler-index="${handlerIndex}" 
+                   data-key="${key}">
+          </div>
+          `
+              : ""
+          }
         `;
 
       default:
@@ -2354,6 +2475,11 @@ class SettingsWindow {
           timeout: 10000,
         };
         break;
+      case "segmentAction":
+        handler.config = {
+          action: "clear",
+        };
+        break;
     }
 
     this.setSettingValue(key, actionsConfig);
@@ -2366,8 +2492,28 @@ class SettingsWindow {
 
   updateHandlerConfig(key, actionIndex, handlerIndex, field, value) {
     const actionsConfig = this.getSettingValue(key) || { actions: [] };
-    actionsConfig.actions[actionIndex].handlers[handlerIndex].config[field] =
-      value;
+    const config =
+      actionsConfig.actions[actionIndex].handlers[handlerIndex].config;
+
+    // Handle nested field paths like "condition.type"
+    if (field.includes(".")) {
+      const parts = field.split(".");
+      let target = config;
+
+      // Navigate to the parent object
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!target[parts[i]]) {
+          target[parts[i]] = {};
+        }
+        target = target[parts[i]];
+      }
+
+      // Set the final value
+      target[parts[parts.length - 1]] = value;
+    } else {
+      config[field] = value;
+    }
+
     this.setSettingValue(key, actionsConfig);
   }
 

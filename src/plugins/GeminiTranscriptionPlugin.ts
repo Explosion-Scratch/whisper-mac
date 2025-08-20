@@ -36,6 +36,24 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.setActivationCriteria({ runOnAll: true, skipTransformation: true });
   }
 
+  /**
+   * Ensures API key is available by checking secure storage first, then this.apiKey
+   */
+  private async ensureApiKey(): Promise<string | null> {
+    // First try to get from secure storage
+    try {
+      const secureKey = await this.getSecureValue("api_key");
+      if (secureKey) {
+        return secureKey;
+      }
+    } catch (error) {
+      console.warn("Failed to get API key from secure storage:", error);
+    }
+
+    // Fall back to this.apiKey
+    return this.apiKey;
+  }
+
   async isAvailable(): Promise<boolean> {
     console.log("Checking Gemini availability...");
     console.log("Current API key:", this.apiKey);
@@ -78,7 +96,8 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     onLog?: (line: string) => void
   ): Promise<void> {
     // Initialize Gemini API connection
-    if (!this.apiKey) {
+    const apiKey = await this.ensureApiKey();
+    if (!apiKey) {
       throw new Error("Gemini API key not configured");
     }
 
@@ -183,10 +202,15 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     screenshotBase64?: string,
     savedState?: SelectedTextResult
   ): Promise<string> {
+    const apiKey = await this.ensureApiKey();
+    if (!apiKey) {
+      throw new Error("Gemini API key not configured");
+    }
+
     const modelId = this.modelConfig?.model || "gemini-2.5-flash";
     const url = `${this.apiBase}/models/${encodeURIComponent(
       modelId
-    )}:generateContent?key=${encodeURIComponent(this.apiKey!)}`;
+    )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
     // Use TransformationService static methods to build request parts
     const parts = TransformationService.buildGeminiRequestParts(
@@ -382,7 +406,9 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     const errors: string[] = [];
 
     if (!options.api_key) {
-      errors.push("API key is required");
+      if (!(await this.ensureApiKey())) {
+        errors.push("API key is required");
+      }
     }
 
     if (
@@ -403,7 +429,8 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.apiKey = await this.getSecureValue("api_key");
     this.modelConfig = await this.getSecureData("model_config");
 
-    if (!this.apiKey) {
+    const apiKey = await this.ensureApiKey();
+    if (!apiKey) {
       throw new Error("Gemini API key not configured");
     }
 
@@ -416,7 +443,8 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.apiKey = await this.getSecureValue("api_key");
     this.modelConfig = await this.getSecureData("model_config");
 
-    if (!this.apiKey) {
+    const apiKey = await this.ensureApiKey();
+    if (!apiKey) {
       throw new Error("Gemini API key not configured");
     }
 
