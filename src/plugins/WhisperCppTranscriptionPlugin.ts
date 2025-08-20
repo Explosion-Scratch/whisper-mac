@@ -5,6 +5,7 @@ import {
   existsSync,
   readFileSync,
   createWriteStream,
+  readdirSync,
 } from "fs";
 import { join } from "path";
 import { tmpdir, arch, platform } from "os";
@@ -1137,6 +1138,135 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     return this.tempDir;
   }
 
+  async listData(): Promise<
+    Array<{ name: string; description: string; size: number; id: string }>
+  > {
+    const dataItems: Array<{
+      name: string;
+      description: string;
+      size: number;
+      id: string;
+    }> = [];
+
+    try {
+      const modelsDir = this.config.getModelsDir();
+
+      // List downloaded models
+      if (existsSync(modelsDir)) {
+        const files = readdirSync(modelsDir);
+        const modelFiles = files.filter((file) => file.endsWith(".bin"));
+
+        for (const modelFile of modelFiles) {
+          const modelPath = join(modelsDir, modelFile);
+          try {
+            const stats = require("fs").statSync(modelPath);
+            dataItems.push({
+              name: modelFile.replace(".bin", ""),
+              description: `Whisper.cpp model file`,
+              size: stats.size,
+              id: `model:${modelFile}`,
+            });
+          } catch (error) {
+            console.warn(`Failed to stat model file ${modelFile}:`, error);
+          }
+        }
+      }
+
+      // List temp files
+      if (existsSync(this.tempDir)) {
+        const tempFiles = readdirSync(this.tempDir);
+        for (const tempFile of tempFiles) {
+          const tempPath = join(this.tempDir, tempFile);
+          try {
+            const stats = require("fs").statSync(tempPath);
+            dataItems.push({
+              name: tempFile,
+              description: `Temporary audio file`,
+              size: stats.size,
+              id: `temp:${tempFile}`,
+            });
+          } catch (error) {
+            console.warn(`Failed to stat temp file ${tempFile}:`, error);
+          }
+        }
+      }
+
+      // List secure storage keys
+      const secureKeys = await this.listSecureKeys();
+      for (const key of secureKeys) {
+        dataItems.push({
+          name: key,
+          description: `Secure storage item`,
+          size: 0,
+          id: `secure:${key}`,
+        });
+      }
+    } catch (error) {
+      console.warn("Failed to list Whisper.cpp plugin data:", error);
+    }
+
+    return dataItems;
+  }
+
+  async deleteDataItem(id: string): Promise<void> {
+    const [type, identifier] = id.split(":", 2);
+
+    try {
+      switch (type) {
+        case "model":
+          const modelPath = join(this.config.getModelsDir(), identifier);
+          if (existsSync(modelPath)) {
+            require("fs").unlinkSync(modelPath);
+            console.log(`Deleted model: ${identifier}`);
+          }
+          break;
+
+        case "temp":
+          const tempPath = join(this.tempDir, identifier);
+          if (existsSync(tempPath)) {
+            require("fs").unlinkSync(tempPath);
+            console.log(`Deleted temp file: ${identifier}`);
+          }
+          break;
+
+        case "secure":
+          await this.deleteSecureValue(identifier);
+          console.log(`Deleted secure data: ${identifier}`);
+          break;
+
+        default:
+          throw new Error(`Unknown data type: ${type}`);
+      }
+    } catch (error) {
+      console.error(`Failed to delete data item ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async deleteAllData(): Promise<void> {
+    try {
+      // Clear temp files
+      if (existsSync(this.tempDir)) {
+        const tempFiles = readdirSync(this.tempDir);
+        for (const file of tempFiles) {
+          try {
+            require("fs").unlinkSync(join(this.tempDir, file));
+          } catch (error) {
+            console.warn(`Failed to delete temp file ${file}:`, error);
+          }
+        }
+      }
+
+      // Clear secure storage
+      await this.clearSecureData();
+
+      console.log("Whisper.cpp plugin: all data cleared");
+    } catch (error) {
+      console.error("Failed to clear all Whisper.cpp plugin data:", error);
+      throw error;
+    }
+  }
+
   async updateOptions(
     options: Record<string, any>,
     uiFunctions?: PluginUIFunctions
@@ -1234,12 +1364,29 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         // Update model path using the new model
         const modelPath = join(this.config.getModelsDir(), options.model);
 
-        // Check if new model exists
+        // Check if new model exists, download if missing
         if (!existsSync(modelPath)) {
-          const message = `Model ${options.model} not found, may need to download...`;
+          const message = `Model ${options.model} not found, downloading...`;
           this.setLoadingState(true, message);
           if (uiFunctions) {
-            uiFunctions.showError(message);
+            uiFunctions.showProgress(message, 0);
+          }
+
+          // Download the missing model
+          await this.downloadModel(options.model, uiFunctions);
+
+          // Verify download succeeded
+          if (existsSync(modelPath)) {
+            this.modelPath = modelPath;
+            this.setLoadingState(false);
+            if (uiFunctions) {
+              uiFunctions.showSuccess(
+                `Downloaded and switched to model ${options.model}`
+              );
+              uiFunctions.hideProgress();
+            }
+          } else {
+            throw new Error(`Failed to download model ${options.model}`);
           }
         } else {
           this.modelPath = modelPath;

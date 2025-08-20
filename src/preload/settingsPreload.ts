@@ -57,6 +57,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("plugins:deleteInactive", { pluginName }),
   getPluginDataInfo: () => ipcRenderer.invoke("settings:getPluginDataInfo"),
 
+  // New data management APIs
+  listPluginData: (pluginName: string) =>
+    ipcRenderer.invoke("plugins:listData", { pluginName }),
+  deletePluginDataItem: (pluginName: string, itemId: string) =>
+    ipcRenderer.invoke("plugins:deleteDataItem", { pluginName, itemId }),
+  deleteAllPluginData: (pluginName: string) =>
+    ipcRenderer.invoke("plugins:deleteAllData", { pluginName }),
+
   // Unified plugin switching progress listeners
   onPluginSwitchProgress: (callback: (progress: any) => void) => {
     ipcRenderer.on("settings:pluginSwitchProgress", (_event, progress) =>
