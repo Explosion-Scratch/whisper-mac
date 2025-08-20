@@ -492,7 +492,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       this.config.set("whisperCppPrompt", config.prompt);
     }
     if (config.useCoreML !== undefined) {
-      this.config.set("whisperCppUseCoreML", config.useCoreML);
       this.useCoreML = config.useCoreML;
       // Update binary path when Core ML setting changes
       this.resolvedBinaryPath = this.getBinaryPath(true);
@@ -1041,11 +1040,9 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.setActive(true);
 
     try {
-      // Initialize useCoreML from options with fallback to config
+      // Initialize useCoreML from options
       this.useCoreML =
-        this.options.useCoreML !== undefined
-          ? this.options.useCoreML
-          : this.config.get("whisperCppUseCoreML") || false;
+        this.options.useCoreML !== undefined ? this.options.useCoreML : false;
       this.resolvedBinaryPath = this.getBinaryPath(true);
 
       // Get model from stored options (unified plugin system), fallback to default
@@ -1176,7 +1173,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
           const coreMLPath = await this.downloadCoreMLModel(modelName);
           if (coreMLPath) {
             this.useCoreML = true;
-            this.config.set("whisperCppUseCoreML", true);
+            // Store in options instead of old config
+            this.options.useCoreML = true;
             this.resolvedBinaryPath = this.getBinaryPath(true);
 
             if (uiFunctions) {
@@ -1205,7 +1203,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         try {
           await this.deleteCoreMLModels();
           this.useCoreML = false;
-          this.config.set("whisperCppUseCoreML", false);
+          // Store in options instead of old config
+          this.options.useCoreML = false;
           this.resolvedBinaryPath = this.getBinaryPath(true);
 
           if (uiFunctions) {
@@ -1315,6 +1314,54 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       console.warn("Whisper.cpp warmup failed:", e);
     } finally {
       this.isWarmupRunning = false;
+    }
+  }
+
+  /**
+   * Ensure model is available for onboarding/setup
+   */
+  public async ensureModelAvailable(
+    options: Record<string, any>,
+    onProgress?: (progress: any) => void,
+    onLog?: (line: string) => void
+  ): Promise<boolean> {
+    const modelName =
+      options.model ||
+      this.getOptions().find((opt) => opt.key === "model")?.default ||
+      "ggml-base.en.bin";
+    onLog?.(`Ensuring Whisper.cpp model ${modelName} is available`);
+
+    const modelPath = join(this.config.getModelsDir(), modelName);
+    if (existsSync(modelPath)) {
+      onLog?.(`Whisper.cpp model ${modelName} already available`);
+      return true;
+    }
+
+    try {
+      await this.downloadModel(modelName, {
+        showProgress: (message: string, progress: number) => {
+          onProgress?.({
+            message,
+            percent: progress,
+            status: progress >= 100 ? "complete" : "downloading",
+          });
+        },
+        showDownloadProgress: (downloadProgress: any) => {
+          onProgress?.(downloadProgress);
+        },
+        hideProgress: () => {},
+        showError: (error: string) => {
+          onLog?.(`Error: ${error}`);
+        },
+        showSuccess: (message: string) => {
+          onLog?.(message);
+        },
+        confirmAction: async (message: string) => true,
+      });
+      return true;
+    } catch (error: any) {
+      onLog?.(`Failed to download model ${modelName}: ${error.message}`);
+      throw error;
     }
   }
 

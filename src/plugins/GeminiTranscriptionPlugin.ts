@@ -508,6 +508,23 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     console.log("=== Gemini options update completed ===");
   }
 
+  /**
+   * Gemini doesn't require model downloads, so this is a no-op that always succeeds
+   */
+  public async ensureModelAvailable(
+    options: Record<string, any>,
+    onProgress?: (progress: any) => void,
+    onLog?: (line: string) => void
+  ): Promise<boolean> {
+    onLog?.("Gemini plugin doesn't require model downloads");
+    onProgress?.({
+      status: "complete",
+      message: "Gemini ready",
+      percent: 100,
+    });
+    return true;
+  }
+
   async downloadModel(
     modelName: string,
     uiFunctions?: PluginUIFunctions

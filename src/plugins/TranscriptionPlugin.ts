@@ -147,6 +147,16 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
     uiFunctions?: PluginUIFunctions
   ): Promise<void>;
 
+  /**
+   * Ensure a model is available for the plugin (used for onboarding/setup).
+   * Plugins should implement this to handle their own model setup requirements.
+   */
+  abstract ensureModelAvailable(
+    options: Record<string, any>,
+    onProgress?: (progress: any) => void,
+    onLog?: (line: string) => void
+  ): Promise<boolean>;
+
   /** Plugins can override to declare activation criteria */
   getActivationCriteria(): PluginActivationCriteria {
     return { ...this.activationCriteria };

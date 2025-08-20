@@ -97,6 +97,23 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
   }
 
+  /**
+   * YAP doesn't require model downloads, so this is a no-op that always succeeds
+   */
+  public async ensureModelAvailable(
+    options: Record<string, any>,
+    onProgress?: (progress: any) => void,
+    onLog?: (line: string) => void
+  ): Promise<boolean> {
+    onLog?.("YAP plugin doesn't require model downloads");
+    onProgress?.({
+      status: "complete",
+      message: "YAP ready",
+      percent: 100,
+    });
+    return true;
+  }
+
   async startTranscription(
     onUpdate: (update: SegmentUpdate) => void,
     onProgress?: (progress: TranscriptionSetupProgress) => void,

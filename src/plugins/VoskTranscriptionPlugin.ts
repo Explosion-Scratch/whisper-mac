@@ -117,10 +117,14 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   /**
-   * Get the current model name from config
+   * Get the current model name from options
    */
   private getCurrentModelName(): string {
-    return this.config.get("voskModel") || "vosk-model-small-en-us-0.15";
+    return (
+      this.options.model ||
+      this.getOptions().find((opt) => opt.key === "model")?.default ||
+      "vosk-model-small-en-us-0.15"
+    );
   }
 
   /**
@@ -144,10 +148,14 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
    * Download and extract a Vosk model using existing ModelManager pattern
    */
   public async ensureModelAvailable(
-    modelName: string,
-    onProgress?: (progress: ModelDownloadProgress) => void,
+    options: Record<string, any>,
+    onProgress?: (progress: any) => void,
     onLog?: (line: string) => void
   ): Promise<boolean> {
+    const modelName =
+      options.model ||
+      this.getOptions().find((opt) => opt.key === "model")?.default ||
+      "vosk-model-small-en-us-0.15";
     if (this.isModelDownloaded(modelName)) {
       onLog?.(`Vosk model ${modelName} already available`);
       return true;
@@ -568,8 +576,8 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
 
       // Ensure model is downloaded
       await this.ensureModelAvailable(
-        modelName,
-        (progress: ModelDownloadProgress) => {
+        { model: modelName },
+        (progress: any) => {
           onProgress?.({
             status: "starting",
             message: progress.message,
@@ -1104,7 +1112,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         console.log(`[Vosk Download] ${line}`);
       };
 
-      await this.ensureModelAvailable(modelName, onProgress, onLog);
+      await this.ensureModelAvailable({ model: modelName }, onProgress, onLog);
 
       const completedProgress = {
         status: "complete" as const,
