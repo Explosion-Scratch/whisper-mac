@@ -552,11 +552,16 @@ export class TranscriptionPluginManager extends EventEmitter {
       dataPath: string;
     }>
   > {
+    console.log("Getting plugin data info...");
     const plugins = this.getPlugins();
+    console.log(`Found ${plugins.length} plugins:`, plugins.map(p => p.name));
+    
     const dataInfo = await Promise.all(
       plugins.map(async (plugin) => {
         try {
+          console.log(`Getting data size for plugin ${plugin.name}...`);
           const dataSize = await plugin.getDataSize();
+          console.log(`Plugin ${plugin.name} data size: ${dataSize}`);
           return {
             name: plugin.name,
             displayName: plugin.displayName,
@@ -580,6 +585,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       })
     );
 
+    console.log("Plugin data info result:", dataInfo);
     return dataInfo;
   }
 
