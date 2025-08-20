@@ -184,12 +184,16 @@ export class IpcHandlerManager {
   }
 
   private setupOnboardingStateHandlers(): void {
-    ipcMain.handle("onboarding:getInitialState", () => ({
-      ai: this.config.ai,
-      model: this.config.get("whisperCppModel") || "ggml-base.en.bin",
-      voskModel: this.config.get("voskModel") || "vosk-model-small-en-us-0.15",
-      plugin: this.config.get("transcriptionPlugin") || "yap",
-    }));
+    ipcMain.handle("onboarding:getInitialState", () => {
+      const pluginConfig = this.config.getPluginConfig();
+      const activePlugin = this.config.get("transcriptionPlugin") || "yap";
+
+      return {
+        ai: this.config.ai,
+        plugin: activePlugin,
+        pluginOptions: pluginConfig[activePlugin] || {},
+      };
+    });
 
     ipcMain.handle("onboarding:getPluginOptions", () => {
       const plugins = this.transcriptionPluginManager
@@ -237,32 +241,7 @@ export class IpcHandlerManager {
       return true;
     });
 
-    ipcMain.handle("onboarding:setModel", (_e, modelName: string) => {
-      this.config.set("whisperCppModel", modelName);
-
-      const sm = this.settingsService.getSettingsManager();
-      sm.set("plugin.whisper-cpp.model", modelName);
-      sm.saveSettings();
-
-      const whisperPlugin =
-        this.transcriptionPluginManager.getPlugin("whisper-cpp");
-      if (whisperPlugin && "updateModelPath" in whisperPlugin) {
-        (whisperPlugin as any).updateModelPath();
-      }
-    });
-
-    ipcMain.handle("onboarding:setVoskModel", (_e, modelName: string) => {
-      this.config.set("voskModel", modelName);
-
-      const sm = this.settingsService.getSettingsManager();
-      sm.set("plugin.vosk.model", modelName);
-      sm.saveSettings();
-
-      const voskPlugin = this.transcriptionPluginManager.getPlugin("vosk");
-      if (voskPlugin) {
-        voskPlugin.configure({ model: modelName });
-      }
-    });
+    // Legacy handlers removed - now using unified plugin system
 
     ipcMain.handle(
       "onboarding:setPlugin",
@@ -273,6 +252,7 @@ export class IpcHandlerManager {
         const { pluginName, options = {} } = payload;
         this.config.set("transcriptionPlugin", pluginName);
 
+        // Store in settings manager for persistence
         const sm = this.settingsService.getSettingsManager();
         sm.set("transcriptionPlugin", pluginName);
         Object.keys(options).forEach((key) => {
@@ -281,16 +261,16 @@ export class IpcHandlerManager {
         });
         sm.saveSettings();
 
-        try {
-          await this.transcriptionPluginManager.setActivePlugin(
-            pluginName,
-            options
-          );
-        } catch (error) {
-          console.error(`Failed to set active plugin ${pluginName}:`, error);
-          // Re-throw the error so the frontend can handle it
-          throw error;
-        }
+        // Store in unified plugin config system
+        const pluginConfig = this.config.getPluginConfig();
+        pluginConfig[pluginName] = { ...pluginConfig[pluginName], ...options };
+        this.config.setPluginConfig(pluginConfig);
+
+        // Don't activate the plugin during onboarding - just store the configuration
+        // Plugin will be activated after onboarding setup is complete
+        console.log(
+          `Configured plugin ${pluginName} for onboarding - activation will happen after setup`
+        );
       }
     );
 
@@ -370,16 +350,33 @@ export class IpcHandlerManager {
     );
 
     ipcMain.handle("onboarding:complete", async () => {
-      // Mark onboarding complete and continue normal init
-      this.settingsService.getSettingsManager().set("onboardingComplete", true);
-      this.settingsService.getSettingsManager().saveSettings();
+      try {
+        // Now activate the plugin after onboarding is complete
+        const activePlugin = this.config.get("transcriptionPlugin") || "yap";
+        const pluginConfig = this.config.getPluginConfig();
+        const pluginOptions = pluginConfig[activePlugin] || {};
 
-      // Call the onboarding completion handler to continue initialization
-      if (this.onOnboardingComplete) {
-        this.onOnboardingComplete();
+        await this.transcriptionPluginManager.setActivePlugin(
+          activePlugin,
+          pluginOptions
+        );
+
+        // Mark onboarding complete and continue normal init
+        this.settingsService
+          .getSettingsManager()
+          .set("onboardingComplete", true);
+        this.settingsService.getSettingsManager().saveSettings();
+
+        // Call the onboarding completion handler to continue initialization
+        if (this.onOnboardingComplete) {
+          this.onOnboardingComplete();
+        }
+
+        return { success: true };
+      } catch (error: any) {
+        console.error("Onboarding completion error:", error);
+        return { success: false, error: error.message || "Completion failed" };
       }
-
-      return { success: true };
     });
   }
 
@@ -402,47 +399,28 @@ export class IpcHandlerManager {
         const activePlugin = this.config.get("transcriptionPlugin") || "yap";
         sendLog(`Setting up ${activePlugin} plugin`);
 
-        if (activePlugin === "whisper-cpp") {
-          const modelName =
-            this.config.get("whisperCppModel") || "ggml-base.en.bin";
-
-          await this.unifiedModelDownloadService.ensureModelForPlugin(
-            "whisper-cpp",
-            modelName,
-            onProgress,
-            sendLog
-          );
-
-          event.sender.send("onboarding:progress", {
-            status: "service-ready",
-            message: "Whisper.cpp ready",
-            percent: 100,
-          });
-        } else if (activePlugin === "vosk") {
-          const modelName =
-            this.config.get("voskModel") || "vosk-model-small-en-us-0.15";
-
-          await this.unifiedModelDownloadService.ensureModelForPlugin(
-            "vosk",
-            modelName,
-            onProgress,
-            sendLog
-          );
-
-          event.sender.send("onboarding:progress", {
-            status: "service-ready",
-            message: "Vosk ready",
-            percent: 100,
-          });
-        } else {
-          event.sender.send("onboarding:progress", {
-            status: "service-ready",
-            message: "YAP transcription ready",
-            percent: 100,
-          });
+        // Get the active plugin and its options
+        const plugin = this.transcriptionPluginManager.getPlugin(activePlugin);
+        if (!plugin) {
+          throw new Error(`Plugin ${activePlugin} not found`);
         }
 
-        await this.transcriptionPluginManager.setActivePlugin(activePlugin);
+        // Get plugin configuration from the unified plugin config system
+        const pluginConfig = this.config.getPluginConfig();
+        const pluginOptions = pluginConfig[activePlugin] || {};
+
+        // Let the plugin handle its own setup and model downloading
+        if (plugin.ensureModelAvailable) {
+          await plugin.ensureModelAvailable(pluginOptions, onProgress, sendLog);
+        }
+
+        event.sender.send("onboarding:progress", {
+          status: "service-ready",
+          message: `${plugin.displayName} ready`,
+          percent: 100,
+        });
+
+        // Don't activate plugin here - wait until onboarding is complete
 
         event.sender.send("onboarding:progress", {
           status: "complete",

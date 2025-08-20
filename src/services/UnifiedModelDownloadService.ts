@@ -85,8 +85,20 @@ export class UnifiedModelDownloadService extends EventEmitter {
         confirmAction: async (message: string) => true,
       };
 
-      // Use the plugin's download method - each plugin handles its own requirements
-      await (plugin as any).downloadModel(modelName, uiFunctions);
+      // Use the plugin's ensureModelAvailable method if available, otherwise downloadModel
+      if (plugin.ensureModelAvailable) {
+        await plugin.ensureModelAvailable(
+          { model: modelName },
+          wrappedProgress,
+          onLog
+        );
+      } else if ((plugin as any).downloadModel) {
+        await (plugin as any).downloadModel(modelName, uiFunctions);
+      } else {
+        throw new Error(
+          `Plugin ${pluginName} does not support model downloads`
+        );
+      }
       return true;
     } finally {
       this.activeDownload = null;
@@ -105,42 +117,30 @@ export class UnifiedModelDownloadService extends EventEmitter {
 
     onLog?.(`Switching to ${pluginName} plugin`);
 
-    // Determine the model name based on plugin
-    let targetModel = modelName;
-    if (!targetModel) {
-      switch (pluginName) {
-        case "whisper-cpp":
-          targetModel =
-            this.config.get("whisperCppModel") || "ggml-base.en.bin";
-          break;
-        case "vosk":
-          targetModel =
-            this.config.get("voskModel") || "vosk-model-small-en-us-0.15";
-          break;
-        case "yap":
-          // YAP doesn't need model downloads
-          break;
-        default:
-          throw new Error(`Unknown plugin: ${pluginName}`);
-      }
+    // Get plugin and its options from the unified config system
+    const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
+    if (!plugin) {
+      throw new Error(`Plugin ${pluginName} not found`);
     }
 
-    // Download model if needed (except for YAP)
-    if (pluginName !== "yap" && targetModel) {
-      const downloaded = await this.ensureModelForPlugin(
-        pluginName,
-        targetModel,
-        onProgress,
-        onLog
-      );
+    const pluginConfig = this.config.getPluginConfig();
+    const pluginOptions = pluginConfig[pluginName] || {};
 
-      if (!downloaded) {
-        throw new Error(`Failed to download model for ${pluginName}`);
-      }
+    // Use provided model name or get from plugin options
+    if (modelName) {
+      pluginOptions.model = modelName;
+    }
+
+    // Let the plugin handle its own model setup if it supports it
+    if (plugin.ensureModelAvailable) {
+      await plugin.ensureModelAvailable(pluginOptions, onProgress, onLog);
     }
 
     // Switch to the plugin (re-check availability inside setActivePlugin)
-    await this.transcriptionPluginManager.setActivePlugin(pluginName);
+    await this.transcriptionPluginManager.setActivePlugin(
+      pluginName,
+      pluginOptions
+    );
     this.config.set("transcriptionPlugin", pluginName);
 
     onLog?.(`Successfully switched to ${pluginName} plugin`);
