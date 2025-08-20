@@ -35,6 +35,10 @@ class SettingsWindow {
 
       // Show first section by default
       if (this.schema.length > 0) {
+        console.log(
+          "Available sections:",
+          this.schema.map((s) => s.id)
+        );
         this.showSection(this.schema[0].id);
       }
 
@@ -634,6 +638,7 @@ class SettingsWindow {
   }
 
   buildDataSection() {
+    console.log("Building data section...");
     return `
       <div class="data-management-section">
         <div class="plugin-data-list" id="pluginDataList">
@@ -832,6 +837,8 @@ class SettingsWindow {
   }
 
   showSection(sectionId) {
+    console.log(`Showing section: ${sectionId}`);
+
     // Hide all sections
     document.querySelectorAll(".settings-section").forEach((section) => {
       section.classList.add("hidden");
@@ -841,6 +848,9 @@ class SettingsWindow {
     const section = document.getElementById(`section-${sectionId}`);
     if (section) {
       section.classList.remove("hidden");
+      console.log(`Section ${sectionId} shown successfully`);
+    } else {
+      console.error(`Section ${sectionId} not found in DOM`);
     }
 
     // Update navigation
@@ -857,6 +867,7 @@ class SettingsWindow {
 
     // Load data for specific sections
     if (sectionId === "data") {
+      console.log("Showing data section, loading plugin data...");
       this.loadPluginDataInfo();
     } else if (sectionId === "ai") {
       this.maybeLoadAiModels();
@@ -2662,17 +2673,28 @@ class SettingsWindow {
     if (!dataList) return;
 
     try {
+      console.log("Loading plugin data info...");
       const pluginData = await window.electronAPI.getPluginDataInfo();
-      await this.renderEnhancedPluginDataList(pluginData);
+      console.log("Plugin data received:", pluginData);
+      // The API returns an array, but our render function expects an object with plugins property
+      await this.renderEnhancedPluginDataList({ plugins: pluginData });
     } catch (error) {
       console.error("Failed to load plugin data info:", error);
       dataList.innerHTML = `
         <div class="error-message">
           <i class="ph-duotone ph-warning"></i>
-          Failed to load plugin data information
+          Failed to load plugin data information: ${error.message}
         </div>
       `;
     }
+  }
+
+  formatBytes(bytes) {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 
   renderPluginDataList(pluginData) {
@@ -2795,11 +2817,16 @@ class SettingsWindow {
 
   async renderEnhancedPluginDataList(pluginData) {
     const dataList = document.getElementById("pluginDataList");
-    if (!dataList) return;
+    if (!dataList) {
+      console.error("Plugin data list container not found");
+      return;
+    }
 
+    console.log("Rendering plugin data list:", pluginData);
     this.pluginData = pluginData;
 
     if (!pluginData.plugins || pluginData.plugins.length === 0) {
+      console.log("No plugins found, showing empty state");
       dataList.innerHTML = `
         <div class="empty-state">
           <i class="ph-duotone ph-database"></i>
