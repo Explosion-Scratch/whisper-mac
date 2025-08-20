@@ -6,6 +6,9 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     name: "Open",
     description: "Open applications, URLs, files, or search the web",
     enabled: true,
+    order: 1,
+    closesTranscription: true,
+    skipsTransformation: true,
     matchPatterns: [
       {
         id: "open-pattern-1",
@@ -49,6 +52,9 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     name: "Search",
     description: "Search the web using Google",
     enabled: true,
+    order: 2,
+    closesTranscription: true,
+    skipsTransformation: true,
     matchPatterns: [
       {
         id: "search-pattern-1",
@@ -74,6 +80,9 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     name: "Quit Application",
     description: "Quit a specific application",
     enabled: true,
+    order: 3,
+    closesTranscription: true,
+    skipsTransformation: true,
     matchPatterns: [
       {
         id: "quit-pattern-1",
@@ -101,6 +110,9 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     name: "Launch",
     description: "Launch applications",
     enabled: true,
+    order: 4,
+    closesTranscription: true,
+    skipsTransformation: true,
     matchPatterns: [
       {
         id: "launch-pattern-1",
@@ -131,6 +143,9 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     name: "Clear Segments",
     description: "Clear all transcribed segments",
     enabled: true,
+    order: 5,
+    closesTranscription: false,
+    skipsTransformation: false,
     matchPatterns: [
       {
         id: "clear-pattern-1",
@@ -153,8 +168,11 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
   {
     id: "undo-action",
     name: "Undo Last Segment",
-    description: "Delete the last transcribed segment",
+    description: "Delete the last transcribed segment and the current 'undo' segment",
     enabled: true,
+    order: 6,
+    closesTranscription: false,
+    skipsTransformation: false,
     matchPatterns: [
       {
         id: "undo-pattern-1",
@@ -168,7 +186,8 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         id: "undo-last-segment",
         type: "segmentAction",
         config: {
-          action: "undo",
+          action: "deleteLastN",
+          count: 2,
         },
         order: 1,
       },
@@ -176,14 +195,24 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
   },
   {
     id: "shell-replace-action",
-    name: "Shell Command Replacement",
-    description: "Replace 'shell' with 'Write a shell command to...'",
+    name: "Shell Command Helper",
+    description:
+      "Transform 'shell [task]' into 'Write a shell command to [task]' for AI assistance",
     enabled: true,
+    order: 7,
+    closesTranscription: false,
+    skipsTransformation: false,
     matchPatterns: [
       {
         id: "shell-pattern-1",
         type: "regex",
         pattern: "^shell\\.?$",
+        caseSensitive: false,
+      },
+      {
+        id: "shell-pattern-2",
+        type: "startsWith",
+        pattern: "shell ",
         caseSensitive: false,
       },
     ],
@@ -193,7 +222,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         type: "segmentAction",
         config: {
           action: "replace",
-          replacementText: "Write a shell command to",
+          replacementText: "Write a shell command to {argument}",
         },
         order: 1,
       },
@@ -205,6 +234,9 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     description:
       "Remove trailing ellipses and lowercase the first letter of the next segment",
     enabled: true,
+    order: 8,
+    closesTranscription: false,
+    skipsTransformation: false,
     matchPatterns: [
       {
         id: "ellipses-pattern-1",
@@ -238,6 +270,9 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     name: "Delete This and Previous",
     description: "Delete current and previous transcription chunks",
     enabled: true,
+    order: 9,
+    closesTranscription: false,
+    skipsTransformation: false,
     matchPatterns: [
       {
         id: "delete-previous-pattern-1",
@@ -269,6 +304,9 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     name: "Delete All Transcribed Text",
     description: "Delete all past transcribed text",
     enabled: true,
+    order: 10,
+    closesTranscription: false,
+    skipsTransformation: false,
     matchPatterns: [
       {
         id: "delete-all-pattern-1",
@@ -299,6 +337,9 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     name: "Replace This Segment",
     description: "Replace current segment with specified text",
     enabled: true,
+    order: 11,
+    closesTranscription: false,
+    skipsTransformation: false,
     matchPatterns: [
       {
         id: "replace-segment-pattern-1",
@@ -326,6 +367,34 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         config: {
           action: "replace",
           replacementText: "{argument}",
+        },
+        order: 1,
+      },
+    ],
+  },
+  {
+    id: "close-action",
+    name: "Close",
+    description: "Close the current application or window",
+    enabled: true,
+    order: 12,
+    closesTranscription: true,
+    skipsTransformation: true,
+    matchPatterns: [
+      {
+        id: "close-pattern-1",
+        type: "regex",
+        pattern: "^close\\.?$",
+        caseSensitive: false,
+      },
+    ],
+    handlers: [
+      {
+        id: "close-app",
+        type: "executeShell",
+        config: {
+          command:
+            'osascript -e \'tell application "System Events" to keystroke "w" using command down\'',
         },
         order: 1,
       },

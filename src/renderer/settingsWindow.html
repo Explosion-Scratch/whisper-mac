@@ -1006,6 +1006,31 @@
         max-width: none;
       }
 
+      .action-form-row {
+        display: flex;
+        gap: var(--spacing-md);
+        align-items: end;
+      }
+
+      .action-form-col {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .action-form-col .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        font-size: var(--font-size-sm);
+        color: var(--color-text-primary);
+        margin-bottom: 0;
+        cursor: pointer;
+      }
+
+      .action-form-col .checkbox-label input[type="checkbox"] {
+        margin: 0;
+      }
+
       .section-header-small {
         display: flex;
         align-items: center;

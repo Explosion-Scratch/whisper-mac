@@ -1754,6 +1754,9 @@ class SettingsWindow {
     card.className = "action-card";
     card.dataset.actionIndex = index;
 
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    const isLast = index === actionsConfig.actions.length - 1;
+
     const matchPatternsHtml = action.matchPatterns
       .map((pattern, patternIndex) =>
         this.createMatchPatternHtml(pattern, index, patternIndex, key)
@@ -1780,6 +1783,16 @@ class SettingsWindow {
           )}</p>
         </div>
         <div class="action-controls">
+          <button type="button" class="btn btn-icon-only move-action-up-btn" 
+                  data-action-index="${index}" data-key="${key}" title="Move up"
+                  ${index === 0 ? "disabled" : ""}>
+            <i class="ph-duotone ph-caret-up"></i>
+          </button>
+          <button type="button" class="btn btn-icon-only move-action-down-btn" 
+                  data-action-index="${index}" data-key="${key}" title="Move down"
+                  ${isLast ? "disabled" : ""}>
+            <i class="ph-duotone ph-caret-down"></i>
+          </button>
           <button type="button" class="btn btn-icon-only expand-action-btn" title="Toggle details">
             <i class="ph-duotone ph-caret-down"></i>
           </button>
@@ -1803,6 +1816,31 @@ class SettingsWindow {
           <input type="text" class="form-control action-description-input" 
                  value="${this.escapeHtml(action.description)}" 
                  data-action-index="${index}" data-key="${key}">
+        </div>
+
+        <div class="action-form-group action-form-row">
+          <div class="action-form-col">
+            <label>Order</label>
+            <input type="number" class="form-control action-order-input" 
+                   value="${action.order || 1}" min="1"
+                   data-action-index="${index}" data-key="${key}">
+          </div>
+          <div class="action-form-col">
+            <label class="checkbox-label">
+              <input type="checkbox" class="action-closes-transcription-checkbox" 
+                     ${action.closesTranscription ? "checked" : ""} 
+                     data-action-index="${index}" data-key="${key}">
+              Closes Transcription
+            </label>
+          </div>
+          <div class="action-form-col">
+            <label class="checkbox-label">
+              <input type="checkbox" class="action-skips-transformation-checkbox" 
+                     ${action.skipsTransformation ? "checked" : ""} 
+                     data-action-index="${index}" data-key="${key}">
+              Skips Transformation
+            </label>
+          </div>
         </div>
 
         <div class="patterns-section">
@@ -2233,6 +2271,16 @@ class SettingsWindow {
         const actionIndex = parseInt(btn.dataset.actionIndex);
         const handlerIndex = parseInt(btn.dataset.handlerIndex);
         this.deleteHandler(key, actionIndex, handlerIndex);
+      } else if (e.target.closest(".move-action-up-btn")) {
+        const actionIndex = parseInt(
+          e.target.closest(".move-action-up-btn").dataset.actionIndex
+        );
+        this.moveAction(key, actionIndex, -1);
+      } else if (e.target.closest(".move-action-down-btn")) {
+        const actionIndex = parseInt(
+          e.target.closest(".move-action-down-btn").dataset.actionIndex
+        );
+        this.moveAction(key, actionIndex, 1);
       }
     });
 
@@ -2258,6 +2306,34 @@ class SettingsWindow {
     } else if (target.classList.contains("action-description-input")) {
       const actionIndex = parseInt(target.dataset.actionIndex);
       this.updateActionField(key, actionIndex, "description", target.value);
+    } else if (target.classList.contains("action-order-input")) {
+      const actionIndex = parseInt(target.dataset.actionIndex);
+      this.updateActionField(
+        key,
+        actionIndex,
+        "order",
+        parseInt(target.value) || 1
+      );
+    } else if (
+      target.classList.contains("action-closes-transcription-checkbox")
+    ) {
+      const actionIndex = parseInt(target.dataset.actionIndex);
+      this.updateActionField(
+        key,
+        actionIndex,
+        "closesTranscription",
+        target.checked
+      );
+    } else if (
+      target.classList.contains("action-skips-transformation-checkbox")
+    ) {
+      const actionIndex = parseInt(target.dataset.actionIndex);
+      this.updateActionField(
+        key,
+        actionIndex,
+        "skipsTransformation",
+        target.checked
+      );
     } else if (target.classList.contains("pattern-type-select")) {
       const actionIndex = parseInt(target.dataset.actionIndex);
       const patternIndex = parseInt(target.dataset.patternIndex);
@@ -2318,6 +2394,9 @@ class SettingsWindow {
       name: "New Action",
       description: "Description for new action",
       enabled: true,
+      order: actionsConfig.actions.length + 1,
+      closesTranscription: false,
+      skipsTransformation: false,
       matchPatterns: [
         {
           id: `pattern-${Date.now()}`,
@@ -2359,6 +2438,34 @@ class SettingsWindow {
         .closest(".actions-editor-container");
       this.renderActionsEditor(container, key);
     }
+  }
+
+  moveAction(key, actionIndex, direction) {
+    const actionsConfig = this.getSettingValue(key) || { actions: [] };
+    const actions = actionsConfig.actions;
+
+    const newIndex = actionIndex + direction;
+    if (newIndex < 0 || newIndex >= actions.length) {
+      return; // Can't move beyond bounds
+    }
+
+    // Swap actions
+    [actions[actionIndex], actions[newIndex]] = [
+      actions[newIndex],
+      actions[actionIndex],
+    ];
+
+    // Update order properties
+    actions.forEach((action, index) => {
+      action.order = index + 1;
+    });
+
+    this.setSettingValue(key, actionsConfig);
+
+    const container = document
+      .querySelector(`[data-key="${key}"]`)
+      .closest(".actions-editor-container");
+    this.renderActionsEditor(container, key);
   }
 
   addNewPattern(key, actionIndex) {
