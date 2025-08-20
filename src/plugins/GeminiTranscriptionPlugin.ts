@@ -525,7 +525,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     // Update activation criteria based on processing mode
     if (options.processing_mode === "transcription_only") {
       this.setActivationCriteria({
-        runOnAll: false,
+        runOnAll: true,
         skipTransformation: false,
       });
     } else {
