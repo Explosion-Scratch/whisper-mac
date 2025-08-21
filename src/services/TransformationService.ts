@@ -1,6 +1,9 @@
 import { Segment, TranscribedSegment } from "../types/SegmentTypes";
 import { AppConfig } from "../config/AppConfig";
 import { SelectedTextResult } from "./SelectedTextService";
+import { AiValidationService } from "./AiValidationService";
+import { SecureStorageService } from "./SecureStorageService";
+import { SelectedTextService } from "./SelectedTextService";
 
 export interface AiTransformationConfig {
   enabled: boolean;
@@ -33,18 +36,20 @@ export class TransformationService {
    * @param prompt The base prompt template
    * @param savedState Selected text state
    * @param windowInfo Active window information
+   * @param text Additional text to include in the prompt
    * @returns Processed prompt with all placeholders replaced
    */
   static processPrompt(
     prompt: string,
     savedState: SelectedTextResult,
-    windowInfo: { title: string; appName: string }
+    windowInfo: { title: string; appName: string },
+    text: string | undefined = undefined,
   ): string {
     let processed = prompt
       .replace(/{selection}/g, savedState.text || "")
       .replace(/{title}/g, windowInfo.title || "")
       .replace(/{app}/g, windowInfo.appName || "")
-      .replace(/{text}/g, savedState.text || "");
+      .replace(/{text}/g, text || "");
 
     if (savedState.hasSelection) {
       processed = processed.replace(/<sel>/g, "");
@@ -127,7 +132,7 @@ export class TransformationService {
     messagePrompt: string,
     audioWavBase64: string,
     screenshotBase64?: string,
-    savedState?: SelectedTextResult
+    savedState?: SelectedTextResult,
   ): Array<{
     text?: string;
     inlineData?: {
@@ -168,14 +173,14 @@ export class TransformationService {
    */
   async transformSegments(
     segments: Segment[],
-    savedState: SelectedTextResult
+    savedState: SelectedTextResult,
   ): Promise<SegmentTransformationResult> {
     console.log("=== TransformationService.transformSegments ===");
     console.log("Input segments:", segments);
 
     try {
       const transcribedSegments = segments.filter(
-        (s) => s.type === "transcribed"
+        (s) => s.type === "transcribed",
       ) as TranscribedSegment[];
 
       const combinedText = transcribedSegments
@@ -187,7 +192,7 @@ export class TransformationService {
 
       const transformedText = await this.transformText(
         combinedText,
-        savedState
+        savedState,
       );
 
       console.log("Final transformed text:", transformedText);
@@ -214,7 +219,7 @@ export class TransformationService {
    */
   private async transformText(
     text: string,
-    savedState: SelectedTextResult
+    savedState: SelectedTextResult,
   ): Promise<string> {
     console.log("=== TransformationService.transformText ===");
     console.log("Input text:", text);
@@ -223,24 +228,23 @@ export class TransformationService {
 
     if (this.config.ai?.enabled) {
       // Validate AI configuration before using it
-      const { AiValidationService } = await import("./AiValidationService");
       const validationService = new AiValidationService();
       const validationResult = await validationService.validateAiConfiguration(
         this.config.ai.baseUrl,
-        this.config.ai.model
+        this.config.ai.model,
       );
 
       if (!validationResult.isValid) {
         console.warn(
           "AI configuration is invalid, skipping AI transformation:",
-          validationResult.error
+          validationResult.error,
         );
         // Continue without AI transformation
       } else {
         transformedText = await this.transformWithAi(
           transformedText,
           this.config.ai,
-          savedState
+          savedState,
         );
       }
     }
@@ -288,29 +292,25 @@ export class TransformationService {
   private async transformWithAi(
     text: string,
     aiConfig: AiTransformationConfig,
-    savedState: SelectedTextResult
+    savedState: SelectedTextResult,
   ): Promise<string> {
     console.log("=== TransformationService.transformWithAi ===");
     console.log("Input text:", text);
-    console.log("AI Config:", aiConfig);
     console.log("Saved state:", savedState);
 
     let apiKey: string | undefined;
     try {
-      const { SecureStorageService } = await import("./SecureStorageService");
       const secure = new SecureStorageService();
       apiKey = (await secure.getApiKey()) || undefined;
     } catch (e) {}
     if (!apiKey) apiKey = process.env["AI_API_KEY"];
     if (!apiKey)
       throw new Error(
-        "AI API key not found. Please set it in onboarding or settings."
+        "AI API key not found. Please set it in onboarding or settings.",
       );
 
     // Get active window information
-    const selectedTextService = new (
-      await import("./SelectedTextService")
-    ).SelectedTextService();
+    const selectedTextService = new SelectedTextService();
     const windowInfo = await selectedTextService.getActiveWindowInfo();
 
     console.log("Active window info:", windowInfo);
@@ -318,7 +318,8 @@ export class TransformationService {
     let messagePrompt = TransformationService.processPrompt(
       aiConfig.messagePrompt,
       savedState,
-      windowInfo
+      windowInfo,
+      text,
     );
 
     console.log("MESSAGE_PROMPT:", messagePrompt);
@@ -326,7 +327,7 @@ export class TransformationService {
     // Inject writing style into system prompt
     const systemPrompt = aiConfig.prompt.replace(
       /{writing_style}/g,
-      aiConfig.writingStyle || ""
+      aiConfig.writingStyle || "",
     );
 
     const response = await fetch(aiConfig.baseUrl, {
@@ -364,7 +365,7 @@ export class TransformationService {
     }
 
     let transformed = TransformationService.removeThink(
-      data.choices[0].message.content
+      data.choices[0].message.content,
     );
     transformed = await TransformationService.removeChanged(transformed);
     console.log("AI transformed text:", transformed);
