@@ -18,6 +18,7 @@ The unified plugin system provides a standardized interface for all transcriptio
 - **YapTranscriptionPlugin** - Uses macOS Speech Recognition (YAP)
 - **WhisperCppTranscriptionPlugin** - Uses Whisper.cpp for local transcription
 - **VoskTranscriptionPlugin** - Uses Vosk for offline speech recognition
+- **GeminiTranscriptionPlugin** - Uses Google Gemini for cloud-based transcription and AI processing
 
 ## Unified Interface
 
@@ -133,6 +134,7 @@ This approach ensures that:
 pluginManager.registerPlugin(yapPlugin);
 pluginManager.registerPlugin(whisperCppPlugin);
 pluginManager.registerPlugin(voskPlugin);
+pluginManager.registerPlugin(geminiPlugin);
 
 // Get available plugins
 const availablePlugins = await pluginManager.getAvailablePlugins();

@@ -1,7 +1,7 @@
 {
   "name": "whispermac",
   "version": "1.0.0",
-  "description": "AI-powered dictation for Mac using WhisperLive",
+  "description": "AI-powered dictation for Mac using multiple transcription engines",
   "author": "Explosion Scratch",
   "main": "dist/main.js",
   "scripts": {

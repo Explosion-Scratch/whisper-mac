@@ -86,7 +86,7 @@ The application uses several predefined promises for startup coordination:
 - `app-initialization` - Resolved when the main app is fully initialized
 - `models-check` - Resolved when model installation check is complete
 - `modules-initialization` - Resolved when all modules are initialized
-- `whisper-server-startup` - Resolved when the WhisperLive server is ready (auto-started on app launch)
+- `transcription-plugin-ready` - Resolved when the transcription plugin is ready (auto-started on app launch)
 - `audio-capture-ready` - Resolved when audio capture is ready (auto-started on app launch)
 - `dictation-window-ready` - Resolved when the dictation window is ready
 

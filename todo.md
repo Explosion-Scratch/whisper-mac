@@ -1,2 +1,0 @@
-- [ ] Progress bar doesn't update correctly when switching between active plugins
-- [ ] Support different segment transforms, e.g. [No speech detected] or replacing [anything], or trimming ... at the start + end of segments - lowercse segment if the one before didn't have any punctuation at the end

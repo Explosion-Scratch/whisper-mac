@@ -4,7 +4,7 @@ The WhisperMac app now features a status-aware menu bar that provides user-frien
 
 ## Overview
 
-Instead of showing technical messages like "Cloning WhisperLive" or "Installing dependencies", the menu bar displays user-friendly status messages that help users understand what's happening during app startup and setup operations.
+Instead of showing technical messages like "Downloading models" or "Installing dependencies", the menu bar displays user-friendly status messages that help users understand what's happening during app startup and setup operations.
 
 ## Status Messages
 
@@ -12,8 +12,8 @@ The menu bar shows different status messages based on the current operation:
 
 - **"Preparing app..."** - Initial app startup and directory setup
 - **"Downloading models..."** - When downloading or cloning Whisper models
-- **"Setting up Whisper..."** - When installing Whisper dependencies or cloning the WhisperLive repository
-- **"Starting server..."** - When launching the WhisperLive server
+- **"Setting up Whisper..."** - When installing Whisper dependencies or downloading models
+- **"Starting transcription..."** - When launching the transcription service
 - **"Loading windows..."** - When pre-loading application windows
 - **"Checking permissions..."** - When verifying accessibility permissions
 
@@ -47,7 +47,7 @@ Once all setup operations are complete, the menu bar shows the normal menu with:
 ### Progress Callbacks
 
 - `ModelManager` provides progress callbacks during model downloads
-- `WhisperLiveClient` provides progress callbacks during server setup
+- `TranscriptionPluginManager` provides progress callbacks during plugin setup
 - All progress updates are translated to user-friendly status messages
 
 ### Initialization Flow
