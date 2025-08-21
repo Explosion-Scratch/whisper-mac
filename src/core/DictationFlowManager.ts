@@ -17,7 +17,7 @@ export class DictationFlowManager {
     private dictationWindowService: DictationWindowService,
     private segmentManager: SegmentManager,
     private trayService: TrayService | null,
-    private errorManager: ErrorManager
+    private errorManager: ErrorManager,
   ) {}
 
   // Public methods to check state
@@ -49,7 +49,7 @@ export class DictationFlowManager {
       const criteria =
         this.transcriptionPluginManager.getActivePluginActivationCriteria();
       await this.dictationWindowService.showDictationWindow(
-        criteria?.runOnAll || false
+        criteria?.runOnAll || false,
       );
       const windowEndTime = Date.now();
       console.log(`Window display: ${windowEndTime - windowStartTime}ms`);
@@ -84,7 +84,7 @@ export class DictationFlowManager {
       await new Promise((r) => setTimeout(r, 250));
 
       console.log(
-        "=== stopDictation called - this should be rare with new flow ==="
+        "=== stopDictation called - this should be rare with new flow ===",
       );
 
       this.segmentManager.clearAllSegments();
@@ -125,7 +125,7 @@ export class DictationFlowManager {
       console.log(
         `Found ${
           this.segmentManager.getAllSegments().length
-        } segments to transform and inject`
+        } segments to transform and inject`,
       );
 
       this.setFinishingState();
@@ -141,7 +141,7 @@ export class DictationFlowManager {
 
       if (criteria?.runOnAll) {
         console.log(
-          "=== Active plugin runOnAll enabled: finalizing buffered audio ==="
+          "=== Active plugin runOnAll enabled: finalizing buffered audio ===",
         );
         try {
           await this.transcriptionPluginManager.finalizeBufferedAudio();
@@ -151,7 +151,7 @@ export class DictationFlowManager {
       }
 
       console.log(
-        "=== Transforming and injecting all accumulated segments ==="
+        "=== Transforming and injecting all accumulated segments ===",
       );
       const transformResult =
         await this.segmentManager.transformAndInjectAllSegmentsInternal({
@@ -159,7 +159,7 @@ export class DictationFlowManager {
         });
 
       this.dictationWindowService.completeDictation(
-        this.dictationWindowService.getCurrentTranscription()
+        this.dictationWindowService.getCurrentTranscription(),
       );
 
       await new Promise((r) => setTimeout(r, 500));
@@ -167,7 +167,7 @@ export class DictationFlowManager {
 
       if (transformResult.success) {
         console.log(
-          `Successfully transformed and injected ${transformResult.segmentsProcessed} segments`
+          `Successfully transformed and injected ${transformResult.segmentsProcessed} segments`,
         );
       } else {
         console.error("Transform and inject failed:", transformResult.error);
@@ -194,7 +194,7 @@ export class DictationFlowManager {
 
       if (result.success) {
         console.log(
-          `Flushed and injected ${result.segmentsProcessed} segments (continuing)`
+          `Flushed and injected ${result.segmentsProcessed} segments (continuing)`,
         );
       } else {
         console.error("Flush while continuing failed:", result.error);
@@ -253,14 +253,14 @@ export class DictationFlowManager {
         async (update: SegmentUpdate) => {
           this.dictationWindowService.updateTranscription(update);
           await this.processSegments(update);
-        }
+        },
       );
 
       const transcriptionEndTime = Date.now();
       console.log(
         `Transcription setup: ${
           transcriptionEndTime - transcriptionStartTime
-        }ms`
+        }ms`,
       );
     } catch (error: any) {
       console.error("Failed to start transcription:", error);
@@ -282,10 +282,10 @@ export class DictationFlowManager {
 
   private async processSegments(update: SegmentUpdate): Promise<void> {
     const transcribedSegments = update.segments.filter(
-      (s) => s.type === "transcribed"
+      (s) => s.type === "transcribed",
     );
     const inProgressSegments = update.segments.filter(
-      (s) => s.type === "inprogress"
+      (s) => s.type === "inprogress",
     );
 
     for (const segment of transcribedSegments) {
@@ -295,7 +295,7 @@ export class DictationFlowManager {
           segment.completed,
           segment.start,
           segment.end,
-          segment.confidence
+          segment.confidence,
         );
       }
     }
@@ -307,14 +307,14 @@ export class DictationFlowManager {
           false,
           segment.start,
           segment.end,
-          segment.confidence
+          segment.confidence,
         );
       }
     }
 
     const allSegments = this.segmentManager.getAllSegments();
     const displayInProgressSegments = update.segments.filter(
-      (s) => s.type === "inprogress"
+      (s) => s.type === "inprogress",
     );
     const displaySegments = [...allSegments, ...displayInProgressSegments];
 

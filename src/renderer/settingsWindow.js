@@ -37,7 +37,7 @@ class SettingsWindow {
       if (this.schema.length > 0) {
         console.log(
           "Available sections:",
-          this.schema.map((s) => s.id)
+          this.schema.map((s) => s.id),
         );
         this.showSection(this.schema[0].id);
       }
@@ -392,7 +392,7 @@ class SettingsWindow {
             (opt) =>
               `<option value="${this.escapeHtml(opt.value)}" ${
                 value === opt.value ? "selected" : ""
-              }>${this.escapeHtml(opt.label)}</option>`
+              }>${this.escapeHtml(opt.label)}</option>`,
           )
           .join("");
         fieldHtml = `
@@ -409,8 +409,8 @@ class SettingsWindow {
                     rows="6"
                     placeholder="${field.placeholder || ""}"
                     data-key="${field.key}">${this.escapeHtml(
-          value || ""
-        )}</textarea>
+                      value || "",
+                    )}</textarea>
         `;
         break;
 
@@ -426,8 +426,8 @@ class SettingsWindow {
                    value="${value || field.defaultValue}"
                    data-key="${field.key}">
             <span class="slider-value" id="${fieldId}-value">${
-          value || field.defaultValue
-        }</span>
+              value || field.defaultValue
+            }</span>
           </div>
         `;
         break;
@@ -518,7 +518,7 @@ class SettingsWindow {
               (plugin) =>
                 `<option value="${plugin.name}" ${
                   this.activePlugin === plugin.name ? "selected" : ""
-                }>${plugin.displayName}</option>`
+                }>${plugin.displayName}</option>`,
             )
             .join("")}
         </select>
@@ -532,8 +532,8 @@ class SettingsWindow {
 
       html += `
         <div class="plugin-config-section" data-plugin="${plugin.name}" ${
-        !isActive ? 'style="display: none;"' : ""
-      }>
+          !isActive ? 'style="display: none;"' : ""
+        }>
           <div class="plugin-header">
             <div class="plugin-info">
               <h4>${plugin.displayName}</h4>
@@ -568,7 +568,7 @@ class SettingsWindow {
                   (opt) =>
                     `<option value="${opt.value}" ${
                       value === opt.value ? "selected" : ""
-                    }>${opt.label}${opt.size ? ` (${opt.size})` : ""}</option>`
+                    }>${opt.label}${opt.size ? ` (${opt.size})` : ""}</option>`,
                 )
                 .join("")}
             </select>
@@ -585,7 +585,7 @@ class SettingsWindow {
                   (opt) =>
                     `<option value="${opt.value}" ${
                       value === opt.value ? "selected" : ""
-                    }>${opt.label}</option>`
+                    }>${opt.label}</option>`,
                 )
                 .join("")}
             </select>
@@ -594,8 +594,8 @@ class SettingsWindow {
           html += `
             <div class="checkbox-container">
               <input type="checkbox" class="checkbox" data-key="${fieldKey}" ${
-            value ? "checked" : ""
-          }>
+                value ? "checked" : ""
+              }>
               <label>
                 <i class="ph-duotone ph-toggle-left" style="margin-right: 6px; font-size: 14px;"></i>
                 ${option.label}
@@ -610,8 +610,8 @@ class SettingsWindow {
             </label>
             <input type="number" class="form-control" data-key="${fieldKey}" 
                    value="${value}" min="${option.min || ""}" max="${
-            option.max || ""
-          }">
+                     option.max || ""
+                   }">
           `;
         } else {
           html += `
@@ -765,7 +765,7 @@ class SettingsWindow {
               const result =
                 await window.electronAPI.validateApiKeyAndListModels(
                   baseUrl,
-                  apiKey
+                  apiKey,
                 );
 
               if (result?.success && result.models?.length > 0) {
@@ -776,7 +776,7 @@ class SettingsWindow {
                   apiKeyInput.value = ""; // Clear the input after saving
                   this.showStatus(
                     "API key validated and models loaded",
-                    "success"
+                    "success",
                   );
                 } catch (error) {
                   console.error("Failed to save API key:", error);
@@ -784,7 +784,7 @@ class SettingsWindow {
               } else {
                 this.showStatus(
                   `Failed to load models: ${result?.error || "Unknown error"}`,
-                  "error"
+                  "error",
                 );
               }
             } catch (error) {
@@ -972,7 +972,7 @@ class SettingsWindow {
         checkboxElement.checked = false;
         this.showStatus(
           `AI enhancement is not needed for ${pluginInfo.displayName} plugin as it handles text enhancement internally.`,
-          "info"
+          "info",
         );
         return;
       }
@@ -996,7 +996,7 @@ class SettingsWindow {
       const result = await window.electronAPI.validateAiConfiguration(
         baseUrl,
         model,
-        apiKey
+        apiKey,
       );
 
       if (!result.isValid) {
@@ -1019,7 +1019,7 @@ class SettingsWindow {
       checkboxElement.checked = false;
       this.showStatus(
         `AI validation failed: ${error.message || String(error)}`,
-        "error"
+        "error",
       );
     }
   }
@@ -1044,7 +1044,7 @@ class SettingsWindow {
       const result = await window.electronAPI.validateAiConfiguration(
         baseUrl,
         model,
-        apiKey
+        apiKey,
       );
 
       if (!result.isValid) {
@@ -1052,12 +1052,12 @@ class SettingsWindow {
         this.setSettingValue("ai.enabled", false);
         this.showStatus(
           result.error || "AI configuration is invalid - AI disabled",
-          "error"
+          "error",
         );
 
         // Update the checkbox to reflect the disabled state
         const aiEnabledCheckbox = document.querySelector(
-          '[data-key="ai.enabled"]'
+          '[data-key="ai.enabled"]',
         );
         if (aiEnabledCheckbox) {
           aiEnabledCheckbox.checked = false;
@@ -1075,7 +1075,7 @@ class SettingsWindow {
       console.error("AI configuration validation failed:", error);
       this.showStatus(
         `AI validation failed: ${error.message || String(error)}`,
-        "error"
+        "error",
       );
     }
   }
@@ -1084,7 +1084,7 @@ class SettingsWindow {
     try {
       const pluginInfo = await window.electronAPI.getCurrentPluginInfo();
       const aiEnabledCheckbox = document.querySelector(
-        '[data-key="ai.enabled"]'
+        '[data-key="ai.enabled"]',
       );
       const aiSection = document.querySelector('[data-section="ai"]');
 
@@ -1173,13 +1173,13 @@ class SettingsWindow {
       if (aiEnabled && baseUrl && apiKey) {
         const result = await window.electronAPI.validateApiKeyAndListModels(
           baseUrl,
-          apiKey
+          apiKey,
         );
         if (!result?.success) {
           setSaving(false);
           this.showStatus(
             `API key validation failed: ${result?.error || "Unknown error"}`,
-            "error"
+            "error",
           );
           return;
         }
@@ -1268,7 +1268,7 @@ class SettingsWindow {
 
       const result = await window.electronAPI.validateApiKeyAndListModels(
         baseUrl,
-        apiKey
+        apiKey,
       );
 
       if (result?.success && result.models?.length > 0) {
@@ -1313,7 +1313,7 @@ class SettingsWindow {
 
     if (
       confirm(
-        `Reset all settings in the "${this.getCurrentSectionTitle()}" section to defaults?`
+        `Reset all settings in the "${this.getCurrentSectionTitle()}" section to defaults?`,
       )
     ) {
       try {
@@ -1351,7 +1351,7 @@ class SettingsWindow {
 
       if (!result.canceled && result.filePaths.length > 0) {
         const imported = await window.electronAPI.importSettings(
-          result.filePaths[0]
+          result.filePaths[0],
         );
         this.settings = imported;
         this.rebuildForm();
@@ -1483,7 +1483,7 @@ class SettingsWindow {
       // Only update options for the active plugin
       if (pluginName !== this.activePlugin) {
         console.log(
-          `Ignoring option change for inactive plugin: ${pluginName}`
+          `Ignoring option change for inactive plugin: ${pluginName}`,
         );
         return;
       }
@@ -1515,7 +1515,7 @@ class SettingsWindow {
         console.error("Failed to update plugin option:", error);
         this.showStatus(
           `Failed to update ${optionKey}: ${error.message}`,
-          "error"
+          "error",
         );
 
         // Revert the setting and field value
@@ -1546,7 +1546,7 @@ class SettingsWindow {
       // Show confirmation dialog
       const confirmSwitch = window.confirm(
         `Switch to ${newPlugin} transcription plugin?\n\n` +
-          `This will download the required model if needed.`
+          `This will download the required model if needed.`,
       );
 
       if (!confirmSwitch) {
@@ -1645,7 +1645,7 @@ class SettingsWindow {
         <div style="background: white; height: 100%; width: ${percent}%; transition: width 0.3s ease;"></div>
       </div>
       <div style="margin-top: 4px; font-size: 11px; opacity: 0.9;">${percent.toFixed(
-        1
+        1,
       )}%</div>
     `;
   }
@@ -1701,11 +1701,11 @@ class SettingsWindow {
   async deleteInactivePlugin(pluginName) {
     try {
       const pluginInfo = this.pluginData.plugins.find(
-        (p) => p.name === pluginName
+        (p) => p.name === pluginName,
       );
       const confirmDelete = await window.confirm(
         `Clear all data for ${pluginInfo?.displayName || pluginName}?\n\n` +
-          `This will delete downloaded models and cached data. This action cannot be undone.`
+          `This will delete downloaded models and cached data. This action cannot be undone.`,
       );
 
       if (!confirmDelete) return;
@@ -1713,7 +1713,7 @@ class SettingsWindow {
       await window.electronAPI.deleteInactivePlugin(pluginName);
       this.showStatus(
         `Cleared data for ${pluginInfo?.displayName || pluginName}`,
-        "success"
+        "success",
       );
     } catch (error) {
       console.error("Failed to delete plugin data:", error);
@@ -1770,13 +1770,13 @@ class SettingsWindow {
 
     const matchPatternsHtml = action.matchPatterns
       .map((pattern, patternIndex) =>
-        this.createMatchPatternHtml(pattern, index, patternIndex, key)
+        this.createMatchPatternHtml(pattern, index, patternIndex, key),
       )
       .join("");
 
     const handlersHtml = action.handlers
       .map((handler, handlerIndex) =>
-        this.createHandlerHtml(handler, index, handlerIndex, key)
+        this.createHandlerHtml(handler, index, handlerIndex, key),
       )
       .join("");
 
@@ -1790,7 +1790,7 @@ class SettingsWindow {
             <h4 class="action-name">${this.escapeHtml(action.name)}</h4>
           </div>
           <p class="action-description">${this.escapeHtml(
-            action.description
+            action.description,
           )}</p>
         </div>
         <div class="action-controls">
@@ -1938,7 +1938,7 @@ class SettingsWindow {
       handler,
       actionIndex,
       handlerIndex,
-      key
+      key,
     );
 
     return `
@@ -2019,7 +2019,7 @@ class SettingsWindow {
             <input type="text" class="form-control" 
                    placeholder="Leave empty to use matched text" 
                    value="${this.escapeHtml(
-                     handler.config.applicationName || ""
+                     handler.config.applicationName || "",
                    )}"
                    data-config-field="applicationName"
                    data-action-index="${actionIndex}" 
@@ -2046,7 +2046,7 @@ class SettingsWindow {
             <input type="text" class="form-control" 
                    placeholder="Leave empty to quit WhisperMac" 
                    value="${this.escapeHtml(
-                     handler.config.applicationName || ""
+                     handler.config.applicationName || "",
                    )}"
                    data-config-field="applicationName"
                    data-action-index="${actionIndex}" 
@@ -2076,8 +2076,8 @@ class SettingsWindow {
                       data-action-index="${actionIndex}" 
                       data-handler-index="${handlerIndex}" 
                       data-key="${key}">${this.escapeHtml(
-          handler.config.command || ""
-        )}</textarea>
+                        handler.config.command || "",
+                      )}</textarea>
             <small class="field-help">Use {argument}, {match} for dynamic values</small>
           </div>
           <div class="config-field">
@@ -2085,7 +2085,7 @@ class SettingsWindow {
             <input type="text" class="form-control" 
                    placeholder="Optional working directory" 
                    value="${this.escapeHtml(
-                     handler.config.workingDirectory || ""
+                     handler.config.workingDirectory || "",
                    )}"
                    data-config-field="workingDirectory"
                    data-action-index="${actionIndex}" 
@@ -2151,7 +2151,7 @@ class SettingsWindow {
             <input type="text" class="form-control" 
                    placeholder="Use {argument}, {match}, etc." 
                    value="${this.escapeHtml(
-                     handler.config.replacementText || ""
+                     handler.config.replacementText || "",
                    )}" 
                    data-config-field="replacementText"
                    data-action-index="${actionIndex}" 
@@ -2209,7 +2209,7 @@ class SettingsWindow {
             <input type="text" class="form-control" 
                    placeholder="Text to match against" 
                    value="${this.escapeHtml(
-                     handler.config.condition?.value || ""
+                     handler.config.condition?.value || "",
                    )}" 
                    data-config-field="condition.value"
                    data-action-index="${actionIndex}" 
@@ -2221,7 +2221,7 @@ class SettingsWindow {
             <input type="text" class="form-control" 
                    placeholder="e.g., \\.\\.\\. for ellipses" 
                    value="${this.escapeHtml(
-                     handler.config.conditionalAction?.removePattern || ""
+                     handler.config.conditionalAction?.removePattern || "",
                    )}" 
                    data-config-field="conditionalAction.removePattern"
                    data-action-index="${actionIndex}" 
@@ -2259,12 +2259,12 @@ class SettingsWindow {
         this.toggleActionCard(e.target.closest(".action-card"));
       } else if (e.target.closest(".delete-action-btn")) {
         const actionIndex = parseInt(
-          e.target.closest(".delete-action-btn").dataset.actionIndex
+          e.target.closest(".delete-action-btn").dataset.actionIndex,
         );
         this.deleteAction(key, actionIndex);
       } else if (e.target.closest(".add-pattern-btn")) {
         const actionIndex = parseInt(
-          e.target.closest(".add-pattern-btn").dataset.actionIndex
+          e.target.closest(".add-pattern-btn").dataset.actionIndex,
         );
         this.addNewPattern(key, actionIndex);
       } else if (e.target.closest(".delete-pattern-btn")) {
@@ -2274,7 +2274,7 @@ class SettingsWindow {
         this.deletePattern(key, actionIndex, patternIndex);
       } else if (e.target.closest(".add-handler-btn")) {
         const actionIndex = parseInt(
-          e.target.closest(".add-handler-btn").dataset.actionIndex
+          e.target.closest(".add-handler-btn").dataset.actionIndex,
         );
         this.addNewHandler(key, actionIndex);
       } else if (e.target.closest(".delete-handler-btn")) {
@@ -2284,12 +2284,12 @@ class SettingsWindow {
         this.deleteHandler(key, actionIndex, handlerIndex);
       } else if (e.target.closest(".move-action-up-btn")) {
         const actionIndex = parseInt(
-          e.target.closest(".move-action-up-btn").dataset.actionIndex
+          e.target.closest(".move-action-up-btn").dataset.actionIndex,
         );
         this.moveAction(key, actionIndex, -1);
       } else if (e.target.closest(".move-action-down-btn")) {
         const actionIndex = parseInt(
-          e.target.closest(".move-action-down-btn").dataset.actionIndex
+          e.target.closest(".move-action-down-btn").dataset.actionIndex,
         );
         this.moveAction(key, actionIndex, 1);
       }
@@ -2323,7 +2323,7 @@ class SettingsWindow {
         key,
         actionIndex,
         "order",
-        parseInt(target.value) || 1
+        parseInt(target.value) || 1,
       );
     } else if (
       target.classList.contains("action-closes-transcription-checkbox")
@@ -2333,7 +2333,7 @@ class SettingsWindow {
         key,
         actionIndex,
         "closesTranscription",
-        target.checked
+        target.checked,
       );
     } else if (
       target.classList.contains("action-skips-transformation-checkbox")
@@ -2343,7 +2343,7 @@ class SettingsWindow {
         key,
         actionIndex,
         "skipsTransformation",
-        target.checked
+        target.checked,
       );
     } else if (target.classList.contains("pattern-type-select")) {
       const actionIndex = parseInt(target.dataset.actionIndex);
@@ -2353,7 +2353,7 @@ class SettingsWindow {
         actionIndex,
         patternIndex,
         "type",
-        target.value
+        target.value,
       );
     } else if (target.classList.contains("pattern-input")) {
       const actionIndex = parseInt(target.dataset.actionIndex);
@@ -2363,7 +2363,7 @@ class SettingsWindow {
         actionIndex,
         patternIndex,
         "pattern",
-        target.value
+        target.value,
       );
     } else if (target.classList.contains("pattern-case-sensitive")) {
       const actionIndex = parseInt(target.dataset.actionIndex);
@@ -2373,7 +2373,7 @@ class SettingsWindow {
         actionIndex,
         patternIndex,
         "caseSensitive",
-        target.checked
+        target.checked,
       );
     } else if (target.classList.contains("handler-type-select")) {
       const actionIndex = parseInt(target.dataset.actionIndex);
@@ -2387,7 +2387,7 @@ class SettingsWindow {
         actionIndex,
         handlerIndex,
         "order",
-        parseInt(target.value) || 1
+        parseInt(target.value) || 1,
       );
     } else if (target.dataset.configField) {
       const actionIndex = parseInt(target.dataset.actionIndex);
@@ -2651,7 +2651,7 @@ class SettingsWindow {
   resetActionsToDefaults(key) {
     if (
       confirm(
-        "Reset all actions to defaults? This will remove any custom actions you have created."
+        "Reset all actions to defaults? This will remove any custom actions you have created.",
       )
     ) {
       // We need to get the default from the schema
@@ -2755,7 +2755,7 @@ class SettingsWindow {
           }
         </div>
       </div>
-    `
+    `,
       )
       .join("");
 
@@ -2773,11 +2773,11 @@ class SettingsWindow {
   async clearPluginData(pluginName) {
     try {
       const pluginInfo = this.pluginData.plugins.find(
-        (p) => p.name === pluginName
+        (p) => p.name === pluginName,
       );
       const confirmDelete = await window.confirm(
         `Clear all data for ${pluginInfo?.displayName || pluginName}?\n\n` +
-          `This will delete downloaded models and cached data. This action cannot be undone.`
+          `This will delete downloaded models and cached data. This action cannot be undone.`,
       );
 
       if (!confirmDelete) return;
@@ -2785,7 +2785,7 @@ class SettingsWindow {
       await window.electronAPI.deleteAllPluginData(pluginName);
       this.showStatus(
         `Cleared data for ${pluginInfo?.displayName || pluginName}`,
-        "success"
+        "success",
       );
 
       // Reload the data list
@@ -2799,7 +2799,7 @@ class SettingsWindow {
   async deletePluginDataItem(pluginName, itemId, itemName) {
     try {
       const confirmDelete = await window.confirm(
-        `Delete "${itemName}"?\n\nThis action cannot be undone.`
+        `Delete "${itemName}"?\n\nThis action cannot be undone.`,
       );
 
       if (!confirmDelete) return;

@@ -65,7 +65,7 @@ export class DictationWindowService extends EventEmitter {
 
     console.log(
       "Dictation window shown at position:",
-      this.calculateWindowPositionSync()
+      this.calculateWindowPositionSync(),
     );
   }
 
@@ -111,7 +111,7 @@ export class DictationWindowService extends EventEmitter {
 
     // Load the dictation window HTML
     await this.dictationWindow.loadFile(
-      join(__dirname, "../renderer/dictationWindow.html")
+      join(__dirname, "../renderer/dictationWindow.html"),
     );
 
     // Set up window event handlers
@@ -161,14 +161,14 @@ export class DictationWindowService extends EventEmitter {
             console.log(
               "Received VAD audio segment:",
               args[0]?.length || 0,
-              "samples"
+              "samples",
             );
             this.emit("vad-audio-segment", new Float32Array(args[0]));
             break;
           default:
             console.log("Unknown IPC channel:", channel);
         }
-      }
+      },
     );
   }
 
@@ -279,7 +279,7 @@ export class DictationWindowService extends EventEmitter {
 
     // Check if all segments are completed and there are no in-progress segments
     const hasInProgressSegments = update.segments.some(
-      (segment) => segment.type === "inprogress" || !segment.completed
+      (segment) => segment.type === "inprogress" || !segment.completed,
     );
 
     // Only update status if we're not currently transforming or processing

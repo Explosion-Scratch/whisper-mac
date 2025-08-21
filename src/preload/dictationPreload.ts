@@ -46,13 +46,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   onTranscriptionUpdate: (callback: (update: TranscriptionUpdate) => void) => {
     ipcRenderer.on("dictation-transcription-update", (event, update) =>
-      callback(update)
+      callback(update),
     );
   },
 
   onDictationComplete: (callback: (finalText: string) => void) => {
     ipcRenderer.on("dictation-complete", (event, finalText) =>
-      callback(finalText)
+      callback(finalText),
     );
   },
 
@@ -99,12 +99,12 @@ declare global {
     electronAPI: {
       onAnimateIn: (callback: () => void) => void;
       onInitializeDictation: (
-        callback: (data: DictationInitData) => void
+        callback: (data: DictationInitData) => void,
       ) => void;
       onStartRecording: (callback: () => void) => void;
       onStopRecording: (callback: () => void) => void;
       onTranscriptionUpdate: (
-        callback: (update: TranscriptionUpdate) => void
+        callback: (update: TranscriptionUpdate) => void,
       ) => void;
       onDictationComplete: (callback: (finalText: string) => void) => void;
       onDictationClear: (callback: () => void) => void;

@@ -38,12 +38,12 @@ export class ConfigurableActionsService extends EventEmitter {
 
       this.installedApps = new Set(apps);
       console.log(
-        `[ConfigurableActions] Discovered ${apps.length} installed applications`
+        `[ConfigurableActions] Discovered ${apps.length} installed applications`,
       );
     } catch (error) {
       console.error(
         "[ConfigurableActions] Failed to discover installed applications:",
-        error
+        error,
       );
     }
   }
@@ -53,7 +53,7 @@ export class ConfigurableActionsService extends EventEmitter {
       .filter((action) => action.enabled)
       .sort((a, b) => (a.order || 0) - (b.order || 0));
     console.log(
-      `[ConfigurableActions] Loaded ${this.actions.length} enabled actions`
+      `[ConfigurableActions] Loaded ${this.actions.length} enabled actions`,
     );
   }
 
@@ -80,7 +80,7 @@ export class ConfigurableActionsService extends EventEmitter {
 
   async executeAction(match: ActionMatch): Promise<void> {
     console.log(
-      `[ConfigurableActions] Executing action: ${match.actionId} with argument: "${match.extractedArgument}"`
+      `[ConfigurableActions] Executing action: ${match.actionId} with argument: "${match.extractedArgument}"`,
     );
 
     for (const handler of match.handlers) {
@@ -93,14 +93,14 @@ export class ConfigurableActionsService extends EventEmitter {
       } catch (error) {
         console.warn(
           `[ConfigurableActions] Handler ${handler.id} failed:`,
-          error
+          error,
         );
         continue;
       }
     }
 
     console.error(
-      `[ConfigurableActions] All handlers failed for action: ${match.actionId}`
+      `[ConfigurableActions] All handlers failed for action: ${match.actionId}`,
     );
     this.emit("action-error", {
       match,
@@ -110,7 +110,7 @@ export class ConfigurableActionsService extends EventEmitter {
 
   private async executeHandler(
     handler: ActionHandlerConfig,
-    match: ActionMatch
+    match: ActionMatch,
   ): Promise<boolean> {
     const config = this.interpolateConfig(handler.config, match);
 
@@ -127,7 +127,7 @@ export class ConfigurableActionsService extends EventEmitter {
         return this.executeSegmentAction(config as SegmentActionConfig, match);
       default:
         console.warn(
-          `[ConfigurableActions] Unknown handler type: ${handler.type}`
+          `[ConfigurableActions] Unknown handler type: ${handler.type}`,
         );
         return false;
     }
@@ -248,7 +248,7 @@ export class ConfigurableActionsService extends EventEmitter {
     } catch (error) {
       console.error(
         "[ConfigurableActions] Failed to execute shell command:",
-        error
+        error,
       );
       return false;
     }
@@ -256,18 +256,18 @@ export class ConfigurableActionsService extends EventEmitter {
 
   private async executeSegmentAction(
     config: SegmentActionConfig,
-    match: ActionMatch
+    match: ActionMatch,
   ): Promise<boolean> {
     if (!this.segmentManager) {
       console.error(
-        "[ConfigurableActions] SegmentManager not available for segment action"
+        "[ConfigurableActions] SegmentManager not available for segment action",
       );
       return false;
     }
 
     try {
       console.log(
-        `[ConfigurableActions] Executing segment action: ${config.action}`
+        `[ConfigurableActions] Executing segment action: ${config.action}`,
       );
 
       switch (config.action) {
@@ -281,7 +281,7 @@ export class ConfigurableActionsService extends EventEmitter {
         case "replace":
           if (!config.replacementText) {
             console.warn(
-              "[ConfigurableActions] No replacement text provided for replace action"
+              "[ConfigurableActions] No replacement text provided for replace action",
             );
             return false;
           }
@@ -307,14 +307,14 @@ export class ConfigurableActionsService extends EventEmitter {
 
         default:
           console.warn(
-            `[ConfigurableActions] Unknown segment action: ${config.action}`
+            `[ConfigurableActions] Unknown segment action: ${config.action}`,
           );
           return false;
       }
     } catch (error) {
       console.error(
         "[ConfigurableActions] Failed to execute segment action:",
-        error
+        error,
       );
       return false;
     }
@@ -322,11 +322,11 @@ export class ConfigurableActionsService extends EventEmitter {
 
   private async executeConditionalTransform(
     config: SegmentActionConfig,
-    match: ActionMatch
+    match: ActionMatch,
   ): Promise<boolean> {
     if (!config.condition || !config.conditionalAction) {
       console.warn(
-        "[ConfigurableActions] Conditional transform missing condition or action"
+        "[ConfigurableActions] Conditional transform missing condition or action",
       );
       return false;
     }
@@ -334,7 +334,7 @@ export class ConfigurableActionsService extends EventEmitter {
     const lastSegment = this.segmentManager.getLastSegment();
     if (!lastSegment) {
       console.log(
-        "[ConfigurableActions] No segments available for conditional transform"
+        "[ConfigurableActions] No segments available for conditional transform",
       );
       return false;
     }
@@ -342,17 +342,17 @@ export class ConfigurableActionsService extends EventEmitter {
     // Check condition
     const conditionMet = this.checkCondition(
       lastSegment.text,
-      config.condition
+      config.condition,
     );
     if (!conditionMet) {
       console.log(
-        "[ConfigurableActions] Condition not met for conditional transform"
+        "[ConfigurableActions] Condition not met for conditional transform",
       );
       return false;
     }
 
     console.log(
-      "[ConfigurableActions] Condition met, applying transformations"
+      "[ConfigurableActions] Condition met, applying transformations",
     );
 
     // Apply current segment transformations
@@ -364,7 +364,7 @@ export class ConfigurableActionsService extends EventEmitter {
       const newText = lastSegment.text
         .replace(
           new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "+$"),
-          ""
+          "",
         )
         .trim();
       this.segmentManager.replaceLastSegmentContent(newText);
@@ -373,7 +373,7 @@ export class ConfigurableActionsService extends EventEmitter {
       config.conditionalAction.replaceWith
     ) {
       this.segmentManager.replaceLastSegmentContent(
-        config.conditionalAction.replaceWith
+        config.conditionalAction.replaceWith,
       );
     }
 
@@ -391,7 +391,7 @@ export class ConfigurableActionsService extends EventEmitter {
 
   private checkCondition(
     text: string,
-    condition: { type: string; value: string }
+    condition: { type: string; value: string },
   ): boolean {
     switch (condition.type) {
       case "endsWith":
@@ -407,7 +407,7 @@ export class ConfigurableActionsService extends EventEmitter {
         } catch (error) {
           console.error(
             "[ConfigurableActions] Invalid regex in condition:",
-            error
+            error,
           );
           return false;
         }
@@ -430,7 +430,7 @@ export class ConfigurableActionsService extends EventEmitter {
         Object.entries(replacements).forEach(([key, replacement]) => {
           result = result.replace(
             new RegExp(key.replace(/[{}]/g, "\\$&"), "g"),
-            replacement
+            replacement,
           );
         });
         return result;
@@ -451,7 +451,7 @@ export class ConfigurableActionsService extends EventEmitter {
 
   private testPattern(
     text: string,
-    pattern: MatchPattern
+    pattern: MatchPattern,
   ): { argument?: string } | null {
     const testText = pattern.caseSensitive ? text : text.toLowerCase();
     const testPattern = pattern.caseSensitive
@@ -490,7 +490,7 @@ export class ConfigurableActionsService extends EventEmitter {
         } catch (error) {
           console.error(
             `[ConfigurableActions] Invalid regex pattern: ${pattern.pattern}`,
-            error
+            error,
           );
         }
         return null;

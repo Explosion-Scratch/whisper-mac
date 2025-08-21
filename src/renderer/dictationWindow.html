@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
     <meta charset="UTF-8" />
@@ -21,14 +21,18 @@
         background: rgba(250, 250, 252, 0.06);
         border-radius: 12px;
         border: 1px solid rgba(255, 255, 255, 0.35);
-        box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2),
+        box-shadow:
+          0 12px 48px rgba(0, 0, 0, 0.2),
           0 2px 10px rgba(0, 0, 0, 0.08);
         overflow: hidden;
         user-select: none;
         -webkit-user-select: none;
-        transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-          transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease,
-          border-color 0.2s ease, background 0.2s ease;
+        transition:
+          opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+          transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+          box-shadow 0.2s ease,
+          border-color 0.2s ease,
+          background 0.2s ease;
         background-clip: padding-box;
         opacity: 0;
         transform: scale(0.95) translateY(10px);
@@ -40,7 +44,8 @@
       }
 
       body:hover {
-        box-shadow: 0 14px 56px rgba(0, 0, 0, 0.22),
+        box-shadow:
+          0 14px 56px rgba(0, 0, 0, 0.22),
           0 6px 16px rgba(0, 0, 0, 0.1);
       }
 
@@ -274,7 +279,8 @@
         justify-content: center;
         transition: all 0.2s ease;
         flex-shrink: 0;
-        box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.6),
+        box-shadow:
+          inset 0 0 0 0.5px rgba(255, 255, 255, 0.6),
           0 1px 2px rgba(0, 0, 0, 0.08);
       }
 
@@ -293,7 +299,8 @@
         body {
           background: rgba(30, 30, 30, 0.5);
           border-color: rgba(255, 255, 255, 0.12);
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
+          box-shadow:
+            0 20px 60px rgba(0, 0, 0, 0.5),
             0 6px 18px rgba(0, 0, 0, 0.3);
           background-image: linear-gradient(
             to bottom,
@@ -303,7 +310,8 @@
         }
 
         body:hover {
-          box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55),
+          box-shadow:
+            0 22px 70px rgba(0, 0, 0, 0.55),
             0 8px 22px rgba(0, 0, 0, 0.35);
         }
 
@@ -494,10 +502,10 @@
 
           const showInProgressSpinner = computed(() => {
             const completedSegments = transcriptionSegments.value.filter(
-              (s) => s.type === "transcribed" && s.completed
+              (s) => s.type === "transcribed" && s.completed,
             );
             const inProgressSegments = transcriptionSegments.value.filter(
-              (s) => s.type === "inprogress"
+              (s) => s.type === "inprogress",
             );
             // If we're in progress with no other segments show both text + spinner
             // If we're in progress with other segments show only spinner
@@ -535,7 +543,7 @@
             // Filter segments to only show the last in-progress segment
             const segments = transcriptionSegments.value;
             const completedSegments = segments.filter(
-              (segment) => segment.type === "transcribed" && segment.completed
+              (segment) => segment.type === "transcribed" && segment.completed,
             );
 
             // Find the last in-progress segment
@@ -543,7 +551,7 @@
               .filter(
                 (segment) =>
                   segment.type === "inprogress" ||
-                  (!segment.completed && segment.type === "transcribed")
+                  (!segment.completed && segment.type === "transcribed"),
               )
               .pop();
 
@@ -719,7 +727,7 @@
             } catch (error) {
               console.error("Failed to initialize VAD:", error);
               window.electronAPI.logMessage(
-                `VAD initialization failed: ${error.message}`
+                `VAD initialization failed: ${error.message}`,
               );
             }
           };
@@ -737,7 +745,7 @@
               } catch (error) {
                 console.error("Failed to start VAD:", error);
                 window.electronAPI.logMessage(
-                  `VAD start failed: ${error.message}`
+                  `VAD start failed: ${error.message}`,
                 );
               }
             }
@@ -763,7 +771,7 @@
                   }
                   if (sourceNode) sourceNode.disconnect();
                   sourceNode = audioContext.createMediaStreamSource(
-                    mediaStream.value
+                    mediaStream.value,
                   );
                   analyser = audioContext.createAnalyser();
                   analyser.fftSize = 512;
@@ -813,7 +821,7 @@
               } catch (error) {
                 console.error("Failed to stop VAD:", error);
                 window.electronAPI.logMessage(
-                  `VAD stop failed: ${error.message}`
+                  `VAD stop failed: ${error.message}`,
                 );
               }
             }
@@ -872,7 +880,7 @@
 
             // Determine status based on segments and current state
             const hasInProgressSegments = update.segments.some(
-              (segment) => segment.type === "inprogress" || !segment.completed
+              (segment) => segment.type === "inprogress" || !segment.completed,
             );
 
             // Only change status if we're not currently transforming or processing

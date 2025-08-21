@@ -44,7 +44,7 @@ export class ModelManager {
   async ensureModelExists(
     modelName: string,
     onProgress?: (progress: ModelDownloadProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean> {
     this.ensureDataDirectory();
     const modelPath = this.getModelPath(modelName);
@@ -63,14 +63,14 @@ export class ModelManager {
   private async downloadModelFile(
     modelName: string,
     onProgress?: (progress: ModelDownloadProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean> {
     return new Promise((resolve, reject) => {
       if (this.activeDownload) {
         reject(
           new Error(
-            `Another model (${this.activeDownload}) is already downloading`
-          )
+            `Another model (${this.activeDownload}) is already downloading`,
+          ),
         );
         return;
       }
@@ -101,7 +101,7 @@ export class ModelManager {
               onProgress,
               onLog,
               resolve,
-              reject
+              reject,
             );
           } else {
             this.activeDownload = null;
@@ -113,7 +113,7 @@ export class ModelManager {
         if (response.statusCode !== 200) {
           this.activeDownload = null;
           reject(
-            new Error(`Failed to download model: HTTP ${response.statusCode}`)
+            new Error(`Failed to download model: HTTP ${response.statusCode}`),
           );
           return;
         }
@@ -126,7 +126,7 @@ export class ModelManager {
           onLog,
           resolve,
           reject,
-          response
+          response,
         );
       });
 
@@ -152,7 +152,7 @@ export class ModelManager {
     onLog?: (line: string) => void,
     resolve?: (value: boolean) => void,
     reject?: (reason?: any) => void,
-    response?: any
+    response?: any,
   ): void {
     const actualRequest = response
       ? null
@@ -164,7 +164,7 @@ export class ModelManager {
             onProgress,
             onLog,
             resolve,
-            reject
+            reject,
           );
         });
 
@@ -176,7 +176,7 @@ export class ModelManager {
         onProgress,
         onLog,
         resolve,
-        reject
+        reject,
       );
     }
 
@@ -195,7 +195,7 @@ export class ModelManager {
     onProgress?: (progress: ModelDownloadProgress) => void,
     onLog?: (line: string) => void,
     resolve?: (value: boolean) => void,
-    reject?: (reason?: any) => void
+    reject?: (reason?: any) => void,
   ): void {
     if (response.statusCode !== 200) {
       this.activeDownload = null;
@@ -284,7 +284,7 @@ export class ModelManager {
   async downloadModel(
     modelName: string,
     onProgress?: (progress: ModelDownloadProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean> {
     this.ensureDataDirectory();
     return this.downloadModelFile(modelName, onProgress, onLog);

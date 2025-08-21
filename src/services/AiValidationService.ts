@@ -22,7 +22,7 @@ export class AiValidationService {
   async validateAiConfiguration(
     baseUrl: string,
     model: string,
-    apiKey?: string
+    apiKey?: string,
   ): Promise<AiValidationResult> {
     // Check if base URL is provided
     if (!baseUrl || baseUrl.trim() === "") {
@@ -62,7 +62,7 @@ export class AiValidationService {
     try {
       const result = await this.aiProviderService.validateAndListModels(
         baseUrl,
-        keyToUse
+        keyToUse,
       );
 
       if (!result.success) {

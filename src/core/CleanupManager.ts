@@ -18,7 +18,7 @@ export class CleanupManager {
     dictationWindowService: DictationWindowService,
     settingsService: SettingsService,
     trayService: TrayService | null,
-    windowManager: WindowManager
+    windowManager: WindowManager,
   ) {
     this.transcriptionPluginManager = transcriptionPluginManager;
     this.dictationWindowService = dictationWindowService;

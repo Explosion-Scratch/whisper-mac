@@ -30,11 +30,11 @@ export class UnifiedModelDownloadService extends EventEmitter {
     pluginName: string,
     modelName: string,
     onProgress?: (progress: UnifiedModelDownloadProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean> {
     if (this.activeDownload) {
       throw new Error(
-        `Another model (${this.activeDownload.plugin}:${this.activeDownload.model}) is already downloading`
+        `Another model (${this.activeDownload.plugin}:${this.activeDownload.model}) is already downloading`,
       );
     }
 
@@ -90,13 +90,13 @@ export class UnifiedModelDownloadService extends EventEmitter {
         await plugin.ensureModelAvailable(
           { model: modelName },
           wrappedProgress,
-          onLog
+          onLog,
         );
       } else if ((plugin as any).downloadModel) {
         await (plugin as any).downloadModel(modelName, uiFunctions);
       } else {
         throw new Error(
-          `Plugin ${pluginName} does not support model downloads`
+          `Plugin ${pluginName} does not support model downloads`,
         );
       }
       return true;
@@ -109,7 +109,7 @@ export class UnifiedModelDownloadService extends EventEmitter {
     pluginName: string,
     modelName?: string,
     onProgress?: (progress: UnifiedModelDownloadProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean> {
     if (!this.transcriptionPluginManager) {
       throw new Error("Transcription plugin manager not available");
@@ -139,7 +139,7 @@ export class UnifiedModelDownloadService extends EventEmitter {
     // Switch to the plugin (re-check availability inside setActivePlugin)
     await this.transcriptionPluginManager.setActivePlugin(
       pluginName,
-      pluginOptions
+      pluginOptions,
     );
     this.config.set("transcriptionPlugin", pluginName);
 

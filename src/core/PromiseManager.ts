@@ -64,14 +64,14 @@ export class PromiseManager extends EventEmitter {
     const promiseData = this.promises.get(name);
     if (!promiseData) {
       console.warn(
-        `[PromiseManager] Cannot resolve non-existent promise: ${name}`
+        `[PromiseManager] Cannot resolve non-existent promise: ${name}`,
       );
       return;
     }
 
     if (promiseData.status !== "pending") {
       console.warn(
-        `[PromiseManager] Promise '${name}' is already ${promiseData.status}`
+        `[PromiseManager] Promise '${name}' is already ${promiseData.status}`,
       );
       return;
     }
@@ -100,14 +100,14 @@ export class PromiseManager extends EventEmitter {
     const promiseData = this.promises.get(name);
     if (!promiseData) {
       console.warn(
-        `[PromiseManager] Cannot reject non-existent promise: ${name}`
+        `[PromiseManager] Cannot reject non-existent promise: ${name}`,
       );
       return;
     }
 
     if (promiseData.status !== "pending") {
       console.warn(
-        `[PromiseManager] Promise '${name}' is already ${promiseData.status}`
+        `[PromiseManager] Promise '${name}' is already ${promiseData.status}`,
       );
       return;
     }
@@ -150,7 +150,7 @@ export class PromiseManager extends EventEmitter {
 
       if (promiseData.status === "rejected") {
         reject(
-          promiseData.error || new Error(`Promise '${name}' was rejected`)
+          promiseData.error || new Error(`Promise '${name}' was rejected`),
         );
         return;
       }
@@ -184,13 +184,13 @@ export class PromiseManager extends EventEmitter {
    */
   waitForAny(
     names: string[],
-    timeout?: number
+    timeout?: number,
   ): Promise<{ name: string; data: any }> {
     return new Promise((resolve, reject) => {
       const promises = names.map((name) =>
         this.waitFor(name, timeout)
           .then((data) => ({ name, data }))
-          .catch((error) => ({ name, error }))
+          .catch((error) => ({ name, error })),
       );
 
       Promise.race(promises).then((result) => {
@@ -214,7 +214,7 @@ export class PromiseManager extends EventEmitter {
    * Get the status of a promise
    */
   getPromiseStatus(
-    name: string
+    name: string,
   ): "pending" | "resolved" | "rejected" | "not-found" {
     const promiseData = this.promises.get(name);
     return promiseData ? promiseData.status : "not-found";
@@ -232,7 +232,7 @@ export class PromiseManager extends EventEmitter {
    */
   getPendingPromises(): PromiseData[] {
     return Array.from(this.promises.values()).filter(
-      (p) => p.status === "pending"
+      (p) => p.status === "pending",
     );
   }
 
@@ -241,7 +241,7 @@ export class PromiseManager extends EventEmitter {
    */
   getResolvedPromises(): PromiseData[] {
     return Array.from(this.promises.values()).filter(
-      (p) => p.status === "resolved"
+      (p) => p.status === "resolved",
     );
   }
 
@@ -250,7 +250,7 @@ export class PromiseManager extends EventEmitter {
    */
   getRejectedPromises(): PromiseData[] {
     return Array.from(this.promises.values()).filter(
-      (p) => p.status === "rejected"
+      (p) => p.status === "rejected",
     );
   }
 
@@ -275,7 +275,7 @@ export class PromiseManager extends EventEmitter {
    */
   clearAll(): void {
     console.log(
-      `[PromiseManager] Clearing all promises (${this.promises.size} total)`
+      `[PromiseManager] Clearing all promises (${this.promises.size} total)`,
     );
     this.promises.clear();
     this.resolvers.clear();

@@ -47,7 +47,7 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   registerPlugin(plugin: BaseTranscriptionPlugin): void {
     console.log(
-      `Registering transcription plugin: ${plugin.displayName} (${plugin.name})`
+      `Registering transcription plugin: ${plugin.displayName} (${plugin.name})`,
     );
     this.plugins.set(plugin.name, plugin);
 
@@ -87,17 +87,17 @@ export class TranscriptionPluginManager extends EventEmitter {
       plugins.map(async (plugin) => ({
         plugin,
         available: await plugin.isAvailable(),
-      }))
+      })),
     );
 
     return availabilityChecks
       .filter(
         (
-          result
+          result,
         ): result is PromiseFulfilledResult<{
           plugin: BaseTranscriptionPlugin;
           available: boolean;
-        }> => result.status === "fulfilled" && result.value.available
+        }> => result.status === "fulfilled" && result.value.available,
       )
       .map((result) => result.value.plugin);
   }
@@ -115,7 +115,7 @@ export class TranscriptionPluginManager extends EventEmitter {
   async setActivePlugin(
     name: string,
     options: Record<string, any> = {},
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
     const plugin = this.getPlugin(name);
     if (!plugin) {
@@ -135,7 +135,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     if (Object.keys(finalOptions).length > 0) {
       console.log(
         `Setting options for ${name} before availability check:`,
-        finalOptions
+        finalOptions,
       );
       plugin.setOptions(finalOptions);
     }
@@ -243,14 +243,14 @@ export class TranscriptionPluginManager extends EventEmitter {
   async startTranscription(
     onUpdate: (update: SegmentUpdate) => void,
     onProgress?: (progress: TranscriptionSetupProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<void> {
     if (!this.activePlugin) {
       throw new Error("No active transcription plugin set");
     }
 
     console.log(
-      `Starting transcription with plugin: ${this.activePlugin.displayName}`
+      `Starting transcription with plugin: ${this.activePlugin.displayName}`,
     );
     await this.activePlugin.startTranscription(onUpdate, onProgress, onLog);
 
@@ -271,7 +271,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     }
 
     console.log(
-      `Stopping transcription with plugin: ${this.activePlugin.displayName}`
+      `Stopping transcription with plugin: ${this.activePlugin.displayName}`,
     );
     await this.activePlugin.stopTranscription();
   }
@@ -299,7 +299,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     if (!this.bufferingEnabled) return;
     const total = this.bufferedAudioChunks.reduce(
       (acc, cur) => acc + cur.length,
-      0
+      0,
     );
     if (total === 0) return;
 
@@ -405,7 +405,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       } catch (error) {
         console.error(
           `Failed to initialize plugin ${plugin.displayName}:`,
-          error
+          error,
         );
       }
     });
@@ -463,7 +463,7 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   async updateActivePluginOptions(
     options: Record<string, any>,
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
     if (!this.activePlugin) {
       throw new Error("No active plugin to update");
@@ -482,7 +482,7 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   async verifyPluginOptions(
     name: string,
-    options: Record<string, any>
+    options: Record<string, any>,
   ): Promise<{ valid: boolean; errors: string[] }> {
     const plugin = this.getPlugin(name);
     if (!plugin) {
@@ -532,7 +532,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       } catch (error) {
         console.error(
           `Error clearing data for plugin ${plugin.displayName}:`,
-          error
+          error,
         );
       }
     });
@@ -554,8 +554,11 @@ export class TranscriptionPluginManager extends EventEmitter {
   > {
     console.log("Getting plugin data info...");
     const plugins = this.getPlugins();
-    console.log(`Found ${plugins.length} plugins:`, plugins.map(p => p.name));
-    
+    console.log(
+      `Found ${plugins.length} plugins:`,
+      plugins.map((p) => p.name),
+    );
+
     const dataInfo = await Promise.all(
       plugins.map(async (plugin) => {
         try {
@@ -572,7 +575,7 @@ export class TranscriptionPluginManager extends EventEmitter {
         } catch (error) {
           console.error(
             `Error getting data info for plugin ${plugin.displayName}:`,
-            error
+            error,
           );
           return {
             name: plugin.name,
@@ -582,7 +585,7 @@ export class TranscriptionPluginManager extends EventEmitter {
             dataPath: plugin.getDataPath(),
           };
         }
-      })
+      }),
     );
 
     console.log("Plugin data info result:", dataInfo);

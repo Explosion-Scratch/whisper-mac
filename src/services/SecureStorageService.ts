@@ -20,7 +20,7 @@ export class SecureStorageService {
   async setSecureValue(
     pluginName: string,
     key: string,
-    value: string
+    value: string,
   ): Promise<void> {
     const accountName = `plugin_${pluginName}_${key}`;
     console.log(`[SecureStorage] Setting value for ${accountName}`);
@@ -30,7 +30,7 @@ export class SecureStorageService {
     } catch (error) {
       console.error(
         `[SecureStorage] Failed to set value for ${accountName}:`,
-        error
+        error,
       );
       throw error;
     }
@@ -38,7 +38,7 @@ export class SecureStorageService {
 
   async getSecureValue(
     pluginName: string,
-    key: string
+    key: string,
   ): Promise<string | null> {
     const accountName = `plugin_${pluginName}_${key}`;
     console.log(`[SecureStorage] Getting value for ${accountName}`);
@@ -46,13 +46,13 @@ export class SecureStorageService {
       const value = await keytar.getPassword(SERVICE_NAME, accountName);
       console.log(
         `[SecureStorage] Retrieved value for ${accountName}:`,
-        value ? "present" : "not found"
+        value ? "present" : "not found",
       );
       return value;
     } catch (error) {
       console.error(
         `[SecureStorage] Failed to get value for ${accountName}:`,
-        error
+        error,
       );
       throw error;
     }
@@ -66,7 +66,7 @@ export class SecureStorageService {
   async setSecureData(
     pluginName: string,
     key: string,
-    data: any
+    data: any,
   ): Promise<void> {
     const serialized = JSON.stringify(data);
     await this.setSecureValue(pluginName, key, serialized);
@@ -93,7 +93,7 @@ export class SecureStorageService {
   async clearPluginData(pluginName: string): Promise<void> {
     const keys = await this.listSecureKeys(pluginName);
     await Promise.all(
-      keys.map((key) => this.deleteSecureValue(pluginName, key))
+      keys.map((key) => this.deleteSecureValue(pluginName, key)),
     );
   }
 }

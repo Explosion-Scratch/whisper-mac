@@ -33,7 +33,7 @@ async function testPromiseManager() {
   try {
     const results = await promiseManager.waitForAll(
       ["promise-1", "promise-2", "promise-3"],
-      1000
+      1000,
     );
     console.log("✅ All promises resolved:", results);
   } catch (error) {
@@ -54,7 +54,7 @@ async function testPromiseManager() {
   } catch (error) {
     console.log(
       "✅ Promise correctly rejected:",
-      error instanceof Error ? error.message : String(error)
+      error instanceof Error ? error.message : String(error),
     );
   }
 
@@ -68,7 +68,7 @@ async function testPromiseManager() {
   } catch (error) {
     console.log(
       "✅ Promise correctly timed out:",
-      error instanceof Error ? error.message : String(error)
+      error instanceof Error ? error.message : String(error),
     );
   }
 
@@ -80,7 +80,7 @@ async function testPromiseManager() {
   const allPromises = promiseManager.getAllPromises();
   console.log(
     "All Promises:",
-    allPromises.map((p) => ({ id: p.id, status: p.status }))
+    allPromises.map((p) => ({ id: p.id, status: p.status })),
   );
 
   // Clean up

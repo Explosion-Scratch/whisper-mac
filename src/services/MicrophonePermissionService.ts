@@ -12,7 +12,7 @@ export class MicrophonePermissionService {
     }
 
     console.log(
-      "=== MicrophonePermissionService.checkMicrophonePermissions ==="
+      "=== MicrophonePermissionService.checkMicrophonePermissions ===",
     );
 
     // Since we can't access navigator.mediaDevices from the main process,
@@ -26,7 +26,7 @@ export class MicrophonePermissionService {
    */
   async showMicrophoneInstructions(): Promise<void> {
     console.log(
-      "=== MicrophonePermissionService.showMicrophoneInstructions ==="
+      "=== MicrophonePermissionService.showMicrophoneInstructions ===",
     );
 
     const script = `
@@ -58,7 +58,7 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
     } catch (error) {
       console.error("Failed to show microphone instructions:", error);
       throw new Error(
-        "MICROPHONE PERMISSIONS REQUIRED - CHECK SYSTEM PREFERENCES"
+        "MICROPHONE PERMISSIONS REQUIRED - CHECK SYSTEM PREFERENCES",
       );
     }
   }
@@ -68,14 +68,14 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
    */
   async ensureMicrophonePermissions(): Promise<boolean> {
     console.log(
-      "=== MicrophonePermissionService.ensureMicrophonePermissions ==="
+      "=== MicrophonePermissionService.ensureMicrophonePermissions ===",
     );
 
     const hasMicrophone = await this.checkMicrophonePermissions();
 
     if (!hasMicrophone) {
       console.log(
-        "Microphone permissions not enabled, showing instructions..."
+        "Microphone permissions not enabled, showing instructions...",
       );
       await this.showMicrophoneInstructions();
     }

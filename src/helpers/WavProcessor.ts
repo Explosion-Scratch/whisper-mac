@@ -16,7 +16,7 @@ export class WavProcessor {
       sampleRate?: number;
       numChannels?: number;
       bitsPerSample?: number;
-    } = {}
+    } = {},
   ): Promise<string> {
     const { sampleRate = 16000, numChannels = 1, bitsPerSample = 16 } = options;
 
@@ -35,12 +35,12 @@ export class WavProcessor {
       pcmData.length * 2,
       sampleRate,
       numChannels,
-      bitsPerSample
+      bitsPerSample,
     );
 
     // Combine header and data
     const wavBuffer = new ArrayBuffer(
-      wavHeader.byteLength + pcmData.byteLength
+      wavHeader.byteLength + pcmData.byteLength,
     );
     const wavView = new Uint8Array(wavBuffer);
     wavView.set(new Uint8Array(wavHeader), 0);
@@ -59,7 +59,7 @@ export class WavProcessor {
     dataLength: number,
     sampleRate: number,
     numChannels: number,
-    bitsPerSample: number
+    bitsPerSample: number,
   ): ArrayBuffer {
     const buffer = new ArrayBuffer(44);
     const view = new DataView(buffer);

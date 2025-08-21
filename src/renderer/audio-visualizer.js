@@ -59,7 +59,7 @@
       const curved = Math.pow(level, 0.5);
       const targetHeight = Math.max(
         minBarHeight,
-        curved * height * maxHeightRatio
+        curved * height * maxHeightRatio,
       );
       const last = heights[bars - 2] || 0;
       heights[bars - 1] = last + (targetHeight - last) * (1 - smoothing);

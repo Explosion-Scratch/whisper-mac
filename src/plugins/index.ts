@@ -24,7 +24,7 @@ import { AppConfig } from "../config/AppConfig";
  * Initialize and register all transcription plugins
  */
 export function createTranscriptionPluginManager(
-  config: AppConfig
+  config: AppConfig,
 ): TranscriptionPluginManager {
   const pluginManager = new TranscriptionPluginManager(config);
 

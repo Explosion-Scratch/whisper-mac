@@ -277,7 +277,7 @@ export function getDefaultSettings(): Record<string, any> {
 }
 
 export function validateSettings(
-  settings: Record<string, any>
+  settings: Record<string, any>,
 ): Record<string, string> {
   const errors: Record<string, string> = {};
 

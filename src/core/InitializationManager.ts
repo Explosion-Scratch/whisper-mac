@@ -21,7 +21,7 @@ export class InitializationManager {
     private errorManager: ErrorManager,
     private ipcHandlerManager: IpcHandlerManager,
     private onInitializationComplete: () => void,
-    private onOnboardingComplete?: () => void
+    private onOnboardingComplete?: () => void,
   ) {}
 
   async initialize(): Promise<void> {

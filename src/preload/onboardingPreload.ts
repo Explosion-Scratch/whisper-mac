@@ -36,7 +36,7 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
 
   onPluginSwitchProgress: (callback: (progress: any) => void) => {
     ipcRenderer.on("plugin:switchProgress", (_event, progress) =>
-      callback(progress)
+      callback(progress),
     );
   },
   onPluginSwitchLog: (callback: (payload: any) => void) => {

@@ -32,7 +32,7 @@ export class WindowManager {
     });
 
     this.onboardingWindow.loadFile(
-      join(__dirname, "../renderer/onboarding.html")
+      join(__dirname, "../renderer/onboarding.html"),
     );
 
     this.onboardingWindow.once("ready-to-show", () => {

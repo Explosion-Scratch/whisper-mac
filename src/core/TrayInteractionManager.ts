@@ -14,7 +14,7 @@ export class TrayInteractionManager {
     private dictationWindowService: DictationWindowService,
     private windowManager: WindowManager,
     private appStateManager: AppStateManager,
-    private onToggleRecording: () => void
+    private onToggleRecording: () => void,
   ) {
     this.setupStatusChangeHandler();
   }
@@ -50,7 +50,7 @@ export class TrayInteractionManager {
       this.trayService.handleDockClick(
         () => !settings?.onboardingComplete,
         () => this.windowManager.openOnboardingWindow(),
-        () => this.dictationWindowService.showDictationWindow()
+        () => this.dictationWindowService.showDictationWindow(),
       );
     } catch (e) {
       console.error("Error handling dock click:", e);
