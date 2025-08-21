@@ -12,6 +12,8 @@ const promptsSrcDir = path.join(__dirname, "../src/prompts");
 const promptsDistDir = path.join(__dirname, "../dist/prompts");
 const assetsSrcDir = path.join(__dirname, "../assets");
 const assetsDistDir = path.join(__dirname, "../dist/assets");
+const vueSrcPath = path.join(__dirname, "_vue.js");
+const vueDistPath = path.join(distDir, "vue.js");
 
 const EXTENSIONS = [
   ".html",
@@ -38,6 +40,14 @@ fs.readdirSync(srcDir).forEach((file) => {
     console.log(`Copied ${file} to dist/renderer`);
   }
 });
+
+// Copy Vue.js from scripts directory
+if (fs.existsSync(vueSrcPath)) {
+  fs.copyFileSync(vueSrcPath, vueDistPath);
+  console.log(`Copied vue.js to dist/renderer`);
+} else {
+  console.log("Vue.js not found in scripts directory, skipping");
+}
 
 // Copy Photon assets from zip
 function inflatePhotonZip(zipPath, destPath) {
