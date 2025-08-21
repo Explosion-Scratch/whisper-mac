@@ -85,32 +85,33 @@ export class AppConfig {
   }
 
   /**
-   * Generic getter for plugin configuration
-   */
-
-
-  /**
-   * Generic setter for plugin configuration
-   */
-
-
-  /**
-   * Check if a plugin config key exists
-   */
-
-
-  /**
-   * Delete a plugin config key
-   */
-
-
-  /**
    * Get all plugin configuration
    */
   getPluginConfig(): Record<string, any> {
     return { ...this.pluginConfig };
   }
 
-  /**
+  get(key: string): any {
+    return this.pluginConfig[key];
+  }
 
+  set(key: string, value: any): void {
+    this.pluginConfig[key] = value;
+  }
+
+  has(key: string): boolean {
+    return key in this.pluginConfig;
+  }
+
+  delete(key: string): boolean {
+    if (key in this.pluginConfig) {
+      delete this.pluginConfig[key];
+      return true;
+    }
+    return false;
+  }
+
+  setPluginConfig(config: Record<string, any>): void {
+    this.pluginConfig = { ...this.pluginConfig, ...config };
+  }
 }
