@@ -2,7 +2,10 @@ models/
 dist/
 *.pt
 .crush/
-vendor/
+vendor/**/*
+!vendor/whisper-cpp/
+!vendor/whisper-cpp/whisper-cli
+!vendor/whisper-cpp/whisper-cli-metal
 release/
 build/
 .whispermac-data
