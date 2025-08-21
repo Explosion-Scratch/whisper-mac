@@ -296,13 +296,9 @@ export class SettingsManager extends EventEmitter {
     const transcriptionPlugin = this.get("transcriptionPlugin", "yap");
     this.config.set("transcriptionPlugin", transcriptionPlugin);
 
-    // Apply plugin-specific settings to plugin manager
+    // Apply plugin-specific settings to config
     const pluginSettings = this.getPluginSettings();
-    Object.entries(pluginSettings).forEach(([pluginName, options]) => {
-      this.transcriptionPluginManager
-        .getPlugin(pluginName)
-        ?.setOptions(options);
-    });
+    this.config.setPluginConfig(pluginSettings);
 
     // Dictation window settings
     this.config.dictationWindowPosition = this.get(
@@ -391,9 +387,9 @@ export class SettingsManager extends EventEmitter {
       this.set("transcriptionPlugin", transcriptionPlugin);
     }
 
-    // Load plugin-specific settings from plugin manager
-    const pluginOptions = this.transcriptionPluginManager.getAllPluginOptions();
-    this.setPluginSettings(pluginOptions);
+    // Load plugin-specific settings from config
+    const pluginSettings = this.getPluginSettings();
+    this.setPluginSettings(pluginSettings);
 
     // Dictation window settings
     this.set("dictationWindowPosition", this.config.dictationWindowPosition);

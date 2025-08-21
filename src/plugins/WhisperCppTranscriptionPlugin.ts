@@ -211,8 +211,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     onProgress?: (progress: TranscriptionSetupProgress) => void,
     onLog?: (line: string) => void,
   ): Promise<void> {
-    console.log("=== Starting Whisper.cpp transcription plugin ===");
-
     if (this.isRunning) {
       onLog?.("[Whisper.cpp Plugin] Service already running");
       onProgress?.({ status: "complete", message: "Whisper.cpp plugin ready" });
@@ -232,10 +230,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       const modelName = this.options.model || "ggml-base.en.bin";
       const coreMLPath = this.getCoreMLModelPath(modelName);
 
-      console.log(`Whisper.cpp binary: ${this.resolvedBinaryPath}`);
       if (this.isAppleSilicon) {
         if (coreMLPath) {
-          console.log(`Core ML model available: ${coreMLPath}`);
           onLog?.("[Whisper.cpp Plugin] Apple Metal acceleration enabled");
         } else {
           console.log("Core ML model not found, using regular binary");
@@ -269,7 +265,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
   async processAudioSegment(audioData: Float32Array): Promise<void> {
     if (!this.isRunning || !this.onTranscriptionCallback) {
-      console.log("Whisper.cpp plugin not running, ignoring audio segment");
       return;
     }
 
@@ -1403,7 +1398,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     this.isWarmupRunning = true;
     try {
-      console.log("Whisper.cpp: Running warmup with dummy audio");
+      // Warmup: Running dummy audio (log removed for production)
 
       // Run a tiny silent segment to keep binary/model hot
       // Bypass transcription state management and call whisper.cpp directly
