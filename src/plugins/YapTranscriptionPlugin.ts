@@ -103,7 +103,7 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
   public async ensureModelAvailable(
     options: Record<string, any>,
     onProgress?: (progress: any) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean> {
     onLog?.("YAP plugin doesn't require model downloads");
     onProgress?.({
@@ -117,7 +117,7 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
   async startTranscription(
     onUpdate: (update: SegmentUpdate) => void,
     onProgress?: (progress: TranscriptionSetupProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<void> {
     console.log("=== Starting YAP transcription plugin ===");
 
@@ -301,16 +301,6 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
     };
   }
 
-  configure(config: Record<string, any>): void {
-    // YAP configuration is passed as CLI args, stored in this.config
-    if (config.locale !== undefined) {
-      this.config.set("yapLocale", config.locale);
-    }
-    if (config.censor !== undefined) {
-      this.config.set("yapCensor", config.censor);
-    }
-  }
-
   /**
    * Convert Float32Array audio data to WAV file for YAP
    */
@@ -329,13 +319,13 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
     return new Promise((resolve, reject) => {
       const args = ["transcribe", audioPath, "--txt"];
 
-      // Add configuration options
-      const locale = this.config.get("yapLocale");
+      // Add configuration options from plugin options
+      const locale = this.options.locale;
       if (locale && locale !== "current") {
         args.push("--locale", locale);
       }
 
-      const censor = this.config.get("yapCensor");
+      const censor = this.options.censor;
       if (censor) {
         args.push("--censor");
       }
@@ -421,7 +411,7 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   async verifyOptions(
-    options: Record<string, any>
+    options: Record<string, any>,
   ): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
@@ -614,12 +604,9 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
 
   async updateOptions(
     options: Record<string, any>,
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
     this.setOptions(options);
-
-    // Apply configuration changes
-    this.configure(options);
 
     if (uiFunctions) {
       uiFunctions.showSuccess("YAP plugin options updated");
@@ -630,7 +617,7 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
 
   async downloadModel(
     modelName: string,
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
     // YAP doesn't use local models - it uses external APIs
     // This is a no-op implementation

@@ -104,7 +104,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   abstract startTranscription(
     onUpdate: (update: SegmentUpdate) => void,
     onProgress?: (progress: TranscriptionSetupProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<void>;
   abstract processAudioSegment(audioData: Float32Array): Promise<void>;
   abstract transcribeFile(filePath: string): Promise<string>;
@@ -116,12 +116,11 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   abstract stopTranscription(): Promise<void>;
   abstract cleanup(): Promise<void>;
   abstract getConfigSchema(): TranscriptionPluginConfigSchema;
-  abstract configure(config: Record<string, any>): void;
 
   // New unified plugin system methods
   abstract getOptions(): PluginOption[];
   abstract verifyOptions(
-    options: Record<string, any>
+    options: Record<string, any>,
   ): Promise<{ valid: boolean; errors: string[] }>;
   abstract onActivated(uiFunctions?: PluginUIFunctions): Promise<void>;
   abstract initialize(): Promise<void>;
@@ -146,7 +145,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   }
   abstract updateOptions(
     options: Record<string, any>,
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void>;
 
   /**
@@ -154,7 +153,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
    */
   abstract downloadModel(
     modelName: string,
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void>;
 
   /**
@@ -164,7 +163,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   abstract ensureModelAvailable(
     options: Record<string, any>,
     onProgress?: (progress: any) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean>;
 
   /** Plugins can override to declare activation criteria */
@@ -225,7 +224,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   }
 
   protected setTranscriptionCallback(
-    callback: ((update: SegmentUpdate) => void) | null
+    callback: ((update: SegmentUpdate) => void) | null,
   ): void {
     this.onTranscriptionCallback = callback;
   }
@@ -325,7 +324,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
       parseTimestamps?: boolean;
       cleanText?: boolean;
       extractConfidence?: boolean;
-    } = {}
+    } = {},
   ): PostProcessedTranscription {
     const {
       parseTimestamps = true,
@@ -417,7 +416,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
    */
   protected updateSegmentWithPostProcessedData(
     segment: any,
-    postProcessed: PostProcessedTranscription
+    postProcessed: PostProcessedTranscription,
   ): void {
     if (segment && segment.type === "transcribed") {
       segment.text = postProcessed.text;
