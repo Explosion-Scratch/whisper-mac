@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 export interface DictationInitData {
   selectedText: string;
   hasSelection: boolean;
+  isRunOnAll?: boolean;
 }
 
 export interface TranscriptionSegment {
@@ -20,12 +21,16 @@ export interface TranscriptionSegment {
 
 export interface TranscriptionUpdate {
   segments: TranscriptionSegment[];
-  status: "listening" | "transforming";
+  status?: "listening" | "transforming" | "processing";
 }
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld("electronAPI", {
+  // Animation trigger from main process
+  onAnimateIn: (callback: () => void) => {
+    ipcRenderer.on("animate-in", callback);
+  },
   // Listeners for commands from main process
   onInitializeDictation: (callback: (data: DictationInitData) => void) => {
     ipcRenderer.on("initialize-dictation", (event, data) => callback(data));
@@ -55,6 +60,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("dictation-clear", callback);
   },
 
+  onPlayEndSound: (callback: () => void) => {
+    ipcRenderer.on("play-end-sound", callback);
+  },
+
   onError: (callback: (payload: any) => void) => {
     ipcRenderer.on("error:data", (_e, payload) => callback(payload));
   },
@@ -77,12 +86,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
   logMessage: (message: string) => {
     ipcRenderer.send("dictation-log", message);
   },
+
+  // VAD audio processing
+  sendAudioSegment: (audioData: Float32Array) => {
+    ipcRenderer.send("vad-audio-segment", Array.from(audioData));
+  },
 });
 
 // Declare the global interface for TypeScript
 declare global {
   interface Window {
     electronAPI: {
+      onAnimateIn: (callback: () => void) => void;
       onInitializeDictation: (
         callback: (data: DictationInitData) => void
       ) => void;

@@ -4,6 +4,9 @@ import { readFileSync, writeFileSync } from "fs";
 import { AppConfig } from "../config/AppConfig";
 import { SettingsManager } from "../config/SettingsManager";
 import { SETTINGS_SCHEMA } from "../config/SettingsSchema";
+import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManager";
+import { PluginUIFunctions } from "../plugins/TranscriptionPlugin";
+import { UnifiedModelDownloadService } from "./UnifiedModelDownloadService";
 
 export class SettingsService {
   private settingsWindow: BrowserWindow | null = null;
@@ -11,6 +14,9 @@ export class SettingsService {
     new Set();
   private settingsManager: SettingsManager;
   private config: AppConfig;
+  private transcriptionPluginManager: TranscriptionPluginManager | null = null;
+  private unifiedModelDownloadService: UnifiedModelDownloadService | null =
+    null;
 
   constructor(config: AppConfig) {
     this.config = config;
@@ -21,13 +27,24 @@ export class SettingsService {
     this.loadSettings();
   }
 
+  /**
+   * Set the transcription plugin manager reference
+   */
+  setTranscriptionPluginManager(manager: TranscriptionPluginManager): void {
+    this.transcriptionPluginManager = manager;
+  }
+
+  setUnifiedModelDownloadService(service: UnifiedModelDownloadService): void {
+    this.unifiedModelDownloadService = service;
+  }
+
   private setupIpcHandlers(): void {
     // Get settings schema
     ipcMain.handle("settings:getSchema", () => {
       // Strip out validation functions since they can't be serialized through IPC
       // Also hide internal sections such as onboarding from the UI
       const serializableSchema = SETTINGS_SCHEMA.filter(
-        (section) => section.id !== "onboarding",
+        (section) => section.id !== "onboarding"
       ).map((section) => ({
         ...section,
         fields: section.fields.map((field) => {
@@ -60,7 +77,7 @@ export class SettingsService {
           console.error("Failed to save settings:", error);
           throw error;
         }
-      },
+      }
     );
 
     // Reset all settings
@@ -95,7 +112,7 @@ export class SettingsService {
           console.error("Failed to reset settings section:", error);
           throw error;
         }
-      },
+      }
     );
 
     // Import settings
@@ -127,7 +144,7 @@ export class SettingsService {
           console.error("Failed to export settings:", error);
           throw error;
         }
-      },
+      }
     );
 
     // File dialogs
@@ -161,7 +178,27 @@ export class SettingsService {
         );
         const svc = new AiProviderService();
         return svc.validateAndListModels(baseUrl, apiKey);
-      },
+      }
+    );
+
+    // AI configuration validation
+    ipcMain.handle(
+      "ai:validateConfiguration",
+      async (
+        _event,
+        payload: { baseUrl: string; model: string; apiKey?: string }
+      ) => {
+        const { baseUrl, model, apiKey } = payload || {
+          baseUrl: "",
+          model: "",
+          apiKey: "",
+        };
+        const { AiValidationService } = await import(
+          "../services/AiValidationService"
+        );
+        const svc = new AiValidationService();
+        return svc.validateAiConfiguration(baseUrl, model, apiKey);
+      }
     );
 
     // Save API key securely from settings
@@ -174,21 +211,334 @@ export class SettingsService {
         const secure = new SecureStorageService();
         await secure.setApiKey(payload.apiKey);
         return { success: true };
-      },
+      }
     );
 
-    // Model management helpers
-    ipcMain.handle("models:listDownloaded", async () => {
-      const { ModelManager } = await import("./ModelManager");
-      const mgr = new ModelManager(this.config);
-      return mgr.listDownloadedModels();
+    // Get API key securely from settings
+    ipcMain.handle("settings:getApiKey", async () => {
+      const { SecureStorageService } = await import(
+        "../services/SecureStorageService"
+      );
+      const secure = new SecureStorageService();
+      return await secure.getApiKey();
     });
-    ipcMain.handle("models:delete", async (_e, repoIds: string[]) => {
-      const { ModelManager } = await import("./ModelManager");
-      const mgr = new ModelManager(this.config);
-      for (const id of repoIds || []) mgr.deleteModel(id);
-      return { success: true };
+
+    // Handle plugin switching with model downloads
+    ipcMain.handle(
+      "settings:switchPlugin",
+      async (event, payload: { pluginName: string; modelName?: string }) => {
+        if (!this.unifiedModelDownloadService) {
+          throw new Error("Unified model download service not available");
+        }
+
+        const { pluginName, modelName } = payload;
+
+        const onProgress = (progress: any) => {
+          event.sender.send("settings:pluginSwitchProgress", progress);
+        };
+
+        const onLog = (line: string) => {
+          event.sender.send("settings:pluginSwitchLog", { line });
+        };
+
+        try {
+          await this.unifiedModelDownloadService.switchToPlugin(
+            pluginName,
+            modelName,
+            onProgress,
+            onLog
+          );
+
+          // Save the active plugin setting
+          this.settingsManager.set("transcriptionPlugin", pluginName);
+          this.settingsManager.saveSettings();
+
+          this.broadcastSettingsUpdate();
+          return { success: true };
+        } catch (error: any) {
+          throw new Error(error.message || "Plugin switch failed");
+        }
+      }
+    );
+
+    // Unified plugin management handlers
+    ipcMain.handle("plugins:getOptions", () => {
+      if (!this.transcriptionPluginManager) {
+        return { plugins: [], options: {} };
+      }
+
+      const plugins = this.transcriptionPluginManager
+        .getPlugins()
+        .map((plugin) => ({
+          name: plugin.name,
+          displayName: plugin.displayName,
+          description: plugin.description,
+          version: plugin.version,
+          supportsRealtime: plugin.supportsRealtime,
+          supportsBatchProcessing: plugin.supportsBatchProcessing,
+        }));
+
+      const options = this.transcriptionPluginManager.getAllPluginOptions();
+
+      return {
+        plugins,
+        options,
+      };
     });
+
+    ipcMain.handle("plugins:getActive", () => {
+      if (!this.transcriptionPluginManager) {
+        return null;
+      }
+      return this.transcriptionPluginManager.getActivePlugin()?.name || null;
+    });
+
+    ipcMain.handle(
+      "plugins:updateActiveOptions",
+      async (event, payload: { options: Record<string, any> }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Transcription plugin manager not available");
+        }
+
+        const { options } = payload;
+
+        try {
+          // Provide UI functions for the plugin
+          const uiFunctions: PluginUIFunctions = {
+            showProgress: (message: string, percent: number) => {
+              event.sender.send("settings:pluginOptionProgress", {
+                message,
+                percent,
+              });
+            },
+            hideProgress: () => {
+              event.sender.send("settings:pluginOptionProgress", {
+                message: "",
+                percent: 100,
+              });
+            },
+            showDownloadProgress: (progress: any) => {
+              event.sender.send("settings:pluginOptionProgress", progress);
+            },
+            showError: (error: string) => {
+              event.sender.send("settings:pluginOptionLog", {
+                line: `ERROR: ${error}`,
+              });
+            },
+            showSuccess: (message: string) => {
+              event.sender.send("settings:pluginOptionLog", {
+                line: `SUCCESS: ${message}`,
+              });
+            },
+            confirmAction: async (message: string) => {
+              return true;
+            },
+          };
+
+          await this.transcriptionPluginManager.updateActivePluginOptions(
+            options,
+            uiFunctions
+          );
+
+          // Save the updated plugin options to settings
+          const activePlugin =
+            this.transcriptionPluginManager.getActivePlugin();
+          if (activePlugin) {
+            const pluginName = activePlugin.name;
+            Object.keys(options).forEach((key) => {
+              const settingKey = `plugin.${pluginName}.${key}`;
+              this.settingsManager.set(settingKey, options[key]);
+            });
+            this.settingsManager.saveSettings();
+          }
+
+          this.broadcastSettingsUpdate();
+          return { success: true };
+        } catch (error: any) {
+          throw new Error(error.message || "Plugin option update failed");
+        }
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:deleteInactive",
+      async (_event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Transcription plugin manager not available");
+        }
+
+        const { pluginName } = payload;
+        const activePlugin = this.transcriptionPluginManager.getActivePlugin();
+
+        if (activePlugin && activePlugin.name === pluginName) {
+          throw new Error("Cannot delete the currently active plugin");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
+
+        if (!plugin) {
+          throw new Error(`Plugin ${pluginName} not found`);
+        }
+
+        try {
+          await plugin.clearData();
+          return { success: true };
+        } catch (error: any) {
+          throw new Error(error.message || "Failed to delete plugin");
+        }
+      }
+    );
+
+    // Get plugin data information
+    ipcMain.handle(
+      "settings:getPluginDataInfo",
+      async (): Promise<
+        Array<{
+          name: string;
+          displayName: string;
+          isActive: boolean;
+          dataSize: number;
+          dataPath: string;
+        }>
+      > => {
+        try {
+          if (!this.transcriptionPluginManager) {
+            throw new Error("Plugin manager not initialized");
+          }
+          return await this.transcriptionPluginManager.getPluginDataInfo();
+        } catch (error: any) {
+          console.error("Failed to get plugin data info:", error);
+          throw new Error(error.message || "Failed to get plugin data info");
+        }
+      }
+    );
+
+    // Secure storage management handlers
+    ipcMain.handle(
+      "plugins:getSecureStorageInfo",
+      async (event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(
+          payload.pluginName
+        );
+        if (!plugin) {
+          throw new Error(`Plugin ${payload.pluginName} not found`);
+        }
+
+        const keys = await plugin.listSecureKeys();
+        const dataSize = await plugin.getDataSize();
+
+        return {
+          keys: keys.map((key) => ({ name: key, type: "secure" })),
+          totalSize: dataSize,
+          hasSecureData: keys.length > 0,
+        };
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:clearSecureData",
+      async (event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(
+          payload.pluginName
+        );
+        if (!plugin) {
+          throw new Error(`Plugin ${payload.pluginName} not found`);
+        }
+
+        await plugin.clearSecureData();
+        return { success: true };
+      }
+    );
+
+    // New data management handlers
+    ipcMain.handle(
+      "plugins:listData",
+      async (event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(
+          payload.pluginName
+        );
+        if (!plugin) {
+          throw new Error(`Plugin ${payload.pluginName} not found`);
+        }
+
+        return await plugin.listData();
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:deleteDataItem",
+      async (event, payload: { pluginName: string; itemId: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(
+          payload.pluginName
+        );
+        if (!plugin) {
+          throw new Error(`Plugin ${payload.pluginName} not found`);
+        }
+
+        await plugin.deleteDataItem(payload.itemId);
+        return { success: true };
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:deleteAllData",
+      async (event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(
+          payload.pluginName
+        );
+        if (!plugin) {
+          throw new Error(`Plugin ${payload.pluginName} not found`);
+        }
+
+        await plugin.deleteAllData();
+        return { success: true };
+      }
+    );
+
+    ipcMain.handle(
+      "plugins:exportSecureData",
+      async (event, payload: { pluginName: string }) => {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        const plugin = this.transcriptionPluginManager.getPlugin(
+          payload.pluginName
+        );
+        if (!plugin) {
+          throw new Error(`Plugin ${payload.pluginName} not found`);
+        }
+
+        const keys = await plugin.listSecureKeys();
+        const data: Record<string, any> = {};
+
+        for (const key of keys) {
+          data[key] = await plugin.getSecureData(key);
+        }
+
+        return { data, timestamp: new Date().toISOString() };
+      }
+    );
   }
 
   private broadcastSettingsUpdate(): void {
@@ -237,7 +587,7 @@ export class SettingsService {
 
     // Load the settings window HTML
     this.settingsWindow.loadFile(
-      join(__dirname, "../renderer/settingsWindow.html"),
+      join(__dirname, "../renderer/settingsWindow.html")
     );
 
     // Show window when ready
@@ -347,7 +697,7 @@ export class SettingsService {
    * The caller should present a dialog to the user with names and sizes and then call deleteModelsIfConfirmed.
    */
   formatDownloadedModelsForPrompt(
-    models: Array<{ repoId: string; sizeBytes: number }>,
+    models: Array<{ repoId: string; sizeBytes: number }>
   ): string {
     const fmt = (n: number) => {
       const units = ["B", "KB", "MB", "GB"];

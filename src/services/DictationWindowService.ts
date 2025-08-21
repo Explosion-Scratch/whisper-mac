@@ -1,6 +1,8 @@
 import { BrowserWindow, screen, app } from "electron";
 import { join } from "path";
+import { EventEmitter } from "events";
 import { AppConfig } from "../config/AppConfig";
+import { appEventBus } from "./AppEventBus";
 import { Segment, SegmentUpdate } from "../types/SegmentTypes";
 
 export interface WindowPosition {
@@ -8,26 +10,37 @@ export interface WindowPosition {
   y: number;
 }
 
-export class DictationWindowService {
+export class DictationWindowService extends EventEmitter {
   private dictationWindow: BrowserWindow | null = null;
   private config: AppConfig;
   private currentSegments: Segment[] = [];
-  private currentStatus: "listening" | "transforming" = "listening";
+  private currentStatus: "listening" | "transforming" | "processing" =
+    "listening";
 
   constructor(config: AppConfig) {
+    super();
     this.config = config;
   }
 
-  async showDictationWindow(): Promise<void> {
+  async showDictationWindow(isRunOnAll: boolean = false): Promise<void> {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       // Window already exists, just show it
       this.dictationWindow.showInactive();
 
-      // Initialize the window with empty data (no selected text)
-      this.dictationWindow.webContents.send("initialize-dictation", {
-        selectedText: "",
-        hasSelection: false,
-      });
+      // Trigger the animation in the renderer process
+      this.dictationWindow.webContents.send("animate-in");
+      appEventBus.emit("dictation-window-shown");
+
+      // Wait a moment for the window to be ready, then initialize
+      setTimeout(() => {
+        if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+          this.dictationWindow.webContents.send("initialize-dictation", {
+            selectedText: "",
+            hasSelection: false,
+            isRunOnAll,
+          });
+        }
+      }, 100);
 
       return;
     }
@@ -35,17 +48,24 @@ export class DictationWindowService {
     // Create new window if pre-loaded one doesn't exist
     await this.createDictationWindow();
 
-    // Initialize the window with empty data (no selected text)
-    this.dictationWindow!.webContents.send("initialize-dictation", {
-      selectedText: "",
-      hasSelection: false,
+    // Wait for the window to be ready before initializing
+    this.dictationWindow!.webContents.once("did-finish-load", () => {
+      this.dictationWindow!.webContents.send("initialize-dictation", {
+        selectedText: "",
+        hasSelection: false,
+        isRunOnAll,
+      });
     });
 
     this.dictationWindow!.showInactive();
 
+    // Trigger the animation in the renderer process
+    this.dictationWindow!.webContents.send("animate-in");
+    appEventBus.emit("dictation-window-shown");
+
     console.log(
       "Dictation window shown at position:",
-      this.calculateWindowPositionSync(),
+      this.calculateWindowPositionSync()
     );
   }
 
@@ -91,7 +111,7 @@ export class DictationWindowService {
 
     // Load the dictation window HTML
     await this.dictationWindow.loadFile(
-      join(__dirname, "../renderer/dictationWindow.html"),
+      join(__dirname, "../renderer/dictationWindow.html")
     );
 
     // Set up window event handlers
@@ -120,7 +140,6 @@ export class DictationWindowService {
       (event, channel, ...args) => {
         console.log("=== DictationWindowService: IPC message received ===");
         console.log("Channel:", channel);
-        console.log("Args:", args);
 
         switch (channel) {
           case "close-dictation-window":
@@ -138,10 +157,18 @@ export class DictationWindowService {
           case "dictation-log":
             console.log("Dictation window log:", args[0]);
             break;
+          case "vad-audio-segment":
+            console.log(
+              "Received VAD audio segment:",
+              args[0]?.length || 0,
+              "samples"
+            );
+            this.emit("vad-audio-segment", new Float32Array(args[0]));
+            break;
           default:
             console.log("Unknown IPC channel:", channel);
         }
-      },
+      }
     );
   }
 
@@ -249,8 +276,26 @@ export class DictationWindowService {
 
   updateTranscription(update: SegmentUpdate): void {
     this.currentSegments = update.segments;
-    if (this.currentStatus !== "transforming") {
-      this.currentStatus = update.status;
+
+    // Check if all segments are completed and there are no in-progress segments
+    const hasInProgressSegments = update.segments.some(
+      (segment) => segment.type === "inprogress" || !segment.completed
+    );
+
+    // Only update status if we're not currently transforming or processing
+    if (
+      this.currentStatus !== "transforming" &&
+      this.currentStatus !== "processing"
+    ) {
+      if (hasInProgressSegments) {
+        this.currentStatus = "listening";
+      } else if (update.segments.length > 0) {
+        // All segments are completed, reset to listening state
+        this.currentStatus = "listening";
+      } else {
+        // No segments, default to listening
+        this.currentStatus = "listening";
+      }
     }
 
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
@@ -277,6 +322,16 @@ export class DictationWindowService {
     }
   }
 
+  setProcessingStatus(): void {
+    this.currentStatus = "processing";
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      this.dictationWindow.webContents.send("dictation-transcription-update", {
+        segments: this.currentSegments,
+        status: "processing",
+      });
+    }
+  }
+
   clearTranscription(): void {
     this.currentSegments = [];
     this.currentStatus = "listening";
@@ -296,21 +351,23 @@ export class DictationWindowService {
     console.log("Window destroyed:", this.dictationWindow?.isDestroyed());
 
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
-      console.log("Closing dictation window...");
-      this.dictationWindow.close();
-      console.log("Close command sent to window");
+      console.log("Hiding dictation window...");
+      // Send message to play end sound before hiding
+      this.dictationWindow.webContents.send("play-end-sound");
+      this.dictationWindow.hide();
+      console.log("Hide command sent to window");
     } else {
       console.log("Window is null or already destroyed");
     }
 
-    this.dictationWindow = null;
+    // Don't clear the window reference - keep it for reuse
     this.currentSegments = [];
     this.currentStatus = "listening";
-    console.log("Window reference cleared and transcription reset");
+    console.log("Transcription reset, window kept for reuse");
   }
 
   cancelDictation(): void {
-    this.hideAndReloadWindow();
+    this.hideWindow();
     // Emit cancellation event if needed
     console.log("Dictation cancelled by user");
   }
@@ -320,17 +377,16 @@ export class DictationWindowService {
 
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       console.log("Hiding dictation window...");
+      // Send message to play end sound before hiding
+      this.dictationWindow.webContents.send("play-end-sound");
       this.dictationWindow.hide();
 
       // Clear current state
       this.currentSegments = [];
       this.currentStatus = "listening";
 
-      // Reload the window content
-      console.log("Reloading window content...");
-      this.dictationWindow.webContents.reload();
-
-      console.log("Window hidden and reloaded successfully");
+      // Don't reload the window content - keep it ready for reuse
+      console.log("Window hidden successfully");
     } else {
       console.log("Window is null or already destroyed");
     }
@@ -349,7 +405,7 @@ export class DictationWindowService {
     return this.currentSegments;
   }
 
-  getCurrentStatus(): "listening" | "transforming" {
+  getCurrentStatus(): "listening" | "transforming" | "processing" {
     return this.currentStatus;
   }
 
@@ -362,13 +418,24 @@ export class DictationWindowService {
   hideWindow(): void {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.hide();
+      appEventBus.emit("dictation-window-hidden");
     }
   }
 
   showWindow(): void {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.showInactive();
+      appEventBus.emit("dictation-window-shown");
     }
+  }
+
+  isWindowVisible(): boolean {
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      try {
+        return this.dictationWindow.isVisible();
+      } catch {}
+    }
+    return false;
   }
 
   cleanup(): void {

@@ -1,6 +1,7 @@
 import { resolve } from "path";
 import { readPrompt } from "../helpers/getPrompt";
 import { app } from "electron";
+import { getDefaultActionsConfig } from "./DefaultActions";
 
 export interface SettingsField {
   key: string;
@@ -11,7 +12,8 @@ export interface SettingsField {
     | "select"
     | "textarea"
     | "slider"
-    | "directory";
+    | "directory"
+    | "actions-editor";
   label: string;
   description?: string;
   defaultValue: any;
@@ -48,60 +50,13 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     ],
   },
   {
-    id: "general",
-    title: "General",
-    description: "Basic application settings",
-    icon: "settings",
-    fields: [
-      {
-        key: "defaultModel",
-        type: "select",
-        label: "Default Model",
-        description: "Whisper model to use for transcription",
-        defaultValue: "Systran/faster-whisper-tiny.en",
-        options: [
-          {
-            value: "Systran/faster-whisper-tiny",
-            label: "Tiny (Multilingual)",
-          },
-          { value: "Systran/faster-whisper-tiny.en", label: "Tiny (English)" },
-          {
-            value: "Systran/faster-whisper-base",
-            label: "Base (Multilingual)",
-          },
-          { value: "Systran/faster-whisper-base.en", label: "Base (English)" },
-          {
-            value: "Systran/faster-whisper-small",
-            label: "Small (Multilingual)",
-          },
-          {
-            value: "Systran/faster-whisper-small.en",
-            label: "Small (English)",
-          },
-          {
-            value: "Systran/faster-whisper-medium",
-            label: "Medium (Multilingual)",
-          },
-          {
-            value: "Systran/faster-whisper-medium.en",
-            label: "Medium (English)",
-          },
-          {
-            value: "Systran/faster-whisper-large-v1",
-            label: "Large v1 (Multilingual)",
-          },
-          {
-            value: "Systran/faster-whisper-large-v2",
-            label: "Large v2 (Multilingual)",
-          },
-          {
-            value: "Systran/faster-whisper-large-v3",
-            label: "Large v3 (Multilingual)",
-          },
-        ],
-      },
-    ],
+    id: "transcription",
+    title: "Transcription",
+    description: "Choose transcription engine and model",
+    icon: "microphone",
+    fields: [],
   },
+
   {
     id: "dictation",
     title: "Dictation Window",
@@ -184,8 +139,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         label: "Writing Style",
         description:
           "Custom writing style instructions to inject into the system prompt. Use {writing_style} placeholder in the system prompt to include this content.",
-        defaultValue:
-          'I type all lowercase without punctuation except for exclamation points in messaging apps like instagram or imessage. Emails should be very concise, don\'t make them flowery. I frequently dictate instructions like "Set menu bar icon in electron" and in these instances I want you to simply correct and fix grammar or interpret the request but not fulfill it, e.g. you\'d respond "Set menu bar icon in Electron". Only if I explicitly ask you should you fulfill a request I\'m dictating, or when selected text is provided.',
+        defaultValue: readPrompt("writing_style"),
         placeholder: "Describe your preferred writing style and tone...",
       },
       {
@@ -198,11 +152,15 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
       },
       {
         key: "ai.model",
-        type: "text",
+        type: "select",
         label: "Model Name",
         description: "AI model to use for text enhancement",
         defaultValue: "qwen-3-32b",
-        placeholder: "gpt-4",
+        options: [
+          { value: "qwen-3-32b", label: "Qwen 3 32B" },
+          { value: "gpt-4", label: "GPT-4" },
+          { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+        ],
       },
       {
         key: "ai.maxTokens",
@@ -253,26 +211,27 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     ],
   },
   {
+    id: "actions",
+    title: "Actions",
+    description: "Configure voice-activated actions and commands",
+    icon: "lightning",
+    fields: [
+      {
+        key: "actions",
+        type: "actions-editor",
+        label: "Voice Actions",
+        description:
+          "Configure actions that can be triggered by voice commands during dictation",
+        defaultValue: getDefaultActionsConfig(),
+      },
+    ],
+  },
+  {
     id: "advanced",
     title: "Advanced",
     description: "Advanced configuration options",
     icon: "slider",
     fields: [
-      {
-        key: "serverPort",
-        type: "number",
-        label: "Server Port",
-        description: "Port for the WhisperLive server",
-        defaultValue: 9090,
-        min: 1024,
-        max: 65535,
-        validation: (value) => {
-          if (value < 1024 || value > 65535) {
-            return "Port must be between 1024 and 65535";
-          }
-          return null;
-        },
-      },
       {
         key: "dataDir",
         type: "directory",
@@ -285,6 +244,13 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         placeholder: "Select directory...",
       },
     ],
+  },
+  {
+    id: "data",
+    title: "Data Management",
+    description: "Manage plugin data and storage usage",
+    icon: "database",
+    fields: [],
   },
 ];
 

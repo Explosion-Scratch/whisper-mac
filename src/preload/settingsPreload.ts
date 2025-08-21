@@ -32,16 +32,62 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // AI provider utilities
   validateApiKeyAndListModels: (baseUrl: string, apiKey: string) =>
     ipcRenderer.invoke("ai:validateKeyAndListModels", { baseUrl, apiKey }),
+  validateAiConfiguration: (baseUrl: string, model: string, apiKey?: string) =>
+    ipcRenderer.invoke("ai:validateConfiguration", { baseUrl, model, apiKey }),
   onError: (callback: (payload: any) => void) => {
     ipcRenderer.on("error:data", (_e, payload) => callback(payload));
   },
   saveApiKeySecure: (apiKey: string) =>
     ipcRenderer.invoke("settings:saveApiKey", { apiKey }),
+  getApiKeySecure: () => ipcRenderer.invoke("settings:getApiKey"),
 
-  // Model management helpers
-  listDownloadedModels: () => ipcRenderer.invoke("models:listDownloaded"),
-  deleteModels: (repoIds: string[]) =>
-    ipcRenderer.invoke("models:delete", repoIds),
+  // Unified plugin switching
+  switchPlugin: (pluginName: string, modelName?: string) =>
+    ipcRenderer.invoke("settings:switchPlugin", { pluginName, modelName }),
+  isUnifiedDownloading: () => ipcRenderer.invoke("unified:isDownloading"),
+
+  // Unified plugin management
+  getPluginOptions: () => ipcRenderer.invoke("plugins:getOptions"),
+  getCurrentPluginInfo: () =>
+    ipcRenderer.invoke("onboarding:getCurrentPluginInfo"),
+  getActivePlugin: () => ipcRenderer.invoke("plugins:getActive"),
+  updateActivePluginOptions: (options: Record<string, any>) =>
+    ipcRenderer.invoke("plugins:updateActiveOptions", { options }),
+  deleteInactivePlugin: (pluginName: string) =>
+    ipcRenderer.invoke("plugins:deleteInactive", { pluginName }),
+  getPluginDataInfo: () => ipcRenderer.invoke("settings:getPluginDataInfo"),
+
+  // New data management APIs
+  listPluginData: (pluginName: string) =>
+    ipcRenderer.invoke("plugins:listData", { pluginName }),
+  deletePluginDataItem: (pluginName: string, itemId: string) =>
+    ipcRenderer.invoke("plugins:deleteDataItem", { pluginName, itemId }),
+  deleteAllPluginData: (pluginName: string) =>
+    ipcRenderer.invoke("plugins:deleteAllData", { pluginName }),
+
+  // Unified plugin switching progress listeners
+  onPluginSwitchProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on("settings:pluginSwitchProgress", (_event, progress) =>
+      callback(progress)
+    );
+  },
+  onPluginSwitchLog: (callback: (payload: any) => void) => {
+    ipcRenderer.on("settings:pluginSwitchLog", (_event, payload) =>
+      callback(payload)
+    );
+  },
+
+  // Plugin option update progress listeners
+  onPluginOptionProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on("settings:pluginOptionProgress", (_event, progress) =>
+      callback(progress)
+    );
+  },
+  onPluginOptionLog: (callback: (payload: any) => void) => {
+    ipcRenderer.on("settings:pluginOptionLog", (_event, payload) =>
+      callback(payload)
+    );
+  },
 
   // Listen for settings updates from main process
   onSettingsUpdated: (callback: (settings: Record<string, any>) => void) => {

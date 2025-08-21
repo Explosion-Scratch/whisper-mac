@@ -19,8 +19,6 @@ export interface AiTransformationConfig {
 
 export class AppConfig {
   modelPath: string;
-  serverPort: number;
-  defaultModel: string;
   dataDir: string;
 
   // Dictation window configuration
@@ -35,10 +33,11 @@ export class AppConfig {
   // AI transformation configuration
   ai: AiTransformationConfig;
 
+  // Plugin configuration storage (no deprecated keys)
+  private pluginConfig: Record<string, any> = {};
+
   constructor() {
     this.modelPath = "";
-    this.serverPort = 9090;
-    this.defaultModel = "Systran/faster-whisper-tiny.en";
 
     // Use Electron's user data directory instead of custom .whispermac-data
     this.dataDir =
@@ -58,8 +57,7 @@ export class AppConfig {
     // AI transformation defaults
     this.ai = {
       enabled: true,
-      writingStyle:
-        'I type all lowercase without punctuation except for exclamation points in messaging apps like instagram or imessage. Emails should be very concise, don\'t make them flowery. I frequently dictate instructions like "Set menu bar icon in electron" and in these instances I want you to simply correct and fix grammar or interpret the request but not fulfill it, e.g. you\'d respond "Set menu bar icon in Electron". Only if I explicitly ask you should you fulfill a request I\'m dictating, or when selected text is provided.',
+      writingStyle: readPrompt("writing_style"),
       baseUrl: "https://api.cerebras.ai/v1/chat/completions",
       model: "qwen-3-32b",
       maxTokens: 16382,
@@ -74,14 +72,6 @@ export class AppConfig {
     this.modelPath = path;
   }
 
-  setServerPort(port: number): void {
-    this.serverPort = port;
-  }
-
-  setDefaultModel(model: string): void {
-    this.defaultModel = model;
-  }
-
   setDataDir(path: string): void {
     this.dataDir = path;
   }
@@ -94,7 +84,34 @@ export class AppConfig {
     return join(this.dataDir, "cache");
   }
 
-  getWhisperLiveDir(): string {
-    return join(this.dataDir, "whisperlive");
+  /**
+   * Get all plugin configuration
+   */
+  getPluginConfig(): Record<string, any> {
+    return { ...this.pluginConfig };
+  }
+
+  get(key: string): any {
+    return this.pluginConfig[key];
+  }
+
+  set(key: string, value: any): void {
+    this.pluginConfig[key] = value;
+  }
+
+  has(key: string): boolean {
+    return key in this.pluginConfig;
+  }
+
+  delete(key: string): boolean {
+    if (key in this.pluginConfig) {
+      delete this.pluginConfig[key];
+      return true;
+    }
+    return false;
+  }
+
+  setPluginConfig(config: Record<string, any>): void {
+    this.pluginConfig = { ...this.pluginConfig, ...config };
   }
 }

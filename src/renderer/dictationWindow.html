@@ -26,9 +26,17 @@
         overflow: hidden;
         user-select: none;
         -webkit-user-select: none;
-        transition: box-shadow 0.2s ease, border-color 0.2s ease,
-          background 0.2s ease;
+        transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+          transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease,
+          border-color 0.2s ease, background 0.2s ease;
         background-clip: padding-box;
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+      }
+
+      body.visible {
+        opacity: 1;
+        transform: scale(1) translateY(0);
       }
 
       body:hover {
@@ -100,6 +108,10 @@
         background: rgba(52, 199, 89, 0.92);
       }
 
+      .status-icon.processing {
+        background: rgba(255, 159, 10, 0.92);
+      }
+
       .status-icon svg {
         width: 14px;
         height: 14px;
@@ -120,6 +132,30 @@
 
       .text-scroll-container::-webkit-scrollbar {
         display: none;
+      }
+
+      .wave-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+        pointer-events: none;
+      }
+
+      .wave-container.active {
+        opacity: 1;
+      }
+
+      .wave-canvas {
+        width: 100%;
+        height: 24px;
+        image-rendering: pixelated;
       }
 
       .text-content {
@@ -155,6 +191,18 @@
         font-weight: 300;
         vertical-align: baseline;
         line-height: 1.2;
+      }
+
+      .text-segment.in-progress.no-caret::after {
+        content: none;
+      }
+
+      .in-progress-spinner {
+        width: 14px;
+        height: 14px;
+        animation: spin 0.9s linear infinite;
+        display: inline-block;
+        vertical-align: text-bottom;
       }
 
       .separator {
@@ -197,7 +245,8 @@
         }
       }
 
-      .status-icon.transforming svg {
+      .status-icon.transforming svg,
+      .status-icon.processing svg {
         animation: fastSpin 0.6s linear infinite;
       }
 
@@ -318,8 +367,11 @@
             </g>
           </svg>
 
-          <!-- Loading spinner for transforming state -->
-          <svg v-else-if="currentStatus === 'transforming'" viewBox="0 0 24 24">
+          <!-- Loading spinner for transforming/processing state -->
+          <svg
+            v-else-if="currentStatus === 'transforming' || currentStatus === 'processing'"
+            viewBox="0 0 24 24"
+          >
             <g fill="none" fill-rule="evenodd">
               <path
                 d="m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z"
@@ -346,21 +398,51 @@
         </div>
 
         <div class="text-scroll-container" ref="textScrollContainer">
+          <div class="wave-container" :class="{ active: showVisualizer }">
+            <canvas id="waveCanvas" class="wave-canvas" height="24"></canvas>
+          </div>
           <div class="text-content" ref="textContent">
             <span
               v-for="(segment, index) in displaySegments"
               :key="segment.id || index"
+              v-if="!showVisualizer"
               class="text-segment"
-              :class="getSegmentClass(segment)"
+              :class="[getSegmentClass(segment), segment.type === 'inprogress' ? 'no-caret' : '']"
             >
-              {{ getSegmentDisplayText(segment) }}
+              <template v-if="segment.type === 'inprogress'">
+                <template v-if="showInProgressSpinner.text">
+                  {{ getSegmentDisplayText(segment) }}
+                </template>
+                <svg
+                  v-if="showInProgressSpinner.show"
+                  class="in-progress-spinner"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 256 256"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M134 32v32a6 6 0 0 1-12 0V32a6 6 0 0 1 12 0m39.25 56.75A6 6 0 0 0 177.5 87l22.62-22.63a6 6 0 0 0-8.48-8.48L169 78.5a6 6 0 0 0 4.24 10.25ZM224 122h-32a6 6 0 0 0 0 12h32a6 6 0 0 0 0-12m-46.5 47a6 6 0 0 0-8.5 8.5l22.63 22.62a6 6 0 0 0 8.48-8.48ZM128 186a6 6 0 0 0-6 6v32a6 6 0 0 0 12 0v-32a6 6 0 0 0-6-6m-49.5-17l-22.62 22.64a6 6 0 1 0 8.48 8.48L87 177.5a6 6 0 1 0-8.5-8.5M70 128a6 6 0 0 0-6-6H32a6 6 0 0 0 0 12h32a6 6 0 0 0 6-6m-5.64-72.12a6 6 0 0 0-8.48 8.48L78.5 87a6 6 0 1 0 8.5-8.5Z"
+                  />
+                </svg>
+              </template>
+              <template v-else> {{ getSegmentDisplayText(segment) }} </template>
             </span>
             <span
-              v-if="displaySegments.length === 0"
+              v-if="displaySegments.length === 0 && currentStatus === 'processing' && !showVisualizer"
               class="text-segment in-progress"
+              >Processing...</span
             >
-              Listening...
-            </span>
+            <span
+              v-else-if="displaySegments.length === 0 && currentStatus === 'transforming' && !showVisualizer"
+              class="text-segment in-progress"
+              >Transforming...</span
+            >
+            <span
+              v-else-if="displaySegments.length === 0"
+              class="text-segment in-progress"
+              style="opacity: 0"
+              >&nbsp;</span
+            >
           </div>
         </div>
 
@@ -374,7 +456,18 @@
         </button>
       </div>
     </div>
+    <!-- Audio elements for sound feedback -->
+    <audio id="startSound" preload="auto">
+      <source src="../assets/start.mp3" type="audio/mpeg" />
+    </audio>
+    <audio id="endSound" preload="auto">
+      <source src="../assets/end.mp3" type="audio/mpeg" />
+    </audio>
+    <!-- Silero VAD Libraries (local) -->
+    <script src="./ort.js"></script>
+    <script src="./bundle.min.js"></script>
     <script src="./vue.js"></script>
+    <script src="./audio-visualizer.js"></script>
     <script>
       const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
 
@@ -385,14 +478,48 @@
           const currentStatus = ref("idle");
           const transcriptionSegments = ref([]);
           const finalText = ref("");
+          const currentAudioLevel = ref(0);
+          const isRunOnAllPlugin = ref(false);
+          const selectedText = ref("");
 
+          const isSpeaking = ref(false);
           // Computed properties
           const statusIconClass = computed(() => ({
             recording: currentStatus.value === "listening",
             idle: currentStatus.value === "idle",
             transforming: currentStatus.value === "transforming",
+            processing: currentStatus.value === "processing",
             complete: currentStatus.value === "complete",
           }));
+
+          const showInProgressSpinner = computed(() => {
+            const completedSegments = transcriptionSegments.value.filter(
+              (s) => s.type === "transcribed" && s.completed
+            );
+            const inProgressSegments = transcriptionSegments.value.filter(
+              (s) => s.type === "inprogress"
+            );
+            // If we're in progress with no other segments show both text + spinner
+            // If we're in progress with other segments show only spinner
+            return {
+              show: inProgressSegments.length > 0,
+              text: completedSegments.length == 0,
+            };
+          });
+
+          // Visualizer should show when no segments exist OR only in-progress segments exist,
+          // but NOT when in processing or transforming state
+          const showVisualizer = computed(() => {
+            // Don't show visualizer when processing or transforming
+            if (currentStatus.value === "processing") {
+              return false;
+            }
+
+            if (currentStatus.value === "transforming") return true;
+            if (showInProgressSpinner.value.show) return false;
+            if (transcriptionSegments.value.length === 0) return true;
+            return isSpeaking.value;
+          });
 
           const hasTranscription = computed(() => {
             return transcriptionSegments.value.length > 0 || finalText.value;
@@ -431,6 +558,17 @@
 
           const textContent = ref(null);
           const textScrollContainer = ref(null);
+          let visualizer = null;
+          let resizeObserver = null;
+
+          // VAD state
+          const vadInstance = ref(null);
+          const isVadInitialized = ref(false);
+          const mediaStream = ref(null);
+          let audioContext = null;
+          let analyser = null;
+          let sourceNode = null;
+          let rmsArray = null;
 
           const scrollToEnd = () => {
             if (textScrollContainer.value) {
@@ -444,6 +582,28 @@
             transcriptionSegments.value = [];
             finalText.value = "";
             currentStatus.value = "listening";
+            currentAudioLevel.value = 0;
+          };
+
+          // Sound feedback
+          const playStartSound = () => {
+            try {
+              const startSound = document.getElementById("startSound");
+              if (startSound) {
+                startSound.volume = 0.8;
+                startSound.play().catch(() => {});
+              }
+            } catch (_) {}
+          };
+
+          const playEndSound = () => {
+            try {
+              const endSound = document.getElementById("endSound");
+              if (endSound) {
+                endSound.volume = 0.8;
+                endSound.play().catch(() => {});
+              }
+            } catch (_) {}
           };
 
           const getSegmentClass = (segment) => {
@@ -458,46 +618,277 @@
             return segment.text;
           };
 
+          // Drive visualizer level from WebAudio analyser RMS.
+          setInterval(() => {
+            if (analyser && rmsArray) {
+              try {
+                analyser.getFloatTimeDomainData(rmsArray);
+                let sum = 0;
+                for (let i = 0; i < rmsArray.length; i++) {
+                  const v = rmsArray[i];
+                  sum += v * v;
+                }
+                const rms = Math.sqrt(sum / rmsArray.length);
+                const scaled = Math.min(1, rms * 8);
+                currentAudioLevel.value = scaled;
+              } catch (_) {}
+            }
+          }, 50);
+
           const handleClose = () => {
-            // Close button now hides and reloads the window instead of closing it
+            // Disable VAD stream for privacy before hiding
+            disableVADStream();
+            // Play end sound before hiding
+            playEndSound();
+            // Close button now hides the window instead of closing it
             window.electronAPI.closeDictationWindow();
+          };
+
+          // VAD Methods
+          const initializeVAD = async () => {
+            try {
+              console.log("Initializing Silero VAD...");
+
+              if (!window.vad) {
+                throw new Error("VAD library not loaded");
+              }
+
+              // Get media stream first
+              console.log("Getting media stream...");
+              const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  sampleRate: 16000,
+                  channelCount: 1,
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                },
+              });
+
+              mediaStream.value = stream;
+              console.log("Media stream obtained:", stream);
+
+              // Immediately disable the stream for privacy
+              stream.getAudioTracks().forEach((track) => {
+                track.enabled = false;
+              });
+              console.log("Media stream disabled for privacy");
+
+              const myVAD = await window.vad.MicVAD.new({
+                baseAssetPath: "./",
+                onnxWASMBasePath: "./",
+                model: "v5",
+                positiveSpeechThreshold: 0.5,
+                negativeSpeechThreshold: 0.35,
+                preSpeechPadFrames: 40,
+                redemptionFrames: 10,
+                frameSamples: 512,
+                minSpeechFrames: 3,
+                submitUserSpeechOnPause: true,
+                stream: stream, // Pass the stream to MicVAD
+                onSpeechStart: () => {
+                  isSpeaking.value = true;
+                  console.log("VAD: Speech started");
+                  if (isRecording.value) {
+                    currentStatus.value = "listening";
+                  }
+                },
+                onSpeechEnd: (audio) => {
+                  isSpeaking.value = false;
+                  console.log("VAD: Speech ended, audio length:", audio.length);
+                  if (isRecording.value && audio.length > 0) {
+                    // Send audio segment to main process for transcription (plugin-agnostic)
+                    window.electronAPI.sendAudioSegment(audio);
+                    // Don't set transforming status here for runOnAll plugins to prevent loading between chunks
+                    // Only set transforming for non-runOnAll plugins
+                    if (!isRunOnAllPlugin.value) {
+                      currentStatus.value = "transforming";
+                    }
+                  }
+                },
+                onVADMisfire: () => {
+                  console.log("VAD: Misfire detected");
+                },
+              });
+
+              vadInstance.value = myVAD;
+              isVadInitialized.value = true;
+              console.log("VAD initialized successfully");
+
+              // Start VAD immediately (stream is already disabled)
+              await startVAD();
+            } catch (error) {
+              console.error("Failed to initialize VAD:", error);
+              window.electronAPI.logMessage(
+                `VAD initialization failed: ${error.message}`
+              );
+            }
+          };
+
+          const startVAD = async () => {
+            if (!isVadInitialized.value) {
+              await initializeVAD();
+            }
+
+            if (vadInstance.value && isVadInitialized.value) {
+              try {
+                console.log("Starting VAD...");
+                await vadInstance.value.start();
+                console.log("VAD started successfully");
+              } catch (error) {
+                console.error("Failed to start VAD:", error);
+                window.electronAPI.logMessage(
+                  `VAD start failed: ${error.message}`
+                );
+              }
+            }
+          };
+
+          const enableVADStream = async () => {
+            if (
+              mediaStream.value &&
+              mediaStream.value.getAudioTracks().length > 0
+            ) {
+              try {
+                console.log("Enabling VAD stream...");
+                // Enable the audio track
+                mediaStream.value.getAudioTracks().forEach((track) => {
+                  track.enabled = true;
+                });
+                console.log("VAD stream enabled");
+                // Setup WebAudio analyser for RMS to drive visualizer
+                try {
+                  if (!audioContext) {
+                    audioContext = new (window.AudioContext ||
+                      window.webkitAudioContext)();
+                  }
+                  if (sourceNode) sourceNode.disconnect();
+                  sourceNode = audioContext.createMediaStreamSource(
+                    mediaStream.value
+                  );
+                  analyser = audioContext.createAnalyser();
+                  analyser.fftSize = 512;
+                  const bufferLength = analyser.fftSize;
+                  rmsArray = new Float32Array(bufferLength);
+                  sourceNode.connect(analyser);
+                } catch (e) {
+                  console.warn("Failed to init WebAudio analyser:", e);
+                }
+              } catch (error) {
+                console.error("Failed to enable VAD stream:", error);
+              }
+            }
+          };
+
+          const disableVADStream = async () => {
+            if (
+              mediaStream.value &&
+              mediaStream.value.getAudioTracks().length > 0
+            ) {
+              try {
+                console.log("Disabling VAD stream...");
+                // Disable the audio track
+                mediaStream.value.getAudioTracks().forEach((track) => {
+                  track.enabled = false;
+                });
+                console.log("VAD stream disabled");
+              } catch (error) {
+                console.error("Failed to disable VAD stream:", error);
+              }
+            }
+            // Cleanup analyser
+            try {
+              if (sourceNode) sourceNode.disconnect();
+              sourceNode = null;
+              analyser = null;
+              rmsArray = null;
+            } catch (_) {}
+          };
+
+          const stopVAD = async () => {
+            if (vadInstance.value) {
+              try {
+                console.log("Stopping VAD...");
+                await vadInstance.value.pause();
+                console.log("VAD stopped successfully");
+              } catch (error) {
+                console.error("Failed to stop VAD:", error);
+                window.electronAPI.logMessage(
+                  `VAD stop failed: ${error.message}`
+                );
+              }
+            }
+          };
+
+          const cleanupMediaStream = () => {
+            if (mediaStream.value) {
+              try {
+                console.log("Cleaning up media stream...");
+                mediaStream.value.getTracks().forEach((track) => track.stop());
+                mediaStream.value = null;
+                console.log("Media stream cleaned up");
+              } catch (error) {
+                console.error("Failed to cleanup media stream:", error);
+              }
+            }
           };
 
           // IPC event handlers
           const initializeDictation = (data) => {
             console.log("Initializing dictation with data:", data);
+            selectedText.value = data.selectedText || "";
+            // Store plugin info for runOnAll handling
+            isRunOnAllPlugin.value = data.isRunOnAll || false;
             resetTranscription();
           };
 
-          const startRecording = () => {
+          const startRecording = async () => {
             console.log("Recording started");
             isRecording.value = true;
             currentStatus.value = "listening";
             resetTranscription();
+            await enableVADStream();
+            nextTick(() => {
+              setupVisualizer();
+            });
           };
 
-          const stopRecording = () => {
+          const stopRecording = async () => {
             console.log("Recording stopped");
             isRecording.value = false;
             currentStatus.value = "processing";
+            await disableVADStream();
+            teardownVisualizer();
           };
 
           const updateTranscription = (update) => {
             console.log("Transcription update:", update);
             transcriptionSegments.value = update.segments;
-            // Respect transforming state throughout transformation
+
+            // If status is explicitly provided, use it (for transforming/processing state)
+            if (update.status) {
+              currentStatus.value = update.status;
+              return;
+            }
+
+            // Determine status based on segments and current state
+            const hasInProgressSegments = update.segments.some(
+              (segment) => segment.type === "inprogress" || !segment.completed
+            );
+
+            // Only change status if we're not currently transforming or processing
             if (
-              currentStatus.value === "transforming" ||
-              update.status === "transforming"
+              currentStatus.value !== "transforming" &&
+              currentStatus.value !== "processing"
             ) {
-              currentStatus.value = "transforming";
-            } else {
-              const hasInProgressSegments = update.segments.some(
-                (segment) => segment.type === "inprogress" || !segment.completed
-              );
-              currentStatus.value = hasInProgressSegments
-                ? "listening"
-                : "idle";
+              if (hasInProgressSegments) {
+                currentStatus.value = "listening";
+              } else if (update.segments.length > 0) {
+                // All segments are completed, show idle state
+                currentStatus.value = "idle";
+              } else {
+                // No segments, default to idle
+                currentStatus.value = "idle";
+              }
             }
           };
 
@@ -528,18 +919,88 @@
             });
           });
 
+          // Play end sound when leaving listening state
+          watch([currentStatus], (newStatus, oldStatus) => {
+            if (
+              oldStatus &&
+              oldStatus[0] === "listening" &&
+              (newStatus[0] === "transforming" ||
+                newStatus[0] === "processing" ||
+                newStatus[0] === "complete")
+            ) {
+              // Removed end sound for segment transitions
+            }
+          });
+
           // Setup IPC listeners
-          onMounted(() => {
+          onMounted(async () => {
+            if (window.electronAPI && window.electronAPI.onAnimateIn) {
+              window.electronAPI.onAnimateIn(() => {
+                document.body.classList.add("visible");
+                // Play start sound when window opens
+                playStartSound();
+                // Enable VAD stream when window becomes visible
+                enableVADStream();
+              });
+            }
             window.electronAPI.onInitializeDictation(initializeDictation);
             window.electronAPI.onStartRecording(startRecording);
             window.electronAPI.onStopRecording(stopRecording);
             window.electronAPI.onTranscriptionUpdate(updateTranscription);
             window.electronAPI.onDictationComplete(completeDictation);
             window.electronAPI.onDictationClear(clearDictation);
+            window.electronAPI.onPlayEndSound(playEndSound);
+
+            // Visualizer bootstrap
+            setupVisualizer();
 
             // Prevent default drag behavior
             document.addEventListener("dragstart", (e) => e.preventDefault());
+
+            // Add beforeunload listener to play end sound when window is about to close
+            window.addEventListener("beforeunload", () => {
+              playEndSound();
+              cleanupMediaStream();
+            });
+
+            // Initialize VAD on mount (stream will be disabled for privacy)
+            console.log("Initializing VAD on mount...");
+            await initializeVAD();
           });
+
+          function setupVisualizer() {
+            try {
+              const container = textScrollContainer.value;
+              const canvas = document.getElementById("waveCanvas");
+              if (!container || !canvas) return;
+
+              canvas.width = container.offsetWidth;
+              if (!visualizer) {
+                visualizer = window.createAudioVisualizer(canvas, {
+                  getLevel: () => currentAudioLevel.value,
+                  bars: 64,
+                  smoothing: 0.6,
+                });
+                // Start the visualizer once and keep it running
+                visualizer.start();
+              }
+
+              if (!resizeObserver) {
+                resizeObserver = new ResizeObserver(() => {
+                  canvas.width = container.offsetWidth;
+                  if (visualizer) visualizer.resize();
+                });
+                resizeObserver.observe(container);
+              }
+            } catch (_) {}
+          }
+
+          function teardownVisualizer() {
+            try {
+              // Don't stop the visualizer, just let it run continuously
+              // The visibility is controlled by CSS classes
+            } catch (_) {}
+          }
 
           return {
             // State
@@ -547,6 +1008,9 @@
             currentStatus,
             transcriptionSegments,
             finalText,
+            showVisualizer,
+            isRunOnAllPlugin,
+            selectedText,
 
             // Computed
             statusIconClass,

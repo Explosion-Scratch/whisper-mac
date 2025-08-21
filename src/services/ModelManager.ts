@@ -1,16 +1,32 @@
 import { join } from "path";
-import { existsSync, mkdirSync, readdirSync, statSync, rmSync } from "fs";
-import { spawn } from "child_process";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  rmSync,
+  createWriteStream,
+} from "fs";
 import { AppConfig } from "../config/AppConfig";
+import * as https from "https";
+import { pipeline } from "stream";
+import { promisify } from "util";
+
+const pipelineAsync = promisify(pipeline);
 
 export type ModelDownloadProgress = {
-  status: "starting" | "cloning" | "installing" | "complete" | "error";
+  status: "starting" | "downloading" | "extracting" | "complete" | "error";
   message: string;
   modelRepoId: string;
+  progress: number;
+  percent?: number;
+  downloadedBytes?: number;
+  totalBytes?: number;
 };
 
 export class ModelManager {
   private config: AppConfig;
+  private activeDownload: string | null = null;
 
   constructor(config: AppConfig) {
     this.config = config;
@@ -25,266 +41,264 @@ export class ModelManager {
     }
   }
 
-  private async ensureGitLFS(onLog?: (line: string) => void): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // First check if git-lfs is installed
-      const checkProcess = spawn("git", ["lfs", "--version"], {
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-
-      checkProcess.stdout?.on("data", (data) => {
-        onLog?.(data.toString());
-      });
-      checkProcess.stderr?.on("data", (data) => {
-        onLog?.(data.toString());
-      });
-
-      checkProcess.on("close", (code) => {
-        if (code === 0) {
-          // Git LFS is installed, just run git lfs install
-          const installProcess = spawn("git", ["lfs", "install"], {
-            stdio: ["ignore", "pipe", "pipe"],
-          });
-
-          installProcess.stdout?.on("data", (data) => {
-            onLog?.(data.toString());
-          });
-          installProcess.stderr?.on("data", (data) => {
-            onLog?.(data.toString());
-          });
-
-          installProcess.on("close", (installCode) => {
-            if (installCode === 0) {
-              console.log("Git LFS initialized successfully");
-              resolve();
-            } else {
-              console.error("Failed to initialize Git LFS");
-              reject(new Error("Failed to initialize Git LFS"));
-            }
-          });
-
-          installProcess.on("error", (error) => {
-            console.error(`Failed to run git lfs install: ${error.message}`);
-            reject(error);
-          });
-        } else {
-          // Git LFS not installed, install via brew
-          console.log("Git LFS not found, installing via brew...");
-          const brewProcess = spawn("brew", ["install", "git-lfs"], {
-            stdio: ["ignore", "pipe", "pipe"],
-          });
-
-          brewProcess.stdout?.on("data", (data) => {
-            console.log("Brew install output:", data.toString());
-            onLog?.(data.toString());
-          });
-
-          brewProcess.stderr?.on("data", (data) => {
-            console.log("Brew install progress:", data.toString());
-            onLog?.(data.toString());
-          });
-
-          brewProcess.on("close", (brewCode) => {
-            if (brewCode === 0) {
-              // Now run git lfs install
-              const installProcess = spawn("git", ["lfs", "install"], {
-                stdio: ["ignore", "pipe", "pipe"],
-              });
-
-              installProcess.stdout?.on("data", (data) => {
-                onLog?.(data.toString());
-              });
-              installProcess.stderr?.on("data", (data) => {
-                onLog?.(data.toString());
-              });
-
-              installProcess.on("close", (installCode) => {
-                if (installCode === 0) {
-                  console.log("Git LFS installed and initialized successfully");
-                  resolve();
-                } else {
-                  console.error(
-                    "Failed to initialize Git LFS after installation",
-                  );
-                  reject(
-                    new Error(
-                      "Failed to initialize Git LFS after installation",
-                    ),
-                  );
-                }
-              });
-
-              installProcess.on("error", (error) => {
-                console.error(
-                  `Failed to run git lfs install: ${error.message}`,
-                );
-                reject(error);
-              });
-            } else {
-              console.error("Failed to install Git LFS via brew");
-              reject(new Error("Failed to install Git LFS via brew"));
-            }
-          });
-
-          brewProcess.on("error", (error: any) => {
-            if ((error && (error as any).code) === "ENOENT") {
-              const msg =
-                "Homebrew not found. Please install Git LFS manually (brew install git-lfs or see https://git-lfs.com/).";
-              console.error(msg);
-              reject(new Error(msg));
-              return;
-            }
-            console.error(
-              `Failed to start brew install: ${error?.message || error}`,
-            );
-            reject(error);
-          });
-        }
-      });
-
-      checkProcess.on("error", (error) => {
-        console.error(`Failed to check git lfs version: ${error.message}`);
-        reject(error);
-      });
-    });
-  }
-
   async ensureModelExists(
-    modelRepoId: string,
+    modelName: string,
     onProgress?: (progress: ModelDownloadProgress) => void,
-    onLog?: (line: string) => void,
+    onLog?: (line: string) => void
   ): Promise<boolean> {
     this.ensureDataDirectory();
-    const modelDir = this.getModelPath(modelRepoId);
-    if (existsSync(modelDir)) {
+    const modelPath = this.getModelPath(modelName);
+    if (existsSync(modelPath)) {
       return true;
     }
 
-    // Ensure Git LFS is available before cloning
-    try {
-      await this.ensureGitLFS(onLog);
-    } catch (err) {
-      console.error("Git LFS check failed:", err);
-      // Surface a clearer error for caller
-      throw new Error(
-        `Required Git LFS is missing or failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
-
-    return await this.cloneModel(modelRepoId, onProgress, onLog);
+    return await this.downloadModel(modelName, onProgress, onLog);
   }
 
-  private getModelPath(modelRepoId: string): string {
-    // Convert repo ID to safe directory name (e.g., "Systran/faster-whisper-tiny.en" -> "Systran--faster-whisper-tiny.en")
-    const safeName = modelRepoId.replace(/\//g, "--");
-    return join(this.config.getModelsDir(), safeName);
+  private getModelPath(modelName: string): string {
+    // Direct path to model file
+    return join(this.config.getModelsDir(), modelName);
   }
 
-  private async cloneModel(
-    modelRepoId: string,
+  private async downloadModelFile(
+    modelName: string,
     onProgress?: (progress: ModelDownloadProgress) => void,
-    onLog?: (line: string) => void,
+    onLog?: (line: string) => void
   ): Promise<boolean> {
     return new Promise((resolve, reject) => {
-      const modelDir = this.getModelPath(modelRepoId);
-      const huggingfaceUrl = `https://huggingface.co/${modelRepoId}`;
+      if (this.activeDownload) {
+        reject(
+          new Error(
+            `Another model (${this.activeDownload}) is already downloading`
+          )
+        );
+        return;
+      }
 
-      console.log(
-        `Cloning HuggingFace model ${modelRepoId} from ${huggingfaceUrl}`,
-      );
+      this.activeDownload = modelName;
+      const modelPath = this.getModelPath(modelName);
+      const ggmlUrl = `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${modelName}`;
+
+      console.log(`Downloading model ${modelName} from ${ggmlUrl}`);
+      onLog?.(`Starting download of ${modelName}`);
 
       onProgress?.({
         status: "starting",
         message: "Preparing to download model...",
-        modelRepoId,
+        modelRepoId: modelName,
+        progress: 0,
       });
 
-      const process = spawn("git", ["clone", huggingfaceUrl, modelDir], {
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-
-      onProgress?.({
-        status: "cloning",
-        message: "Downloading model files...",
-        modelRepoId,
-      });
-
-      process.stdout?.on("data", (data) => {
-        const line = data.toString();
-        console.log("Model clone output:", line);
-        onLog?.(line);
-      });
-
-      process.stderr?.on("data", (data) => {
-        const line = data.toString();
-        console.log("Model clone progress:", line);
-        onLog?.(line);
-      });
-
-      process.on("close", (code) => {
-        if (code === 0 && existsSync(modelDir)) {
-          console.log(
-            `Model ${modelRepoId} cloned successfully to ${modelDir}`,
-          );
-          onProgress?.({
-            status: "complete",
-            message: "Model downloaded successfully",
-            modelRepoId,
-          });
-          resolve(true);
-        } else {
-          console.error(`Model clone failed with code ${code}`);
-          onProgress?.({
-            status: "error",
-            message: `Download failed with code ${code}`,
-            modelRepoId,
-          });
-          reject(new Error(`Model clone failed with code ${code}`));
+      const request = https.get(ggmlUrl, (response) => {
+        if (response.statusCode === 302 || response.statusCode === 301) {
+          // Handle redirect
+          const redirectUrl = response.headers.location;
+          if (redirectUrl) {
+            this.downloadFromUrl(
+              redirectUrl,
+              modelPath,
+              modelName,
+              onProgress,
+              onLog,
+              resolve,
+              reject
+            );
+          } else {
+            this.activeDownload = null;
+            reject(new Error("Redirect without location header"));
+          }
+          return;
         }
+
+        if (response.statusCode !== 200) {
+          this.activeDownload = null;
+          reject(
+            new Error(`Failed to download model: HTTP ${response.statusCode}`)
+          );
+          return;
+        }
+
+        this.downloadFromUrl(
+          ggmlUrl,
+          modelPath,
+          modelName,
+          onProgress,
+          onLog,
+          resolve,
+          reject,
+          response
+        );
       });
 
-      process.on("error", (error) => {
-        console.error(`Failed to start git clone: ${error.message}`);
+      request.on("error", (error) => {
+        this.activeDownload = null;
+        console.error(`Failed to start download: ${error.message}`);
         onProgress?.({
           status: "error",
           message: `Download failed: ${error.message}`,
-          modelRepoId,
+          modelRepoId: modelName,
+          progress: 0,
         });
-        onLog?.(String(error.message || error));
         reject(error);
       });
     });
   }
 
-  getModelDirectory(modelRepoId: string): string {
-    return this.getModelPath(modelRepoId);
+  private downloadFromUrl(
+    url: string,
+    filePath: string,
+    modelName: string,
+    onProgress?: (progress: ModelDownloadProgress) => void,
+    onLog?: (line: string) => void,
+    resolve?: (value: boolean) => void,
+    reject?: (reason?: any) => void,
+    response?: any
+  ): void {
+    const actualRequest = response
+      ? null
+      : https.get(url, (res) => {
+          this.handleDownloadResponse(
+            res,
+            filePath,
+            modelName,
+            onProgress,
+            onLog,
+            resolve,
+            reject
+          );
+        });
+
+    if (response) {
+      this.handleDownloadResponse(
+        response,
+        filePath,
+        modelName,
+        onProgress,
+        onLog,
+        resolve,
+        reject
+      );
+    }
+
+    if (actualRequest) {
+      actualRequest.on("error", (error) => {
+        this.activeDownload = null;
+        reject?.(error);
+      });
+    }
+  }
+
+  private handleDownloadResponse(
+    response: any,
+    filePath: string,
+    modelName: string,
+    onProgress?: (progress: ModelDownloadProgress) => void,
+    onLog?: (line: string) => void,
+    resolve?: (value: boolean) => void,
+    reject?: (reason?: any) => void
+  ): void {
+    if (response.statusCode !== 200) {
+      this.activeDownload = null;
+      reject?.(new Error(`Failed to download: HTTP ${response.statusCode}`));
+      return;
+    }
+
+    const totalBytes = parseInt(response.headers["content-length"] || "0", 10);
+    let downloadedBytes = 0;
+
+    const fileStream = createWriteStream(filePath);
+
+    onProgress?.({
+      status: "downloading",
+      message: "Downloading model...",
+      modelRepoId: modelName,
+      progress: 0,
+      percent: 0,
+      downloadedBytes: 0,
+      totalBytes,
+    });
+
+    response.on("data", (chunk: Buffer) => {
+      downloadedBytes += chunk.length;
+      const percent =
+        totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0;
+
+      onProgress?.({
+        status: "downloading",
+        message: `Downloading model... ${percent}%`,
+        modelRepoId: modelName,
+        progress: percent,
+        percent,
+        downloadedBytes,
+        totalBytes,
+      });
+    });
+
+    response.pipe(fileStream);
+
+    fileStream.on("finish", () => {
+      this.activeDownload = null;
+      console.log(`Model ${modelName} downloaded successfully to ${filePath}`);
+      onLog?.(`Download completed: ${modelName}`);
+
+      onProgress?.({
+        status: "complete",
+        message: "Model downloaded successfully",
+        modelRepoId: modelName,
+        progress: 100,
+        percent: 100,
+      });
+
+      resolve?.(true);
+    });
+
+    fileStream.on("error", (error) => {
+      this.activeDownload = null;
+      console.error(`File write error: ${error.message}`);
+      onProgress?.({
+        status: "error",
+        message: `Download failed: ${error.message}`,
+        modelRepoId: modelName,
+        progress: 0,
+      });
+      reject?.(error);
+    });
+
+    response.on("error", (error: Error) => {
+      this.activeDownload = null;
+      console.error(`Download error: ${error.message}`);
+      onProgress?.({
+        status: "error",
+        message: `Download failed: ${error.message}`,
+        modelRepoId: modelName,
+        progress: 0,
+      });
+      reject?.(error);
+    });
+  }
+
+  getModelDirectory(modelName: string): string {
+    return this.config.getModelsDir();
   }
 
   async downloadModel(
-    modelRepoId: string,
+    modelName: string,
     onProgress?: (progress: ModelDownloadProgress) => void,
-    onLog?: (line: string) => void,
+    onLog?: (line: string) => void
   ): Promise<boolean> {
-    // Ensure Git LFS is available for manual downloads as well
-    try {
-      await this.ensureGitLFS(onLog);
-    } catch (err) {
-      console.error("Git LFS check failed (manual download):", err);
-      throw new Error(
-        `Required Git LFS is missing or failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
-    return this.cloneModel(modelRepoId, onProgress, onLog);
+    this.ensureDataDirectory();
+    return this.downloadModelFile(modelName, onProgress, onLog);
+  }
+
+  isModelDownloaded(modelName: string): boolean {
+    const modelPath = this.getModelPath(modelName);
+    return existsSync(modelPath);
   }
 
   /** List downloaded models and their sizes (in bytes). */
   listDownloadedModels(): Array<{
     repoId: string;
-    dirPath: string;
+    filePath: string;
     sizeBytes: number;
   }> {
     const modelsDir = this.config.getModelsDir();
@@ -292,47 +306,39 @@ export class ModelManager {
     const entries = readdirSync(modelsDir, { withFileTypes: true });
     const result: Array<{
       repoId: string;
-      dirPath: string;
+      filePath: string;
       sizeBytes: number;
     }> = [];
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const dirPath = join(modelsDir, entry.name);
-      const repoId = entry.name.replace(/--/g, "/");
+      if (!entry.isFile() || !entry.name.endsWith(".bin")) continue;
+      const filePath = join(modelsDir, entry.name);
       result.push({
-        repoId,
-        dirPath,
-        sizeBytes: this.getDirectorySize(dirPath),
+        repoId: entry.name, // Use filename as repoId for compatibility
+        filePath,
+        sizeBytes: statSync(filePath).size,
       });
     }
     return result;
   }
 
-  deleteModel(repoId: string): void {
-    const dir = this.getModelDirectory(repoId);
+  deleteModel(modelName: string): void {
+    const filePath = this.getModelPath(modelName);
     try {
-      if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+      if (existsSync(filePath)) rmSync(filePath, { force: true });
     } catch (e) {
-      console.error("Failed to delete model directory:", dir, e);
+      console.error("Failed to delete model file:", filePath, e);
     }
   }
 
-  private getDirectorySize(dirPath: string): number {
-    try {
-      let total = 0;
-      const stack: string[] = [dirPath];
-      while (stack.length) {
-        const current = stack.pop() as string;
-        const items = readdirSync(current, { withFileTypes: true });
-        for (const item of items) {
-          const p = join(current, item.name);
-          if (item.isDirectory()) stack.push(p);
-          else total += statSync(p).size;
-        }
-      }
-      return total;
-    } catch (e) {
-      return 0;
-    }
+  isDownloading(): boolean {
+    return this.activeDownload !== null;
+  }
+
+  getCurrentDownload(): string | null {
+    return this.activeDownload;
+  }
+
+  cancelDownload(): void {
+    this.activeDownload = null;
   }
 }

@@ -33,6 +33,7 @@
         display: flex;
         flex-direction: column;
         background: var(--panel-bg);
+        overflow-y: scroll !important;
         -webkit-backdrop-filter: saturate(160%) blur(30px);
         backdrop-filter: saturate(160%) blur(30px);
         border: 1px solid rgba(255, 255, 255, 0.28);
@@ -264,6 +265,46 @@
         white-space: pre-wrap;
       }
 
+      /* Plugin option styles */
+      .plugin-options-section {
+        width: 100%;
+      }
+      .plugin-config-section {
+        margin-top: 12px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.5);
+      }
+      .plugin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+      }
+      .plugin-info h4 {
+        margin: 0 0 4px 0;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .plugin-description {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .plugin-delete-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .plugin-delete-btn:hover {
+        background: #c82333;
+      }
+
       /* Dark mode */
       @media (prefers-color-scheme: dark) {
         :root {
@@ -298,6 +339,10 @@
         }
         .progress {
           background: rgba(255, 255, 255, 0.08);
+        }
+        .plugin-config-section {
+          background: rgba(255, 255, 255, 0.1);
+          border-color: var(--border);
         }
       }
     </style>
@@ -382,33 +427,106 @@
                 <span class="step-icon"
                   ><i class="ph-duotone ph-download-simple"></i
                 ></span>
-                <h1>Choose a Whisper model</h1>
+                <h1>Choose transcription engine</h1>
               </div>
-              <p class="micro">
-                We recommend Tiny (English) for best speed. You can change
-                later.
-              </p>
-              <div class="row" style="width: 100%">
-                <select id="modelSelect" class="select" v-model="modelSelect">
-                  <option value="Systran/faster-whisper-tiny.en">
-                    Tiny (English) — recommended
-                  </option>
-                  <option value="Systran/faster-whisper-tiny">
-                    Tiny (Multilingual)
-                  </option>
-                  <option value="Systran/faster-whisper-base.en">
-                    Base (English)
-                  </option>
-                  <option value="Systran/faster-whisper-base">
-                    Base (Multilingual)
-                  </option>
-                  <option value="Systran/faster-whisper-small.en">
-                    Small (English)
-                  </option>
-                  <option value="Systran/faster-whisper-small">
-                    Small (Multilingual)
-                  </option>
-                </select>
+              <div class="card" style="width: 100%">
+                <div class="field">
+                  <div class="label">Plugin</div>
+                  <select
+                    id="pluginSelect"
+                    class="select"
+                    v-model="pluginSelect"
+                    @change="onPluginChange"
+                  >
+                    <option
+                      v-for="plugin in availablePlugins"
+                      :key="plugin.name"
+                      :value="plugin.name"
+                    >
+                      {{ plugin.displayName }}
+                    </option>
+                  </select>
+                </div>
+
+                <!-- Dynamic plugin options -->
+                <div
+                  v-for="option in currentPluginOptions"
+                  :key="option.key"
+                  class="field"
+                  style="margin-top: 10px"
+                >
+                  <div class="label">{{ option.label }}</div>
+
+                  <!-- Model select with enhanced display -->
+                  <select
+                    v-if="option.type === 'model-select'"
+                    class="select"
+                    :value="selectedOptions[option.key] || option.default"
+                    @change="updateSelectedOption(option.key, $event.target.value)"
+                  >
+                    <option
+                      v-for="modelOpt in option.options"
+                      :key="modelOpt.value"
+                      :value="modelOpt.value"
+                    >
+                      {{ modelOpt.label }}{{ modelOpt.size ? ` (${modelOpt.size})` : '' }}
+                    </option>
+                  </select>
+
+                  <!-- Regular select -->
+                  <select
+                    v-else-if="option.type === 'select'"
+                    class="select"
+                    :value="selectedOptions[option.key] || option.default"
+                    @change="updateSelectedOption(option.key, $event.target.value)"
+                  >
+                    <option
+                      v-for="selectOpt in option.options"
+                      :key="selectOpt.value"
+                      :value="selectOpt.value"
+                    >
+                      {{ selectOpt.label }}
+                    </option>
+                  </select>
+
+                  <!-- Boolean checkbox -->
+                  <label v-else-if="option.type === 'boolean'" class="toggle">
+                    <input
+                      type="checkbox"
+                      :checked="selectedOptions[option.key] || option.default"
+                      @change="updateSelectedOption(option.key, $event.target.checked)"
+                    />
+                    {{ option.description }}
+                  </label>
+
+                  <!-- Number input -->
+                  <input
+                    v-else-if="option.type === 'number'"
+                    type="number"
+                    class="input"
+                    :value="selectedOptions[option.key] || option.default"
+                    :min="option.min"
+                    :max="option.max"
+                    @input="updateSelectedOption(option.key, parseInt($event.target.value))"
+                  />
+
+                  <!-- Text input -->
+                  <input
+                    v-else
+                    type="text"
+                    class="input"
+                    :value="selectedOptions[option.key] || option.default"
+                    @input="updateSelectedOption(option.key, $event.target.value)"
+                  />
+
+                  <div
+                    v-if="option.description"
+                    class="hint"
+                    style="margin-top: 6px"
+                  >
+                    {{ option.description }}
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -422,10 +540,22 @@
                 <h1>Enable AI polishing?</h1>
               </div>
               <div class="toggle">
-                <input id="aiEnabled" type="checkbox" v-model="aiEnabled" />
+                <input
+                  id="aiEnabled"
+                  type="checkbox"
+                  v-model="aiEnabled"
+                  @change="onAiEnabledChange"
+                />
                 <label for="aiEnabled"
                   >Use AI to clean up and format dictation</label
                 >
+              </div>
+              <div
+                v-if="aiValidationError"
+                class="error-message"
+                style="color: #ef4444; font-size: 14px; margin-top: 8px"
+              >
+                {{ aiValidationError }}
               </div>
               <div id="aiConfig" class="card" v-show="aiEnabled">
                 <div class="form-grid">
@@ -493,7 +623,7 @@
                 <h1>Ready to set up</h1>
               </div>
               <p class="micro">
-                This will download the model and prepare Python dependencies.
+                This will download the selected model for transcription.
               </p>
               <div class="progress">
                 <div
@@ -559,7 +689,11 @@
           const aiApiKey = ref("");
           const keyStatus = ref("");
           const savingKey = ref(false);
-          const modelSelect = ref("Systran/faster-whisper-tiny.en");
+          const aiValidationError = ref("");
+          const pluginSelect = ref("yap");
+          const pluginOptions = ref({});
+          const pluginStates = ref({});
+          const selectedOptions = ref({});
           const progressText = ref("Idle");
           const progressPercent = ref(0);
           const logs = ref([]);
@@ -575,6 +709,12 @@
             if (idx.value === 1) {
               return accessStatus.value === "Enabled";
             }
+            // On AI step (idx === 3), check if AI is properly configured when enabled
+            if (idx.value === 3) {
+              if (aiEnabled.value && aiValidationError.value) {
+                return false;
+              }
+            }
             // On setup step (idx === 4), check if setup is done
             if (idx.value === 4) {
               return setupDone.value;
@@ -583,12 +723,49 @@
             return true;
           });
 
+          const availablePlugins = ref([]);
+          const currentPluginOptions = ref([]);
+
           const init = async () => {
             const initState = await window.onboardingAPI.getInitialState();
             aiBaseUrl.value = initState.ai.baseUrl || "";
             aiModel.value = initState.ai.model || "";
             aiEnabled.value = !!initState.ai.enabled;
-            modelSelect.value = initState.model || modelSelect.value;
+            pluginSelect.value = initState.plugin || pluginSelect.value;
+
+            // Load plugin information
+            const pluginData = await window.onboardingAPI.getPluginOptions();
+            availablePlugins.value = pluginData.plugins || [];
+            pluginOptions.value = pluginData.options || {};
+
+            // Set default options for each plugin
+            for (const [pluginName, options] of Object.entries(
+              pluginOptions.value
+            )) {
+              selectedOptions.value[pluginName] = {};
+              for (const option of options) {
+                selectedOptions.value[pluginName][option.key] = option.default;
+              }
+            }
+
+            // Load current plugin options
+            updateCurrentPluginOptions();
+          };
+
+          const updateCurrentPluginOptions = () => {
+            currentPluginOptions.value =
+              pluginOptions.value[pluginSelect.value] || [];
+          };
+
+          const onPluginChange = () => {
+            updateCurrentPluginOptions();
+          };
+
+          const updateSelectedOption = (key, value) => {
+            if (!selectedOptions.value[pluginSelect.value]) {
+              selectedOptions.value[pluginSelect.value] = {};
+            }
+            selectedOptions.value[pluginSelect.value][key] = value;
           };
 
           const prev = () => {
@@ -611,9 +788,31 @@
 
             if (idx.value === 4 && !setupDone.value) return;
             if (idx.value === 2) {
-              await window.onboardingAPI.setModel(modelSelect.value);
+              const currentOptions =
+                selectedOptions.value[pluginSelect.value] || {};
+              // Convert Vue reactive object to plain object to avoid cloning errors
+              const plainOptions = JSON.parse(JSON.stringify(currentOptions));
+              await window.onboardingAPI.setPlugin(
+                pluginSelect.value,
+                plainOptions
+              );
             }
             if (idx.value === 3) {
+              // If AI is enabled, validate configuration before proceeding
+              if (aiEnabled.value) {
+                const result = await window.electronAPI.validateAiConfiguration(
+                  aiBaseUrl.value,
+                  aiModel.value,
+                  aiApiKey.value
+                );
+
+                if (!result.isValid) {
+                  aiValidationError.value =
+                    result.error || "AI configuration is invalid";
+                  return;
+                }
+              }
+
               await window.onboardingAPI.setAiEnabled(aiEnabled.value);
               if (aiEnabled.value) {
                 await window.onboardingAPI.setAiProvider(
@@ -685,11 +884,56 @@
               await window.onboardingAPI.saveApiKey(aiApiKey.value);
               keyStatus.value = "Saved to Keychain";
               aiApiKey.value = "";
+
+              // Clear validation error since key is now valid
+              aiValidationError.value = "";
             } catch (e) {
               keyStatus.value = "Failed to save key";
             } finally {
               savingKey.value = false;
             }
+          };
+
+          const validateAiConfig = async () => {
+            if (aiEnabled.value) {
+              aiValidationError.value = "";
+
+              try {
+                const result = await window.electronAPI.validateAiConfiguration(
+                  aiBaseUrl.value,
+                  aiModel.value,
+                  aiApiKey.value
+                );
+
+                if (!result.isValid) {
+                  aiValidationError.value =
+                    result.error || "AI configuration is invalid";
+                  aiEnabled.value = false; // Revert the toggle
+                  return;
+                }
+
+                // If validation succeeds and we have models, update the model list
+                if (result.models && result.models.length > 0) {
+                  aiModels.value = result.models;
+                  // If current model is not in the list, select the first one
+                  if (!result.models.some((m) => m.id === aiModel.value)) {
+                    aiModel.value = result.models[0].id;
+                  }
+                }
+              } catch (error) {
+                aiValidationError.value = `Validation failed: ${
+                  error.message || String(error)
+                }`;
+                aiEnabled.value = false; // Revert the toggle
+              }
+            } else {
+              // Clear validation error when disabling AI
+              aiValidationError.value = "";
+            }
+          };
+
+          const onAiEnabledChange = async () => {
+            await validateAiConfig();
           };
 
           const runSetup = async () => {
@@ -703,6 +947,26 @@
 
             // Start accessibility monitoring
             const cleanupMonitoring = startAccessibilityMonitoring();
+
+            // Add watchers for AI configuration changes
+            const aiBaseUrlInput = document.getElementById("aiBaseUrl");
+            const aiModelSelect = document.getElementById("aiModelSelect");
+
+            if (aiBaseUrlInput) {
+              aiBaseUrlInput.addEventListener("input", () => {
+                if (aiEnabled.value) {
+                  validateAiConfig();
+                }
+              });
+            }
+
+            if (aiModelSelect) {
+              aiModelSelect.addEventListener("change", () => {
+                if (aiEnabled.value) {
+                  validateAiConfig();
+                }
+              });
+            }
 
             window.onboardingAPI.onProgress((p) => {
               progressText.value = p.message || p.status || "";
@@ -740,7 +1004,12 @@
             aiApiKey,
             keyStatus,
             savingKey,
-            modelSelect,
+            aiValidationError,
+            pluginSelect,
+            availablePlugins,
+            pluginOptions,
+            currentPluginOptions,
+            selectedOptions,
             progressText,
             progressPercent,
             logs,
@@ -750,7 +1019,11 @@
             canProceed,
             prev,
             next,
+            onPluginChange,
+            updateSelectedOption,
             checkAccess,
+            onAiEnabledChange,
+            validateAiConfig,
             startAccessibilityMonitoring,
             saveKey,
             runSetup,

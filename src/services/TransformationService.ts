@@ -1,6 +1,9 @@
 import { Segment, TranscribedSegment } from "../types/SegmentTypes";
 import { AppConfig } from "../config/AppConfig";
 import { SelectedTextResult } from "./SelectedTextService";
+import { AiValidationService } from "./AiValidationService";
+import { SecureStorageService } from "./SecureStorageService";
+import { SelectedTextService } from "./SelectedTextService";
 
 export interface AiTransformationConfig {
   enabled: boolean;
@@ -26,6 +29,143 @@ export class TransformationService {
 
   constructor(config: AppConfig) {
     this.config = config;
+  }
+
+  /**
+   * Process a prompt by replacing placeholders and handling sel tags
+   * @param prompt The base prompt template
+   * @param savedState Selected text state
+   * @param windowInfo Active window information
+   * @param text Additional text to include in the prompt
+   * @returns Processed prompt with all placeholders replaced
+   */
+  static processPrompt(
+    prompt: string,
+    savedState: SelectedTextResult,
+    windowInfo: { title: string; appName: string },
+    text: string | undefined = undefined,
+  ): string {
+    let processed = prompt
+      .replace(/{selection}/g, savedState.text || "")
+      .replace(/{title}/g, windowInfo.title || "")
+      .replace(/{app}/g, windowInfo.appName || "")
+      .replace(/{text}/g, text || "");
+
+    if (savedState.hasSelection) {
+      processed = processed.replace(/<sel>/g, "");
+      processed = processed.replace(/<\/sel>/g, "");
+    } else {
+      processed = processed.replace(/<sel>[\s\S]*?<\/sel>/g, "");
+    }
+
+    return processed;
+  }
+
+  /**
+   * Extract code block content if it's significantly longer than non-code content
+   * @param text The text to extract code from
+   * @returns Extracted code or null if no code block found
+   */
+  static extractCode(text: string): string | null {
+    const codeBlockRegex = /```(\w+)?\s*\n([\s\S]*?)\n```/g;
+    const matches = Array.from(text.matchAll(codeBlockRegex));
+
+    if (matches.length === 0) {
+      return null;
+    }
+
+    let longestCodeContent = "";
+
+    for (const match of matches) {
+      const codeContent = match[2] || "";
+      if (codeContent.length > longestCodeContent.length) {
+        longestCodeContent = codeContent;
+      }
+    }
+
+    const textWithoutCodeBlocks = text.replace(codeBlockRegex, "");
+    const nonCodeContent = textWithoutCodeBlocks.trim();
+
+    if (
+      longestCodeContent.length > nonCodeContent.length * 2 &&
+      longestCodeContent.length > 0
+    ) {
+      return longestCodeContent.trim();
+    }
+
+    return null;
+  }
+
+  /**
+   * Remove content between <think> tags and trim the result
+   * @param text The text to process
+   * @returns Text with think tags removed
+   */
+  static removeThink(text: string): string {
+    return text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+  }
+
+  /**
+   * Remove "changed/new/replaced text:" prefixes
+   * @param text The text to process
+   * @returns Text with prefixes removed
+   */
+  static async removeChanged(text: string): Promise<string> {
+    const transformed = text
+      .trim()
+      .replace(/^(?:changed|new|replaced)\s*(?:text)\:?\s*/gi, "")
+      .trim();
+    return transformed;
+  }
+
+  /**
+   * Build Gemini API request parts from various inputs
+   * @param systemPrompt Processed system prompt
+   * @param messagePrompt Processed message prompt
+   * @param audioWavBase64 Base64 audio data
+   * @param screenshotBase64 Optional base64 screenshot data
+   * @param savedState Selected text state
+   * @returns Array of request parts
+   */
+  static buildGeminiRequestParts(
+    systemPrompt: string,
+    messagePrompt: string,
+    audioWavBase64: string,
+    screenshotBase64?: string,
+    savedState?: SelectedTextResult,
+  ): Array<{
+    text?: string;
+    inlineData?: {
+      mimeType: string;
+      data: string;
+    };
+  }> {
+    const parts = [
+      { text: systemPrompt + "\n\n" + messagePrompt },
+      ...(screenshotBase64
+        ? [
+            {
+              inlineData: {
+                mimeType: "image/png",
+                data: screenshotBase64,
+              },
+            },
+          ]
+        : []),
+      {
+        inlineData: {
+          mimeType: "audio/x-wav",
+          data: audioWavBase64,
+        },
+      },
+    ];
+
+    // Add selection reminder if needed
+    if (savedState?.hasSelection) {
+      parts.push({ text: "Remember, output the new selection." });
+    }
+
+    return parts;
   }
 
   /**
@@ -87,14 +227,29 @@ export class TransformationService {
     let transformedText = text;
 
     if (this.config.ai?.enabled) {
-      transformedText = await this.transformWithAi(
-        transformedText,
-        this.config.ai,
-        savedState,
+      // Validate AI configuration before using it
+      const validationService = new AiValidationService();
+      const validationResult = await validationService.validateAiConfiguration(
+        this.config.ai.baseUrl,
+        this.config.ai.model,
       );
+
+      if (!validationResult.isValid) {
+        console.warn(
+          "AI configuration is invalid, skipping AI transformation:",
+          validationResult.error,
+        );
+        // Continue without AI transformation
+      } else {
+        transformedText = await this.transformWithAi(
+          transformedText,
+          this.config.ai,
+          savedState,
+        );
+      }
     }
 
-    const extractedCode = this.extractCode(transformedText);
+    const extractedCode = TransformationService.extractCode(transformedText);
     if (extractedCode) {
       return extractedCode;
     }
@@ -106,41 +261,11 @@ export class TransformationService {
    * Extract code block content if it's significantly longer than non-code content
    */
   private extractCode(text: string): string | null {
-    const codeBlockRegex = /```(\w+)?\s*\n([\s\S]*?)\n```/g;
-    const matches = Array.from(text.matchAll(codeBlockRegex));
-
-    if (matches.length === 0) {
-      return null;
-    }
-
-    let longestCodeContent = "";
-
-    for (const match of matches) {
-      const codeContent = match[2] || "";
-      if (codeContent.length > longestCodeContent.length) {
-        longestCodeContent = codeContent;
-      }
-    }
-
-    const textWithoutCodeBlocks = text.replace(codeBlockRegex, "");
-    const nonCodeContent = textWithoutCodeBlocks.trim();
-
-    if (
-      longestCodeContent.length > nonCodeContent.length * 2 &&
-      longestCodeContent.length > 0
-    ) {
-      return longestCodeContent.trim();
-    }
-
-    return null;
+    return TransformationService.extractCode(text);
   }
 
   private async removeChanged(text: string): Promise<string> {
-    const transformed = text
-      .trim()
-      .replace(/^(?:changed|new|replaced)\s*(?:text)\:?\s*/gi, "")
-      .trim();
-    return transformed;
+    return TransformationService.removeChanged(text);
   }
 
   /**
@@ -158,7 +283,7 @@ export class TransformationService {
    * Remove content between <think> tags and trim the result
    */
   private removeThink(text: string): string {
-    return text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    return TransformationService.removeThink(text);
   }
 
   /**
@@ -171,12 +296,10 @@ export class TransformationService {
   ): Promise<string> {
     console.log("=== TransformationService.transformWithAi ===");
     console.log("Input text:", text);
-    console.log("AI Config:", aiConfig);
     console.log("Saved state:", savedState);
 
     let apiKey: string | undefined;
     try {
-      const { SecureStorageService } = await import("./SecureStorageService");
       const secure = new SecureStorageService();
       apiKey = (await secure.getApiKey()) || undefined;
     } catch (e) {}
@@ -187,22 +310,17 @@ export class TransformationService {
       );
 
     // Get active window information
-    const selectedTextService = new (
-      await import("./SelectedTextService")
-    ).SelectedTextService();
+    const selectedTextService = new SelectedTextService();
     const windowInfo = await selectedTextService.getActiveWindowInfo();
 
     console.log("Active window info:", windowInfo);
 
-    let messagePrompt = aiConfig.messagePrompt
-      .replace(/{text}/g, text)
-      .replace(/{selection}/, savedState.text)
-      .replace(/{title}/g, windowInfo.title)
-      .replace(/{app}/g, windowInfo.appName);
-
-    if (!savedState.hasSelection) {
-      messagePrompt = messagePrompt.replace(/<sel>[^<]+<\/sel>/, "");
-    }
+    let messagePrompt = TransformationService.processPrompt(
+      aiConfig.messagePrompt,
+      savedState,
+      windowInfo,
+      text,
+    );
 
     console.log("MESSAGE_PROMPT:", messagePrompt);
 
@@ -246,8 +364,10 @@ export class TransformationService {
       throw new Error("Invalid AI API response format");
     }
 
-    let transformed = this.removeThink(data.choices[0].message.content);
-    transformed = await this.removeChanged(transformed);
+    let transformed = TransformationService.removeThink(
+      data.choices[0].message.content,
+    );
+    transformed = await TransformationService.removeChanged(transformed);
     console.log("AI transformed text:", transformed);
     return transformed;
   }
