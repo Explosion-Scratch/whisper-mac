@@ -1,0 +1,2 @@
+- Once insertion is queued, consider it successful without waiting for osascript to finish.
+-

@@ -272,9 +272,8 @@ export class SegmentManager extends EventEmitter {
           .join(" ");
 
         if (originalText) {
-          this.textInjectionService
-            .insertText(originalText + " ")
-            .then(RESTORE_STATE);
+          await this.textInjectionService.insertText(originalText);
+          await RESTORE_STATE();
           console.log(
             `[SegmentManager] Direct-injected text (skip reason: ${
               options?.skipTransformation ? "plugin" : "action"
@@ -303,7 +302,7 @@ export class SegmentManager extends EventEmitter {
           "[SegmentManager] Transformation failed:",
           transformResult.error,
         );
-        return this.handleTransformationFallback(
+        return await this.handleTransformationFallback(
           segmentsToProcess,
           RESTORE_STATE,
           transformResult.error || "Transformation failed",
@@ -312,9 +311,8 @@ export class SegmentManager extends EventEmitter {
 
       const transformedText = transformResult.transformedText;
       if (transformedText) {
-        this.textInjectionService
-          .insertText(transformedText + " ")
-          .then(RESTORE_STATE);
+        await this.textInjectionService.insertText(transformedText);
+        await RESTORE_STATE();
         console.log(`[SegmentManager] Injected text: "${transformedText}"`);
       }
 
@@ -333,7 +331,7 @@ export class SegmentManager extends EventEmitter {
       };
     } catch (error) {
       console.error("[SegmentManager] Transform and inject failed:", error);
-      return this.handleTransformationFallback(
+      return await this.handleTransformationFallback(
         segmentsToProcess,
         RESTORE_STATE,
         error instanceof Error ? error.message : "Unknown error",
@@ -346,7 +344,7 @@ export class SegmentManager extends EventEmitter {
     const trimmed = (text || "").trim();
     if (!trimmed) return;
     const SAVED_STATE = await this.saveState();
-    await this.textInjectionService.insertText(trimmed + " ");
+    await this.textInjectionService.insertText(trimmed);
     await this.restoreState(SAVED_STATE);
     this.clearAllSegments();
   }
@@ -354,11 +352,11 @@ export class SegmentManager extends EventEmitter {
   /**
    * Handle fallback to original text when transformation fails
    */
-  private handleTransformationFallback(
+  private async handleTransformationFallback(
     segmentsToProcess: TranscribedSegment[],
     restoreState: () => Promise<void>,
     error: string,
-  ): FlushResult {
+  ): Promise<FlushResult> {
     const originalText = segmentsToProcess
       .map((segment) => segment.text.trim())
       .filter((text) => text.length > 0)
@@ -368,9 +366,8 @@ export class SegmentManager extends EventEmitter {
       console.log(
         `[SegmentManager] Falling back to injecting original text: "${originalText}"`,
       );
-      this.textInjectionService
-        .insertText(originalText + " ")
-        .then(restoreState);
+      await this.textInjectionService.insertText(originalText);
+      await restoreState();
     }
 
     // Clear all segments after fallback injection

@@ -5,9 +5,10 @@ import { TrayService } from "../services/TrayService";
 import { SegmentUpdate } from "../types/SegmentTypes";
 import { ErrorManager } from "./ErrorManager";
 
+export type DictationState = "idle" | "recording" | "finishing";
+
 export class DictationFlowManager {
-  private _isRecording = false;
-  private _isFinishing = false;
+  private state: DictationState = "idle";
   private finishingTimeout: NodeJS.Timeout | null = null;
   private vadAudioBuffer: Float32Array[] = [];
   private vadSampleRate: number = 16000;
@@ -22,11 +23,11 @@ export class DictationFlowManager {
 
   // Public methods to check state
   isRecording(): boolean {
-    return this._isRecording;
+    return this.state === "recording";
   }
 
   isFinishing(): boolean {
-    return this._isFinishing;
+    return this.state === "finishing";
   }
 
   setFinishingTimeout(timeout: NodeJS.Timeout | null): NodeJS.Timeout | null {
@@ -36,8 +37,9 @@ export class DictationFlowManager {
   }
 
   async startDictation(): Promise<void> {
-    if (this._isRecording) return;
+    if (this.state !== "idle") return;
 
+    this.state = "recording";
     const startTime = Date.now();
     try {
       console.log("=== Starting dictation process ===");
@@ -72,39 +74,21 @@ export class DictationFlowManager {
   }
 
   async stopDictation(): Promise<void> {
-    if (!this._isRecording) return;
+    if (this.state !== "recording") return;
 
-    try {
-      console.log("=== Stopping dictation process ===");
-
-      this.clearFinishingTimeout();
-      this.resetRecordingState();
-      this.dictationWindowService.stopRecording();
-
-      await new Promise((r) => setTimeout(r, 250));
-
-      console.log(
-        "=== stopDictation called - this should be rare with new flow ===",
-      );
-
-      this.segmentManager.clearAllSegments();
-      await this.transcriptionPluginManager.stopTranscription();
-
-      setTimeout(() => {
-        this.dictationWindowService.closeDictationWindow();
-      }, 1000);
-
-      console.log("=== Dictation stopped successfully ===");
-    } catch (error) {
-      console.error("Failed to stop dictation:", error);
-      await this.cancelDictationFlow();
-    }
+    // The old stopDictation had a brittle timeout and was meant to be rare.
+    // A clean cancellation is a more robust action.
+    console.log(
+      "=== stopDictation called, redirecting to cancelDictationFlow for a clean exit ===",
+    );
+    await this.cancelDictationFlow();
   }
 
   async finishCurrentDictation(): Promise<void> {
-    if (!this._isRecording || this._isFinishing) return;
+    if (this.state !== "recording") return;
 
     try {
+      this.state = "finishing";
       console.log("=== Finishing current dictation with transform+inject ===");
 
       if (!this.hasSegmentsToProcess()) {
@@ -116,8 +100,8 @@ export class DictationFlowManager {
             this.transcriptionPluginManager.hasBufferedAudio()
           )
         ) {
-          console.log("No segments found, stopping dictation immediately");
-          await this.stopDictation();
+          console.log("No segments found, cancelling dictation immediately");
+          await this.cancelDictationFlow();
           return;
         }
       }
@@ -128,11 +112,7 @@ export class DictationFlowManager {
         } segments to transform and inject`,
       );
 
-      this.setFinishingState();
       this.dictationWindowService.setProcessingStatus();
-
-      await new Promise((r) => setTimeout(r, 1000));
-
       this.segmentManager.setAccumulatingMode(false);
 
       const criteria =
@@ -158,25 +138,42 @@ export class DictationFlowManager {
           skipTransformation: !!criteria?.skipTransformation,
         });
 
-      this.dictationWindowService.completeDictation(
-        this.dictationWindowService.getCurrentTranscription(),
-      );
-
-      await new Promise((r) => setTimeout(r, 500));
-      this.dictationWindowService.hideWindow();
-
       if (transformResult.success) {
         console.log(
           `Successfully transformed and injected ${transformResult.segmentsProcessed} segments`,
         );
+        this.dictationWindowService.completeDictation(
+          transformResult.transformedText,
+        );
       } else {
         console.error("Transform and inject failed:", transformResult.error);
+        // Fallback text was already injected by SegmentManager, just update window
+        this.dictationWindowService.completeDictation(
+          transformResult.transformedText,
+        );
       }
 
-      await this.completeDictationAfterFinishing();
+      // The window should hide after a brief moment to show the "complete" checkmark.
+      // This is one place a small, deliberate delay is acceptable for UX.
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      this.dictationWindowService.hideWindow();
+
+      // Final cleanup
+      await this.transcriptionPluginManager.stopTranscription();
+      this.segmentManager.clearAllSegments();
+      this.dictationWindowService.clearTranscription();
+      this.updateTrayIcon("idle");
+      this.state = "idle";
+      console.log("=== Dictation completed and cleaned up successfully ===");
     } catch (error) {
       console.error("Failed to finish current dictation:", error);
       await this.cancelDictationFlow();
+    } finally {
+      this.clearFinishingTimeout();
+      if (this.state === "finishing") {
+        // Ensure state is reset even if something unexpected happens
+        this.state = "idle";
+      }
     }
   }
 
@@ -207,8 +204,7 @@ export class DictationFlowManager {
         this.segmentManager.ignoreNextCompletedSegment();
       }
 
-      this._isRecording = true;
-      this._isFinishing = false;
+      this.state = "recording";
       this.updateTrayIcon("recording");
 
       // Properly reset the window state for continuing recording
@@ -222,15 +218,15 @@ export class DictationFlowManager {
     console.log("=== Cancelling dictation flow ===");
 
     this.clearFinishingTimeout();
-    const wasRecording = this._isRecording;
-    this.resetRecordingState();
+    const wasRecording = this.state !== "idle";
+    this.state = "idle";
     this.updateTrayIcon("idle");
 
     if (wasRecording) {
       await this.transcriptionPluginManager.stopTranscription();
     }
 
-    this.dictationWindowService.closeDictationWindow();
+    this.dictationWindowService.hideWindow();
     this.segmentManager.clearAllSegments();
 
     console.log("=== Dictation flow cancelled and cleaned up ===");
@@ -275,7 +271,6 @@ export class DictationFlowManager {
   }
 
   private startRecording(): void {
-    this._isRecording = true;
     this.trayService?.updateTrayIcon("recording");
     this.dictationWindowService.startRecording();
   }
@@ -331,39 +326,11 @@ export class DictationFlowManager {
     return !!(selectedText || allSegments.length > 0);
   }
 
-  private setFinishingState(): void {
-    this._isFinishing = true;
-  }
-
-  private async completeDictationAfterFinishing(): Promise<void> {
-    try {
-      console.log("=== Completing dictation after finishing ===");
-
-      this.clearFinishingTimeout();
-      this.resetRecordingState();
-      this.trayService?.updateTrayIcon("idle");
-
-      await this.transcriptionPluginManager.stopTranscription();
-      this.segmentManager.clearAllSegments();
-      this.dictationWindowService.clearTranscription();
-
-      console.log("=== Dictation completed successfully after finishing ===");
-    } catch (error) {
-      console.error("Failed to complete dictation after finishing:", error);
-      await this.cancelDictationFlow();
-    }
-  }
-
   private clearFinishingTimeout(): void {
     if (this.finishingTimeout) {
       clearTimeout(this.finishingTimeout);
       this.finishingTimeout = null;
     }
-  }
-
-  private resetRecordingState(): void {
-    this._isRecording = false;
-    this._isFinishing = false;
   }
 
   private updateTrayIcon(state: "idle" | "recording"): void {
