@@ -21,7 +21,6 @@ export interface TranscriptionSegment {
 
 export interface TranscriptionUpdate {
   segments: TranscriptionSegment[];
-  status?: "listening" | "transforming" | "processing";
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -58,6 +57,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   onDictationClear: (callback: () => void) => {
     ipcRenderer.on("dictation-clear", callback);
+  },
+
+  onSetStatus: (callback: (status: string) => void) => {
+    ipcRenderer.on("dictation-set-status", (event, status) =>
+      callback(status),
+    );
   },
 
   onPlayEndSound: (callback: () => void) => {
@@ -108,6 +113,7 @@ declare global {
       ) => void;
       onDictationComplete: (callback: (finalText: string) => void) => void;
       onDictationClear: (callback: () => void) => void;
+      onSetStatus: (callback: (status: string) => void) => void;
       onError: (callback: (payload: any) => void) => void;
       closeDictationWindow: () => void;
       cancelDictation: () => void;

@@ -90,6 +90,7 @@ export class DictationFlowManager {
     try {
       this.state = "finishing";
       console.log("=== Finishing current dictation with transform+inject ===");
+      this.dictationWindowService.stopRecording(); // Stop VAD audio processing
 
       if (!this.hasSegmentsToProcess()) {
         const criteria =
@@ -112,7 +113,7 @@ export class DictationFlowManager {
         } segments to transform and inject`,
       );
 
-      this.dictationWindowService.setProcessingStatus();
+      this.dictationWindowService.setStatus("transcribing");
       this.segmentManager.setAccumulatingMode(false);
 
       const criteria =
@@ -133,9 +134,11 @@ export class DictationFlowManager {
       console.log(
         "=== Transforming and injecting all accumulated segments ===",
       );
+      this.dictationWindowService.setStatus("transforming");
       const transformResult =
         await this.segmentManager.transformAndInjectAllSegmentsInternal({
           skipTransformation: !!criteria?.skipTransformation,
+          onInjecting: () => this.dictationWindowService.setStatus("injecting"),
         });
 
       if (transformResult.success) {
@@ -182,7 +185,7 @@ export class DictationFlowManager {
       console.log("=== Flushing segments while continuing recording ===");
 
       this.dictationWindowService.showWindow();
-      this.dictationWindowService.setTransformingStatus();
+      this.dictationWindowService.setStatus("transforming");
 
       const hadInProgress =
         this.segmentManager.getInProgressTranscribedSegments().length > 0;
@@ -228,6 +231,7 @@ export class DictationFlowManager {
 
     this.dictationWindowService.hideWindow();
     this.segmentManager.clearAllSegments();
+    this.dictationWindowService.setStatus("idle");
 
     console.log("=== Dictation flow cancelled and cleaned up ===");
   }

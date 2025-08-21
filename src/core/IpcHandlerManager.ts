@@ -21,6 +21,7 @@ export class IpcHandlerManager {
     private appStateManager: AppStateManager,
     private onStartDictation: () => Promise<void>,
     private onStopDictation: () => Promise<void>,
+    private onFinishDictation: () => Promise<void>,
     private onCancelDictation: () => Promise<void>,
     private onOnboardingComplete?: () => void,
   ) {}
@@ -67,8 +68,8 @@ export class IpcHandlerManager {
     });
 
     ipcMain.on("close-dictation-window", () => {
-      console.log("Closing dictation window via IPC, cancelling flow...");
-      this.onCancelDictation();
+      console.log("Closing dictation window via IPC, finishing flow...");
+      this.onFinishDictation();
     });
   }
 

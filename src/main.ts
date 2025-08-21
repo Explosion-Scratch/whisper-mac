@@ -118,6 +118,7 @@ class WhisperMacApp {
       this.appStateManager,
       () => this.dictationFlowManager.startDictation(),
       () => this.dictationFlowManager.stopDictation(),
+      () => this.dictationFlowManager.finishCurrentDictation(),
       () => this.dictationFlowManager.cancelDictationFlow(),
       () => this.handleOnboardingComplete(),
     );

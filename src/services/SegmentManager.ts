@@ -235,6 +235,7 @@ export class SegmentManager extends EventEmitter {
 
   async transformAndInjectAllSegmentsInternal(options: {
     skipTransformation?: boolean;
+    onInjecting?: () => void;
   }): Promise<FlushResult> {
     const SAVED_STATE = await this.saveState();
     const RESTORE_STATE = async () => {
@@ -272,6 +273,7 @@ export class SegmentManager extends EventEmitter {
           .join(" ");
 
         if (originalText) {
+          options.onInjecting?.();
           await this.textInjectionService.insertText(originalText);
           await RESTORE_STATE();
           console.log(
@@ -306,11 +308,13 @@ export class SegmentManager extends EventEmitter {
           segmentsToProcess,
           RESTORE_STATE,
           transformResult.error || "Transformation failed",
+          options.onInjecting,
         );
       }
 
       const transformedText = transformResult.transformedText;
       if (transformedText) {
+        options.onInjecting?.();
         await this.textInjectionService.insertText(transformedText);
         await RESTORE_STATE();
         console.log(`[SegmentManager] Injected text: "${transformedText}"`);
@@ -335,6 +339,7 @@ export class SegmentManager extends EventEmitter {
         segmentsToProcess,
         RESTORE_STATE,
         error instanceof Error ? error.message : "Unknown error",
+        options.onInjecting,
       );
     }
   }
@@ -356,6 +361,7 @@ export class SegmentManager extends EventEmitter {
     segmentsToProcess: TranscribedSegment[],
     restoreState: () => Promise<void>,
     error: string,
+    onInjecting?: () => void,
   ): Promise<FlushResult> {
     const originalText = segmentsToProcess
       .map((segment) => segment.text.trim())
@@ -366,6 +372,7 @@ export class SegmentManager extends EventEmitter {
       console.log(
         `[SegmentManager] Falling back to injecting original text: "${originalText}"`,
       );
+      onInjecting?.();
       await this.textInjectionService.insertText(originalText);
       await restoreState();
     }

@@ -10,12 +10,19 @@ export interface WindowPosition {
   y: number;
 }
 
+export type DictationStatus =
+  | "idle"
+  | "recording"
+  | "transcribing"
+  | "transforming"
+  | "injecting"
+  | "complete";
+
 export class DictationWindowService extends EventEmitter {
   private dictationWindow: BrowserWindow | null = null;
   private config: AppConfig;
   private currentSegments: Segment[] = [];
-  private currentStatus: "listening" | "transforming" | "processing" =
-    "listening";
+  private currentStatus: DictationStatus = "idle";
 
   constructor(config: AppConfig) {
     super();
@@ -264,6 +271,7 @@ export class DictationWindowService extends EventEmitter {
 
   startRecording(): void {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      this.setStatus("recording");
       this.dictationWindow.webContents.send("dictation-start-recording");
     }
   }
@@ -276,72 +284,32 @@ export class DictationWindowService extends EventEmitter {
 
   updateTranscription(update: SegmentUpdate): void {
     this.currentSegments = update.segments;
-
-    // Check if all segments are completed and there are no in-progress segments
-    const hasInProgressSegments = update.segments.some(
-      (segment) => segment.type === "inprogress" || !segment.completed,
-    );
-
-    // Only update status if we're not currently transforming or processing
-    if (
-      this.currentStatus !== "transforming" &&
-      this.currentStatus !== "processing"
-    ) {
-      if (hasInProgressSegments) {
-        this.currentStatus = "listening";
-      } else if (update.segments.length > 0) {
-        // All segments are completed, reset to listening state
-        this.currentStatus = "listening";
-      } else {
-        // No segments, default to listening
-        this.currentStatus = "listening";
-      }
-    }
-
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.webContents.send("dictation-transcription-update", {
         segments: this.currentSegments,
-        status: this.currentStatus,
       });
     }
   }
 
   completeDictation(finalText: string): void {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      this.setStatus("complete");
       this.dictationWindow.webContents.send("dictation-complete", finalText);
     }
   }
 
-  setTransformingStatus(): void {
-    this.currentStatus = "transforming";
+  setStatus(status: DictationStatus): void {
+    this.currentStatus = status;
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
-      this.dictationWindow.webContents.send("dictation-transcription-update", {
-        segments: this.currentSegments,
-        status: "transforming",
-      });
-    }
-  }
-
-  setProcessingStatus(): void {
-    this.currentStatus = "processing";
-    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
-      this.dictationWindow.webContents.send("dictation-transcription-update", {
-        segments: this.currentSegments,
-        status: "processing",
-      });
+      this.dictationWindow.webContents.send("dictation-set-status", status);
     }
   }
 
   clearTranscription(): void {
     this.currentSegments = [];
-    this.currentStatus = "listening";
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.webContents.send("dictation-clear");
-      // Also send an explicit status update to ensure UI reflects the change
-      this.dictationWindow.webContents.send("dictation-transcription-update", {
-        segments: [],
-        status: "listening",
-      });
+      this.setStatus("idle");
     }
   }
 
@@ -362,7 +330,7 @@ export class DictationWindowService extends EventEmitter {
 
     // Don't clear the window reference - keep it for reuse
     this.currentSegments = [];
-    this.currentStatus = "listening";
+    this.setStatus("idle");
     console.log("Transcription reset, window kept for reuse");
   }
 
@@ -383,7 +351,7 @@ export class DictationWindowService extends EventEmitter {
 
       // Clear current state
       this.currentSegments = [];
-      this.currentStatus = "listening";
+      this.setStatus("idle");
 
       // Don't reload the window content - keep it ready for reuse
       console.log("Window hidden successfully");
@@ -405,7 +373,7 @@ export class DictationWindowService extends EventEmitter {
     return this.currentSegments;
   }
 
-  getCurrentStatus(): "listening" | "transforming" | "processing" {
+  getCurrentStatus(): DictationStatus {
     return this.currentStatus;
   }
 
@@ -448,7 +416,7 @@ export class DictationWindowService extends EventEmitter {
 
     this.dictationWindow = null;
     this.currentSegments = [];
-    this.currentStatus = "listening";
+    this.currentStatus = "idle";
 
     console.log("=== DictationWindowService cleanup completed ===");
   }
