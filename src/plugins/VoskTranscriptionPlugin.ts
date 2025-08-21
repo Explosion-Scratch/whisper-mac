@@ -63,7 +63,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
     const packagedPath = join(
       process.resourcesPath,
       "vosk",
-      "vosk_transcribe.py"
+      "vosk_transcribe.py",
     );
     if (existsSync(packagedPath)) {
       return packagedPath;
@@ -156,7 +156,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
   public async ensureModelAvailable(
     options: Record<string, any>,
     onProgress?: (progress: any) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean> {
     const modelName =
       options.model ||
@@ -173,7 +173,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
     if (!modelInfo) {
       const availableModels = Object.keys(models).join(", ");
       throw new Error(
-        `Unknown Vosk model: ${modelName}. Available models: ${availableModels}`
+        `Unknown Vosk model: ${modelName}. Available models: ${availableModels}`,
       );
     }
 
@@ -204,7 +204,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         zipPath,
         modelName,
         onProgress,
-        onLog
+        onLog,
       );
 
       onLog?.(`Extracting model: ${modelName} to ${extractPath}`);
@@ -222,7 +222,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
       // Verify the model is properly installed
       if (!this.isModelDownloaded(modelName)) {
         throw new Error(
-          `Model extraction completed but validation failed. Model may be corrupt.`
+          `Model extraction completed but validation failed. Model may be corrupt.`,
         );
       }
 
@@ -281,7 +281,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
     filePath: string,
     modelName: string,
     onProgress?: (progress: ModelDownloadProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<void> {
     const https = require("https");
     const fs = require("fs");
@@ -297,7 +297,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
               filePath,
               modelName,
               onProgress,
-              onLog
+              onLog,
             )
               .then(resolve)
               .catch(reject);
@@ -309,14 +309,14 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
 
         if (response.statusCode !== 200) {
           reject(
-            new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`)
+            new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`),
           );
           return;
         }
 
         const totalBytes = parseInt(
           response.headers["content-length"] || "0",
-          10
+          10,
         );
         let downloadedBytes = 0;
 
@@ -359,8 +359,8 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
             if (totalBytes > 0 && stats.size !== totalBytes) {
               reject(
                 new Error(
-                  `Downloaded file size ${stats.size} does not match expected ${totalBytes}`
-                )
+                  `Downloaded file size ${stats.size} does not match expected ${totalBytes}`,
+                ),
               );
               return;
             }
@@ -399,7 +399,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
   private async extractZipFile(
     zipPath: string,
     extractPath: string,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<void> {
     const { mkdirSync, rmSync } = require("fs");
 
@@ -463,7 +463,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
                   .forEach((file: string) => {
                     require("fs").renameSync(
                       join(tempPath, file),
-                      join(extractPath, file)
+                      join(extractPath, file),
                     );
                   });
                 rmSync(tempPath, { recursive: true, force: true });
@@ -475,8 +475,8 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
             if (!foundModel) {
               reject(
                 new Error(
-                  `Extraction completed but model structure is invalid. Expected conf/model.conf in ${extractPath}`
-                )
+                  `Extraction completed but model structure is invalid. Expected conf/model.conf in ${extractPath}`,
+                ),
               );
               return;
             }
@@ -487,8 +487,8 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         } else {
           reject(
             new Error(
-              `Extraction failed with code ${code}: ${stderr || stdout}`
-            )
+              `Extraction failed with code ${code}: ${stderr || stdout}`,
+            ),
           );
         }
       });
@@ -511,7 +511,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
       // Check if we have our transcription script
       if (!existsSync(this.voskScriptPath)) {
         console.log(
-          `Vosk transcription script not found at: ${this.voskScriptPath}`
+          `Vosk transcription script not found at: ${this.voskScriptPath}`,
         );
         return false;
       }
@@ -533,7 +533,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         ["-c", "import vosk; print('vosk available')"],
         {
           stdio: ["ignore", "pipe", "pipe"],
-        }
+        },
       );
 
       let hasOutput = false;
@@ -562,7 +562,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
   async startTranscription(
     onUpdate: (update: SegmentUpdate) => void,
     onProgress?: (progress: TranscriptionSetupProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<void> {
     console.log("=== Starting Vosk transcription plugin ===");
 
@@ -589,7 +589,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
             message: progress.message,
           });
         },
-        onLog
+        onLog,
       );
 
       this.setTranscriptionCallback(onUpdate);
@@ -754,21 +754,12 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
     };
   }
 
-  configure(config: Record<string, any>): void {
-    if (config.model !== undefined) {
-      this.config.set("voskModel", config.model);
-    }
-    if (config.sampleRate !== undefined) {
-      this.config.set("voskSampleRate", config.sampleRate);
-    }
-  }
-
   /**
    * Convert Float32Array audio data to WAV file for Vosk
    */
   private async saveAudioAsWav(audioData: Float32Array): Promise<string> {
     return WavProcessor.saveAudioAsWav(audioData, this.tempDir, {
-      sampleRate: this.config.get("voskSampleRate") || 16000,
+      sampleRate: this.options.sampleRate || 16000,
       numChannels: 1,
       bitsPerSample: 16,
     });
@@ -789,7 +780,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         "--model",
         modelPath,
         "--sample-rate",
-        (this.config.get("voskSampleRate") || 16000).toString(),
+        (this.options.sampleRate || 16000).toString(),
       ];
 
       console.log(`Running Vosk transcription: python3 ${args.join(" ")}`);
@@ -816,7 +807,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
           resolve(rawTranscription || "[No speech detected]");
         } else {
           const error = new Error(
-            `Vosk transcription failed with code ${code}: ${stderr}`
+            `Vosk transcription failed with code ${code}: ${stderr}`,
           );
           console.error("Vosk error:", error.message);
           reject(error);
@@ -920,7 +911,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   async verifyOptions(
-    options: Record<string, any>
+    options: Record<string, any>,
   ): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
@@ -952,8 +943,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     try {
       // Check if model exists - this is required for activation
-      const modelName =
-        this.config.get("voskModel") || "vosk-model-small-en-us-0.15";
+      const modelName = this.options.model || "vosk-model-small-en-us-0.15";
       const modelPath = join(this.config.getModelsDir(), modelName);
 
       if (!existsSync(modelPath)) {
@@ -1023,7 +1013,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
       // Calculate model file size if it exists
       const modelPath = join(
         this.config.getModelsDir(),
-        this.config.get("voskModel") || ""
+        this.options.model || "",
       );
       totalSize += FileSystemService.calculateFileSize(modelPath);
 
@@ -1190,23 +1180,23 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
 
   async updateOptions(
     options: Record<string, any>,
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
+    // Preserve previous model selection for comparison
+    const previousModel = this.options.model;
     this.setOptions(options);
 
-    // Handle model changes
-    if (options.model && options.model !== this.config.get("voskModel")) {
+    // Handle model changes only when model actually changed
+    if (options.model && options.model !== previousModel) {
       if (uiFunctions) {
         uiFunctions.showProgress(`Switching to model ${options.model}...`, 0);
       }
       this.setLoadingState(true, `Switching to model ${options.model}...`);
 
       try {
-        // Update model configuration
-        this.config.set("voskModel", options.model);
-
         // Check if new model exists, download if missing
-        const modelPath = join(this.config.getModelsDir(), options.model);
+        const modelsDir = this.config.getModelsDir();
+        const modelPath = join(modelsDir, options.model);
         if (!existsSync(modelPath)) {
           const message = `Model ${options.model} not found, downloading...`;
           this.setLoadingState(true, message);
@@ -1222,7 +1212,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
             this.setLoadingState(false);
             if (uiFunctions) {
               uiFunctions.showSuccess(
-                `Downloaded and switched to model ${options.model}`
+                `Downloaded and switched to model ${options.model}`,
               );
               uiFunctions.hideProgress();
             }
@@ -1247,15 +1237,13 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
       }
     }
 
-    // Apply other configuration changes
-    this.configure(options);
-
+    // All configuration is now handled via options
     console.log("Vosk plugin options updated:", options);
   }
 
   async downloadModel(
     modelName: string,
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
     this.setLoadingState(true, `Downloading ${modelName}...`);
 

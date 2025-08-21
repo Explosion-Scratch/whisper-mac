@@ -33,7 +33,7 @@ export class AppConfig {
   // AI transformation configuration
   ai: AiTransformationConfig;
 
-  // Plugin configuration storage
+  // Plugin configuration storage (no deprecated keys)
   private pluginConfig: Record<string, any> = {};
 
   constructor() {
@@ -87,34 +87,22 @@ export class AppConfig {
   /**
    * Generic getter for plugin configuration
    */
-  get(key: string): any {
-    return this.pluginConfig[key];
-  }
+
 
   /**
    * Generic setter for plugin configuration
    */
-  set(key: string, value: any): void {
-    this.pluginConfig[key] = value;
-  }
+
 
   /**
    * Check if a plugin config key exists
    */
-  has(key: string): boolean {
-    return key in this.pluginConfig;
-  }
+
 
   /**
    * Delete a plugin config key
    */
-  delete(key: string): boolean {
-    if (key in this.pluginConfig) {
-      delete this.pluginConfig[key];
-      return true;
-    }
-    return false;
-  }
+
 
   /**
    * Get all plugin configuration
@@ -124,9 +112,5 @@ export class AppConfig {
   }
 
   /**
-   * Set multiple plugin config values
-   */
-  setPluginConfig(config: Record<string, any>): void {
-    this.pluginConfig = { ...this.pluginConfig, ...config };
-  }
+
 }
