@@ -5,6 +5,9 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
   checkAccessibility: () => ipcRenderer.invoke("onboarding:checkAccessibility"),
   resetAccessibilityCache: () =>
     ipcRenderer.invoke("onboarding:resetAccessibilityCache"),
+  checkMicrophone: () => ipcRenderer.invoke("onboarding:checkMicrophone"),
+  resetMicrophoneCache: () =>
+    ipcRenderer.invoke("onboarding:resetMicrophoneCache"),
   getPluginOptions: () => ipcRenderer.invoke("onboarding:getPluginOptions"),
   getCurrentPluginInfo: () =>
     ipcRenderer.invoke("onboarding:getCurrentPluginInfo"),

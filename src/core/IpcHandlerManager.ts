@@ -22,7 +22,7 @@ export class IpcHandlerManager {
     private onStartDictation: () => Promise<void>,
     private onStopDictation: () => Promise<void>,
     private onCancelDictation: () => Promise<void>,
-    private onOnboardingComplete?: () => void,
+    private onOnboardingComplete?: () => void
   ) {}
 
   setupIpcHandlers(): void {
@@ -107,7 +107,7 @@ export class IpcHandlerManager {
                   modelRepoId: progress.modelRepoId,
                   message: progress.message,
                 });
-              },
+              }
             );
 
           if (success) {
@@ -132,7 +132,7 @@ export class IpcHandlerManager {
         } finally {
           this.appStateManager.setSetupStatus("idle");
         }
-      },
+      }
     );
   }
 
@@ -143,7 +143,7 @@ export class IpcHandlerManager {
         try {
           const { pluginName, modelName } = payload;
           console.log(
-            `Switching to plugin: ${pluginName}, model: ${modelName}`,
+            `Switching to plugin: ${pluginName}, model: ${modelName}`
           );
 
           const onProgress = (progress: any) => {
@@ -158,7 +158,7 @@ export class IpcHandlerManager {
             pluginName,
             modelName,
             onProgress,
-            onLog,
+            onLog
           );
 
           return { success };
@@ -169,7 +169,7 @@ export class IpcHandlerManager {
             error: error instanceof Error ? error.message : "Unknown error",
           };
         }
-      },
+      }
     );
 
     ipcMain.handle("unified:isDownloading", async () => {
@@ -242,13 +242,28 @@ export class IpcHandlerManager {
       return true;
     });
 
+    ipcMain.handle("onboarding:checkMicrophone", async () => {
+      const { MicrophonePermissionService } = await import(
+        "../services/MicrophonePermissionService"
+      );
+      const microphoneService = new MicrophonePermissionService();
+      const ok = await microphoneService.ensureMicrophonePermissions();
+      return ok;
+    });
+
+    ipcMain.handle("onboarding:resetMicrophoneCache", () => {
+      // Note: Microphone permission cache is managed in the renderer process
+      // This is just a placeholder for consistency with accessibility pattern
+      return true;
+    });
+
     // Legacy handlers removed - now using unified plugin system
 
     ipcMain.handle(
       "onboarding:setPlugin",
       async (
         _e,
-        payload: { pluginName: string; options?: Record<string, any> },
+        payload: { pluginName: string; options?: Record<string, any> }
       ) => {
         const { pluginName, options = {} } = payload;
         this.config.set("transcriptionPlugin", pluginName);
@@ -271,9 +286,9 @@ export class IpcHandlerManager {
         // Don't activate the plugin during onboarding - just store the configuration
         // Plugin will be activated after onboarding setup is complete
         console.log(
-          `Configured plugin ${pluginName} for onboarding - activation will happen after setup`,
+          `Configured plugin ${pluginName} for onboarding - activation will happen after setup`
         );
-      },
+      }
     );
 
     ipcMain.handle("onboarding:setAiEnabled", async (_e, enabled: boolean) => {
@@ -284,7 +299,7 @@ export class IpcHandlerManager {
         if (criteria.skipTransformation) {
           // Plugin handles transformation internally, so AI enhancement is not needed
           console.log(
-            `Plugin ${activePlugin.name} has skipTransformation, AI enhancement not needed`,
+            `Plugin ${activePlugin.name} has skipTransformation, AI enhancement not needed`
           );
           return { success: true, skipped: true };
         }
@@ -298,7 +313,7 @@ export class IpcHandlerManager {
         const validationResult =
           await validationService.validateAiConfiguration(
             this.config.ai.baseUrl,
-            this.config.ai.model,
+            this.config.ai.model
           );
 
         if (!validationResult.isValid) {
@@ -326,7 +341,7 @@ export class IpcHandlerManager {
 
           if (!validationResult.isValid) {
             throw new Error(
-              `Invalid AI configuration: ${validationResult.error}`,
+              `Invalid AI configuration: ${validationResult.error}`
             );
           }
         }
@@ -336,7 +351,7 @@ export class IpcHandlerManager {
         this.settingsService.getSettingsManager().saveSettings();
         this.config.ai.baseUrl = baseUrl;
         this.config.ai.model = model;
-      },
+      }
     );
 
     ipcMain.handle(
@@ -348,7 +363,7 @@ export class IpcHandlerManager {
         const secure = new SecureStorageService();
         await secure.setApiKey(payload.apiKey);
         return { success: true };
-      },
+      }
     );
 
     ipcMain.handle("onboarding:complete", async () => {
@@ -360,7 +375,7 @@ export class IpcHandlerManager {
 
         await this.transcriptionPluginManager.setActivePlugin(
           activePlugin,
-          pluginOptions,
+          pluginOptions
         );
 
         // Mark onboarding complete and continue normal init

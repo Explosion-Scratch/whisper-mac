@@ -7,3 +7,5 @@ release/
 build/
 .whispermac-data
 build
+scripts/photon.zip
+node_modules/

@@ -14,7 +14,7 @@
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never",
     "setup:plugins": "node scripts/setup-plugins.js",
-    "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js",
+    "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js && bun scripts/download-photon.js",
     "postinstall": "bun run prep",
     "icons": "node scripts/generate-icons.js",
     "build:mac": "bun run build && bun run icons && bun run prep && electron-builder --mac --publish=never",

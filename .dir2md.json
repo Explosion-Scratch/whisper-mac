@@ -1,0 +1,168 @@
+{
+  "selectedFiles": [
+    "src/config/AppConfig.ts",
+    "src/config/SettingsSchema.ts",
+    "src/config/SettingsManager.ts",
+    "src/helpers/WavProcessor.ts",
+    "src/plugins/TranscriptionPlugin.ts",
+    "src/plugins/TranscriptionPluginManager.ts",
+    "src/preload/onboardingPreload.ts",
+    "src/preload/dictationPreload.ts",
+    "src/preload/settingsPreload.ts",
+    "src/preload/errorPreload.ts",
+    "src/services/UnifiedModelDownloadService.ts",
+    "src/services/MicrophonePermissionService.ts",
+    "src/services/ConfigurableActionsService.ts",
+    "src/services/AiValidationService.test.ts",
+    "src/services/DictationWindowService.ts",
+    "src/services/TransformationService.ts",
+    "src/services/TextInjectionService.ts",
+    "src/services/SecureStorageService.ts",
+    "src/services/SelectedTextService.ts",
+    "src/services/AiValidationService.ts",
+    "src/services/ErrorWindowService.ts",
+    "src/services/FileSystemService.ts",
+    "src/services/AiProviderService.ts",
+    "src/services/SettingsService.ts",
+    "src/services/SegmentManager.ts",
+    "src/services/ModelManager.ts",
+    "src/services/TrayService.ts",
+    "src/services/AppEventBus.ts",
+    "src/main.ts",
+    "src/core/index.ts",
+    "src/plugins/index.ts"
+  ],
+  "timestamp": "2025-08-21T18:17:15.828Z",
+  "cwd": "/Users/tjs/Documents/whisper-mac-extract",
+  "presets": {
+    "settings": {
+      "selectedFiles": [
+        "src/renderer/settingsWindow.js",
+        "src/renderer/settingsWindow.html",
+        "src/preload/settingsPreload.ts",
+        "src/services/SettingsService.ts",
+        "src/core/index.ts",
+        "src/plugins/index.ts",
+        "src/main.ts"
+      ],
+      "timestamp": "2025-08-21T18:09:01.875Z"
+    },
+    "plugins": {
+      "selectedFiles": [
+        "src/plugins/WhisperCppTranscriptionPlugin.ts",
+        "src/plugins/TranscriptionPluginManager.ts",
+        "src/plugins/GeminiTranscriptionPlugin.ts",
+        "src/plugins/VoskTranscriptionPlugin.ts",
+        "src/plugins/YapTranscriptionPlugin.ts",
+        "src/plugins/TranscriptionPlugin.ts",
+        "src/plugins/index.ts",
+        "docs/UNIFIED_PLUGIN_SYSTEM.md",
+        "docs/UNIFIED_PLUGIN_IMPLEMENTATION.md"
+      ],
+      "timestamp": "2025-08-21T18:09:56.318Z"
+    },
+    "lifecycle": {
+      "selectedFiles": [
+        "src/core/TrayInteractionManager.ts",
+        "src/core/InitializationManager.ts",
+        "src/core/DictationFlowManager.ts",
+        "src/core/PromiseManager.test.ts",
+        "src/core/IpcHandlerManager.ts",
+        "src/core/ShortcutManager.ts",
+        "src/core/PromiseManager.ts",
+        "src/core/AppStateManager.ts",
+        "src/core/CleanupManager.ts",
+        "src/core/WindowManager.ts",
+        "src/core/ErrorManager.ts",
+        "src/core/README.md",
+        "src/core/index.ts"
+      ],
+      "timestamp": "2025-08-21T18:10:46.427Z"
+    },
+    "dictationwindow": {
+      "selectedFiles": [
+        "src/services/DictationWindowService.ts",
+        "src/renderer/dictationWindow.html",
+        "src/core/DictationFlowManager.ts",
+        "src/preload/dictationPreload.ts",
+        "src/renderer/audio-visualizer.js"
+      ],
+      "timestamp": "2025-08-21T18:11:45.006Z"
+    },
+    "build": {
+      "selectedFiles": [
+        "package.json",
+        "tsconfig.json",
+        "plugins-setup/yap-setup.js",
+        "plugins-setup/vosk-setup.js",
+        "plugins-setup/whisper-cpp-setup.js",
+        "scripts/vosk_transcribe.py",
+        "scripts/prep-vad-assets.js",
+        "scripts/generate-icons.js",
+        "scripts/setup-plugins.js",
+        "scripts/copy-assets.js",
+        "src/plugins/TranscriptionPluginManager.ts",
+        "docs/UNIFIED_PLUGIN_IMPLEMENTATION.md",
+        "docs/UNIFIED_PLUGIN_SYSTEM.md"
+      ],
+      "timestamp": "2025-08-21T18:13:00.904Z"
+    },
+    "actions": {
+      "selectedFiles": [
+        "docs/ACTIONS.md",
+        "src/types/ActionTypes.ts",
+        "src/config/DefaultActions.ts",
+        "src/services/ConfigurableActionsService.ts"
+      ],
+      "timestamp": "2025-08-21T18:13:22.351Z"
+    },
+    "onboarding": {
+      "selectedFiles": [
+        "src/preload/onboardingPreload.ts",
+        "src/renderer/onboarding.html",
+        "src/core/WindowManager.ts",
+        "src/core/index.ts",
+        "src/plugins/index.ts",
+        "src/main.ts"
+      ],
+      "timestamp": "2025-08-21T18:14:04.694Z"
+    },
+    "flow": {
+      "selectedFiles": [
+        "src/config/AppConfig.ts",
+        "src/config/SettingsSchema.ts",
+        "src/config/SettingsManager.ts",
+        "src/helpers/WavProcessor.ts",
+        "src/plugins/TranscriptionPlugin.ts",
+        "src/plugins/TranscriptionPluginManager.ts",
+        "src/preload/onboardingPreload.ts",
+        "src/preload/dictationPreload.ts",
+        "src/preload/settingsPreload.ts",
+        "src/preload/errorPreload.ts",
+        "src/services/UnifiedModelDownloadService.ts",
+        "src/services/MicrophonePermissionService.ts",
+        "src/services/ConfigurableActionsService.ts",
+        "src/services/AiValidationService.test.ts",
+        "src/services/DictationWindowService.ts",
+        "src/services/TransformationService.ts",
+        "src/services/TextInjectionService.ts",
+        "src/services/SecureStorageService.ts",
+        "src/services/SelectedTextService.ts",
+        "src/services/AiValidationService.ts",
+        "src/services/ErrorWindowService.ts",
+        "src/services/FileSystemService.ts",
+        "src/services/AiProviderService.ts",
+        "src/services/SettingsService.ts",
+        "src/services/SegmentManager.ts",
+        "src/services/ModelManager.ts",
+        "src/services/TrayService.ts",
+        "src/services/AppEventBus.ts",
+        "src/main.ts",
+        "src/core/index.ts",
+        "src/plugins/index.ts"
+      ],
+      "timestamp": "2025-08-21T18:17:14.525Z"
+    }
+  },
+  "prompt": ""
+}

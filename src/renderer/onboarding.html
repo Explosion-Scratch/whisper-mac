@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Welcome to WhisperMac</title>
-    <link rel="stylesheet" href="../photon/dist/css/photon.css" />
+    <link rel="stylesheet" href="../photon/css/photon.css" />
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
       :root {
@@ -367,8 +367,8 @@
               </div>
               <p class="micro">
                 Dictate anywhere on macOS. This quick setup will enable
-                accessibility permissions, pick a Whisper model, and optionally
-                enable AI polishing.
+                accessibility and microphone permissions, pick a Whisper model,
+                and optionally enable AI polishing.
               </p>
               <div class="card">
                 <div class="hint">
@@ -421,7 +421,50 @@
             </div>
           </section>
 
-          <section class="slide" data-step="model" v-if="idx === 2">
+          <section class="slide" data-step="microphone" v-if="idx === 2">
+            <div class="content">
+              <div class="step-header">
+                <span class="step-icon"
+                  ><i class="ph-duotone ph-microphone"></i
+                ></span>
+                <h1>Microphone permission</h1>
+              </div>
+              <p class="micro">
+                We need microphone access to capture your voice for
+                transcription.
+              </p>
+              <div class="row">
+                <button
+                  id="checkMicrophoneBtn"
+                  class="btn"
+                  @click="checkMicrophone"
+                  :disabled="isCheckingMicrophone"
+                >
+                  Check permission
+                </button>
+                <div
+                  v-if="isCheckingMicrophone"
+                  class="spinner"
+                  aria-hidden="true"
+                ></div>
+                <span
+                  id="microphoneStatus"
+                  class="hint"
+                  :style="{ color: microphoneStatus === 'Enabled' ? '#28a745' : '#dc3545' }"
+                  >{{ microphoneStatus }}</span
+                >
+              </div>
+              <div class="card" v-if="microphoneStatus !== 'Enabled'">
+                <div class="hint">
+                  <strong>Required:</strong> Microphone permissions must be
+                  enabled to capture your voice for transcription. The app will
+                  check for permissions every few seconds.
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="slide" data-step="model" v-if="idx === 3">
             <div class="content">
               <div class="step-header">
                 <span class="step-icon"
@@ -469,7 +512,8 @@
                       :key="modelOpt.value"
                       :value="modelOpt.value"
                     >
-                      {{ modelOpt.label }}{{ modelOpt.size ? ` (${modelOpt.size})` : '' }}
+                      {{ modelOpt.label }}{{ modelOpt.size ? `
+                      (${modelOpt.size})` : '' }}
                     </option>
                   </select>
 
@@ -531,7 +575,7 @@
             </div>
           </section>
 
-          <section class="slide" data-step="ai" v-if="idx === 3">
+          <section class="slide" data-step="ai" v-if="idx === 4">
             <div class="content">
               <div class="step-header">
                 <span class="step-icon"
@@ -614,7 +658,7 @@
             </div>
           </section>
 
-          <section class="slide" data-step="setup" v-if="idx === 4">
+          <section class="slide" data-step="setup" v-if="idx === 5">
             <div class="content">
               <div class="step-header">
                 <span class="step-icon"
@@ -682,6 +726,8 @@
           const idx = ref(0);
           const accessStatus = ref("Not checked yet");
           const isCheckingAccess = ref(false);
+          const microphoneStatus = ref("Not checked yet");
+          const isCheckingMicrophone = ref(false);
           const aiEnabled = ref(false);
           const aiBaseUrl = ref("");
           const aiModel = ref("");
@@ -701,7 +747,7 @@
           const setupDone = ref(false);
 
           const nextLabel = computed(() =>
-            idx.value === 4 ? "Finish" : "Next"
+            idx.value === 5 ? "Finish" : "Next"
           );
 
           const canProceed = computed(() => {
@@ -709,14 +755,18 @@
             if (idx.value === 1) {
               return accessStatus.value === "Enabled";
             }
-            // On AI step (idx === 3), check if AI is properly configured when enabled
-            if (idx.value === 3) {
+            // On microphone step (idx === 2), check if permissions are enabled
+            if (idx.value === 2) {
+              return microphoneStatus.value === "Enabled";
+            }
+            // On AI step (idx === 4), check if AI is properly configured when enabled
+            if (idx.value === 4) {
               if (aiEnabled.value && aiValidationError.value) {
                 return false;
               }
             }
-            // On setup step (idx === 4), check if setup is done
-            if (idx.value === 4) {
+            // On setup step (idx === 5), check if setup is done
+            if (idx.value === 5) {
               return setupDone.value;
             }
             // All other steps can proceed
@@ -786,8 +836,31 @@
               }
             }
 
-            if (idx.value === 4 && !setupDone.value) return;
+            // Check microphone permissions before allowing progression from step 2
             if (idx.value === 2) {
+              try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                  audio: {
+                    sampleRate: 16000,
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                  },
+                });
+
+                // Immediately stop all tracks to release the microphone
+                stream.getTracks().forEach((track) => {
+                  track.stop();
+                });
+              } catch (error) {
+                microphoneStatus.value =
+                  "Please enable microphone permissions first";
+                return;
+              }
+            }
+
+            if (idx.value === 5 && !setupDone.value) return;
+            if (idx.value === 3) {
               const currentOptions =
                 selectedOptions.value[pluginSelect.value] || {};
               // Convert Vue reactive object to plain object to avoid cloning errors
@@ -797,7 +870,7 @@
                 plainOptions
               );
             }
-            if (idx.value === 3) {
+            if (idx.value === 4) {
               // If AI is enabled, validate configuration before proceeding
               if (aiEnabled.value) {
                 const result = await window.electronAPI.validateAiConfiguration(
@@ -821,7 +894,7 @@
                 );
               }
             }
-            if (idx.value < 4) {
+            if (idx.value < 5) {
               idx.value += 1;
             } else {
               await window.onboardingAPI.complete();
@@ -840,6 +913,36 @@
             isCheckingAccess.value = false;
           };
 
+          const checkMicrophone = async () => {
+            isCheckingMicrophone.value = true;
+            microphoneStatus.value = "Checking...";
+            try {
+              // Test microphone access directly in the renderer process
+              const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  sampleRate: 16000,
+                  channelCount: 1,
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                },
+              });
+
+              // Immediately stop all tracks to release the microphone
+              stream.getTracks().forEach((track) => {
+                track.stop();
+              });
+
+              microphoneStatus.value = "Enabled";
+            } catch (error) {
+              console.error("Microphone permission denied:", error);
+              microphoneStatus.value =
+                "Instructions shown. Please enable and return.";
+              // Show system preferences dialog
+              await window.onboardingAPI.checkMicrophone();
+            }
+            isCheckingMicrophone.value = false;
+          };
+
           const startAccessibilityMonitoring = () => {
             // Check accessibility status every 2 seconds when on the accessibility step
             const interval = setInterval(async () => {
@@ -852,6 +955,41 @@
                 } else if (!ok && accessStatus.value === "Enabled") {
                   accessStatus.value =
                     "Instructions shown. Please enable and return.";
+                }
+              }
+            }, 2000);
+
+            // Clean up interval when component is unmounted
+            return () => clearInterval(interval);
+          };
+
+          const startMicrophoneMonitoring = () => {
+            // Check microphone status every 2 seconds when on the microphone step
+            const interval = setInterval(async () => {
+              if (idx.value === 2 && !isCheckingMicrophone.value) {
+                try {
+                  const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                      sampleRate: 16000,
+                      channelCount: 1,
+                      echoCancellation: true,
+                      noiseSuppression: true,
+                    },
+                  });
+
+                  // Immediately stop all tracks to release the microphone
+                  stream.getTracks().forEach((track) => {
+                    track.stop();
+                  });
+
+                  if (microphoneStatus.value !== "Enabled") {
+                    microphoneStatus.value = "Enabled";
+                  }
+                } catch (error) {
+                  if (microphoneStatus.value === "Enabled") {
+                    microphoneStatus.value =
+                      "Instructions shown. Please enable and return.";
+                  }
                 }
               }
             }, 2000);
@@ -946,7 +1084,11 @@
             init();
 
             // Start accessibility monitoring
-            const cleanupMonitoring = startAccessibilityMonitoring();
+            const cleanupAccessibilityMonitoring =
+              startAccessibilityMonitoring();
+
+            // Start microphone monitoring
+            const cleanupMicrophoneMonitoring = startMicrophoneMonitoring();
 
             // Add watchers for AI configuration changes
             const aiBaseUrlInput = document.getElementById("aiBaseUrl");
@@ -989,7 +1131,8 @@
 
             // Clean up monitoring on unmount
             return () => {
-              cleanupMonitoring();
+              cleanupAccessibilityMonitoring();
+              cleanupMicrophoneMonitoring();
             };
           });
 
@@ -997,6 +1140,8 @@
             idx,
             accessStatus,
             isCheckingAccess,
+            microphoneStatus,
+            isCheckingMicrophone,
             aiEnabled,
             aiBaseUrl,
             aiModel,
@@ -1022,6 +1167,7 @@
             onPluginChange,
             updateSelectedOption,
             checkAccess,
+            checkMicrophone,
             onAiEnabledChange,
             validateAiConfig,
             startAccessibilityMonitoring,
