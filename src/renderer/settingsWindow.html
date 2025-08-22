@@ -1367,6 +1367,205 @@
           transform: rotate(360deg);
         }
       }
+
+      /* Dark mode */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --color-bg-primary: #0b0b0c;
+          --color-bg-secondary: rgba(30, 30, 33, 0.4);
+          --color-bg-tertiary: rgba(22, 22, 24, 0.6);
+          --color-bg-sidebar: rgba(30, 30, 33, 0.28);
+
+          --color-border-primary: rgba(255, 255, 255, 0.12);
+          --color-border-secondary: rgba(255, 255, 255, 0.18);
+          --color-border-focus: #007aff;
+
+          --color-text-primary: #ececec;
+          --color-text-secondary: #a2a2a7;
+          --color-text-tertiary: #666666;
+          --color-text-inverse: #ffffff;
+        }
+
+        body {
+          color-scheme: dark;
+          color: var(--color-text-primary);
+          background: rgba(0, 0, 0, 0.04);
+        }
+
+        .window {
+          background: rgba(0, 0, 0, 0.02);
+        }
+
+        .toolbar-header {
+          background: rgba(30, 30, 33, 0.25);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .sidebar {
+          background: rgba(30, 30, 33, 0.28);
+          border-right: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .nav-group-item {
+          color: var(--color-text-primary);
+        }
+
+        .nav-group-item:hover {
+          background: rgba(0, 122, 255, 0.12);
+        }
+
+        .nav-group-item.active {
+          background: rgba(0, 122, 255, 0.2);
+        }
+
+        .settings-content {
+          background: var(--color-bg-primary);
+          border-left: 1px solid var(--color-border-primary);
+        }
+
+        .form-group {
+          background: rgba(255, 255, 255, 0.02);
+        }
+
+        .form-group:hover {
+          background: rgba(255, 255, 255, 0.04);
+        }
+
+        .form-control {
+          background: rgba(255, 255, 255, 0.06);
+          color: var(--color-text-primary);
+          border-color: var(--color-border-primary);
+        }
+
+        .form-control:focus {
+          border-color: var(--color-border-focus);
+        }
+
+        .form-control:disabled {
+          background: rgba(255, 255, 255, 0.03);
+          color: var(--color-text-tertiary);
+        }
+
+        .btn {
+          background: rgba(255, 255, 255, 0.06);
+          color: var(--color-text-primary);
+          border-color: var(--color-border-primary);
+        }
+
+        .btn:hover {
+          background: rgba(255, 255, 255, 0.12);
+          border-color: var(--color-border-secondary);
+        }
+
+        .checkbox {
+          background: rgba(255, 255, 255, 0.06);
+          border-color: var(--color-border-primary);
+        }
+
+        .checkbox:checked {
+          background: var(--color-primary);
+          border-color: var(--color-primary);
+        }
+
+        .checkbox:hover {
+          border-color: var(--color-border-focus);
+        }
+
+        .total-data-usage-summary {
+          background: linear-gradient(
+            135deg,
+            rgba(0, 122, 255, 0.12),
+            rgba(0, 122, 255, 0.06)
+          );
+          border-color: var(--color-border-primary);
+        }
+
+        .plugin-config-section {
+          background: rgba(255, 255, 255, 0.04);
+          border-color: var(--color-border-primary);
+        }
+
+        .plugin-data-item {
+          background: rgba(255, 255, 255, 0.02);
+          border-color: var(--color-border-primary);
+        }
+
+        .plugin-data-item:hover {
+          background: rgba(255, 255, 255, 0.04);
+        }
+
+        .plugin-data-item.active {
+          background: rgba(0, 122, 255, 0.08);
+        }
+
+        .plugin-data-item-detail:hover {
+          background: rgba(0, 122, 255, 0.08);
+        }
+
+        .actions-editor-container {
+          background: var(--color-bg-secondary);
+          border-color: var(--color-border-primary);
+        }
+
+        .actions-editor-toolbar {
+          background: rgba(0, 122, 255, 0.08);
+          border-bottom-color: var(--color-border-primary);
+        }
+
+        .action-card {
+          background: var(--color-bg-primary);
+          border-bottom-color: var(--color-border-primary);
+        }
+
+        .action-card:hover {
+          background: rgba(0, 122, 255, 0.04);
+        }
+
+        .action-card-body {
+          background: rgba(0, 0, 0, 0.1);
+          border-top-color: var(--color-border-primary);
+        }
+
+        .pattern-item,
+        .handler-item {
+          background: var(--color-bg-primary);
+          border-color: var(--color-border-primary);
+        }
+
+        .form-actions {
+          background: rgba(255, 255, 255, 0.02);
+        }
+
+        .slider {
+          background: var(--color-border-primary);
+        }
+
+        .item-count {
+          background: var(--color-bg-secondary);
+        }
+
+        .plugin-details-btn {
+          background: var(--color-bg-tertiary);
+          border-color: var(--color-border-primary);
+        }
+
+        .plugin-details-btn:hover {
+          background: var(--color-bg-secondary);
+          border-color: var(--color-border-secondary);
+        }
+
+        ::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.05);
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.3);
+        }
+      }
     </style>
   </head>
   <body>

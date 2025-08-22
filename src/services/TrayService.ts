@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, nativeImage } from "electron";
 import { join } from "path";
+import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManager";
 
 export type SetupStatus =
   | "idle"
@@ -24,7 +25,7 @@ export class TrayService {
     private readonly getStatusMessage: (s: SetupStatus) => string,
     private readonly onLeftClick: () => void,
     private readonly onShowSettings: () => void,
-    private readonly onShowModels: () => void,
+    private readonly pluginManager: TranscriptionPluginManager,
   ) {}
 
   createTray() {
@@ -49,7 +50,67 @@ export class TrayService {
     });
   }
 
-  updateTrayMenu(status: SetupStatus) {
+  /**
+   * Generate plugin selection submenu with available plugins
+   */
+  private async generatePluginSubmenu(): Promise<Electron.MenuItemConstructorOptions[]> {
+    try {
+      const allPlugins = this.pluginManager.getPlugins();
+      const availablePlugins = await this.pluginManager.getAvailablePlugins();
+      const activePluginName = this.pluginManager.getActivePluginName();
+
+      // If no plugins available, show disabled message
+      if (availablePlugins.length === 0) {
+        return [
+          {
+            label: "No plugins available",
+            enabled: false,
+          },
+        ];
+      }
+
+      // Create menu items for available plugins
+      const pluginItems: Electron.MenuItemConstructorOptions[] = availablePlugins.map((plugin) => ({
+        label: `${plugin.displayName}${activePluginName === plugin.name ? " ✓" : ""}`,
+        type: "normal",
+        enabled: activePluginName !== plugin.name, // Disable current active plugin
+        click: () => this.activatePlugin(plugin.name),
+      }));
+
+      return pluginItems;
+    } catch (error) {
+      console.error("Error generating plugin submenu:", error);
+      return [
+        {
+          label: "Error loading plugins",
+          enabled: false,
+        },
+      ];
+    }
+  }
+
+  /**
+   * Activate a plugin using the fallback system
+   */
+  private async activatePlugin(pluginName: string): Promise<void> {
+    try {
+      console.log(`Attempting to activate plugin: ${pluginName}`);
+      const result = await this.pluginManager.activatePluginWithFallback(pluginName);
+      
+      if (result.success) {
+        console.log(`Successfully activated plugin: ${result.activePlugin}`);
+        // Update tray menu to reflect the change
+        this.updateTrayMenu(this.currentStatus);
+      } else {
+        console.error(`Failed to activate plugin ${pluginName}:`, result.errors);
+        // Could show a notification or error dialog here if needed
+      }
+    } catch (error) {
+      console.error(`Error activating plugin ${pluginName}:`, error);
+    }
+  }
+
+  async updateTrayMenu(status: SetupStatus) {
     if (!this.tray) return;
     this.currentStatus = status;
     const isSetupInProgress = status !== "idle";
@@ -62,6 +123,9 @@ export class TrayService {
       this.trayMenu = statusMenu;
       this.tray.setToolTip(this.getStatusMessage(status));
     } else {
+      // Generate plugin submenu asynchronously
+      const pluginSubmenu = await this.generatePluginSubmenu();
+      
       const contextMenu = Menu.buildFromTemplate([
         {
           label: "Start Dictation",
@@ -70,7 +134,10 @@ export class TrayService {
         },
         { type: "separator" },
         { label: "Settings", click: () => this.onShowSettings() },
-        { label: "Download Models", click: () => this.onShowModels() },
+        {
+          label: "Select Plugin",
+          submenu: pluginSubmenu,
+        },
         { type: "separator" },
         { label: "Quit", click: () => app.quit() },
       ]);

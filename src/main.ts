@@ -229,7 +229,7 @@ class WhisperMacApp {
       (s) => this.appStateManager.getStatusMessage(s),
       () => this.handleTrayClick(),
       () => this.settingsService.openSettingsWindow(),
-      () => this.windowManager.openModelManagerWindow(),
+      this.transcriptionPluginManager,
     );
     this.trayService.createTray();
 
