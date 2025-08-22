@@ -23,7 +23,16 @@ export class TextInjectionService {
   }
 
   private resolveInjectUtilPath(): void {
-    this.injectUtilPath = join(__dirname, "../injectUtil");
+    const paths = [
+      join(__dirname, "../injectUtil"),
+      join(process.resourcesPath, "injectUtil"),
+    ];
+    let i = paths.find((i) => existsSync(i));
+    if (i) {
+      this.injectUtilPath = i;
+    } else {
+      console.error("Failed to resolve injectUtil path");
+    }
   }
 
   async insertText(text: string): Promise<void> {
@@ -87,12 +96,14 @@ export class TextInjectionService {
   }
 
   private async checkAccessibilityPermissions(): Promise<boolean> {
+    console.log("Is enabled: ", this.accessibilityEnabled);
     if (this.accessibilityEnabled !== null) {
       return this.accessibilityEnabled;
     }
 
     try {
       if (!this.injectUtilPath || !existsSync(this.injectUtilPath)) {
+        console.log("Can't find inject util");
         this.accessibilityEnabled = false;
         return false;
       }
@@ -102,6 +113,7 @@ export class TextInjectionService {
       ]);
       this.accessibilityEnabled =
         result.success && result.output?.trim() === "true";
+      console.log("Accessibility check result:", this.accessibilityEnabled);
       return this.accessibilityEnabled;
     } catch (error) {
       console.warn("Accessibility check failed:", error);
