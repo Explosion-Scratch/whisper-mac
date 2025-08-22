@@ -57,7 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
         window.electronAPI.onPluginSwitchProgress((progress) => {
           this.showProgress(
             progress.message || "Processing...",
-            progress.percent || progress.progress || 0,
+            progress.percent || progress.progress || 0
           );
         });
         // Note: Add other listeners like onPluginOptionProgress if needed
@@ -84,6 +84,30 @@ document.addEventListener("DOMContentLoaded", () => {
         this.currentSectionId = sectionId;
         if (sectionId === "data") {
           this.loadPluginDataInfo();
+        }
+        if (sectionId === "ai") {
+          this.loadAiModelsIfConfigured();
+        }
+      },
+
+      async loadAiModelsIfConfigured() {
+        try {
+          const apiKey = await window.electronAPI.getApiKeySecure();
+          if (apiKey && this.settings.ai && this.settings.ai.baseUrl) {
+            this.aiModelsState.loading = true;
+            const result = await window.electronAPI.validateApiKeyAndListModels(
+              this.settings.ai.baseUrl,
+              apiKey
+            );
+            if (result.success && result.models.length > 0) {
+              this.aiModelsState.models = result.models;
+              this.aiModelsState.loadedForBaseUrl = this.settings.ai.baseUrl;
+            }
+          }
+        } catch (e) {
+          console.error("Failed to auto-load AI models:", e);
+        } finally {
+          this.aiModelsState.loading = false;
         }
       },
 
@@ -156,10 +180,16 @@ document.addEventListener("DOMContentLoaded", () => {
       async saveSettings() {
         this.isSaving = true;
         try {
-          // No need to validate/save API key here, it's done interactively
           this.settings.transcriptionPlugin = this.activePlugin;
-          await window.electronAPI.saveSettings(this.settings);
-          this.originalSettings = JSON.parse(JSON.stringify(this.settings));
+
+          // Convert the reactive proxy to a plain object before sending
+          const settingsToSave = JSON.parse(JSON.stringify(this.settings));
+
+          await window.electronAPI.saveSettings(settingsToSave);
+
+          // Update originalSettings from the plain object to ensure consistency
+          this.originalSettings = settingsToSave;
+
           this.showStatus("Settings saved successfully", "success");
         } catch (error) {
           console.error("Failed to save settings:", error);
@@ -178,7 +208,7 @@ document.addEventListener("DOMContentLoaded", () => {
       async resetSection() {
         if (
           confirm(
-            `Reset all settings in the "${this.currentSection.title}" section to defaults?`,
+            `Reset all settings in the "${this.currentSection.title}" section to defaults?`
           )
         ) {
           await window.electronAPI.resetSettingsSection(this.currentSectionId);
@@ -203,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         if (!result.canceled && result.filePaths.length > 0) {
           this.settings = await window.electronAPI.importSettings(
-            result.filePaths[0],
+            result.filePaths[0]
           );
           this.showStatus("Settings imported successfully", "success");
         }
@@ -216,7 +246,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!result.canceled) {
           await window.electronAPI.exportSettings(
             result.filePath,
-            this.settings,
+            this.settings
           );
           this.showStatus("Settings exported successfully", "success");
         }
@@ -234,7 +264,7 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(this.apiKeyValidationTimeout);
         this.apiKeyValidationTimeout = setTimeout(
           this.validateApiKeyAndModels,
-          1000,
+          1000
         );
       },
 
@@ -246,7 +276,7 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           const result = await window.electronAPI.validateApiKeyAndListModels(
             this.settings.ai.baseUrl,
-            this.apiKeyInput,
+            this.apiKeyInput
           );
           if (result.success && result.models.length > 0) {
             this.aiModelsState.models = result.models;
@@ -261,7 +291,7 @@ document.addEventListener("DOMContentLoaded", () => {
             this.aiModelsState.models = [];
             this.showStatus(
               `API Key validation failed: ${result.error}`,
-              "error",
+              "error"
             );
           }
         } catch (e) {
@@ -273,15 +303,34 @@ document.addEventListener("DOMContentLoaded", () => {
       },
 
       // --- PLUGIN MANAGEMENT ---
+      handleOptionChange(pluginName, option, newValue) {
+        if (option.type === "model-select") {
+          this.handlePluginModelChange(pluginName, option.key, newValue);
+        } else {
+          this.settings.plugin[pluginName][option.key] = newValue;
+        }
+      },
+
       async handlePluginChange() {
         const oldPlugin = this.settings.transcriptionPlugin;
-        this.showProgress(`Switching to ${this.activePlugin}...`, 0);
+        const newPlugin = this.activePlugin;
+
+        if (
+          !confirm(
+            `Switch to ${newPlugin} plugin?\n\nThis may download required models if they are not already present.`
+          )
+        ) {
+          this.activePlugin = oldPlugin; // Revert selection
+          return;
+        }
+
+        this.showProgress(`Switching to ${newPlugin}...`, 0);
         try {
           await window.electronAPI.switchPlugin(this.activePlugin);
           this.settings.transcriptionPlugin = this.activePlugin; // Update internal setting tracking
           this.showStatus(
             `Switched to ${this.activePlugin} successfully`,
-            "success",
+            "success"
           );
         } catch (e) {
           this.showStatus(`Failed to switch plugin: ${e.message}`, "error");
@@ -291,8 +340,57 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       },
 
+      async handlePluginModelChange(pluginName, optionKey, newModelName) {
+        const oldModelName = this.settings.plugin[pluginName][optionKey];
+        if (newModelName === oldModelName) return;
+
+        if (
+          !confirm(
+            `This will switch to the '${newModelName}' model and download it if it's not available. Continue?`
+          )
+        ) {
+          // The UI will be out of sync temporarily, but since we haven't
+          // updated `this.settings`, Vue's reactivity and the :value binding
+          // will correct the <select> element on the next render.
+          this.$forceUpdate();
+          return;
+        }
+
+        this.showProgress(`Downloading model ${newModelName}...`, 0);
+
+        try {
+          await window.electronAPI.switchPlugin(pluginName, newModelName);
+          // If successful, update our state
+          this.settings.plugin[pluginName][optionKey] = newModelName;
+          this.showStatus(`Switched to model ${newModelName}`, "success");
+        } catch (e) {
+          this.showStatus(`Failed to switch model: ${e.message}`, "error");
+          // On failure, the settings data remains unchanged, so the UI will
+          // correctly show the old model.
+          this.$forceUpdate();
+        } finally {
+          setTimeout(() => this.hideProgress(), 2000);
+        }
+      },
+
       async loadPluginDataInfo() {
         this.pluginDataInfo = await window.electronAPI.getPluginDataInfo();
+      },
+
+      async refreshDataManagement() {
+        try {
+          this.showProgress("Refreshing data management...", 0);
+          await this.loadPluginDataInfo();
+          // Clear any cached plugin data items to force fresh load
+          this.pluginDataItems = {};
+          this.expandedDataPlugins = {};
+          this.showStatus("Data management refreshed", "success");
+        } catch (error) {
+          console.error("Failed to refresh data management:", error);
+          this.showStatus("Failed to refresh data management", "error");
+        } finally {
+          setTimeout(() => this.hideProgress(), 1000);
+        }
       },
 
       async togglePluginDetails(pluginName) {
@@ -303,14 +401,14 @@ document.addEventListener("DOMContentLoaded", () => {
           !this.pluginDataItems[pluginName]
         ) {
           this.pluginDataItems[pluginName] =
-            await window.electronAPI.getPluginDataItems(pluginName);
+            await window.electronAPI.listPluginData(pluginName);
         }
       },
 
       async clearPluginData(pluginName) {
         if (
           confirm(
-            `Are you sure you want to clear all data for ${pluginName}? This cannot be undone.`,
+            `Are you sure you want to clear all data for ${pluginName}? This cannot be undone.`
           )
         ) {
           try {
@@ -329,7 +427,7 @@ document.addEventListener("DOMContentLoaded", () => {
             await window.electronAPI.deletePluginDataItem(pluginName, itemId);
             this.showStatus(`Item deleted from ${pluginName}.`, "success");
             this.pluginDataItems[pluginName] =
-              await window.electronAPI.getPluginDataItems(pluginName);
+              await window.electronAPI.listPluginData(pluginName);
             this.loadPluginDataInfo();
           } catch (e) {
             this.showStatus(`Failed to delete item: ${e.message}`, "error");
@@ -345,29 +443,85 @@ document.addEventListener("DOMContentLoaded", () => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
       },
 
+      formatDataPath(path) {
+        if (!path) return "Unknown location";
+
+        // Hide temp folder paths
+        if (
+          path.includes("/tmp/") ||
+          path.includes("\\temp\\") ||
+          path.includes("/var/tmp/")
+        ) {
+          return "Temporary storage";
+        }
+
+        // For other paths, show a simplified version
+        const pathParts = path.split(/[/\\]/);
+        if (pathParts.length > 2) {
+          return `.../${pathParts.slice(-2).join("/")}`;
+        }
+
+        return path;
+      },
+
       // --- ACTIONS EDITOR METHODS ---
       addNewAction() {
-        if (!this.settings.actions) this.settings.actions = [];
-        this.settings.actions.push({
+        if (!this.settings.actions) {
+          this.settings.actions = { actions: [] };
+        } else if (!Array.isArray(this.settings.actions.actions)) {
+          this.settings.actions.actions = [];
+        }
+
+        this.settings.actions.actions.push({
           id: "action_" + Date.now(),
           name: "New Action",
-          patterns: [],
-          handlers: [],
+          description: "A new voice-activated action.",
+          enabled: true,
+          order: (this.settings.actions.actions.length || 0) + 1,
+          closesTranscription: false,
+          skipsTransformation: false,
+          matchPatterns: [
+            {
+              id: "pattern_" + Date.now(),
+              type: "startsWith",
+              pattern: "trigger word ",
+              caseSensitive: false,
+            },
+          ],
+          handlers: [
+            {
+              id: "handler_" + Date.now(),
+              type: "openUrl",
+              config: {
+                urlTemplate: "https://www.google.com/search?q={argument}",
+              },
+              order: 1,
+            },
+          ],
         });
       },
 
       deleteAction(index) {
         if (confirm("Delete this action?")) {
-          this.settings.actions.splice(index, 1);
+          this.settings.actions.actions.splice(index, 1);
         }
       },
 
       moveAction(index, direction) {
+        const actions = this.settings.actions.actions;
         const newIndex = index + direction;
-        if (newIndex >= 0 && newIndex < this.settings.actions.length) {
-          const temp = this.settings.actions[index];
-          this.settings.actions[index] = this.settings.actions[newIndex];
-          this.settings.actions[newIndex] = temp;
+
+        if (newIndex >= 0 && newIndex < actions.length) {
+          // Use array destructuring to swap elements reactively
+          [actions[index], actions[newIndex]] = [
+            actions[newIndex],
+            actions[index],
+          ];
+
+          // Re-sync the order property
+          actions.forEach((action, idx) => {
+            action.order = idx + 1;
+          });
         }
       },
 
@@ -382,7 +536,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ?.fields.find((f) => f.key === "actions");
           if (actionsField) {
             this.settings.actions = JSON.parse(
-              JSON.stringify(actionsField.defaultValue),
+              JSON.stringify(actionsField.defaultValue)
             );
             this.showStatus("Actions have been reset to default.", "success");
           }
@@ -390,29 +544,48 @@ document.addEventListener("DOMContentLoaded", () => {
       },
 
       addNewPattern(actionIndex) {
-        this.settings.actions[actionIndex].patterns.push({
-          type: "contains",
-          value: "",
+        if (!this.settings.actions.actions[actionIndex].matchPatterns) {
+          this.settings.actions.actions[actionIndex].matchPatterns = [];
+        }
+        this.settings.actions.actions[actionIndex].matchPatterns.push({
+          id: "pattern_" + Date.now(),
+          type: "startsWith",
+          pattern: "",
+          caseSensitive: false,
         });
       },
 
       deletePattern(actionIndex, patternIndex) {
-        this.settings.actions[actionIndex].patterns.splice(patternIndex, 1);
+        this.settings.actions.actions[actionIndex].matchPatterns.splice(
+          patternIndex,
+          1
+        );
       },
 
       addNewHandler(actionIndex) {
-        this.settings.actions[actionIndex].handlers.push({
+        if (!this.settings.actions.actions[actionIndex].handlers) {
+          this.settings.actions.actions[actionIndex].handlers = [];
+        }
+        this.settings.actions.actions[actionIndex].handlers.push({
+          id: "handler_" + Date.now(),
           type: "replace",
-          value: "",
+          config: {},
+          order:
+            (this.settings.actions.actions[actionIndex].handlers.length || 0) +
+            1,
         });
       },
 
       deleteHandler(actionIndex, handlerIndex) {
-        this.settings.actions[actionIndex].handlers.splice(handlerIndex, 1);
+        this.settings.actions.actions[actionIndex].handlers.splice(
+          handlerIndex,
+          1
+        );
       },
 
       updateHandlerType(handler) {
-        handler.value = ""; // Reset value when type changes
+        // Reset config based on new type
+        handler.config = {};
       },
     },
     mounted() {

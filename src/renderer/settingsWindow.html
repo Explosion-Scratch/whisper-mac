@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -915,6 +915,44 @@
         border: 1px solid var(--color-border-primary);
       }
 
+      .plugin-data-details-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--spacing-md);
+        padding-bottom: var(--spacing-sm);
+        border-bottom: 1px solid var(--color-border-secondary);
+      }
+
+      .plugin-data-details-header h6 {
+        margin: 0;
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-primary);
+      }
+
+      .item-count {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-tertiary);
+        background: var(--color-bg-secondary);
+        padding: 2px 6px;
+        border-radius: var(--radius-sm);
+        font-weight: var(--font-weight-medium);
+      }
+
+      .refresh-btn {
+        transition: all var(--transition-fast);
+      }
+
+      .refresh-btn:hover i {
+        transform: rotate(180deg);
+        transition: transform var(--transition-fast);
+      }
+
+      .refresh-btn:active i {
+        transform: rotate(360deg);
+      }
+
       .plugin-data-items {
         display: flex;
         flex-direction: column;
@@ -930,11 +968,17 @@
         border-radius: var(--radius-sm);
         border: 1px solid var(--color-border-secondary);
         transition: all var(--transition-fast);
+        margin-bottom: var(--spacing-xs);
+      }
+
+      .plugin-data-item-detail:last-child {
+        margin-bottom: 0;
       }
 
       .plugin-data-item-detail:hover {
         border-color: var(--color-border-primary);
         box-shadow: var(--shadow-xs);
+        background: var(--color-bg-primary);
       }
 
       .item-info {
@@ -1420,7 +1464,14 @@
 
                 <template v-if="field.key === 'ai.model'">
                   <select
-                    v-if="aiModelsState.models.length > 0"
+                    v-if="aiModelsState.loading"
+                    class="form-control"
+                    disabled
+                  >
+                    <option>Loading models...</option>
+                  </select>
+                  <select
+                    v-else-if="aiModelsState.models.length > 0"
                     class="form-control"
                     v-model="settings.ai.model"
                   >
@@ -1432,19 +1483,13 @@
                       {{ model.name || model.id }}
                     </option>
                   </select>
-                  <select
+                  <input
                     v-else
+                    type="text"
                     class="form-control"
                     v-model="settings.ai.model"
-                  >
-                    <option
-                      v-for="option in field.options"
-                      :key="option.value"
-                      :value="option.value"
-                    >
-                      {{ option.label }}
-                    </option>
-                  </select>
+                    placeholder="Enter model name or validate API key"
+                  />
                 </template>
 
                 <input
@@ -1552,7 +1597,7 @@
                     </div>
                     <div class="actions-list">
                       <div
-                        v-if="!settings.actions.actions.length"
+                        v-if="!settings.actions?.actions?.length"
                         class="empty-actions-state"
                       >
                         <i class="ph-duotone ph-lightning"></i>
@@ -1562,7 +1607,7 @@
                         </p>
                       </div>
                       <div
-                        v-for="(action, index) in settings.actions.actions"
+                        v-for="(action, index) in settings.actions?.actions || []"
                         :key="action.id"
                         class="action-card"
                       >
@@ -1597,7 +1642,7 @@
                               type="button"
                               class="btn btn-icon-only"
                               @click="moveAction(index, 1)"
-                              :disabled="index === settings.actions.actions.length - 1"
+                              :disabled="index === (settings.actions?.actions?.length || 0) - 1"
                               title="Move down"
                             >
                               <i class="ph-duotone ph-caret-down"></i>
@@ -1606,12 +1651,9 @@
                               type="button"
                               class="btn btn-icon-only"
                               @click="toggleActionCard(action.id)"
-                              title="Toggle details"
+                              title="View action details"
                             >
-                              <i
-                                class="ph-duotone"
-                                :class="expandedActions[action.id] ? 'ph-caret-up' : 'ph-caret-down'"
-                              ></i>
+                              <i class="ph-duotone ph-info"></i>
                             </button>
                             <button
                               type="button"
@@ -1684,7 +1726,7 @@
                           </div>
                           <div class="patterns-list">
                             <div
-                              v-for="(pattern, pIndex) in action.matchPatterns"
+                              v-for="(pattern, pIndex) in action.matchPatterns || []"
                               :key="pattern.id"
                               class="pattern-item"
                             >
@@ -1735,7 +1777,7 @@
                           </div>
                           <div class="handlers-list">
                             <div
-                              v-for="(handler, hIndex) in action.handlers"
+                              v-for="(handler, hIndex) in action.handlers || []"
                               :key="handler.id"
                               class="handler-item"
                             >
@@ -1997,13 +2039,16 @@
                       <select
                         v-if="option.type === 'model-select' || option.type === 'select'"
                         class="form-control"
-                        v-model="settings.plugin[plugin.name][option.key]"
+                        :value="settings.plugin[plugin.name][option.key]"
+                        @change="handleOptionChange(plugin.name, option, $event.target.value)"
                       >
                         <option
                           v-for="opt in option.options"
                           :value="opt.value"
                         >
-                          {{ opt.label }}<span v-if="opt.size">
+                          {{ opt.label }}<span
+                            v-if="opt.size && opt.size.trim()"
+                          >
                             ({{ opt.size }})</span
                           >
                         </option>
@@ -2047,6 +2092,17 @@
                 v-if="currentSection.id === 'data'"
                 class="data-management-section"
               >
+                <div class="section-header-small">
+                  <h5>Plugin Data Management</h5>
+                  <button
+                    type="button"
+                    @click="refreshDataManagement"
+                    class="btn btn-sm refresh-btn"
+                    title="Refresh data management"
+                  >
+                    <i class="ph-duotone ph-arrow-clockwise"></i> Refresh
+                  </button>
+                </div>
                 <div class="plugin-data-list">
                   <div v-if="!pluginDataInfo.length" class="loading-indicator">
                     <i
@@ -2072,12 +2128,7 @@
                             ><i class="ph-duotone ph-hard-drive"></i> {{
                             formatBytes(plugin.dataSize) }}</span
                           >
-                          <span class="data-path"
-                            ><i class="ph-duotone ph-folder"></i> {{
-                            plugin.dataPath }}</span
-                          >
                         </div>
-                      </div>
                       <div class="plugin-data-actions">
                         <button
                           type="button"
@@ -2101,6 +2152,13 @@
                       class="plugin-data-details"
                       v-if="expandedDataPlugins[plugin.name]"
                     >
+                      <div class="plugin-data-details-header">
+                        <h6>Data Items</h6>
+                        <span class="item-count"
+                          >{{ pluginDataItems[plugin.name]?.length || 0 }}
+                          items</span
+                        >
+                      </div>
                       <div
                         v-if="!pluginDataItems[plugin.name]"
                         class="loading-indicator"
