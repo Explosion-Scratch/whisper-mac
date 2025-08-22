@@ -268,21 +268,10 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
     console.log("AppleScript:", script);
 
     try {
-      // INTENTIONAL: Execute AppleScript non-blocking to avoid waiting for OSA completion
-      // This allows the injection phase to complete quickly while the paste operation
-      // continues in the background, improving overall responsiveness
-      this.runAppleScript(script).catch((error) => {
-        console.error(
-          "AppleScript paste operation failed (non-blocking):",
-          error,
-        );
-      });
+      await this.runAppleScript(script);
 
-      // INTENTIONAL: Return success after 200ms timeout instead of waiting for OSA script completion
-      // This assumes text injection will complete successfully and prevents blocking
-      // the dictation flow while the actual paste operation finishes
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      console.log("Text injection phase completed (200ms timeout)");
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      console.log("Text injection phase completed (2000ms timeout)");
     } catch (error) {
       console.error("=== TextInjectionService.pasteFromClipboard ERROR ===");
       console.error("Error during paste operation:", error);
