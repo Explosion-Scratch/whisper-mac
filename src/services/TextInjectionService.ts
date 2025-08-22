@@ -17,7 +17,7 @@ export class TextInjectionService {
 
       if (hasAccessibility) {
         console.log(
-          "Accessibility permissions granted, using keystroke approach...",
+          "Accessibility permissions granted, using keystroke approach..."
         );
         // Use simple paste approach - paste will replace selection if any, or insert at cursor
         console.log("Starting paste operation...");
@@ -25,7 +25,7 @@ export class TextInjectionService {
         console.log("Paste operation completed successfully");
       } else {
         console.log(
-          "Accessibility permissions not granted, using clipboard-only approach...",
+          "Accessibility permissions not granted, using clipboard-only approach..."
         );
         // Fallback: just copy to clipboard and notify user
         await this.copyToClipboardOnly(text);
@@ -141,7 +141,7 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
     } catch (error) {
       console.error("Failed to show accessibility instructions:", error);
       console.log(
-        "ACCESSIBILITY PERMISSIONS REQUIRED - CHECK SYSTEM PREFERENCES",
+        "ACCESSIBILITY PERMISSIONS REQUIRED - CHECK SYSTEM PREFERENCES"
       );
     }
   }
@@ -177,7 +177,7 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
         (error, stdout, stderr) => {
           if (error) {
             console.error(
-              "=== TextInjectionService.runAppleScriptWithResult ERROR ===",
+              "=== TextInjectionService.runAppleScriptWithResult ERROR ==="
             );
             console.error("osascript error:", error);
             console.error("stderr:", stderr);
@@ -187,12 +187,12 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
             console.log("stdout:", stdout);
             resolve(stdout.trim());
           }
-        },
+        }
       );
 
       process.on("error", (error) => {
         console.error(
-          "=== TextInjectionService.runAppleScriptWithResult PROCESS ERROR ===",
+          "=== TextInjectionService.runAppleScriptWithResult PROCESS ERROR ==="
         );
         console.error("Process error:", error);
         reject(error);
@@ -210,7 +210,7 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
 
     if (!hasAccessibility) {
       console.log(
-        "Accessibility permissions not enabled, showing instructions...",
+        "Accessibility permissions not enabled, showing instructions..."
       );
       await this.showAccessibilityInstructions();
     }
@@ -268,13 +268,24 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
     console.log("AppleScript:", script);
 
     try {
-      await this.runAppleScript(script);
-      // WAITING FOR PASTE TO COMPLETE
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      console.log("AppleScript paste operation completed successfully");
+      // INTENTIONAL: Execute AppleScript non-blocking to avoid waiting for OSA completion
+      // This allows the injection phase to complete quickly while the paste operation
+      // continues in the background, improving overall responsiveness
+      this.runAppleScript(script).catch((error) => {
+        console.error(
+          "AppleScript paste operation failed (non-blocking):",
+          error
+        );
+      });
+
+      // INTENTIONAL: Return success after 200ms timeout instead of waiting for OSA script completion
+      // This assumes text injection will complete successfully and prevents blocking
+      // the dictation flow while the actual paste operation finishes
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      console.log("Text injection phase completed (200ms timeout)");
     } catch (error) {
       console.error("=== TextInjectionService.pasteFromClipboard ERROR ===");
-      console.error("AppleScript paste operation failed:", error);
+      console.error("Error during paste operation:", error);
       throw error;
     }
   }
@@ -300,12 +311,12 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
             console.log("stdout:", stdout);
             resolve();
           }
-        },
+        }
       );
 
       process.on("error", (error) => {
         console.error(
-          "=== TextInjectionService.runAppleScript PROCESS ERROR ===",
+          "=== TextInjectionService.runAppleScript PROCESS ERROR ==="
         );
         console.error("Process error:", error);
         reject(error);
