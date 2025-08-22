@@ -1,8 +1,9 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
     <title>Dictation</title>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
       * {
         margin: 0;
@@ -21,18 +22,14 @@
         background: rgba(250, 250, 252, 0.06);
         border-radius: 12px;
         border: 1px solid rgba(255, 255, 255, 0.35);
-        box-shadow:
-          0 12px 48px rgba(0, 0, 0, 0.2),
+        box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2),
           0 2px 10px rgba(0, 0, 0, 0.08);
         overflow: hidden;
         user-select: none;
         -webkit-user-select: none;
-        transition:
-          opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-          transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-          box-shadow 0.2s ease,
-          border-color 0.2s ease,
-          background 0.2s ease;
+        transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+          transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease,
+          border-color 0.2s ease, background 0.2s ease;
         background-clip: padding-box;
         opacity: 0;
         transform: scale(0.95) translateY(10px);
@@ -44,8 +41,7 @@
       }
 
       body:hover {
-        box-shadow:
-          0 14px 56px rgba(0, 0, 0, 0.22),
+        box-shadow: 0 14px 56px rgba(0, 0, 0, 0.22),
           0 6px 16px rgba(0, 0, 0, 0.1);
       }
 
@@ -115,10 +111,9 @@
         background: rgba(52, 199, 89, 0.92);
       }
 
-      .status-icon svg {
-        width: 14px;
-        height: 14px;
-        fill: white;
+      .status-icon i {
+        font-size: 14px;
+        color: white;
       }
 
       .text-scroll-container {
@@ -248,9 +243,7 @@
         }
       }
 
-      .status-icon.transcribing svg,
-      .status-icon.transforming svg,
-      .status-icon.injecting svg {
+      .status-icon.transcribing i {
         animation: fastSpin 0.6s linear infinite;
       }
 
@@ -278,8 +271,7 @@
         justify-content: center;
         transition: all 0.2s ease;
         flex-shrink: 0;
-        box-shadow:
-          inset 0 0 0 0.5px rgba(255, 255, 255, 0.6),
+        box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.6),
           0 1px 2px rgba(0, 0, 0, 0.08);
       }
 
@@ -288,18 +280,16 @@
         transform: translateY(-0.5px);
       }
 
-      .close-button svg {
-        width: 10px;
-        height: 10px;
-        fill: white;
+      .close-button i {
+        font-size: 10px;
+        color: white;
       }
 
       @media (prefers-color-scheme: dark) {
         body {
           background: rgba(30, 30, 30, 0.5);
           border-color: rgba(255, 255, 255, 0.12);
-          box-shadow:
-            0 20px 60px rgba(0, 0, 0, 0.5),
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
             0 6px 18px rgba(0, 0, 0, 0.3);
           background-image: linear-gradient(
             to bottom,
@@ -309,8 +299,7 @@
         }
 
         body:hover {
-          box-shadow:
-            0 22px 70px rgba(0, 0, 0, 0.55),
+          box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55),
             0 8px 22px rgba(0, 0, 0, 0.35);
         }
 
@@ -354,44 +343,34 @@
       <div class="dictation-container">
         <div class="status-icon" :class="currentStatus">
           <!-- Microphone icon for idle and recording states -->
-          <svg
+          <i
             v-if="currentStatus === 'idle' || currentStatus === 'recording'"
-            viewBox="0 0 256 256"
-          >
-            <path
-              fill="currentColor"
-              d="M128 174a46.06 46.06 0 0 0 46-46V64a46 46 0 0 0-92 0v64a46.06 46.06 0 0 0 46 46M94 64a34 34 0 0 1 68 0v64a34 34 0 0 1-68 0Zm40 141.75V240a6 6 0 0 1-12 0v-34.25A78.09 78.09 0 0 1 50 128a6 6 0 0 1 12 0a66 66 0 0 0 132 0a6 6 0 0 1 12 0a78.09 78.09 0 0 1-72 77.75"
-            />
-          </svg>
+            class="ph-duotone ph-microphone"
+          ></i>
 
-          <!-- Loading spinner for processing states -->
-          <svg
-            v-else-if="currentStatus === 'transcribing' || currentStatus === 'transforming' || currentStatus === 'injecting'"
-            viewBox="0 0 24 24"
-          >
-            <g fill="none" fill-rule="evenodd">
-              <path
-                d="m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z"
-              />
-              <path
-                fill="currentColor"
-                d="M12 4a8 8 0 1 0 0 16a8 8 0 0 0 0-16M2 12C2 6.477 6.477 2 12 2s10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12"
-                opacity=".1"
-              />
-              <path
-                fill="currentColor"
-                d="M12 4a7.96 7.96 0 0 0-5.533 2.222a1 1 0 1 1-1.384-1.444A9.96 9.96 0 0 1 12 2a1 1 0 1 1 0 2"
-              />
-            </g>
-          </svg>
+          <!-- Spinner icon for transcribing state -->
+          <i
+            v-else-if="currentStatus === 'transcribing'"
+            class="ph ph-spinner"
+          ></i>
+
+          <!-- Sparkle icon for transforming state -->
+          <i
+            v-else-if="currentStatus === 'transforming'"
+            class="ph-duotone ph-sparkle"
+          ></i>
+
+          <!-- Paper plane icon for injecting state -->
+          <i
+            v-else-if="currentStatus === 'injecting'"
+            class="ph-duotone ph-paper-plane-tilt"
+          ></i>
 
           <!-- Check icon for complete state -->
-          <svg v-else-if="currentStatus === 'complete'" viewBox="0 0 256 256">
-            <path
-              fill="currentColor"
-              d="m229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69L218.34 66.34a8 8 0 0 1 11.32 11.32"
-            />
-          </svg>
+          <i
+            v-else-if="currentStatus === 'complete'"
+            class="ph-duotone ph-check-circle"
+          ></i>
         </div>
 
         <div class="text-scroll-container" ref="textScrollContainer">
@@ -410,17 +389,10 @@
                 <template v-if="showInProgressSpinner.text">
                   {{ getSegmentDisplayText(segment) }}
                 </template>
-                <svg
+                <i
                   v-if="showInProgressSpinner.show"
-                  class="in-progress-spinner"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 256 256"
-                >
-                  <path
-                    fill="currentColor"
-                    d="M134 32v32a6 6 0 0 1-12 0V32a6 6 0 0 1 12 0m39.25 56.75A6 6 0 0 0 177.5 87l22.62-22.63a6 6 0 0 0-8.48-8.48L169 78.5a6 6 0 0 0 4.24 10.25ZM224 122h-32a6 6 0 0 0 0 12h32a6 6 0 0 0 0-12m-46.5 47a6 6 0 0 0-8.5 8.5l22.63 22.62a6 6 0 0 0 8.48-8.48ZM128 186a6 6 0 0 0-6 6v32a6 6 0 0 0 12 0v-32a6 6 0 0 0-6-6m-49.5-17l-22.62 22.64a6 6 0 1 0 8.48 8.48L87 177.5a6 6 0 1 0-8.5-8.5M70 128a6 6 0 0 0-6-6H32a6 6 0 0 0 0 12h32a6 6 0 0 0 6-6m-5.64-72.12a6 6 0 0 0-8.48 8.48L78.5 87a6 6 0 1 0 8.5-8.5Z"
-                  />
-                </svg>
+                  class="ph ph-spinner in-progress-spinner"
+                ></i>
               </template>
               <template v-else> {{ getSegmentDisplayText(segment) }} </template>
             </span>
@@ -439,12 +411,7 @@
         </div>
 
         <button class="close-button" @click="handleClose">
-          <!-- X icon using Phosphor -->
-          <svg viewBox="0 0 256 256">
-            <path
-              d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
-            />
-          </svg>
+          <i class="ph-duotone ph-x"></i>
         </button>
       </div>
     </div>
@@ -478,10 +445,10 @@
 
           const showInProgressSpinner = computed(() => {
             const completedSegments = transcriptionSegments.value.filter(
-              (s) => s.type === "transcribed" && s.completed,
+              (s) => s.type === "transcribed" && s.completed
             );
             const inProgressSegments = transcriptionSegments.value.filter(
-              (s) => s.type === "inprogress",
+              (s) => s.type === "inprogress"
             );
             return {
               show: inProgressSegments.length > 0,
@@ -508,7 +475,7 @@
             }
 
             const hasInProgressSegments = transcriptionSegments.value.some(
-              (s) => s.type === "inprogress" || !s.completed,
+              (s) => s.type === "inprogress" || !s.completed
             );
             if (hasInProgressSegments) {
               return false;
@@ -534,14 +501,14 @@
 
             const segments = transcriptionSegments.value;
             const completedSegments = segments.filter(
-              (segment) => segment.type === "transcribed" && segment.completed,
+              (segment) => segment.type === "transcribed" && segment.completed
             );
 
             const lastInProgressSegment = segments
               .filter(
                 (segment) =>
                   segment.type === "inprogress" ||
-                  (!segment.completed && segment.type === "transcribed"),
+                  (!segment.completed && segment.type === "transcribed")
               )
               .pop();
 
@@ -649,7 +616,9 @@
                 },
               });
               mediaStream.value = stream;
-              stream.getAudioTracks().forEach((track) => (track.enabled = false));
+              stream
+                .getAudioTracks()
+                .forEach((track) => (track.enabled = false));
               const myVAD = await window.vad.MicVAD.new({
                 baseAssetPath: "./",
                 onnxWASMBasePath: "./",
@@ -687,10 +656,16 @@
 
           const enableVADStream = async () => {
             if (mediaStream.value) {
-              mediaStream.value.getAudioTracks().forEach((track) => (track.enabled = true));
-              if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+              mediaStream.value
+                .getAudioTracks()
+                .forEach((track) => (track.enabled = true));
+              if (!audioContext)
+                audioContext = new (window.AudioContext ||
+                  window.webkitAudioContext)();
               if (sourceNode) sourceNode.disconnect();
-              sourceNode = audioContext.createMediaStreamSource(mediaStream.value);
+              sourceNode = audioContext.createMediaStreamSource(
+                mediaStream.value
+              );
               analyser = audioContext.createAnalyser();
               analyser.fftSize = 512;
               rmsArray = new Float32Array(analyser.fftSize);
@@ -700,7 +675,9 @@
 
           const disableVADStream = async () => {
             if (mediaStream.value) {
-              mediaStream.value.getAudioTracks().forEach((track) => (track.enabled = false));
+              mediaStream.value
+                .getAudioTracks()
+                .forEach((track) => (track.enabled = false));
             }
             if (sourceNode) sourceNode.disconnect();
             sourceNode = null;
@@ -745,7 +722,9 @@
 
           const completeDictation = (text) => {
             finalText.value = text;
-            transcriptionSegments.value = [{ type: "transcribed", text, completed: true }];
+            transcriptionSegments.value = [
+              { type: "transcribed", text, completed: true },
+            ];
           };
 
           const clearDictation = () => {
@@ -767,7 +746,9 @@
             window.electronAPI.onTranscriptionUpdate(updateTranscription);
             window.electronAPI.onDictationComplete(completeDictation);
             window.electronAPI.onDictationClear(clearDictation);
-            window.electronAPI.onSetStatus((status) => (currentStatus.value = status));
+            window.electronAPI.onSetStatus(
+              (status) => (currentStatus.value = status)
+            );
             window.electronAPI.onPlayEndSound(playEndSound);
             setupVisualizer();
             document.addEventListener("dragstart", (e) => e.preventDefault());
