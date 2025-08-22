@@ -8,9 +8,31 @@ struct ClipboardManager {
         pasteboard.clearContents()
         return pasteboard.setString(text, forType: .string)
     }
-
     static func getClipboardContent() -> String? {
         return NSPasteboard.general.string(forType: .string)
+    }
+}
+
+// MARK: - Clipboard Backup/Restore
+func backupClipboard() -> [(NSPasteboard.PasteboardType, Data)] {
+    let pasteboard = NSPasteboard.general
+    var savedContents: [(NSPasteboard.PasteboardType, Data)] = []
+    let currentItems = pasteboard.pasteboardItems ?? []
+    for item in currentItems {
+        for type in item.types {
+            if let data = item.data(forType: type) {
+                savedContents.append((type, data))
+            }
+        }
+    }
+    return savedContents
+}
+
+func restoreClipboard(_ saved: [(NSPasteboard.PasteboardType, Data)]) {
+    let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    for (type, data) in saved {
+        pasteboard.setData(data, forType: type)
     }
 }
 
@@ -40,6 +62,7 @@ enum Mode {
     case inject(String)
     case copy(String)
     case paste
+    case checkPerms
     case help
 }
 
@@ -48,6 +71,9 @@ func parseArguments() -> Mode {
     if args.count == 2 {
         if args[1] == "--paste" {
             return .paste
+        }
+        if args[1] == "--check-perms" {
+            return .checkPerms
         }
         if args[1] == "--help" || args[1] == "-h" {
             return .help
@@ -64,13 +90,19 @@ func parseArguments() -> Mode {
     return .help
 }
 
+// MARK: - Permission Check
+func checkAccessibilityPermissions() -> Bool {
+    return AXIsProcessTrusted()
+}
+
 // MARK: - Main Execution
 func showHelp() {
     print("""
     Usage:
-      injectUtil "text to inject"   - Copy text to clipboard and paste at cursor
+      injectUtil "text to inject"   - Copy text to clipboard, paste at cursor, restore clipboard
       injectUtil --copy "text"      - Copy text to clipboard only
       injectUtil --paste            - Paste clipboard contents at cursor
+      injectUtil --check-perms      - Check if accessibility permissions are granted (outputs true/false)
       injectUtil --help             - Show this help message
 
     Note: You must grant Accessibility permissions for pasting.
@@ -83,6 +115,10 @@ switch mode {
 case .help:
     showHelp()
     exit(1)
+case .checkPerms:
+    let hasPermissions = checkAccessibilityPermissions()
+    print(hasPermissions ? "true" : "false")
+    exit(hasPermissions ? 0 : 1)
 case .copy(let text):
     if ClipboardManager.copyToClipboard(text) {
         print("Copied to clipboard.")
@@ -92,13 +128,17 @@ case .copy(let text):
         exit(1)
     }
 case .inject(let text):
+    let backup = backupClipboard()
     if ClipboardManager.copyToClipboard(text) {
         usleep(100_000)
         pasteUsingCommandV()
-        print("Injected and pasted.")
+        usleep(100_000)
+        restoreClipboard(backup)
+        print("Injected, pasted, and restored clipboard.")
         exit(0)
     } else {
         fputs("Failed to copy to clipboard.\n", stderr)
+        restoreClipboard(backup)
         exit(1)
     }
 case .paste:

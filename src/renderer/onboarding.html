@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -121,9 +121,7 @@
         background: rgba(255, 255, 255, 0.9);
         font-size: 12px;
         cursor: pointer;
-        transition:
-          background 0.15s ease,
-          transform 0.1s ease,
+        transition: background 0.15s ease, transform 0.1s ease,
           box-shadow 0.15s ease;
       }
       .btn[disabled] {
@@ -229,8 +227,7 @@
         width: 56px;
         height: 56px;
         border-radius: 12px;
-        box-shadow:
-          0 10px 30px rgba(0, 0, 0, 0.05),
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05),
           0 2px 10px rgba(0, 0, 0, 0.06) inset;
         user-select: none;
       }
@@ -750,7 +747,7 @@
           const setupDone = ref(false);
 
           const nextLabel = computed(() =>
-            idx.value === 5 ? "Finish" : "Next",
+            idx.value === 5 ? "Finish" : "Next"
           );
 
           const canProceed = computed(() => {
@@ -793,7 +790,7 @@
 
             // Set default options for each plugin
             for (const [pluginName, options] of Object.entries(
-              pluginOptions.value,
+              pluginOptions.value
             )) {
               selectedOptions.value[pluginName] = {};
               for (const option of options) {
@@ -870,7 +867,7 @@
               const plainOptions = JSON.parse(JSON.stringify(currentOptions));
               await window.onboardingAPI.setPlugin(
                 pluginSelect.value,
-                plainOptions,
+                plainOptions
               );
             }
             if (idx.value === 4) {
@@ -879,7 +876,7 @@
                 const result = await window.electronAPI.validateAiConfiguration(
                   aiBaseUrl.value,
                   aiModel.value,
-                  aiApiKey.value,
+                  aiApiKey.value
                 );
 
                 if (!result.isValid) {
@@ -893,7 +890,7 @@
               if (aiEnabled.value) {
                 await window.onboardingAPI.setAiProvider(
                   aiBaseUrl.value,
-                  aiModel.value,
+                  aiModel.value
                 );
               }
             }
@@ -946,61 +943,6 @@
             isCheckingMicrophone.value = false;
           };
 
-          const startAccessibilityMonitoring = () => {
-            // Check accessibility status every 2 seconds when on the accessibility step
-            const interval = setInterval(async () => {
-              if (idx.value === 1 && !isCheckingAccess.value) {
-                // Reset cache to ensure we get fresh results
-                await window.onboardingAPI.resetAccessibilityCache();
-                const ok = await window.onboardingAPI.checkAccessibility();
-                if (ok && accessStatus.value !== "Enabled") {
-                  accessStatus.value = "Enabled";
-                } else if (!ok && accessStatus.value === "Enabled") {
-                  accessStatus.value =
-                    "Instructions shown. Please enable and return.";
-                }
-              }
-            }, 2000);
-
-            // Clean up interval when component is unmounted
-            return () => clearInterval(interval);
-          };
-
-          const startMicrophoneMonitoring = () => {
-            // Check microphone status every 2 seconds when on the microphone step
-            const interval = setInterval(async () => {
-              if (idx.value === 2 && !isCheckingMicrophone.value) {
-                try {
-                  const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                      sampleRate: 16000,
-                      channelCount: 1,
-                      echoCancellation: true,
-                      noiseSuppression: true,
-                    },
-                  });
-
-                  // Immediately stop all tracks to release the microphone
-                  stream.getTracks().forEach((track) => {
-                    track.stop();
-                  });
-
-                  if (microphoneStatus.value !== "Enabled") {
-                    microphoneStatus.value = "Enabled";
-                  }
-                } catch (error) {
-                  if (microphoneStatus.value === "Enabled") {
-                    microphoneStatus.value =
-                      "Instructions shown. Please enable and return.";
-                  }
-                }
-              }
-            }, 2000);
-
-            // Clean up interval when component is unmounted
-            return () => clearInterval(interval);
-          };
-
           const saveKey = async () => {
             try {
               savingKey.value = true;
@@ -1009,7 +951,7 @@
               const result =
                 await window.electronAPI.validateApiKeyAndListModels(
                   aiBaseUrl.value,
-                  aiApiKey.value,
+                  aiApiKey.value
                 );
               if (!result?.success) {
                 keyStatus.value = `Validation failed: ${
@@ -1043,7 +985,7 @@
                 const result = await window.electronAPI.validateAiConfiguration(
                   aiBaseUrl.value,
                   aiModel.value,
-                  aiApiKey.value,
+                  aiApiKey.value
                 );
 
                 if (!result.isValid) {
@@ -1086,13 +1028,6 @@
           onMounted(() => {
             init();
 
-            // Start accessibility monitoring
-            const cleanupAccessibilityMonitoring =
-              startAccessibilityMonitoring();
-
-            // Start microphone monitoring
-            const cleanupMicrophoneMonitoring = startMicrophoneMonitoring();
-
             // Add watchers for AI configuration changes
             const aiBaseUrlInput = document.getElementById("aiBaseUrl");
             const aiModelSelect = document.getElementById("aiModelSelect");
@@ -1131,12 +1066,6 @@
                 if (el) el.scrollTop = el.scrollHeight;
               });
             });
-
-            // Clean up monitoring on unmount
-            return () => {
-              cleanupAccessibilityMonitoring();
-              cleanupMicrophoneMonitoring();
-            };
           });
 
           return {
@@ -1173,7 +1102,7 @@
             checkMicrophone,
             onAiEnabledChange,
             validateAiConfig,
-            startAccessibilityMonitoring,
+
             saveKey,
             runSetup,
           };

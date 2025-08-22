@@ -5,6 +5,7 @@ import {
   createTranscriptionPluginManager,
 } from "./plugins";
 import { TextInjectionService } from "./services/TextInjectionService";
+import { NotificationService } from "./services/NotificationService";
 import { TransformationService } from "./services/TransformationService";
 import { ModelManager } from "./services/ModelManager";
 import { AppConfig } from "./config/AppConfig";
@@ -36,6 +37,7 @@ class WhisperMacApp {
   private modelManager!: ModelManager;
   private unifiedModelDownloadService!: UnifiedModelDownloadService;
   private transcriptionPluginManager!: TranscriptionPluginManager;
+  private notificationService!: NotificationService;
   private textInjector!: TextInjectionService;
   private transformationService!: TransformationService;
   private selectedTextService!: SelectedTextService;
@@ -72,12 +74,13 @@ class WhisperMacApp {
     this.modelManager = new ModelManager(this.config);
     this.unifiedModelDownloadService = new UnifiedModelDownloadService(
       this.config,
-      this.modelManager,
+      this.modelManager
     );
     this.transcriptionPluginManager = createTranscriptionPluginManager(
-      this.config,
+      this.config
     );
-    this.textInjector = new TextInjectionService();
+    this.notificationService = new NotificationService();
+    this.textInjector = new TextInjectionService(this.notificationService);
     this.transformationService = new TransformationService(this.config);
     this.selectedTextService = new SelectedTextService();
     this.dictationWindowService = new DictationWindowService(this.config);
@@ -86,7 +89,7 @@ class WhisperMacApp {
       this.transformationService,
       this.textInjector,
       this.selectedTextService,
-      this.configurableActionsService,
+      this.configurableActionsService
     );
     this.settingsManager = new SettingsManager(this.config);
 
@@ -105,7 +108,7 @@ class WhisperMacApp {
       this.dictationWindowService,
       this.segmentManager,
       this.trayService,
-      this.errorManager,
+      this.errorManager
     );
     this.ipcHandlerManager = new IpcHandlerManager(
       this.transcriptionPluginManager,
@@ -120,7 +123,7 @@ class WhisperMacApp {
       () => this.dictationFlowManager.stopDictation(),
       () => this.dictationFlowManager.finishCurrentDictation(),
       () => this.dictationFlowManager.cancelDictationFlow(),
-      () => this.handleOnboardingComplete(),
+      () => this.handleOnboardingComplete()
     );
     this.initializationManager = new InitializationManager(
       this.config,
@@ -133,19 +136,19 @@ class WhisperMacApp {
       this.errorManager,
       this.ipcHandlerManager,
       () => this.onInitializationComplete(),
-      () => this.handleOnboardingComplete(),
+      () => this.handleOnboardingComplete()
     );
   }
 
   private setupServiceConnections(): void {
     this.settingsService.setTranscriptionPluginManager(
-      this.transcriptionPluginManager,
+      this.transcriptionPluginManager
     );
     this.unifiedModelDownloadService.setTranscriptionPluginManager(
-      this.transcriptionPluginManager,
+      this.transcriptionPluginManager
     );
     this.settingsService.setUnifiedModelDownloadService(
-      this.unifiedModelDownloadService,
+      this.unifiedModelDownloadService
     );
   }
 
@@ -154,7 +157,7 @@ class WhisperMacApp {
       console.log(
         `[Main] Action detected via segment manager: "${
           actionMatch.actionId
-        }" with argument: "${actionMatch.extractedArgument || "none"}"`,
+        }" with argument: "${actionMatch.extractedArgument || "none"}"`
       );
 
       if (this.configurableActionsService) {
@@ -166,14 +169,14 @@ class WhisperMacApp {
 
         if (action?.closesTranscription) {
           console.log(
-            `[Main] Action ${action.id} closes transcription, stopping dictation`,
+            `[Main] Action ${action.id} closes transcription, stopping dictation`
           );
           await this.dictationFlowManager.stopDictation();
         } else {
           console.log(
             `[Main] Action ${
               action?.id || actionMatch.actionId
-            } continues transcription`,
+            } continues transcription`
           );
         }
       }
@@ -185,11 +188,11 @@ class WhisperMacApp {
         if (this.configurableActionsService && actionsConfig?.actions) {
           this.configurableActionsService.setActions(actionsConfig.actions);
         }
-      },
+      }
     );
 
     const actionsConfig = this.settingsManager.get(
-      "actions",
+      "actions"
     ) as DefaultActionsConfig;
     if (this.configurableActionsService && actionsConfig?.actions) {
       this.configurableActionsService.setActions(actionsConfig.actions);
@@ -212,7 +215,7 @@ class WhisperMacApp {
       this.dictationWindowService,
       this.windowManager,
       this.appStateManager,
-      () => this.toggleRecording(),
+      () => this.toggleRecording()
     );
 
     this.trayInteractionManager.setupSettingsWindowVisibilityHandler();
@@ -229,7 +232,7 @@ class WhisperMacApp {
       (s) => this.appStateManager.getStatusMessage(s),
       () => this.handleTrayClick(),
       () => this.settingsService.openSettingsWindow(),
-      this.transcriptionPluginManager,
+      this.transcriptionPluginManager
     );
     this.trayService.createTray();
 
@@ -239,7 +242,7 @@ class WhisperMacApp {
       this.dictationWindowService,
       this.settingsService,
       this.trayService,
-      this.windowManager,
+      this.windowManager
     );
 
     // Update dictationFlowManager with trayService reference
@@ -248,7 +251,7 @@ class WhisperMacApp {
       this.dictationWindowService,
       this.segmentManager,
       this.trayService,
-      this.errorManager,
+      this.errorManager
     );
   }
 
@@ -286,11 +289,11 @@ class WhisperMacApp {
     console.log("=== Toggle dictation called ===");
     console.log(
       "Current recording state:",
-      this.dictationFlowManager.isRecording(),
+      this.dictationFlowManager.isRecording()
     );
     console.log(
       "Current finishing state:",
-      this.dictationFlowManager.isFinishing(),
+      this.dictationFlowManager.isFinishing()
     );
 
     if (this.dictationFlowManager.isRecording()) {
@@ -304,7 +307,7 @@ class WhisperMacApp {
 
       if (this.config.showDictationWindowAlways) {
         console.log(
-          "Always-show-window enabled: flushing segments and continuing recording",
+          "Always-show-window enabled: flushing segments and continuing recording"
         );
         await this.dictationFlowManager.flushSegmentsWhileContinuing();
         return;
