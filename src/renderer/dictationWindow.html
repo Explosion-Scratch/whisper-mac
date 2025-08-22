@@ -201,6 +201,7 @@
         animation: spin 0.9s linear infinite;
         display: inline-block;
         vertical-align: text-bottom;
+        margin-left: 4px;
       }
 
       .separator {
@@ -378,35 +379,45 @@
             <canvas id="waveCanvas" class="wave-canvas" height="24"></canvas>
           </div>
           <div class="text-content" ref="textContent">
-            <span
-              v-for="(segment, index) in displaySegments"
-              :key="segment.id || index"
-              v-if="!showVisualizer"
-              class="text-segment"
-              :class="[getSegmentClass(segment), segment.type === 'inprogress' ? 'no-caret' : '']"
-            >
-              <template v-if="segment.type === 'inprogress'">
-                <template v-if="showInProgressSpinner.text">
-                  {{ getSegmentDisplayText(segment) }}
-                </template>
-                <i
-                  v-if="showInProgressSpinner.show"
-                  class="ph ph-spinner in-progress-spinner"
-                ></i>
+            <template v-if="!showVisualizer">
+              <template v-if="displaySegments.length > 0">
+                <span
+                  v-for="(segment, index) in displaySegments"
+                  :key="segment.id || index"
+                  class="text-segment"
+                  :class="[getSegmentClass(segment), { 'no-caret': currentStatus === 'transcribing' }]"
+                >
+                  <!-- Completed Segment -->
+                  <template v-if="segment.completed">{{ segment.text }}</template>
+                  <!-- In-Progress Segment -->
+                  <template v-else>
+                    <span>{{ segment.text || (currentStatus === 'transcribing' ? 'Transcribing...' : '') }}</span>
+                    <i
+                      v-if="currentStatus === 'transcribing'"
+                      class="ph ph-spinner in-progress-spinner"
+                    ></i>
+                  </template>
+                </span>
               </template>
-              <template v-else> {{ getSegmentDisplayText(segment) }} </template>
-            </span>
-            <span
-              v-if="displaySegments.length === 0 && (currentStatus === 'transcribing' || currentStatus === 'transforming' || currentStatus === 'injecting') && !showVisualizer"
-              class="text-segment in-progress"
-              >Processing...</span
-            >
-            <span
-              v-else-if="displaySegments.length === 0"
-              class="text-segment in-progress"
-              style="opacity: 0"
-              >&nbsp;</span
-            >
+              <!-- Fallbacks for when there are no segments -->
+              <template v-else>
+                <span
+                  v-if="currentStatus === 'transcribing'"
+                  class="text-segment in-progress"
+                  >Transcribing...<i
+                    class="ph ph-spinner in-progress-spinner"
+                  ></i
+                ></span>
+                <span
+                  v-else-if="currentStatus === 'transforming' || currentStatus === 'injecting'"
+                  class="text-segment in-progress"
+                  >Processing...</span
+                >
+                <span v-else class="text-segment" style="opacity: 0"
+                  >&nbsp;</span
+                >
+              </template>
+            </template>
           </div>
         </div>
 
@@ -440,57 +451,7 @@
           const currentAudioLevel = ref(0);
           const isRunOnAllPlugin = ref(false);
           const selectedText = ref("");
-
           const isSpeaking = ref(false);
-
-          const showInProgressSpinner = computed(() => {
-            const completedSegments = transcriptionSegments.value.filter(
-              (s) => s.type === "transcribed" && s.completed
-            );
-            const inProgressSegments = transcriptionSegments.value.filter(
-              (s) => s.type === "inprogress"
-            );
-            return {
-              show: inProgressSegments.length > 0,
-              text: completedSegments.length == 0,
-            };
-          });
-
-          const showVisualizer = computed(() => {
-            const isProcessing = [
-              "transcribing",
-              "transforming",
-              "injecting",
-            ].includes(currentStatus.value);
-            if (
-              isProcessing ||
-              currentStatus.value === "complete" ||
-              currentStatus.value === "idle"
-            ) {
-              return false;
-            }
-
-            if (currentStatus.value !== "recording") {
-              return false;
-            }
-
-            const hasInProgressSegments = transcriptionSegments.value.some(
-              (s) => s.type === "inprogress" || !s.completed
-            );
-            if (hasInProgressSegments) {
-              return false;
-            }
-
-            if (transcriptionSegments.value.length > 0) {
-              return isSpeaking.value;
-            }
-
-            return true;
-          });
-
-          const hasTranscription = computed(() => {
-            return transcriptionSegments.value.length > 0 || finalText.value;
-          });
 
           const displaySegments = computed(() => {
             if (finalText.value) {
@@ -518,6 +479,46 @@
             }
 
             return result;
+          });
+
+          const showVisualizer = computed(() => {
+            // Priority 1: If the user is speaking, always show the visualizer.
+            if (isSpeaking.value) {
+              return true;
+            }
+
+            // Priority 2: In these final states, never show the visualizer.
+            if (
+              ["transforming", "injecting", "complete", "idle"].includes(
+                currentStatus.value
+              )
+            ) {
+              return false;
+            }
+
+            // Priority 3: If we have text segments to display, hide the visualizer to show them.
+            if (displaySegments.value.length > 0) {
+              return false;
+            }
+
+            // Priority 4: If we are 'transcribing' but have no segments, hide visualizer to show 'Transcribing...'.
+            if (
+              currentStatus.value === "transcribing" &&
+              displaySegments.value.length === 0
+            ) {
+              return false;
+            }
+
+            // Priority 5: If we are in the 'recording' state without any text, show the visualizer.
+            if (currentStatus.value === "recording") {
+              return true;
+            }
+
+            return false; // Default case
+          });
+
+          const hasTranscription = computed(() => {
+            return transcriptionSegments.value.length > 0 || finalText.value;
           });
 
           const textContent = ref(null);
@@ -786,7 +787,6 @@
           return {
             isRecording,
             currentStatus,
-            transcriptionSegments,
             finalText,
             showVisualizer,
             isRunOnAllPlugin,
@@ -796,7 +796,6 @@
             displaySegments,
             textContent,
             textScrollContainer,
-            showInProgressSpinner,
             resetTranscription,
             getSegmentClass,
             getSegmentDisplayText,

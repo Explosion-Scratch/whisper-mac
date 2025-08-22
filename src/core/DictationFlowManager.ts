@@ -10,8 +10,6 @@ export type DictationState = "idle" | "recording" | "finishing";
 export class DictationFlowManager {
   private state: DictationState = "idle";
   private finishingTimeout: NodeJS.Timeout | null = null;
-  private vadAudioBuffer: Float32Array[] = [];
-  private vadSampleRate: number = 16000;
 
   constructor(
     private transcriptionPluginManager: TranscriptionPluginManager,
@@ -19,7 +17,12 @@ export class DictationFlowManager {
     private segmentManager: SegmentManager,
     private trayService: TrayService | null,
     private errorManager: ErrorManager,
-  ) {}
+  ) {
+    this.dictationWindowService.on(
+      "vad-audio-segment",
+      this.processVadAudioSegment.bind(this),
+    );
+  }
 
   // Public methods to check state
   isRecording(): boolean {
@@ -239,7 +242,6 @@ export class DictationFlowManager {
   private clearState(): void {
     this.segmentManager.clearAllSegments();
     this.segmentManager.resetIgnoreNextCompleted();
-    this.vadAudioBuffer = [];
   }
 
   private setupAccumulatingMode(): void {
@@ -277,6 +279,28 @@ export class DictationFlowManager {
   private startRecording(): void {
     this.trayService?.updateTrayIcon("recording");
     this.dictationWindowService.startRecording();
+  }
+
+  private async processVadAudioSegment(audioData: Float32Array): Promise<void> {
+    if (this.state !== "recording") {
+      return;
+    }
+
+    try {
+      this.dictationWindowService.setStatus("transcribing");
+      console.log(
+        "Processing VAD audio segment:",
+        audioData.length,
+        "samples",
+      );
+      await this.transcriptionPluginManager.processAudioSegment(audioData);
+    } catch (error) {
+      console.error("Error processing audio segment:", error);
+    } finally {
+      if (this.state === "recording") {
+        this.dictationWindowService.setStatus("recording");
+      }
+    }
   }
 
   private async processSegments(update: SegmentUpdate): Promise<void> {

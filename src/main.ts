@@ -147,18 +147,6 @@ class WhisperMacApp {
     this.settingsService.setUnifiedModelDownloadService(
       this.unifiedModelDownloadService,
     );
-
-    this.dictationWindowService.on(
-      "vad-audio-segment",
-      (audioData: Float32Array) => {
-        console.log(
-          "Processing VAD audio segment:",
-          audioData.length,
-          "samples",
-        );
-        this.transcriptionPluginManager.processAudioSegment(audioData);
-      },
-    );
   }
 
   private setupEventListeners(): void {

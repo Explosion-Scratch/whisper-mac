@@ -75,17 +75,23 @@
         "src/core/WindowManager.ts",
         "src/core/ErrorManager.ts",
         "src/core/README.md",
+        "src/main.ts",
+        "src/plugins/TranscriptionPlugin.ts",
+        "src/plugins/TranscriptionPluginManager.ts",
         "src/core/index.ts"
       ],
       "timestamp": "2025-08-21T18:10:46.427Z"
     },
     "dictationwindow": {
       "selectedFiles": [
+        "src/plugins/TranscriptionPlugin.ts",
+        "src/plugins/TranscriptionPluginManager.ts",
         "src/services/DictationWindowService.ts",
         "src/renderer/dictationWindow.html",
         "src/core/DictationFlowManager.ts",
         "src/preload/dictationPreload.ts",
-        "src/renderer/audio-visualizer.js"
+        "src/renderer/audio-visualizer.js",
+        "src/main.ts"
       ],
       "timestamp": "2025-08-21T18:11:45.006Z"
     },
