@@ -3,9 +3,10 @@
     "src/renderer/settingsWindow.js",
     "src/renderer/settingsWindow.html",
     "src/renderer/oldSettingsWindow.js",
-    "src/renderer/oldSettingsWindow.html"
+    "src/renderer/oldSettingsWindow.html",
+    "src/config/SettingsManager.ts"
   ],
-  "timestamp": "2025-08-22T02:10:42.094Z",
+  "timestamp": "2025-08-22T02:23:22.036Z",
   "cwd": "/Users/tjs/Documents/whisper-mac-extract",
   "presets": {
     "settings": {
@@ -160,7 +161,17 @@
         "src/plugins/index.ts"
       ],
       "timestamp": "2025-08-21T18:17:14.525Z"
+    },
+    "settingswindow_vue": {
+      "selectedFiles": [
+        "src/renderer/settingsWindow.js",
+        "src/renderer/settingsWindow.html",
+        "src/renderer/oldSettingsWindow.js",
+        "src/renderer/oldSettingsWindow.html",
+        "src/config/SettingsManager.ts"
+      ],
+      "timestamp": "2025-08-22T02:23:17.420Z"
     }
   },
-  "prompt": "Based on the old settings window HTML + JS reimplement the actions editor, data storage editor, and plugin specific options into the  new Vue.js settingsWindow. Comprehensively implement these things and others you left out. The functionality  and UI should be the same  as the old version."
+  "prompt": ""
 }

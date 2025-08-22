@@ -637,6 +637,10 @@
         background: var(--color-success);
         color: var(--color-text-inverse);
       }
+      .status-message.info {
+        background-color: var(--color-primary);
+        color: var(--color-text-inverse);
+      }
 
       .status-message.error {
         background: var(--color-error);
@@ -820,7 +824,7 @@
         font-weight: var(--font-weight-medium);
       }
 
-      .plugin-data-details {
+      .plugin-data-details-summary {
         display: flex;
         gap: var(--spacing-md);
         font-size: var(--font-size-sm);
@@ -844,6 +848,11 @@
         padding: 4px 8px;
         font-size: var(--font-size-xs);
         min-height: 24px;
+      }
+      .btn-xs {
+        padding: 2px 6px;
+        font-size: var(--font-size-xs);
+        min-height: 20px;
       }
 
       .active-plugin-note {
@@ -947,7 +956,7 @@
       .item-size {
         font-size: var(--font-size-xs);
         color: var(--color-text-tertiary);
-        font-weight: var(--font-weight-mono);
+        font-family: monospace;
       }
 
       .item-actions {
@@ -1232,6 +1241,42 @@
         text-align: center;
       }
 
+      .progress-overlay {
+        position: fixed;
+        top: 60px;
+        right: 20px;
+        background: rgba(0, 122, 255, 0.95);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 1001;
+        min-width: 280px;
+        font-size: 13px;
+        opacity: 0;
+        transform: translateY(-10px);
+        transition: all var(--transition-slow);
+      }
+
+      .progress-overlay.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .progress-bar-container {
+        background: rgba(255, 255, 255, 0.2);
+        height: 4px;
+        border-radius: 2px;
+        overflow: hidden;
+        margin-top: 8px;
+      }
+
+      .progress-bar-fill {
+        background: white;
+        height: 100%;
+        transition: width 0.3s ease;
+      }
+
       @keyframes spin {
         to {
           transform: rotate(360deg);
@@ -1244,13 +1289,25 @@
       <header class="toolbar toolbar-header">
         <h1 class="title">Settings</h1>
         <div class="toolbar-actions">
-          <button @click="resetAll" class="btn btn-default btn-icon-only action-btn" title="Reset all settings to defaults">
+          <button
+            @click="resetAll"
+            class="btn btn-default btn-icon-only action-btn"
+            title="Reset all settings to defaults"
+          >
             <i class="ph ph-arrow-clockwise"></i>
           </button>
-          <button @click="importSettings" class="btn btn-default btn-icon-only action-btn" title="Import settings from file">
+          <button
+            @click="importSettings"
+            class="btn btn-default btn-icon-only action-btn"
+            title="Import settings from file"
+          >
             <i class="ph ph-download-simple"></i>
           </button>
-          <button @click="exportSettings" class="btn btn-default btn-icon-only action-btn" title="Export settings to file">
+          <button
+            @click="exportSettings"
+            class="btn btn-default btn-icon-only action-btn"
+            title="Export settings to file"
+          >
             <i class="ph ph-upload-simple"></i>
           </button>
         </div>
@@ -1259,11 +1316,17 @@
       <div class="window-content" v-if="schema.length > 0">
         <nav class="sidebar">
           <div class="nav-group">
-            <a v-for="section in schema" :key="section.id"
-               class="nav-group-item"
-               :class="{ active: currentSectionId === section.id }"
-               @click="showSection(section.id)">
-              <i class="icon ph-duotone" :class="getIcon(section.icon || section.id)"></i>
+            <a
+              v-for="section in schema"
+              :key="section.id"
+              class="nav-group-item"
+              :class="{ active: currentSectionId === section.id }"
+              @click="showSection(section.id)"
+            >
+              <i
+                class="icon ph-duotone"
+                :class="getIcon(section.icon || section.id)"
+              ></i>
               {{ section.title }}
             </a>
           </div>
@@ -1273,125 +1336,843 @@
           <form @submit.prevent="saveSettings">
             <div class="settings-section">
               <div class="section-header">
-                <i class="ph-duotone" :class="getIcon(currentSection.icon || currentSection.id)"></i>
+                <i
+                  class="ph-duotone"
+                  :class="getIcon(currentSection.icon || currentSection.id)"
+                ></i>
                 <div>
                   <h2 class="section-title">{{ currentSection.title }}</h2>
-                  <p v-if="currentSection.description" class="section-description">{{ currentSection.description }}</p>
+                  <p
+                    v-if="currentSection.description"
+                    class="section-description"
+                  >
+                    {{ currentSection.description }}
+                  </p>
                 </div>
               </div>
 
               <!-- REGULAR FIELDS RENDERER -->
-              <div v-for="field in currentSection.fields" :key="field.key" class="form-group" :class="{ 'has-error': validationErrors[field.key] }">
-                <template v-if="field.type !== 'boolean'">
-                    <label>
-                        <i class="ph-duotone" :class="getFieldIcon(field)"></i>
-                        {{ field.label }}
-                    </label>
+              <div
+                v-for="field in currentSection.fields"
+                :key="field.key"
+                class="form-group"
+                :class="{ 'has-error': validationErrors[field.key] }"
+              >
+                <template
+                  v-if="field.type !== 'boolean' && field.type !== 'actions-editor'"
+                >
+                  <label>
+                    <i class="ph-duotone" :class="getFieldIcon(field)"></i>
+                    {{ field.label }}
+                  </label>
                 </template>
-                <div v-if="field.description" class="field-description">{{ field.description }}</div>
+                <div v-if="field.description" class="field-description">
+                  {{ field.description }}
+                </div>
 
                 <!-- Field types -->
-                <input v-if="field.type === 'text' && field.key !== 'ai.baseUrl'" type="text" class="form-control" v-model="settings[field.key.split('.')[0]][field.key.split('.')[1]]" :placeholder="field.placeholder">
+                <input
+                  v-if="field.type === 'text' && field.key !== 'ai.baseUrl'"
+                  type="text"
+                  class="form-control"
+                  :value="getSettingValue(field.key)"
+                  @input="setSettingValue(field.key, $event.target.value)"
+                  :placeholder="field.placeholder"
+                />
 
                 <template v-if="field.key === 'ai.baseUrl'">
-                    <input type="text" class="form-control" v-model="settings.ai.baseUrl" :placeholder="field.placeholder">
-                    <div class="form-group" style="margin-top:8px;">
-                        <label for="aiApiKeyInline">
-                            <i class="ph-duotone ph-key" style="margin-right: 6px; font-size: 14px;"></i>
-                            API Key (saved securely)
-                        </label>
-                        <input type="password" class="form-control" id="aiApiKeyInline" placeholder="Paste API Key to validate & save securely" @input="debouncedValidateApiKey">
-                    </div>
+                  <input
+                    type="text"
+                    class="form-control"
+                    v-model="settings.ai.baseUrl"
+                    @input="aiModelsState.loadedForBaseUrl = null"
+                    :placeholder="field.placeholder"
+                  />
+                  <div class="form-group" style="margin-top: 8px">
+                    <label for="aiApiKeyInline">
+                      <i
+                        class="ph-duotone ph-key"
+                        style="margin-right: 6px; font-size: 14px"
+                      ></i>
+                      API Key (saved securely)
+                      <span
+                        v-if="aiModelsState.loading"
+                        class="spinner"
+                        style="
+                          margin-left: 8px;
+                          width: 12px;
+                          height: 12px;
+                          border-color: var(--color-text-secondary);
+                          border-top-color: var(--color-primary);
+                        "
+                      ></span>
+                    </label>
+                    <input
+                      type="password"
+                      class="form-control"
+                      id="aiApiKeyInline"
+                      v-model="apiKeyInput"
+                      @input="debouncedValidateApiKey"
+                      placeholder="Paste API Key to validate & load models"
+                    />
+                  </div>
                 </template>
 
-                <input v-if="field.type === 'number'" type="number" class="form-control" v-model.number="settings[field.key.split('.')[0]][field.key.split('.')[1]]" :min="field.min" :max="field.max" :step="field.step">
+                <template v-if="field.key === 'ai.model'">
+                  <select
+                    v-if="aiModelsState.models.length > 0"
+                    class="form-control"
+                    v-model="settings.ai.model"
+                  >
+                    <option
+                      v-for="model in aiModelsState.models"
+                      :key="model.id"
+                      :value="model.id"
+                    >
+                      {{ model.name || model.id }}
+                    </option>
+                  </select>
+                  <select
+                    v-else
+                    class="form-control"
+                    v-model="settings.ai.model"
+                  >
+                    <option
+                      v-for="option in field.options"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </template>
+
+                <input
+                  v-if="field.type === 'number'"
+                  type="number"
+                  class="form-control"
+                  :value="getSettingValue(field.key)"
+                  @input="setSettingValue(field.key, parseFloat($event.target.value))"
+                  :min="field.min"
+                  :max="field.max"
+                  :step="field.step"
+                />
 
                 <div v-if="field.type === 'boolean'" class="checkbox-container">
-                    <input type="checkbox" class="checkbox" :id="'field-' + field.key" v-model="settings[field.key.split('.')[0]][field.key.split('.')[1]]">
-                    <label :for="'field-' + field.key">
-                        <i class="ph-duotone" :class="getFieldIcon(field)"></i>
-                        {{ field.label }}
-                    </label>
+                  <input
+                    type="checkbox"
+                    class="checkbox"
+                    :id="'field-' + field.key"
+                    :checked="getSettingValue(field.key)"
+                    @change="setSettingValue(field.key, $event.target.checked)"
+                  />
+                  <label :for="'field-' + field.key">
+                    <i class="ph-duotone" :class="getFieldIcon(field)"></i>
+                    {{ field.label }}
+                  </label>
                 </div>
 
-                <select v-if="field.type === 'select'" class="form-control" v-model="settings[field.key.split('.')[0]][field.key.split('.')[1]]">
-                    <option v-for="option in field.options" :key="option.value" :value="option.value">{{ option.label }}</option>
+                <select
+                  v-if="field.type === 'select' && field.key !== 'ai.model'"
+                  class="form-control"
+                  :value="getSettingValue(field.key)"
+                  @change="setSettingValue(field.key, $event.target.value)"
+                >
+                  <option
+                    v-for="option in field.options"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
                 </select>
 
-                <textarea v-if="field.type === 'textarea'" class="form-control" rows="6" v-model="settings[field.key.split('.')[0]][field.key.split('.')[1]]" :placeholder="field.placeholder"></textarea>
+                <textarea
+                  v-if="field.type === 'textarea'"
+                  class="form-control"
+                  rows="6"
+                  :value="getSettingValue(field.key)"
+                  @input="setSettingValue(field.key, $event.target.value)"
+                  :placeholder="field.placeholder"
+                ></textarea>
 
                 <div v-if="field.type === 'slider'" class="slider-container">
-                    <input type="range" class="slider" v-model.number="settings[field.key.split('.')[0]][field.key.split('.')[1]]" :min="field.min" :max="field.max" :step="field.step">
-                    <span class="slider-value">{{ settings[field.key.split('.')[0]][field.key.split('.')[1]] }}</span>
+                  <input
+                    type="range"
+                    class="slider"
+                    :value="getSettingValue(field.key)"
+                    @input="setSettingValue(field.key, parseFloat($event.target.value))"
+                    :min="field.min"
+                    :max="field.max"
+                    :step="field.step"
+                  />
+                  <span class="slider-value"
+                    >{{ getSettingValue(field.key) }}</span
+                  >
                 </div>
 
-                <div v-if="field.type === 'directory'" class="directory-container">
-                    <input type="text" class="form-control directory-input" :value="settings[field.key]" readonly>
-                    <button type="button" @click="browseDirectory(field.key)" class="btn btn-default directory-browse-btn">
-                        <i class="ph-duotone ph-folder-open"></i> Browse
-                    </button>
+                <div
+                  v-if="field.type === 'directory'"
+                  class="directory-container"
+                >
+                  <input
+                    type="text"
+                    class="form-control directory-input"
+                    :value="getSettingValue(field.key)"
+                    readonly
+                  />
+                  <button
+                    type="button"
+                    @click="browseDirectory(field.key)"
+                    class="btn btn-default directory-browse-btn"
+                  >
+                    <i class="ph-duotone ph-folder-open"></i> Browse
+                  </button>
                 </div>
 
-                <!-- Actions Editor Placeholder -->
-                <div v-if="field.type === 'actions-editor'">
-                    <!-- Actions editor will be implemented here -->
+                <!-- Actions Editor -->
+                <div v-if="field.type === 'actions-editor' && settings.actions">
+                  <div class="actions-editor-container">
+                    <div class="actions-editor-toolbar">
+                      <button
+                        @click="addNewAction"
+                        type="button"
+                        class="btn btn-primary btn-sm"
+                      >
+                        <i class="ph-duotone ph-plus"></i> Add Action
+                      </button>
+                      <button
+                        @click="resetActionsToDefaults"
+                        type="button"
+                        class="btn btn-default btn-sm"
+                      >
+                        <i class="ph-duotone ph-arrow-clockwise"></i> Reset to
+                        Defaults
+                      </button>
+                    </div>
+                    <div class="actions-list">
+                      <div
+                        v-if="!settings.actions.actions.length"
+                        class="empty-actions-state"
+                      >
+                        <i class="ph-duotone ph-lightning"></i>
+                        <p>No actions configured</p>
+                        <p class="empty-subtitle">
+                          Add your first voice action to get started
+                        </p>
+                      </div>
+                      <div
+                        v-for="(action, index) in settings.actions.actions"
+                        :key="action.id"
+                        class="action-card"
+                      >
+                        <div
+                          class="action-card-header"
+                          @click.self="toggleActionCard(action.id)"
+                        >
+                          <div class="action-info">
+                            <div class="action-toggle">
+                              <input
+                                type="checkbox"
+                                class="action-enabled-checkbox"
+                                v-model="action.enabled"
+                              />
+                              <h4 class="action-name">{{ action.name }}</h4>
+                            </div>
+                            <p class="action-description">
+                              {{ action.description }}
+                            </p>
+                          </div>
+                          <div class="action-controls">
+                            <button
+                              type="button"
+                              class="btn btn-icon-only"
+                              @click="moveAction(index, -1)"
+                              :disabled="index === 0"
+                              title="Move up"
+                            >
+                              <i class="ph-duotone ph-caret-up"></i>
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-icon-only"
+                              @click="moveAction(index, 1)"
+                              :disabled="index === settings.actions.actions.length - 1"
+                              title="Move down"
+                            >
+                              <i class="ph-duotone ph-caret-down"></i>
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-icon-only"
+                              @click="toggleActionCard(action.id)"
+                              title="Toggle details"
+                            >
+                              <i
+                                class="ph-duotone"
+                                :class="expandedActions[action.id] ? 'ph-caret-up' : 'ph-caret-down'"
+                              ></i>
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-icon-only btn-negative"
+                              @click="deleteAction(index)"
+                              title="Delete action"
+                            >
+                              <i class="ph-duotone ph-trash"></i>
+                            </button>
+                          </div>
+                        </div>
+                        <div
+                          class="action-card-body"
+                          :class="{ collapsed: !expandedActions[action.id] }"
+                        >
+                          <div class="action-form-group">
+                            <label>Action Name</label>
+                            <input
+                              type="text"
+                              class="form-control"
+                              v-model="action.name"
+                            />
+                          </div>
+                          <div class="action-form-group">
+                            <label>Description</label>
+                            <input
+                              type="text"
+                              class="form-control"
+                              v-model="action.description"
+                            />
+                          </div>
+                          <div class="action-form-group action-form-row">
+                            <div class="action-form-col">
+                              <label>Order</label
+                              ><input
+                                type="number"
+                                class="form-control"
+                                v-model.number="action.order"
+                                min="1"
+                              />
+                            </div>
+                            <div class="action-form-col">
+                              <label class="checkbox-label"
+                                ><input
+                                  type="checkbox"
+                                  v-model="action.closesTranscription"
+                                />
+                                Closes Transcription</label
+                              >
+                            </div>
+                            <div class="action-form-col">
+                              <label class="checkbox-label"
+                                ><input
+                                  type="checkbox"
+                                  v-model="action.skipsTransformation"
+                                />
+                                Skips Transformation</label
+                              >
+                            </div>
+                          </div>
+                          <div class="section-header-small">
+                            <h5>Match Patterns</h5>
+                            <button
+                              type="button"
+                              class="btn btn-sm"
+                              @click="addNewPattern(index)"
+                            >
+                              <i class="ph-duotone ph-plus"></i> Add Pattern
+                            </button>
+                          </div>
+                          <div class="patterns-list">
+                            <div
+                              v-for="(pattern, pIndex) in action.matchPatterns"
+                              :key="pattern.id"
+                              class="pattern-item"
+                            >
+                              <div class="pattern-controls">
+                                <select
+                                  class="form-control"
+                                  v-model="pattern.type"
+                                >
+                                  <option value="startsWith">
+                                    Starts with
+                                  </option>
+                                  <option value="endsWith">Ends with</option>
+                                  <option value="exact">Exact match</option>
+                                  <option value="regex">Regex</option>
+                                </select>
+                                <input
+                                  type="text"
+                                  class="form-control"
+                                  placeholder="Pattern text..."
+                                  v-model="pattern.pattern"
+                                />
+                                <label class="case-sensitive-label"
+                                  ><input
+                                    type="checkbox"
+                                    v-model="pattern.caseSensitive"
+                                  />
+                                  Case sensitive</label
+                                >
+                                <button
+                                  type="button"
+                                  class="btn btn-icon-only btn-negative"
+                                  @click="deletePattern(index, pIndex)"
+                                >
+                                  <i class="ph-duotone ph-x"></i>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="section-header-small">
+                            <h5>Action Handlers</h5>
+                            <button
+                              type="button"
+                              class="btn btn-sm"
+                              @click="addNewHandler(index)"
+                            >
+                              <i class="ph-duotone ph-plus"></i> Add Handler
+                            </button>
+                          </div>
+                          <div class="handlers-list">
+                            <div
+                              v-for="(handler, hIndex) in action.handlers"
+                              :key="handler.id"
+                              class="handler-item"
+                            >
+                              <div class="handler-header">
+                                <select
+                                  class="form-control"
+                                  v-model="handler.type"
+                                  @change="updateHandlerType(handler)"
+                                >
+                                  <option value="openUrl">Open URL</option>
+                                  <option value="openApplication">
+                                    Open Application
+                                  </option>
+                                  <option value="quitApplication">
+                                    Quit Application
+                                  </option>
+                                  <option value="executeShell">
+                                    Execute Shell
+                                  </option>
+                                  <option value="segmentAction">
+                                    Segment Action
+                                  </option>
+                                </select>
+                                <input
+                                  type="number"
+                                  class="form-control handler-order-input"
+                                  v-model.number="handler.order"
+                                  min="1"
+                                  title="Execution order"
+                                />
+                                <button
+                                  type="button"
+                                  class="btn btn-icon-only btn-negative"
+                                  @click="deleteHandler(index, hIndex)"
+                                >
+                                  <i class="ph-duotone ph-x"></i>
+                                </button>
+                              </div>
+                              <div class="handler-config">
+                                <template v-if="handler.type === 'openUrl'">
+                                  <div class="config-field">
+                                    <label>URL Template</label
+                                    ><input
+                                      type="text"
+                                      class="form-control"
+                                      placeholder="{argument}"
+                                      v-model="handler.config.urlTemplate"
+                                    />
+                                  </div>
+                                  <div class="config-field">
+                                    <label
+                                      ><input
+                                        type="checkbox"
+                                        v-model="handler.config.openInBackground"
+                                      />
+                                      Open in background</label
+                                    >
+                                  </div>
+                                </template>
+                                <template
+                                  v-if="handler.type === 'openApplication'"
+                                >
+                                  <div class="config-field">
+                                    <label>Application Name</label
+                                    ><input
+                                      type="text"
+                                      class="form-control"
+                                      placeholder="{argument}"
+                                      v-model="handler.config.applicationName"
+                                    />
+                                  </div>
+                                  <div class="config-field">
+                                    <label
+                                      ><input
+                                        type="checkbox"
+                                        v-model="handler.config.waitForExit"
+                                      />
+                                      Wait for exit</label
+                                    >
+                                  </div>
+                                </template>
+                                <template
+                                  v-if="handler.type === 'quitApplication'"
+                                >
+                                  <div class="config-field">
+                                    <label>Application Name</label
+                                    ><input
+                                      type="text"
+                                      class="form-control"
+                                      placeholder="{argument}"
+                                      v-model="handler.config.applicationName"
+                                    />
+                                  </div>
+                                  <div class="config-field">
+                                    <label
+                                      ><input
+                                        type="checkbox"
+                                        v-model="handler.config.forceQuit"
+                                      />
+                                      Force quit</label
+                                    >
+                                  </div>
+                                </template>
+                                <template
+                                  v-if="handler.type === 'executeShell'"
+                                >
+                                  <div class="config-field">
+                                    <label>Command</label
+                                    ><textarea
+                                      class="form-control"
+                                      rows="3"
+                                      v-model="handler.config.command"
+                                    ></textarea>
+                                  </div>
+                                  <div class="config-field">
+                                    <label>Working Directory</label
+                                    ><input
+                                      type="text"
+                                      class="form-control"
+                                      v-model="handler.config.workingDirectory"
+                                    />
+                                  </div>
+                                  <div class="config-field">
+                                    <label>Timeout (ms)</label
+                                    ><input
+                                      type="number"
+                                      class="form-control"
+                                      v-model.number="handler.config.timeout"
+                                    />
+                                  </div>
+                                  <div class="config-field">
+                                    <label
+                                      ><input
+                                        type="checkbox"
+                                        v-model="handler.config.runInBackground"
+                                      />
+                                      Run in background</label
+                                    >
+                                  </div>
+                                </template>
+                                <template
+                                  v-if="handler.type === 'segmentAction'"
+                                >
+                                  <div class="config-field">
+                                    <label>Action</label>
+                                    <select
+                                      class="form-control"
+                                      v-model="handler.config.action"
+                                    >
+                                      <option value="clear">Clear All</option>
+                                      <option value="undo">Undo Last</option>
+                                      <option value="replace">Replace</option>
+                                      <option value="deleteLastN">
+                                        Delete Last N
+                                      </option>
+                                      <option value="conditionalTransform">
+                                        Conditional Transform
+                                      </option>
+                                    </select>
+                                  </div>
+                                  <div
+                                    v-if="handler.config.action === 'replace'"
+                                    class="config-field"
+                                  >
+                                    <label>Replacement Text</label
+                                    ><input
+                                      type="text"
+                                      class="form-control"
+                                      placeholder="{argument}"
+                                      v-model="handler.config.replacementText"
+                                    />
+                                  </div>
+                                  <div
+                                    v-if="handler.config.action === 'deleteLastN'"
+                                    class="config-field"
+                                  >
+                                    <label>Count</label
+                                    ><input
+                                      type="number"
+                                      class="form-control"
+                                      min="1"
+                                      v-model.number="handler.config.count"
+                                    />
+                                  </div>
+                                </template>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div class="validation-error" v-if="validationErrors[field.key]">{{ validationErrors[field.key] }}</div>
+                <div
+                  class="validation-error"
+                  v-if="validationErrors[field.key]"
+                >
+                  {{ validationErrors[field.key] }}
+                </div>
               </div>
-              
+
               <!-- TRANSCRIPTION SECTION -->
-              <div v-if="currentSection.id === 'transcription'" class="plugin-options-section">
-                <!-- Plugin selector -->
+              <div
+                v-if="currentSection.id === 'transcription' && pluginData.plugins.length"
+                class="plugin-options-section"
+              >
                 <div class="form-group">
-                  <label>
-                    <i class="ph-duotone ph-gear"></i> Active Plugin
-                  </label>
-                  <select class="form-control" v-model="activePlugin" @change="handlePluginChange">
-                    <option v-for="plugin in pluginData.plugins" :key="plugin.name" :value="plugin.name">{{ plugin.displayName }}</option>
+                  <label
+                    ><i class="ph-duotone ph-plugs-connected"></i> Active
+                    Plugin</label
+                  >
+                  <select
+                    class="form-control"
+                    v-model="activePlugin"
+                    @change="handlePluginChange"
+                  >
+                    <option
+                      v-for="plugin in pluginData.plugins"
+                      :key="plugin.name"
+                      :value="plugin.name"
+                    >
+                      {{ plugin.displayName }}
+                    </option>
                   </select>
                 </div>
-                <!-- Plugin options -->
-                <div v-for="plugin in pluginData.plugins" :key="plugin.name" v-show="activePlugin === plugin.name" class="plugin-config-section">
-                   <h4>{{ plugin.displayName }} Options</h4>
-                   <p class="plugin-description">{{ plugin.description }}</p>
-                   <div v-for="option in pluginData.options[plugin.name]" :key="option.key" class="form-group plugin-option">
-                        <!-- Plugin option rendering logic -->
-                   </div>
+                <div
+                  v-for="plugin in pluginData.plugins"
+                  :key="plugin.name"
+                  class="plugin-config-section"
+                >
+                  <div class="plugin-header">
+                    <div class="plugin-info">
+                      <h4>{{ plugin.displayName }}</h4>
+                      <p class="plugin-description">{{ plugin.description }}</p>
+                    </div>
+                    <button
+                      v-if="activePlugin !== plugin.name"
+                      type="button"
+                      @click="clearPluginData(plugin.name)"
+                      class="btn btn-negative btn-sm"
+                      title="Clear plugin data"
+                    >
+                      <i class="ph-duotone ph-trash"></i> Clear Data
+                    </button>
+                  </div>
+                  <div v-if="activePlugin === plugin.name">
+                    <div
+                      v-for="option in pluginData.options[plugin.name]"
+                      :key="option.key"
+                      class="form-group plugin-option"
+                    >
+                      <label v-if="option.type !== 'boolean'"
+                        >{{ option.label }}</label
+                      >
+                      <div v-if="option.description" class="field-description">
+                        {{ option.description }}
+                      </div>
+                      <select
+                        v-if="option.type === 'model-select' || option.type === 'select'"
+                        class="form-control"
+                        v-model="settings.plugin[plugin.name][option.key]"
+                      >
+                        <option
+                          v-for="opt in option.options"
+                          :value="opt.value"
+                        >
+                          {{ opt.label }}<span v-if="opt.size">
+                            ({{ opt.size }})</span
+                          >
+                        </option>
+                      </select>
+                      <div
+                        v-else-if="option.type === 'boolean'"
+                        class="checkbox-container"
+                      >
+                        <input
+                          type="checkbox"
+                          class="checkbox"
+                          :id="`plugin-${plugin.name}-${option.key}`"
+                          v-model="settings.plugin[plugin.name][option.key]"
+                        />
+                        <label :for="`plugin-${plugin.name}-${option.key}`"
+                          >{{ option.label }}</label
+                        >
+                      </div>
+                      <input
+                        v-else-if="option.type === 'number'"
+                        type="number"
+                        class="form-control"
+                        v-model.number="settings.plugin[plugin.name][option.key]"
+                        :min="option.min"
+                        :max="option.max"
+                        :step="option.step || 1"
+                      />
+                      <input
+                        v-else
+                        type="text"
+                        class="form-control"
+                        v-model="settings.plugin[plugin.name][option.key]"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <!-- DATA MANAGEMENT SECTION -->
-              <div v-if="currentSection.id === 'data'" class="data-management-section">
+              <div
+                v-if="currentSection.id === 'data'"
+                class="data-management-section"
+              >
                 <div class="plugin-data-list">
-                    <div v-if="!pluginDataInfo.length" class="loading-indicator">Loading...</div>
-                    <div v-for="plugin in pluginDataInfo" :key="plugin.name" class="plugin-data-item" :class="{ active: plugin.isActive }">
-                         <div class="plugin-data-info">
-                            <div class="plugin-name">{{ plugin.displayName }} <span v-if="plugin.isActive" class="active-badge">Active</span></div>
-                            <div class="plugin-data-details">
-                                <span class="data-size"><i class="ph-duotone ph-hard-drive"></i> {{ formatBytes(plugin.dataSize) }}</span>
-                                <span class="data-path"><i class="ph-duotone ph-folder"></i> {{ plugin.dataPath }}</span>
-                            </div>
-                         </div>
-                         <div class="plugin-data-actions">
-                            <button v-if="!plugin.isActive" @click="clearPluginData(plugin.name)" class="btn btn-negative btn-sm">Clear Data</button>
-                         </div>
+                  <div v-if="!pluginDataInfo.length" class="loading-indicator">
+                    <i
+                      class="ph-duotone ph-circle-notch"
+                      style="animation: spin 1s linear infinite"
+                    ></i
+                    >Loading...
+                  </div>
+                  <template v-for="plugin in pluginDataInfo" :key="plugin.name">
+                    <div
+                      class="plugin-data-item"
+                      :class="{ active: plugin.isActive }"
+                    >
+                      <div class="plugin-data-info">
+                        <div class="plugin-name">
+                          {{ plugin.displayName }}
+                          <span v-if="plugin.isActive" class="active-badge"
+                            >Active</span
+                          >
+                        </div>
+                        <div class="plugin-data-details-summary">
+                          <span class="data-size"
+                            ><i class="ph-duotone ph-hard-drive"></i> {{
+                            formatBytes(plugin.dataSize) }}</span
+                          >
+                          <span class="data-path"
+                            ><i class="ph-duotone ph-folder"></i> {{
+                            plugin.dataPath }}</span
+                          >
+                        </div>
+                      </div>
+                      <div class="plugin-data-actions">
+                        <button
+                          type="button"
+                          @click="togglePluginDetails(plugin.name)"
+                          class="btn btn-sm plugin-details-btn"
+                        >
+                          <i class="ph-duotone ph-list-bullets"></i> View
+                          Details
+                        </button>
+                        <button
+                          v-if="!plugin.isActive"
+                          type="button"
+                          @click="clearPluginData(plugin.name)"
+                          class="btn btn-negative btn-sm"
+                        >
+                          <i class="ph-duotone ph-trash"></i> Clear All
+                        </button>
+                      </div>
                     </div>
+                    <div
+                      class="plugin-data-details"
+                      v-if="expandedDataPlugins[plugin.name]"
+                    >
+                      <div
+                        v-if="!pluginDataItems[plugin.name]"
+                        class="loading-indicator"
+                      >
+                        <i
+                          class="ph-duotone ph-circle-notch"
+                          style="animation: spin 1s linear infinite"
+                        ></i
+                        >Loading...
+                      </div>
+                      <div
+                        v-else-if="!pluginDataItems[plugin.name].length"
+                        class="empty-state"
+                      >
+                        <i class="ph-duotone ph-folder-open"></i>
+                        <p>No data items found</p>
+                      </div>
+                      <div v-else class="plugin-data-items">
+                        <div
+                          v-for="item in pluginDataItems[plugin.name]"
+                          :key="item.id"
+                          class="plugin-data-item-detail"
+                        >
+                          <div class="item-info">
+                            <div class="item-name">{{ item.name }}</div>
+                            <div class="item-description">
+                              {{ item.description }}
+                            </div>
+                            <div class="item-size">
+                              {{ formatBytes(item.size) }}
+                            </div>
+                          </div>
+                          <div class="item-actions">
+                            <button
+                              type="button"
+                              @click="deletePluginDataItem(plugin.name, item.id, item.name)"
+                              class="btn btn-xs btn-negative delete-item-btn"
+                            >
+                              <i class="ph-duotone ph-trash"></i> Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
                 </div>
               </div>
             </div>
 
             <div class="form-actions">
-              <button type="submit" class="btn btn-primary" :disabled="isSaving">
+              <button
+                type="submit"
+                class="btn btn-primary"
+                :disabled="isSaving"
+              >
                 <span v-if="isSaving" class="spinner"></span>
                 <i v-if="!isSaving" class="ph-duotone ph-floppy-disk"></i>
                 Save Settings
               </button>
-              <button @click="cancelChanges" type="button" class="btn btn-default">
+              <button
+                @click="cancelChanges"
+                type="button"
+                class="btn btn-default"
+              >
                 <i class="ph-duotone ph-x-circle"></i>
                 Cancel
               </button>
-              <button @click="resetSection" type="button" class="btn btn-negative">
+              <button
+                @click="resetSection"
+                type="button"
+                class="btn btn-negative"
+              >
                 <i class="ph-duotone ph-arrow-counter-clockwise"></i>
                 Reset Section
               </button>
@@ -1400,8 +2181,21 @@
         </main>
       </div>
 
-      <div class="status-message" :class="[status.type, { show: status.visible }]">
+      <div
+        class="status-message"
+        :class="[status.type, { show: status.visible }]"
+      >
         {{ status.message }}
+      </div>
+
+      <div class="progress-overlay" :class="{ show: progress.visible }">
+        <div>{{ progress.message }}</div>
+        <div class="progress-bar-container">
+          <div
+            class="progress-bar-fill"
+            :style="{ width: progress.percent + '%' }"
+          ></div>
+        </div>
       </div>
     </div>
 

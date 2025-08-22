@@ -60,9 +60,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
 
   onSetStatus: (callback: (status: string) => void) => {
-    ipcRenderer.on("dictation-set-status", (event, status) =>
-      callback(status),
-    );
+    ipcRenderer.on("dictation-set-status", (event, status) => callback(status));
   },
 
   onPlayEndSound: (callback: () => void) => {

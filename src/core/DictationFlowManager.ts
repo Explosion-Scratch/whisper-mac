@@ -288,11 +288,7 @@ export class DictationFlowManager {
 
     try {
       this.dictationWindowService.setStatus("transcribing");
-      console.log(
-        "Processing VAD audio segment:",
-        audioData.length,
-        "samples",
-      );
+      console.log("Processing VAD audio segment:", audioData.length, "samples");
       await this.transcriptionPluginManager.processAudioSegment(audioData);
     } catch (error) {
       console.error("Error processing audio segment:", error);
