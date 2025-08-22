@@ -1,38 +1,11 @@
 {
   "selectedFiles": [
-    "src/config/AppConfig.ts",
-    "src/config/SettingsSchema.ts",
-    "src/config/SettingsManager.ts",
-    "src/helpers/WavProcessor.ts",
-    "src/plugins/TranscriptionPlugin.ts",
-    "src/plugins/TranscriptionPluginManager.ts",
-    "src/preload/onboardingPreload.ts",
-    "src/preload/dictationPreload.ts",
-    "src/preload/settingsPreload.ts",
-    "src/preload/errorPreload.ts",
-    "src/services/UnifiedModelDownloadService.ts",
-    "src/services/MicrophonePermissionService.ts",
-    "src/services/ConfigurableActionsService.ts",
-    "src/services/AiValidationService.test.ts",
-    "src/services/DictationWindowService.ts",
-    "src/services/TransformationService.ts",
-    "src/services/TextInjectionService.ts",
-    "src/services/SecureStorageService.ts",
-    "src/services/SelectedTextService.ts",
-    "src/services/AiValidationService.ts",
-    "src/services/ErrorWindowService.ts",
-    "src/services/FileSystemService.ts",
-    "src/services/AiProviderService.ts",
-    "src/services/SettingsService.ts",
-    "src/services/SegmentManager.ts",
-    "src/services/ModelManager.ts",
-    "src/services/TrayService.ts",
-    "src/services/AppEventBus.ts",
-    "src/main.ts",
-    "src/core/index.ts",
-    "src/plugins/index.ts"
+    "src/renderer/settingsWindow.js",
+    "src/renderer/settingsWindow.html",
+    "src/renderer/oldSettingsWindow.js",
+    "src/renderer/oldSettingsWindow.html"
   ],
-  "timestamp": "2025-08-21T18:17:15.828Z",
+  "timestamp": "2025-08-22T02:10:42.094Z",
   "cwd": "/Users/tjs/Documents/whisper-mac-extract",
   "presets": {
     "settings": {
@@ -118,9 +91,15 @@
         "docs/ACTIONS.md",
         "src/types/ActionTypes.ts",
         "src/config/DefaultActions.ts",
-        "src/services/ConfigurableActionsService.ts"
+        "src/services/ConfigurableActionsService.ts",
+        "src/config/SettingsSchema.ts",
+        "src/config/SettingsManager.ts",
+        "src/preload/settingsPreload.ts",
+        "src/renderer/settingsWindow.js",
+        "src/services/SettingsService.ts",
+        "src/renderer/settingsWindow.html"
       ],
-      "timestamp": "2025-08-21T18:13:22.351Z"
+      "timestamp": "2025-08-22T00:53:28.240Z"
     },
     "onboarding": {
       "selectedFiles": [
@@ -183,5 +162,5 @@
       "timestamp": "2025-08-21T18:17:14.525Z"
     }
   },
-  "prompt": ""
+  "prompt": "Based on the old settings window HTML + JS reimplement the actions editor, data storage editor, and plugin specific options into the  new Vue.js settingsWindow. Comprehensively implement these things and others you left out. The functionality  and UI should be the same  as the old version."
 }

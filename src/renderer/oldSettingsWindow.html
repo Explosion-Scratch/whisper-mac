@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -18,9 +18,6 @@
       href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/style.css"
     />
     <style>
-      [v-cloak] {
-        display: none;
-      }
       /* Design System Variables */
       :root {
         --color-primary: #007aff;
@@ -293,6 +290,10 @@
 
       .settings-section {
         margin-bottom: var(--spacing-xl);
+      }
+
+      .settings-section.hidden {
+        display: none;
       }
 
       /* Section Headers */
@@ -1240,172 +1241,66 @@
     </style>
   </head>
   <body>
-    <div id="app" class="window" v-cloak>
+    <div class="window">
       <header class="toolbar toolbar-header">
         <h1 class="title">Settings</h1>
         <div class="toolbar-actions">
-          <button @click="resetAll" class="btn btn-default btn-icon-only action-btn" title="Reset all settings to defaults">
+          <button
+            class="btn btn-default btn-icon-only action-btn"
+            id="resetAllBtn"
+            title="Reset all settings to defaults"
+          >
             <i class="ph ph-arrow-clockwise"></i>
           </button>
-          <button @click="importSettings" class="btn btn-default btn-icon-only action-btn" title="Import settings from file">
+          <button
+            class="btn btn-default btn-icon-only action-btn"
+            id="importBtn"
+            title="Import settings from file"
+          >
             <i class="ph ph-download-simple"></i>
           </button>
-          <button @click="exportSettings" class="btn btn-default btn-icon-only action-btn" title="Export settings to file">
+          <button
+            class="btn btn-default btn-icon-only action-btn"
+            id="exportBtn"
+            title="Export settings to file"
+          >
             <i class="ph ph-upload-simple"></i>
           </button>
         </div>
       </header>
 
-      <div class="window-content" v-if="schema.length > 0">
+      <div class="window-content">
         <nav class="sidebar">
-          <div class="nav-group">
-            <a v-for="section in schema" :key="section.id"
-               class="nav-group-item"
-               :class="{ active: currentSectionId === section.id }"
-               @click="showSection(section.id)">
-              <i class="icon ph-duotone" :class="getIcon(section.icon || section.id)"></i>
-              {{ section.title }}
-            </a>
+          <div class="nav-group" id="sectionNav">
+            <!-- Navigation items will be populated by JavaScript -->
           </div>
         </nav>
 
-        <main class="settings-content" v-if="currentSection && settings">
-          <form @submit.prevent="saveSettings">
-            <div class="settings-section">
-              <div class="section-header">
-                <i class="ph-duotone" :class="getIcon(currentSection.icon || currentSection.id)"></i>
-                <div>
-                  <h2 class="section-title">{{ currentSection.title }}</h2>
-                  <p v-if="currentSection.description" class="section-description">{{ currentSection.description }}</p>
-                </div>
-              </div>
+        <main class="settings-content">
+          <div id="settingsForm">
+            <!-- Settings sections will be populated by JavaScript -->
+          </div>
 
-              <!-- REGULAR FIELDS RENDERER -->
-              <div v-for="field in currentSection.fields" :key="field.key" class="form-group" :class="{ 'has-error': validationErrors[field.key] }">
-                <template v-if="field.type !== 'boolean'">
-                    <label>
-                        <i class="ph-duotone" :class="getFieldIcon(field)"></i>
-                        {{ field.label }}
-                    </label>
-                </template>
-                <div v-if="field.description" class="field-description">{{ field.description }}</div>
-
-                <!-- Field types -->
-                <input v-if="field.type === 'text' && field.key !== 'ai.baseUrl'" type="text" class="form-control" v-model="settings[field.key.split('.')[0]][field.key.split('.')[1]]" :placeholder="field.placeholder">
-
-                <template v-if="field.key === 'ai.baseUrl'">
-                    <input type="text" class="form-control" v-model="settings.ai.baseUrl" :placeholder="field.placeholder">
-                    <div class="form-group" style="margin-top:8px;">
-                        <label for="aiApiKeyInline">
-                            <i class="ph-duotone ph-key" style="margin-right: 6px; font-size: 14px;"></i>
-                            API Key (saved securely)
-                        </label>
-                        <input type="password" class="form-control" id="aiApiKeyInline" placeholder="Paste API Key to validate & save securely" @input="debouncedValidateApiKey">
-                    </div>
-                </template>
-
-                <input v-if="field.type === 'number'" type="number" class="form-control" v-model.number="settings[field.key.split('.')[0]][field.key.split('.')[1]]" :min="field.min" :max="field.max" :step="field.step">
-
-                <div v-if="field.type === 'boolean'" class="checkbox-container">
-                    <input type="checkbox" class="checkbox" :id="'field-' + field.key" v-model="settings[field.key.split('.')[0]][field.key.split('.')[1]]">
-                    <label :for="'field-' + field.key">
-                        <i class="ph-duotone" :class="getFieldIcon(field)"></i>
-                        {{ field.label }}
-                    </label>
-                </div>
-
-                <select v-if="field.type === 'select'" class="form-control" v-model="settings[field.key.split('.')[0]][field.key.split('.')[1]]">
-                    <option v-for="option in field.options" :key="option.value" :value="option.value">{{ option.label }}</option>
-                </select>
-
-                <textarea v-if="field.type === 'textarea'" class="form-control" rows="6" v-model="settings[field.key.split('.')[0]][field.key.split('.')[1]]" :placeholder="field.placeholder"></textarea>
-
-                <div v-if="field.type === 'slider'" class="slider-container">
-                    <input type="range" class="slider" v-model.number="settings[field.key.split('.')[0]][field.key.split('.')[1]]" :min="field.min" :max="field.max" :step="field.step">
-                    <span class="slider-value">{{ settings[field.key.split('.')[0]][field.key.split('.')[1]] }}</span>
-                </div>
-
-                <div v-if="field.type === 'directory'" class="directory-container">
-                    <input type="text" class="form-control directory-input" :value="settings[field.key]" readonly>
-                    <button type="button" @click="browseDirectory(field.key)" class="btn btn-default directory-browse-btn">
-                        <i class="ph-duotone ph-folder-open"></i> Browse
-                    </button>
-                </div>
-
-                <!-- Actions Editor Placeholder -->
-                <div v-if="field.type === 'actions-editor'">
-                    <!-- Actions editor will be implemented here -->
-                </div>
-
-                <div class="validation-error" v-if="validationErrors[field.key]">{{ validationErrors[field.key] }}</div>
-              </div>
-              
-              <!-- TRANSCRIPTION SECTION -->
-              <div v-if="currentSection.id === 'transcription'" class="plugin-options-section">
-                <!-- Plugin selector -->
-                <div class="form-group">
-                  <label>
-                    <i class="ph-duotone ph-gear"></i> Active Plugin
-                  </label>
-                  <select class="form-control" v-model="activePlugin" @change="handlePluginChange">
-                    <option v-for="plugin in pluginData.plugins" :key="plugin.name" :value="plugin.name">{{ plugin.displayName }}</option>
-                  </select>
-                </div>
-                <!-- Plugin options -->
-                <div v-for="plugin in pluginData.plugins" :key="plugin.name" v-show="activePlugin === plugin.name" class="plugin-config-section">
-                   <h4>{{ plugin.displayName }} Options</h4>
-                   <p class="plugin-description">{{ plugin.description }}</p>
-                   <div v-for="option in pluginData.options[plugin.name]" :key="option.key" class="form-group plugin-option">
-                        <!-- Plugin option rendering logic -->
-                   </div>
-                </div>
-              </div>
-
-              <!-- DATA MANAGEMENT SECTION -->
-              <div v-if="currentSection.id === 'data'" class="data-management-section">
-                <div class="plugin-data-list">
-                    <div v-if="!pluginDataInfo.length" class="loading-indicator">Loading...</div>
-                    <div v-for="plugin in pluginDataInfo" :key="plugin.name" class="plugin-data-item" :class="{ active: plugin.isActive }">
-                         <div class="plugin-data-info">
-                            <div class="plugin-name">{{ plugin.displayName }} <span v-if="plugin.isActive" class="active-badge">Active</span></div>
-                            <div class="plugin-data-details">
-                                <span class="data-size"><i class="ph-duotone ph-hard-drive"></i> {{ formatBytes(plugin.dataSize) }}</span>
-                                <span class="data-path"><i class="ph-duotone ph-folder"></i> {{ plugin.dataPath }}</span>
-                            </div>
-                         </div>
-                         <div class="plugin-data-actions">
-                            <button v-if="!plugin.isActive" @click="clearPluginData(plugin.name)" class="btn btn-negative btn-sm">Clear Data</button>
-                         </div>
-                    </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary" :disabled="isSaving">
-                <span v-if="isSaving" class="spinner"></span>
-                <i v-if="!isSaving" class="ph-duotone ph-floppy-disk"></i>
-                Save Settings
-              </button>
-              <button @click="cancelChanges" type="button" class="btn btn-default">
-                <i class="ph-duotone ph-x-circle"></i>
-                Cancel
-              </button>
-              <button @click="resetSection" type="button" class="btn btn-negative">
-                <i class="ph-duotone ph-arrow-counter-clockwise"></i>
-                Reset Section
-              </button>
-            </div>
-          </form>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="saveBtn">
+              <i class="ph-duotone ph-floppy-disk"></i>
+              Save Settings
+            </button>
+            <button class="btn btn-default" id="cancelBtn">
+              <i class="ph-duotone ph-x-circle"></i>
+              Cancel
+            </button>
+            <button class="btn btn-negative" id="resetSectionBtn">
+              <i class="ph-duotone ph-arrow-counter-clockwise"></i>
+              Reset Section
+            </button>
+          </div>
         </main>
-      </div>
-
-      <div class="status-message" :class="[status.type, { show: status.visible }]">
-        {{ status.message }}
       </div>
     </div>
 
-    <script src="./vue.js"></script>
+    <div class="status-message" id="statusMessage"></div>
+
     <script src="settingsWindow.js"></script>
   </body>
 </html>
