@@ -1207,6 +1207,12 @@
         color: var(--color-text-primary);
       }
 
+      .header-actions {
+        display: flex;
+        gap: var(--spacing-sm);
+        align-items: center;
+      }
+
       .patterns-list,
       .handlers-list {
         display: flex;
@@ -2094,14 +2100,26 @@
               >
                 <div class="section-header-small">
                   <h5>Plugin Data Management</h5>
-                  <button
-                    type="button"
-                    @click="refreshDataManagement"
-                    class="btn btn-sm refresh-btn"
-                    title="Refresh data management"
-                  >
-                    <i class="ph-duotone ph-arrow-clockwise"></i> Refresh
-                  </button>
+                  <div class="header-actions">
+                    <button
+                      type="button"
+                      @click="clearAllPluginData"
+                      class="btn btn-negative btn-sm"
+                      :disabled="isClearingAll || !pluginDataInfo.length"
+                      title="Clear all data from all plugins"
+                    >
+                      <i class="ph-duotone ph-trash"></i>
+                      Clear All Data
+                    </button>
+                    <button
+                      type="button"
+                      @click="refreshDataManagement"
+                      class="btn btn-sm refresh-btn"
+                      title="Refresh data management"
+                    >
+                      <i class="ph-duotone ph-arrow-clockwise"></i> Refresh
+                    </button>
+                  </div>
                 </div>
                 <div class="plugin-data-list">
                   <div v-if="!pluginDataInfo.length" class="loading-indicator">
