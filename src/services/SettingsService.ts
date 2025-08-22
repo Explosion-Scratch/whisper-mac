@@ -568,6 +568,54 @@ export class SettingsService {
         };
       }
     });
+
+    // Clear all plugin data with fallback activation
+    ipcMain.handle("settings:clearAllPluginDataWithFallback", async () => {
+      try {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+
+        console.log("Clearing all plugin data with fallback activation...");
+        const result = await this.transcriptionPluginManager.clearAllPluginDataWithFallback({
+          showProgress: (message: string, percent: number) => {
+            // Send progress updates to renderer if settings window is open
+            if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+              this.settingsWindow.webContents.send("settings:clearProgress", {
+                message,
+                percent,
+              });
+            }
+          },
+          showError: (error: string) => {
+            console.error("Plugin activation error during fallback:", error);
+          },
+          showSuccess: (message: string) => {
+            console.log("Plugin activation success:", message);
+          },
+          hideProgress: () => {
+            // Hide progress in renderer
+            if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+              this.settingsWindow.webContents.send("settings:hideProgress");
+            }
+          },
+        } as any);
+
+        console.log("All plugin data cleared with fallback activation completed:", {
+          success: result.success,
+          pluginChanged: result.pluginChanged,
+          newActivePlugin: result.newActivePlugin,
+          failedPlugins: result.failedPlugins,
+        });
+
+        return result;
+      } catch (error: any) {
+        console.error("Failed to clear all plugin data with fallback:", error);
+        throw new Error(
+          error.message || "Failed to clear all plugin data with fallback",
+        );
+      }
+    });
   }
 
   private broadcastSettingsUpdate(): void {

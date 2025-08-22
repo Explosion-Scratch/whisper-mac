@@ -48,6 +48,13 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.setActivationCriteria({ runOnAll: true, skipTransformation: false });
   }
 
+  /**
+   * YAP typically serves as a last resort fallback, so no fallback chain defined
+   */
+  getFallbackChain(): string[] {
+    return [];
+  }
+
   private resolveYapBinaryPath(): string {
     // Try production bundled path first
     const packagedPath = join(process.resourcesPath, "yap", "yap");

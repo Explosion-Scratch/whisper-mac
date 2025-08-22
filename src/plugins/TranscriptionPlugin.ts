@@ -182,6 +182,14 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   }
 
   /**
+   * Get the fallback chain for this plugin - plugins to try if this one fails.
+   * If not overridden, returns empty array (no specific fallback preference).
+   */
+  getFallbackChain(): string[] {
+    return [];
+  }
+
+  /**
    * Called when the dictation window is shown. Default is no-op.
    */
   onDictationWindowShow(): void {}

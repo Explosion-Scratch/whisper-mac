@@ -367,6 +367,146 @@ export class TranscriptionPluginManager extends EventEmitter {
   }
 
   /**
+   * Test if a plugin can be activated without actually activating it
+   * Uses the existing onActivated() call which handles model validation properly
+   */
+  async testPluginActivation(
+    pluginName: string,
+    options: Record<string, any> = {},
+  ): Promise<{ canActivate: boolean; error?: string }> {
+    const plugin = this.getPlugin(pluginName);
+    if (!plugin) {
+      return { canActivate: false, error: `Plugin ${pluginName} not found` };
+    }
+
+    try {
+      // First check basic availability
+      const isAvailable = await plugin.isAvailable();
+      if (!isAvailable) {
+        return { canActivate: false, error: `Plugin ${pluginName} is not available` };
+      }
+
+      // Set options before testing activation
+      if (Object.keys(options).length > 0) {
+        const validation = await plugin.verifyOptions(options);
+        if (!validation.valid) {
+          return { canActivate: false, error: `Invalid options: ${validation.errors.join(", ")}` };
+        }
+        plugin.setOptions(options);
+      }
+
+      // Test activation using existing onActivated method
+      // This will validate models and configuration without downloading
+      await plugin.onActivated();
+      
+      // If we get here, activation succeeded
+      return { canActivate: true };
+    } catch (error: any) {
+      return { canActivate: false, error: error.message || String(error) };
+    }
+  }
+
+  /**
+   * Attempt to activate a plugin with fallback support
+   * If primary plugin fails, tries plugins from its fallback chain
+   * If no fallback chain defined, tries all other available plugins
+   */
+  async activatePluginWithFallback(
+    primaryPluginName?: string,
+    options: Record<string, any> = {},
+    uiFunctions?: PluginUIFunctions,
+  ): Promise<{
+    success: boolean;
+    activePlugin: string | null;
+    pluginChanged: boolean;
+    errors: Record<string, string>;
+  }> {
+    const errors: Record<string, string> = {};
+    const originalActivePlugin = this.getActivePluginName();
+
+    // If no primary plugin specified, try to use current active plugin
+    if (!primaryPluginName) {
+      primaryPluginName = originalActivePlugin || this.getDefaultPluginName();
+    }
+
+    console.log(`Attempting to activate plugin with fallback: ${primaryPluginName}`);
+
+    // First, try the primary plugin
+    const primaryTest = await this.testPluginActivation(primaryPluginName, options);
+    if (primaryTest.canActivate) {
+      try {
+        await this.setActivePlugin(primaryPluginName, options, uiFunctions);
+        console.log(`Successfully activated primary plugin: ${primaryPluginName}`);
+        return {
+          success: true,
+          activePlugin: primaryPluginName,
+          pluginChanged: originalActivePlugin !== primaryPluginName,
+          errors: {},
+        };
+      } catch (error: any) {
+        errors[primaryPluginName] = error.message || String(error);
+        console.log(`Primary plugin activation failed during setActivePlugin: ${error.message}`);
+      }
+    } else {
+      errors[primaryPluginName] = primaryTest.error || "Unknown error";
+      console.log(`Primary plugin failed test activation: ${primaryTest.error}`);
+    }
+
+    // Primary plugin failed, try fallback chain
+    const primaryPlugin = this.getPlugin(primaryPluginName);
+    let fallbackPlugins: string[] = [];
+
+    if (primaryPlugin) {
+      const customFallback = primaryPlugin.getFallbackChain();
+      if (customFallback.length > 0) {
+        console.log(`Using custom fallback chain for ${primaryPluginName}:`, customFallback);
+        fallbackPlugins = customFallback;
+      }
+    }
+
+    // If no custom fallback chain, try all other plugins
+    if (fallbackPlugins.length === 0) {
+      const allPlugins = this.getPlugins().map(p => p.name);
+      fallbackPlugins = allPlugins.filter(name => name !== primaryPluginName);
+      console.log(`No custom fallback chain, trying all other plugins:`, fallbackPlugins);
+    }
+
+    // Try each fallback plugin
+    for (const fallbackName of fallbackPlugins) {
+      console.log(`Trying fallback plugin: ${fallbackName}`);
+      const fallbackTest = await this.testPluginActivation(fallbackName, {});
+      
+      if (fallbackTest.canActivate) {
+        try {
+          await this.setActivePlugin(fallbackName, {}, uiFunctions);
+          console.log(`Successfully activated fallback plugin: ${fallbackName}`);
+          return {
+            success: true,
+            activePlugin: fallbackName,
+            pluginChanged: true,
+            errors,
+          };
+        } catch (error: any) {
+          errors[fallbackName] = error.message || String(error);
+          console.log(`Fallback plugin activation failed: ${error.message}`);
+        }
+      } else {
+        errors[fallbackName] = fallbackTest.error || "Unknown error";
+        console.log(`Fallback plugin failed test: ${fallbackTest.error}`);
+      }
+    }
+
+    // All plugins failed
+    console.error("All plugins failed to activate:", errors);
+    return {
+      success: false,
+      activePlugin: null,
+      pluginChanged: originalActivePlugin !== null,
+      errors,
+    };
+  }
+
+  /**
    * Get the default plugin name from config
    */
   getDefaultPluginName(): string {
@@ -412,20 +552,22 @@ export class TranscriptionPluginManager extends EventEmitter {
 
     await Promise.allSettled(initPromises);
 
-    // Set default active plugin
+    // Set active plugin using fallback system
     const defaultPluginName = this.getDefaultPluginName();
-    const defaultPlugin = this.getPlugin(defaultPluginName);
-
-    if (defaultPlugin && (await defaultPlugin.isAvailable())) {
-      await this.setActivePlugin(defaultPluginName);
-    } else {
-      // Try to find any available plugin
-      const availablePlugins = await this.getAvailablePlugins();
-      if (availablePlugins.length > 0) {
-        await this.setActivePlugin(availablePlugins[0].name);
-      } else {
-        console.warn("No available transcription plugins found");
+    
+    console.log(`Attempting to activate default plugin with fallback: ${defaultPluginName}`);
+    const fallbackResult = await this.activatePluginWithFallback(defaultPluginName);
+    
+    if (fallbackResult.success) {
+      if (fallbackResult.pluginChanged) {
+        console.log(`Plugin changed during startup fallback: ${defaultPluginName} → ${fallbackResult.activePlugin}`);
+        // Update the stored default if plugin changed
+        this.setDefaultPluginName(fallbackResult.activePlugin!);
       }
+      console.log(`Successfully activated plugin: ${fallbackResult.activePlugin}`);
+    } else {
+      console.warn("No transcription plugins could be activated. Errors:", fallbackResult.errors);
+      // Don't throw error here - app should still start, but show warning
     }
   }
 
@@ -538,6 +680,108 @@ export class TranscriptionPluginManager extends EventEmitter {
     });
 
     await Promise.allSettled(clearPromises);
+  }
+
+  /**
+   * Clear data for all plugins and attempt to reactivate with fallback
+   * Returns updated plugin data info and activation results
+   */
+  async clearAllPluginDataWithFallback(
+    uiFunctions?: PluginUIFunctions,
+  ): Promise<{
+    success: boolean;
+    pluginChanged: boolean;
+    originalPlugin: string | null;
+    newActivePlugin: string | null;
+    failedPlugins: string[];
+    updatedDataInfo: Array<{
+      name: string;
+      displayName: string;
+      isActive: boolean;
+      dataSize: number;
+      dataPath: string;
+    }>;
+    error?: string;
+  }> {
+    const originalPlugin = this.getActivePluginName();
+    console.log(`Starting clearAllPluginDataWithFallback, current plugin: ${originalPlugin}`);
+
+    try {
+      // Clear all plugin data first
+      await this.clearAllPluginData();
+      console.log("All plugin data cleared successfully");
+
+      // Attempt to reactivate with fallback support
+      const fallbackResult = await this.activatePluginWithFallback(
+        originalPlugin || undefined,
+        {},
+        uiFunctions,
+      );
+
+      // Get updated plugin data info
+      const updatedDataInfo = await this.getPluginDataInfo();
+
+      const failedPlugins = Object.keys(fallbackResult.errors);
+      
+      if (fallbackResult.success) {
+        const pluginChanged = originalPlugin !== fallbackResult.activePlugin;
+        
+        // Update stored setting if plugin changed
+        if (pluginChanged && fallbackResult.activePlugin) {
+          this.setDefaultPluginName(fallbackResult.activePlugin);
+        }
+
+        console.log(
+          `Data clearing with fallback completed. Plugin: ${originalPlugin} → ${fallbackResult.activePlugin}`,
+        );
+
+        return {
+          success: true,
+          pluginChanged,
+          originalPlugin,
+          newActivePlugin: fallbackResult.activePlugin,
+          failedPlugins,
+          updatedDataInfo,
+        };
+      } else {
+        console.error("Failed to activate any plugin after data clearing:", fallbackResult.errors);
+        return {
+          success: false,
+          pluginChanged: true, // Active plugin was lost
+          originalPlugin,
+          newActivePlugin: null,
+          failedPlugins,
+          updatedDataInfo,
+          error: `All plugins failed to activate after data clearing. Errors: ${JSON.stringify(fallbackResult.errors)}`,
+        };
+      }
+    } catch (error: any) {
+      console.error("Error during clearAllPluginDataWithFallback:", error);
+      
+      // Try to get updated data info even after error
+      let updatedDataInfo: Array<{
+        name: string;
+        displayName: string;
+        isActive: boolean;
+        dataSize: number;
+        dataPath: string;
+      }>;
+      try {
+        updatedDataInfo = await this.getPluginDataInfo();
+      } catch {
+        updatedDataInfo = [];
+      }
+
+      return {
+        success: false,
+        pluginChanged: true,
+        originalPlugin,
+        newActivePlugin: null,
+        failedPlugins: [],
+        updatedDataInfo,
+        error: error.message || String(error),
+      };
+    }
   }
 
   /**

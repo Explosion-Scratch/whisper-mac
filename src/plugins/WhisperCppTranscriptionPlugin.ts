@@ -69,6 +69,14 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.useCoreML = false; // Will be set properly when options are loaded
   }
 
+  /**
+   * Define fallback chain for Whisper.cpp plugin
+   * Prefer offline plugins: Vosk first, then YAP as lightweight fallback
+   */
+  getFallbackChain(): string[] {
+    return ["vosk", "yap"];
+  }
+
   private resolveWhisperBinaryPath(): string {
     // On Apple Silicon, prefer Metal version if available
     if (this.isAppleSilicon) {

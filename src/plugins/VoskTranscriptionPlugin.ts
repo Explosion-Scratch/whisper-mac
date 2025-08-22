@@ -56,6 +56,14 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   /**
+   * Define fallback chain for Vosk plugin
+   * Prefer Whisper.cpp for high-quality transcription, then YAP as lightweight fallback
+   */
+  getFallbackChain(): string[] {
+    return ["whisper-cpp", "yap"];
+  }
+
+  /**
    * Resolve the path to the Vosk Python script
    */
   private resolveVoskScriptPath(): string {

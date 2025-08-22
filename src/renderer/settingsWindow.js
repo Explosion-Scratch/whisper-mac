@@ -453,7 +453,8 @@ document.addEventListener("DOMContentLoaded", () => {
               "• Downloaded models and temporary files\n" +
               "• Secure storage data (API keys, settings)\n" +
               "• All plugin-specific data\n\n" +
-              "Models will need to be re-downloaded for future use.\n\n" +
+              "If the current plugin can't reactivate after clearing, " +
+              "the system will automatically switch to an available fallback plugin.\n\n" +
               "This action cannot be undone. Continue?",
           )
         ) {
@@ -461,37 +462,89 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         this.isClearingAll = true;
+        const originalPlugin = this.activePlugin;
+
         try {
           this.showProgress("Clearing all plugin data...", 0);
 
-          // Call the backend method to clear all plugin data
-          const result = await window.electronAPI.clearAllPluginData();
+          // Call the enhanced backend method with fallback support
+          const result = await window.electronAPI.clearAllPluginDataWithFallback();
 
           if (result.success) {
-            // Refresh the plugin data info
-            await this.loadPluginDataInfo();
+            // Handle plugin change notification
+            if (result.pluginChanged) {
+              this.activePlugin = result.newActivePlugin;
 
-            // Clear any cached plugin data items
+              // Show prominent notification about plugin change
+              this.showPluginChangeNotification(
+                result.originalPlugin,
+                result.newActivePlugin,
+                result.failedPlugins
+              );
+            } else {
+              this.showStatus("All plugin data cleared successfully", "success");
+            }
+
+            // Refresh data display with updated info
+            this.pluginDataInfo = result.updatedDataInfo || [];
             this.pluginDataItems = {};
             this.expandedDataPlugins = {};
 
-            this.showStatus(
-              result.message || "All plugin data cleared successfully",
-              "success",
-            );
+            // Update the active plugin dropdown in UI
+            this.updateActivePluginDisplay();
+
           } else {
-            throw new Error(result.message || "Failed to clear plugin data");
+            throw new Error(result.error || "Failed to clear plugin data");
           }
         } catch (error) {
           console.error("Failed to clear all plugin data:", error);
-          this.showStatus(
-            `Failed to clear all plugin data: ${error.message}`,
-            "error",
-          );
+          this.showStatus(`Failed to clear plugin data: ${error.message}`, "error");
         } finally {
           this.isClearingAll = false;
           this.hideProgress();
         }
+      },
+
+      // New method to show plugin change notification
+      showPluginChangeNotification(originalPlugin, newPlugin, failedPlugins) {
+        const failedList = failedPlugins && failedPlugins.length > 0
+          ? ` (Failed: ${failedPlugins.join(", ")})`
+          : "";
+
+        // Show a more prominent warning-style notification
+        this.showStatus(
+          `Plugin switched: ${originalPlugin} → ${newPlugin}${failedList}`,
+          "warning",
+          8000 // Show for 8 seconds
+        );
+
+        // Also show in console for debugging
+        console.warn(`Plugin fallback occurred during data clearing:`, {
+          original: originalPlugin,
+          new: newPlugin,
+          failed: failedPlugins
+        });
+      },
+
+      // New method to update UI elements after plugin change
+      updateActivePluginDisplay() {
+        // Update the plugin selection dropdown
+        const pluginSelect = document.querySelector('select[data-setting="transcriptionPlugin"]');
+        if (pluginSelect) {
+          pluginSelect.value = this.activePlugin;
+          // Trigger change event to update any dependent UI
+          pluginSelect.dispatchEvent(new Event('change'));
+        }
+
+        // Note: Other UI elements are automatically updated via Vue's reactive data binding
+      },
+
+      // Enhanced status display with longer duration for warnings
+      showStatus(message, type = "success", duration = 3000) {
+        this.status = { visible: true, message, type };
+        setTimeout(() => {
+          this.status.visible = false;
+        }, duration);
       },
 
       formatBytes(bytes) {

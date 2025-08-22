@@ -42,6 +42,14 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   /**
+   * Define fallback chain for Gemini plugin
+   * Prefer offline plugins when API is unavailable: Whisper.cpp first, then Vosk, then YAP
+   */
+  getFallbackChain(): string[] {
+    return ["whisper-cpp", "vosk", "yap"];
+  }
+
+  /**
    * Ensures API key is available by checking secure storage first, then this.apiKey
    */
   private async ensureApiKey(): Promise<string | null> {

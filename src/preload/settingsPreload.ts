@@ -65,6 +65,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   deleteAllPluginData: (pluginName: string) =>
     ipcRenderer.invoke("plugins:deleteAllData", { pluginName }),
   clearAllPluginData: () => ipcRenderer.invoke("settings:clearAllPluginData"),
+  clearAllPluginDataWithFallback: () => ipcRenderer.invoke("settings:clearAllPluginDataWithFallback"),
 
   // Unified plugin switching progress listeners
   onPluginSwitchProgress: (callback: (progress: any) => void) => {
