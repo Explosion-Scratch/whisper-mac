@@ -775,6 +775,41 @@
         margin-top: var(--spacing-lg);
       }
 
+      .total-data-usage-summary {
+        background: linear-gradient(
+          135deg,
+          rgba(0, 122, 255, 0.08),
+          rgba(0, 122, 255, 0.03)
+        );
+        border: 1px solid var(--color-border-primary);
+        border-radius: var(--radius-lg);
+        padding: var(--spacing-lg);
+        margin-bottom: var(--spacing-lg);
+      }
+
+      .usage-stats {
+        display: flex;
+        gap: var(--spacing-xl);
+        flex-wrap: wrap;
+      }
+
+      .usage-item {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+      }
+
+      .usage-label {
+        color: var(--color-text-secondary);
+        font-size: var(--font-size-sm);
+      }
+
+      .usage-value {
+        color: var(--color-text-primary);
+        font-weight: var(--font-weight-semibold);
+        font-size: var(--font-size-md);
+      }
+
       .plugin-data-list {
         display: flex;
         flex-direction: column;
@@ -788,7 +823,7 @@
         padding: var(--spacing-md);
         border: 1px solid var(--color-border-primary);
         border-radius: var(--radius-md);
-        background: var(--color-bg-secondary);
+        background: transparent;
         transition: all var(--transition-fast);
       }
 
@@ -980,7 +1015,7 @@
       }
 
       .plugin-data-item-detail:hover {
-        background: var(--color-bg-secondary);
+        background: rgba(0, 122, 255, 0.05);
       }
 
       .item-info {
@@ -2098,6 +2133,22 @@
                 v-if="currentSection.id === 'data'"
                 class="data-management-section"
               >
+                <!-- Total Data Usage Summary -->
+                <div class="total-data-usage-summary">
+                  <div class="usage-stats">
+                    <div class="usage-item">
+                      <i class="ph-duotone ph-chart-pie"></i>
+                      <span class="usage-label">Total Usage:</span>
+                      <span class="usage-value">{{ formatBytes(totalDataUsage) }}</span>
+                    </div>
+                    <div class="usage-item">
+                      <i class="ph-duotone ph-folder-simple"></i>
+                      <span class="usage-label">Plugins with Data:</span>
+                      <span class="usage-value">{{ pluginCountWithData }}</span>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="section-header-small">
                   <h5>Plugin Data Management</h5>
                   <div class="header-actions">

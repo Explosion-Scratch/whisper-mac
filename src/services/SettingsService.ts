@@ -44,7 +44,7 @@ export class SettingsService {
       // Strip out validation functions since they can't be serialized through IPC
       // Also hide internal sections such as onboarding from the UI
       const serializableSchema = SETTINGS_SCHEMA.filter(
-        (section) => section.id !== "onboarding"
+        (section) => section.id !== "onboarding",
       ).map((section) => ({
         ...section,
         fields: section.fields.map((field) => {
@@ -77,7 +77,7 @@ export class SettingsService {
           console.error("Failed to save settings:", error);
           throw error;
         }
-      }
+      },
     );
 
     // Reset all settings
@@ -112,7 +112,7 @@ export class SettingsService {
           console.error("Failed to reset settings section:", error);
           throw error;
         }
-      }
+      },
     );
 
     // Import settings
@@ -144,7 +144,7 @@ export class SettingsService {
           console.error("Failed to export settings:", error);
           throw error;
         }
-      }
+      },
     );
 
     // File dialogs
@@ -178,7 +178,7 @@ export class SettingsService {
         );
         const svc = new AiProviderService();
         return svc.validateAndListModels(baseUrl, apiKey);
-      }
+      },
     );
 
     // AI configuration validation
@@ -186,7 +186,7 @@ export class SettingsService {
       "ai:validateConfiguration",
       async (
         _event,
-        payload: { baseUrl: string; model: string; apiKey?: string }
+        payload: { baseUrl: string; model: string; apiKey?: string },
       ) => {
         const { baseUrl, model, apiKey } = payload || {
           baseUrl: "",
@@ -198,7 +198,7 @@ export class SettingsService {
         );
         const svc = new AiValidationService();
         return svc.validateAiConfiguration(baseUrl, model, apiKey);
-      }
+      },
     );
 
     // Save API key securely from settings
@@ -211,7 +211,7 @@ export class SettingsService {
         const secure = new SecureStorageService();
         await secure.setApiKey(payload.apiKey);
         return { success: true };
-      }
+      },
     );
 
     // Get API key securely from settings
@@ -246,7 +246,7 @@ export class SettingsService {
             pluginName,
             modelName,
             onProgress,
-            onLog
+            onLog,
           );
 
           // Save the active plugin setting
@@ -258,7 +258,7 @@ export class SettingsService {
         } catch (error: any) {
           throw new Error(error.message || "Plugin switch failed");
         }
-      }
+      },
     );
 
     // Unified plugin management handlers
@@ -337,7 +337,7 @@ export class SettingsService {
 
           await this.transcriptionPluginManager.updateActivePluginOptions(
             options,
-            uiFunctions
+            uiFunctions,
           );
 
           // Save the updated plugin options to settings
@@ -357,7 +357,7 @@ export class SettingsService {
         } catch (error: any) {
           throw new Error(error.message || "Plugin option update failed");
         }
-      }
+      },
     );
 
     ipcMain.handle(
@@ -381,12 +381,12 @@ export class SettingsService {
         }
 
         try {
-          await plugin.clearData();
+          await plugin.deleteAllData();
           return { success: true };
         } catch (error: any) {
           throw new Error(error.message || "Failed to delete plugin");
         }
-      }
+      },
     );
 
     // Get plugin data information
@@ -410,7 +410,7 @@ export class SettingsService {
           console.error("Failed to get plugin data info:", error);
           throw new Error(error.message || "Failed to get plugin data info");
         }
-      }
+      },
     );
 
     // Secure storage management handlers
@@ -422,7 +422,7 @@ export class SettingsService {
         }
 
         const plugin = this.transcriptionPluginManager.getPlugin(
-          payload.pluginName
+          payload.pluginName,
         );
         if (!plugin) {
           throw new Error(`Plugin ${payload.pluginName} not found`);
@@ -436,7 +436,7 @@ export class SettingsService {
           totalSize: dataSize,
           hasSecureData: keys.length > 0,
         };
-      }
+      },
     );
 
     ipcMain.handle(
@@ -447,7 +447,7 @@ export class SettingsService {
         }
 
         const plugin = this.transcriptionPluginManager.getPlugin(
-          payload.pluginName
+          payload.pluginName,
         );
         if (!plugin) {
           throw new Error(`Plugin ${payload.pluginName} not found`);
@@ -455,7 +455,7 @@ export class SettingsService {
 
         await plugin.clearSecureData();
         return { success: true };
-      }
+      },
     );
 
     // New data management handlers
@@ -467,14 +467,14 @@ export class SettingsService {
         }
 
         const plugin = this.transcriptionPluginManager.getPlugin(
-          payload.pluginName
+          payload.pluginName,
         );
         if (!plugin) {
           throw new Error(`Plugin ${payload.pluginName} not found`);
         }
 
         return await plugin.listData();
-      }
+      },
     );
 
     ipcMain.handle(
@@ -485,7 +485,7 @@ export class SettingsService {
         }
 
         const plugin = this.transcriptionPluginManager.getPlugin(
-          payload.pluginName
+          payload.pluginName,
         );
         if (!plugin) {
           throw new Error(`Plugin ${payload.pluginName} not found`);
@@ -493,7 +493,7 @@ export class SettingsService {
 
         await plugin.deleteDataItem(payload.itemId);
         return { success: true };
-      }
+      },
     );
 
     ipcMain.handle(
@@ -504,7 +504,7 @@ export class SettingsService {
         }
 
         const plugin = this.transcriptionPluginManager.getPlugin(
-          payload.pluginName
+          payload.pluginName,
         );
         if (!plugin) {
           throw new Error(`Plugin ${payload.pluginName} not found`);
@@ -512,7 +512,7 @@ export class SettingsService {
 
         await plugin.deleteAllData();
         return { success: true };
-      }
+      },
     );
 
     ipcMain.handle(
@@ -523,7 +523,7 @@ export class SettingsService {
         }
 
         const plugin = this.transcriptionPluginManager.getPlugin(
-          payload.pluginName
+          payload.pluginName,
         );
         if (!plugin) {
           throw new Error(`Plugin ${payload.pluginName} not found`);
@@ -537,7 +537,7 @@ export class SettingsService {
         }
 
         return { data, timestamp: new Date().toISOString() };
-      }
+      },
     );
 
     // Clear all plugin data
@@ -616,7 +616,7 @@ export class SettingsService {
 
     // Load the settings window HTML
     this.settingsWindow.loadFile(
-      join(__dirname, "../renderer/settingsWindow.html")
+      join(__dirname, "../renderer/settingsWindow.html"),
     );
 
     // Show window when ready
@@ -726,7 +726,7 @@ export class SettingsService {
    * The caller should present a dialog to the user with names and sizes and then call deleteModelsIfConfirmed.
    */
   formatDownloadedModelsForPrompt(
-    models: Array<{ repoId: string; sizeBytes: number }>
+    models: Array<{ repoId: string; sizeBytes: number }>,
   ): string {
     const fmt = (n: number) => {
       const units = ["B", "KB", "MB", "GB"];

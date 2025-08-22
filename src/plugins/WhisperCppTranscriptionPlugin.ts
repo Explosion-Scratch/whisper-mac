@@ -76,7 +76,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       const packagedMetalPath = join(
         process.resourcesPath,
         "whisper-cpp",
-        "whisper-cli-metal"
+        "whisper-cli-metal",
       );
       if (existsSync(packagedMetalPath)) {
         return packagedMetalPath;
@@ -87,7 +87,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         process.cwd(),
         "vendor",
         "whisper-cpp",
-        "whisper-cli-metal"
+        "whisper-cli-metal",
       );
       if (existsSync(devMetalPath)) {
         return devMetalPath;
@@ -98,7 +98,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     const packagedPath = join(
       process.resourcesPath,
       "whisper-cpp",
-      "whisper-cli"
+      "whisper-cli",
     );
     if (existsSync(packagedPath)) {
       return packagedPath;
@@ -129,7 +129,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       process.resourcesPath,
       "whisper-cpp",
       "models",
-      modelName
+      modelName,
     );
     if (existsSync(packagedPath)) {
       return packagedPath;
@@ -141,7 +141,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       "vendor",
       "whisper-cpp",
       "models",
-      modelName
+      modelName,
     );
     if (existsSync(devPath)) {
       return devPath;
@@ -160,7 +160,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         });
         console.log(
           "Whisper.cpp binary check started",
-          this.resolvedBinaryPath
+          this.resolvedBinaryPath,
         );
 
         let hasOutput = false;
@@ -209,7 +209,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   async startTranscription(
     onUpdate: (update: SegmentUpdate) => void,
     onProgress?: (progress: TranscriptionSetupProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<void> {
     if (this.isRunning) {
       onLog?.("[Whisper.cpp Plugin] Service already running");
@@ -236,7 +236,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         } else {
           console.log("Core ML model not found, using regular binary");
           onLog?.(
-            "[Whisper.cpp Plugin] Apple Metal acceleration not available"
+            "[Whisper.cpp Plugin] Apple Metal acceleration not available",
           );
         }
       }
@@ -248,7 +248,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
       onProgress?.({ status: "complete", message: "Whisper.cpp plugin ready" });
       onLog?.(
-        "[Whisper.cpp Plugin] Service initialized and ready for audio segments"
+        "[Whisper.cpp Plugin] Service initialized and ready for audio segments",
       );
     } catch (error: any) {
       console.error("Failed to start Whisper.cpp plugin:", error);
@@ -290,9 +290,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       });
 
       // Transcribe with whisper.cpp
-      const rawTranscription = await this.transcribeWithWhisperCpp(
-        tempAudioPath
-      );
+      const rawTranscription =
+        await this.transcribeWithWhisperCpp(tempAudioPath);
 
       // Clean up temp file
       try {
@@ -479,7 +478,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   updateModelPath(): void {
     this.modelPath = this.resolveModelPath();
     console.log(
-      `WhisperCppTranscriptionPlugin: Updated model path to ${this.modelPath}`
+      `WhisperCppTranscriptionPlugin: Updated model path to ${this.modelPath}`,
     );
   }
 
@@ -524,7 +523,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       return localModelPath;
     } catch (error) {
       console.warn(
-        `Failed to download Core ML model ${coreMLModelName}: ${error}`
+        `Failed to download Core ML model ${coreMLModelName}: ${error}`,
       );
       return null;
     }
@@ -554,7 +553,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     url: string,
     destPath: string,
     modelName: string,
-    onProgress?: (percent: number) => void
+    onProgress?: (percent: number) => void,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const request = https.get(url, (response) => {
@@ -566,7 +565,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
               redirectUrl,
               destPath,
               modelName,
-              onProgress
+              onProgress,
             )
               .then(resolve)
               .catch(reject);
@@ -578,14 +577,14 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
         if (response.statusCode !== 200) {
           reject(
-            new Error(`Failed to download model: HTTP ${response.statusCode}`)
+            new Error(`Failed to download model: HTTP ${response.statusCode}`),
           );
           return;
         }
 
         const totalBytes = parseInt(
           response.headers["content-length"] || "0",
-          10
+          10,
         );
         let downloadedBytes = 0;
         const fileStream = createWriteStream(destPath);
@@ -603,7 +602,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
         fileStream.on("finish", () => {
           console.log(
-            `Model ${modelName} downloaded successfully to ${destPath}`
+            `Model ${modelName} downloaded successfully to ${destPath}`,
           );
           onProgress?.(100);
           resolve();
@@ -658,7 +657,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       const packagedMetalPath = join(
         process.resourcesPath,
         "whisper-cpp",
-        "whisper-cli-metal"
+        "whisper-cli-metal",
       );
       if (existsSync(packagedMetalPath)) {
         return packagedMetalPath;
@@ -669,7 +668,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         process.cwd(),
         "vendor",
         "whisper-cpp",
-        "whisper-cli-metal"
+        "whisper-cli-metal",
       );
       if (existsSync(devMetalPath)) {
         return devMetalPath;
@@ -742,7 +741,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       }
 
       console.log(
-        `Running Whisper.cpp: ${this.resolvedBinaryPath} ${args.join(" ")}`
+        `Running Whisper.cpp: ${this.resolvedBinaryPath} ${args.join(" ")}`,
       );
 
       const whisperProcess = spawn(this.resolvedBinaryPath, args, {
@@ -769,7 +768,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
             unlinkSync(txtOutputPath); // Clean up output file
 
             console.log(
-              `Whisper.cpp raw transcription from file: "${rawTranscription}"`
+              `Whisper.cpp raw transcription from file: "${rawTranscription}"`,
             );
             resolve(rawTranscription || "[No speech detected]");
           } catch (fileError) {
@@ -777,13 +776,13 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
             const rawTranscription = stdout.trim();
 
             console.log(
-              `Whisper.cpp raw transcription from stdout: "${rawTranscription}"`
+              `Whisper.cpp raw transcription from stdout: "${rawTranscription}"`,
             );
             resolve(rawTranscription || "[No speech detected]");
           }
         } else {
           const error = new Error(
-            `Whisper.cpp failed with code ${code}: ${stderr}`
+            `Whisper.cpp failed with code ${code}: ${stderr}`,
           );
           console.error("Whisper.cpp error:", error.message);
           reject(error);
@@ -971,7 +970,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   async verifyOptions(
-    options: Record<string, any>
+    options: Record<string, any>,
   ): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
@@ -1075,35 +1074,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.stopWarmupLoop();
   }
 
-  async clearData(): Promise<void> {
-    // Clean temp files
-    try {
-      if (FileSystemService.deleteDirectory(this.tempDir)) {
-        this.tempDir = mkdtempSync(join(tmpdir(), "whisper-cpp-plugin-"));
-      }
-      console.log("Whisper.cpp plugin data cleared");
-    } catch (error) {
-      console.warn("Failed to clear Whisper.cpp plugin data:", error);
-    }
-  }
-
-  async getDataSize(): Promise<number> {
-    try {
-      let totalSize = 0;
-
-      // Calculate temp directory size
-      totalSize += FileSystemService.calculateDirectorySize(this.tempDir);
-
-      // Calculate model file size if it exists
-      totalSize += FileSystemService.calculateFileSize(this.modelPath);
-
-      return totalSize;
-    } catch (error) {
-      console.warn("Failed to calculate Whisper.cpp plugin data size:", error);
-      return 0;
-    }
-  }
-
   getDataPath(): string {
     return this.tempDir;
   }
@@ -1124,20 +1094,29 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       // List downloaded models
       if (existsSync(modelsDir)) {
         const files = readdirSync(modelsDir);
-        const modelFiles = files.filter((file) => file.endsWith(".bin"));
-
-        for (const modelFile of modelFiles) {
-          const modelPath = join(modelsDir, modelFile);
+        for (const file of files) {
+          const modelPath = join(modelsDir, file);
           try {
-            const stats = require("fs").statSync(modelPath);
-            dataItems.push({
-              name: modelFile.replace(".bin", ""),
-              description: `Whisper.cpp model file`,
-              size: stats.size,
-              id: `model:${modelFile}`,
-            });
+            if (file.endsWith(".bin")) {
+              const stats = require("fs").statSync(modelPath);
+              dataItems.push({
+                name: file.replace(".bin", ""),
+                description: `Whisper.cpp model file`,
+                size: stats.size,
+                id: `model:${file}`,
+              });
+            } else if (file.endsWith(".mlmodelc")) {
+              const dirSize =
+                FileSystemService.calculateDirectorySize(modelPath);
+              dataItems.push({
+                name: file,
+                description: `Whisper.cpp CoreML model`,
+                size: dirSize,
+                id: `model:${file}`,
+              });
+            }
           } catch (error) {
-            console.warn(`Failed to stat model file ${modelFile}:`, error);
+            console.warn(`Failed to stat model file ${file}:`, error);
           }
         }
       }
@@ -1186,8 +1165,14 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         case "model":
           const modelPath = join(this.config.getModelsDir(), identifier);
           if (existsSync(modelPath)) {
-            require("fs").unlinkSync(modelPath);
-            console.log(`Deleted model: ${identifier}`);
+            const stats = require("fs").statSync(modelPath);
+            if (stats.isDirectory()) {
+              FileSystemService.deleteDirectory(modelPath);
+              console.log(`Deleted model directory: ${identifier}`);
+            } else {
+              require("fs").unlinkSync(modelPath);
+              console.log(`Deleted model file: ${identifier}`);
+            }
           }
           break;
 
@@ -1266,7 +1251,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
   async updateOptions(
     options: Record<string, any>,
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
     // Store previous model for change detection
     const previousModel = this.options.model;
@@ -1283,12 +1268,12 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         if (uiFunctions) {
           uiFunctions.showProgress(
             `Downloading Core ML model for ${modelName}...`,
-            0
+            0,
           );
         }
         this.setLoadingState(
           true,
-          `Downloading Core ML model for ${modelName}...`
+          `Downloading Core ML model for ${modelName}...`,
         );
 
         try {
@@ -1366,7 +1351,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
             this.setLoadingState(false);
             if (uiFunctions) {
               uiFunctions.showSuccess(
-                `Downloaded and switched to model ${options.model}`
+                `Downloaded and switched to model ${options.model}`,
               );
               uiFunctions.hideProgress();
             }
@@ -1453,7 +1438,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   public async ensureModelAvailable(
     options: Record<string, any>,
     onProgress?: (progress: any) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean> {
     const modelName =
       options.model ||
@@ -1497,7 +1482,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
   async downloadModel(
     modelName: string,
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
     this.setLoadingState(true, `Downloading ${modelName}...`);
 
@@ -1531,7 +1516,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
             const adjustedProgress = Math.min(Math.round(progress * 0.5), 50); // Use first 50% for main model
             uiFunctions?.showProgress(
               `Downloading ${modelName}... ${adjustedProgress}%`,
-              adjustedProgress
+              adjustedProgress,
             );
             this.setDownloadProgress({
               status: "downloading",
@@ -1539,7 +1524,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
               message: `Downloading ${modelName}... ${adjustedProgress}%`,
               modelName,
             });
-          }
+          },
         );
 
         if (uiFunctions) {
@@ -1556,7 +1541,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         if (uiFunctions) {
           uiFunctions.showProgress(
             `Downloading Core ML model for ${modelName}...`,
-            60
+            60,
           );
         }
 
@@ -1567,7 +1552,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
             if (uiFunctions) {
               uiFunctions.showProgress(
                 `Core ML model downloaded successfully`,
-                90
+                90,
               );
             }
           } else {
@@ -1575,7 +1560,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
             if (uiFunctions) {
               uiFunctions.showProgress(
                 `Core ML model download failed, continuing with regular model`,
-                90
+                90,
               );
             }
           }
@@ -1584,7 +1569,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
           if (uiFunctions) {
             uiFunctions.showProgress(
               `Core ML model download failed, continuing with regular model`,
-              90
+              90,
             );
           }
         }

@@ -26,6 +26,16 @@ document.addEventListener("DOMContentLoaded", () => {
       currentSection() {
         return this.schema.find((s) => s.id === this.currentSectionId) || null;
       },
+      totalDataUsage() {
+        return this.pluginDataInfo.reduce((total, plugin) => {
+          return total + (plugin.dataSize || 0);
+        }, 0);
+      },
+      pluginCountWithData() {
+        return this.pluginDataInfo.filter(plugin =>
+          plugin.dataSize > 0
+        ).length;
+      },
     },
     methods: {
       // --- INITIALIZATION ---
@@ -58,7 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
         window.electronAPI.onPluginSwitchProgress((progress) => {
           this.showProgress(
             progress.message || "Processing...",
-            progress.percent || progress.progress || 0
+            progress.percent || progress.progress || 0,
           );
         });
         // Note: Add other listeners like onPluginOptionProgress if needed
@@ -98,7 +108,7 @@ document.addEventListener("DOMContentLoaded", () => {
             this.aiModelsState.loading = true;
             const result = await window.electronAPI.validateApiKeyAndListModels(
               this.settings.ai.baseUrl,
-              apiKey
+              apiKey,
             );
             if (result.success && result.models.length > 0) {
               this.aiModelsState.models = result.models;
@@ -209,7 +219,7 @@ document.addEventListener("DOMContentLoaded", () => {
       async resetSection() {
         if (
           confirm(
-            `Reset all settings in the "${this.currentSection.title}" section to defaults?`
+            `Reset all settings in the "${this.currentSection.title}" section to defaults?`,
           )
         ) {
           await window.electronAPI.resetSettingsSection(this.currentSectionId);
@@ -234,7 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         if (!result.canceled && result.filePaths.length > 0) {
           this.settings = await window.electronAPI.importSettings(
-            result.filePaths[0]
+            result.filePaths[0],
           );
           this.showStatus("Settings imported successfully", "success");
         }
@@ -247,7 +257,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!result.canceled) {
           await window.electronAPI.exportSettings(
             result.filePath,
-            this.settings
+            this.settings,
           );
           this.showStatus("Settings exported successfully", "success");
         }
@@ -265,7 +275,7 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(this.apiKeyValidationTimeout);
         this.apiKeyValidationTimeout = setTimeout(
           this.validateApiKeyAndModels,
-          1000
+          1000,
         );
       },
 
@@ -277,7 +287,7 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           const result = await window.electronAPI.validateApiKeyAndListModels(
             this.settings.ai.baseUrl,
-            this.apiKeyInput
+            this.apiKeyInput,
           );
           if (result.success && result.models.length > 0) {
             this.aiModelsState.models = result.models;
@@ -292,7 +302,7 @@ document.addEventListener("DOMContentLoaded", () => {
             this.aiModelsState.models = [];
             this.showStatus(
               `API Key validation failed: ${result.error}`,
-              "error"
+              "error",
             );
           }
         } catch (e) {
@@ -318,7 +328,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (
           !confirm(
-            `Switch to ${newPlugin} plugin?\n\nThis may download required models if they are not already present.`
+            `Switch to ${newPlugin} plugin?\n\nThis may download required models if they are not already present.`,
           )
         ) {
           this.activePlugin = oldPlugin; // Revert selection
@@ -331,7 +341,7 @@ document.addEventListener("DOMContentLoaded", () => {
           this.settings.transcriptionPlugin = this.activePlugin; // Update internal setting tracking
           this.showStatus(
             `Switched to ${this.activePlugin} successfully`,
-            "success"
+            "success",
           );
         } catch (e) {
           this.showStatus(`Failed to switch plugin: ${e.message}`, "error");
@@ -347,7 +357,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (
           !confirm(
-            `This will switch to the '${newModelName}' model and download it if it's not available. Continue?`
+            `This will switch to the '${newModelName}' model and download it if it's not available. Continue?`,
           )
         ) {
           // The UI will be out of sync temporarily, but since we haven't
@@ -409,7 +419,7 @@ document.addEventListener("DOMContentLoaded", () => {
       async clearPluginData(pluginName) {
         if (
           confirm(
-            `Are you sure you want to clear all data for ${pluginName}? This cannot be undone.`
+            `Are you sure you want to clear all data for ${pluginName}? This cannot be undone.`,
           )
         ) {
           try {
@@ -444,7 +454,7 @@ document.addEventListener("DOMContentLoaded", () => {
               "• Secure storage data (API keys, settings)\n" +
               "• All plugin-specific data\n\n" +
               "Models will need to be re-downloaded for future use.\n\n" +
-              "This action cannot be undone. Continue?"
+              "This action cannot be undone. Continue?",
           )
         ) {
           return;
@@ -467,7 +477,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             this.showStatus(
               result.message || "All plugin data cleared successfully",
-              "success"
+              "success",
             );
           } else {
             throw new Error(result.message || "Failed to clear plugin data");
@@ -476,7 +486,7 @@ document.addEventListener("DOMContentLoaded", () => {
           console.error("Failed to clear all plugin data:", error);
           this.showStatus(
             `Failed to clear all plugin data: ${error.message}`,
-            "error"
+            "error",
           );
         } finally {
           this.isClearingAll = false;
@@ -564,7 +574,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ?.fields.find((f) => f.key === "actions");
           if (actionsField) {
             this.settings.actions = JSON.parse(
-              JSON.stringify(actionsField.defaultValue)
+              JSON.stringify(actionsField.defaultValue),
             );
             this.showStatus("Actions have been reset to default.", "success");
           }
@@ -586,7 +596,7 @@ document.addEventListener("DOMContentLoaded", () => {
       deletePattern(actionIndex, patternIndex) {
         this.settings.actions.actions[actionIndex].matchPatterns.splice(
           patternIndex,
-          1
+          1,
         );
       },
 
@@ -607,7 +617,7 @@ document.addEventListener("DOMContentLoaded", () => {
       deleteHandler(actionIndex, handlerIndex) {
         this.settings.actions.actions[actionIndex].handlers.splice(
           handlerIndex,
-          1
+          1,
         );
       },
 

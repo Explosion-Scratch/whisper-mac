@@ -474,32 +474,6 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
     console.log("YAP plugin deactivated");
   }
 
-  async clearData(): Promise<void> {
-    // YAP doesn't store persistent data, just clean temp files
-    try {
-      if (FileSystemService.deleteDirectory(this.tempDir)) {
-        this.tempDir = mkdtempSync(join(tmpdir(), "yap-plugin-"));
-      }
-      console.log("YAP plugin data cleared");
-    } catch (error) {
-      console.warn("Failed to clear YAP plugin data:", error);
-    }
-  }
-
-  async getDataSize(): Promise<number> {
-    try {
-      let totalSize = 0;
-
-      // Calculate temp directory size
-      totalSize += FileSystemService.calculateDirectorySize(this.tempDir);
-
-      return totalSize;
-    } catch (error) {
-      console.warn("Failed to calculate YAP plugin data size:", error);
-      return 0;
-    }
-  }
-
   getDataPath(): string {
     return this.tempDir;
   }

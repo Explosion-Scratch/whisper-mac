@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 import { SegmentUpdate } from "../types/SegmentTypes";
 import { SecureStorageService } from "../services/SecureStorageService";
+import { FileSystemService } from "../services/FileSystemService";
 
 export interface TranscriptionSetupProgress {
   status: "starting" | "complete" | "error";
@@ -126,12 +127,21 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   abstract initialize(): Promise<void>;
   abstract destroy(): Promise<void>;
   abstract onDeactivate(): Promise<void>;
-  async clearData(): Promise<void> {
-    // Clear secure storage by default
-    await this.clearSecureData();
-    // Plugins can override to add additional cleanup
+  async getDataSize(): Promise<number> {
+    try {
+      const items = await this.listData();
+      if (!items) {
+        return 0;
+      }
+      return items.reduce((total, item) => total + (item.size || 0), 0);
+    } catch (error) {
+      console.error(
+        `[${this.name}] Error calculating data size from listData:`,
+        error,
+      );
+      return 0;
+    }
   }
-  abstract getDataSize(): Promise<number>;
   abstract getDataPath(): string;
 
   // Data management methods
@@ -139,10 +149,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
     Array<{ name: string; description: string; size: number; id: string }>
   >;
   abstract deleteDataItem(id: string): Promise<void>;
-  async deleteAllData(): Promise<void> {
-    // Default implementation uses clearData
-    await this.clearData();
-  }
+  abstract deleteAllData(): Promise<void>;
   abstract updateOptions(
     options: Record<string, any>,
     uiFunctions?: PluginUIFunctions,

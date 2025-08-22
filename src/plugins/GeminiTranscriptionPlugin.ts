@@ -466,12 +466,6 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.setActive(false);
   }
 
-  async getDataSize(): Promise<number> {
-    // Return size of secure storage data
-    const keys = await this.listSecureKeys();
-    return keys.length * 100; // Rough estimate
-  }
-
   getDataPath(): string {
     return "secure_storage"; // Gemini uses secure storage, not file-based
   }

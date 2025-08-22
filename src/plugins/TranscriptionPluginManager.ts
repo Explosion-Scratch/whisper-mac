@@ -505,7 +505,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       throw new Error(`Cannot delete active plugin ${name}`);
     }
 
-    await plugin.clearData();
+    await plugin.deleteAllData();
     console.log(`Cleared data for inactive plugin: ${name}`);
   }
 
@@ -518,7 +518,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       throw new Error(`Plugin ${name} not found`);
     }
 
-    await plugin.clearData();
+    await plugin.deleteAllData();
   }
 
   /**
@@ -528,7 +528,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     const plugins = this.getPlugins();
     const clearPromises = plugins.map(async (plugin) => {
       try {
-        await plugin.clearData();
+        await plugin.deleteAllData();
       } catch (error) {
         console.error(
           `Error clearing data for plugin ${plugin.displayName}:`,

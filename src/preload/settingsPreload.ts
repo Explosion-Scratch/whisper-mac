@@ -69,31 +69,31 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Unified plugin switching progress listeners
   onPluginSwitchProgress: (callback: (progress: any) => void) => {
     ipcRenderer.on("settings:pluginSwitchProgress", (_event, progress) =>
-      callback(progress)
+      callback(progress),
     );
   },
   onPluginSwitchLog: (callback: (payload: any) => void) => {
     ipcRenderer.on("settings:pluginSwitchLog", (_event, payload) =>
-      callback(payload)
+      callback(payload),
     );
   },
 
   // Plugin option update progress listeners
   onPluginOptionProgress: (callback: (progress: any) => void) => {
     ipcRenderer.on("settings:pluginOptionProgress", (_event, progress) =>
-      callback(progress)
+      callback(progress),
     );
   },
   onPluginOptionLog: (callback: (payload: any) => void) => {
     ipcRenderer.on("settings:pluginOptionLog", (_event, payload) =>
-      callback(payload)
+      callback(payload),
     );
   },
 
   // Listen for settings updates from main process
   onSettingsUpdated: (callback: (settings: Record<string, any>) => void) => {
     ipcRenderer.on("settings:updated", (_event, settings) =>
-      callback(settings)
+      callback(settings),
     );
   },
 
