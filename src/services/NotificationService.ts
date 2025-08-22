@@ -1,7 +1,5 @@
 import { execFile } from "child_process";
-import * as path from "path";
-import * as fs from "fs";
-import { Notification, nativeImage } from "electron";
+import { Notification } from "electron";
 
 interface ProcessResult {
   success: boolean;
@@ -21,36 +19,6 @@ export interface NotificationOptions {
 export class NotificationService {
   private static readonly DEFAULT_TITLE = "WhisperMac";
   private static readonly TIMEOUT_MS = 10000;
-  private static iconPath: string | null = null;
-
-  constructor() {
-    this.initializeIconPath();
-  }
-
-  /**
-   * Initialize the icon path for notifications
-   */
-  private initializeIconPath(): void {
-    // Look for the app icon at ../assets/icon.png
-    const iconPath = path.join(__dirname, '../assets/icon.png');
-    
-    try {
-      if (fs.existsSync(iconPath)) {
-        NotificationService.iconPath = iconPath;
-        console.log(`Found notification icon at: ${iconPath}`);
-      } else {
-        console.warn(`Icon not found at: ${iconPath}`);
-        NotificationService.iconPath = null;
-      }
-    } catch (error) {
-      console.warn('Failed to check icon path:', error);
-      NotificationService.iconPath = null;
-    }
-
-    if (!NotificationService.iconPath) {
-      console.warn('Could not find notification icon, notifications will use system default');
-    }
-  }
 
   /**
    * Send a notification to the user using Electron's native notifications
@@ -63,7 +31,7 @@ export class NotificationService {
       message,
       sound,
       timeout = NotificationService.TIMEOUT_MS,
-      icon = NotificationService.iconPath,
+      icon,
     } = options;
 
     if (!message?.trim()) {
@@ -73,10 +41,16 @@ export class NotificationService {
     try {
       // Try using Electron's native notification first
       if (this.canUseNativeNotifications()) {
-        console.log('Using native Electron notifications');
-        await this.sendNativeNotification(title, subtitle, message, sound, icon);
+        console.log("Using native Electron notifications");
+        await this.sendNativeNotification(
+          title,
+          subtitle,
+          message,
+          sound,
+          icon
+        );
       } else {
-        console.log('Falling back to AppleScript notifications');
+        console.log("Falling back to AppleScript notifications");
         // Fallback to AppleScript for environments where Electron notifications aren't available
         await this.executeAppleScript(
           this.buildNotificationScript(title, subtitle, message, sound, icon),
@@ -160,7 +134,7 @@ export class NotificationService {
     subtitle?: string,
     message?: string,
     sound?: string,
-    icon?: string | null
+    icon?: string
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
@@ -175,39 +149,30 @@ export class NotificationService {
           notificationOptions.subtitle = subtitle;
         }
 
-        // Create native image from icon path
-        if (icon && fs.existsSync(icon)) {
-          try {
-            const iconImage = nativeImage.createFromPath(icon);
-            if (!iconImage.isEmpty()) {
-              notificationOptions.icon = iconImage;
-              console.log(`Using native image notification icon: ${icon}`);
-            } else {
-              console.warn(`Failed to create native image from: ${icon}`);
-            }
-          } catch (error) {
-            console.warn(`Error creating native image from ${icon}:`, error);
-          }
+        // Only add icon if explicitly provided
+        if (icon) {
+          notificationOptions.icon = icon;
+          console.log(`Using custom notification icon: ${icon}`);
         } else {
-          console.log('No custom icon available, using system default');
+          console.log("Using system default notification icon");
         }
 
         const notification = new Notification(notificationOptions);
 
-        notification.on('show', () => {
-          console.log('Native notification shown successfully');
+        notification.on("show", () => {
+          console.log("Native notification shown successfully");
           resolve();
         });
 
-        notification.on('failed', (event, error) => {
-          console.warn('Native notification failed:', error);
+        notification.on("failed", (event, error) => {
+          console.warn("Native notification failed:", error);
           reject(new Error(`Native notification failed: ${error}`));
         });
 
         // Handle sound separately for macOS
-        if (sound && process.platform === 'darwin') {
-          this.playNotificationSound(sound).catch(err => {
-            console.warn('Failed to play notification sound:', err);
+        if (sound && process.platform === "darwin") {
+          this.playNotificationSound(sound).catch((err) => {
+            console.warn("Failed to play notification sound:", err);
           });
         }
 
@@ -225,7 +190,7 @@ export class NotificationService {
     try {
       await this.executeAppleScript(`beep`);
     } catch (error) {
-      console.warn('Failed to play notification sound:', error);
+      console.warn("Failed to play notification sound:", error);
     }
   }
 
@@ -234,7 +199,7 @@ export class NotificationService {
     subtitle?: string,
     message?: string,
     sound?: string,
-    icon?: string | null
+    icon?: string
   ): string {
     // Escape quotes in the message and title to prevent AppleScript injection
     const escapedMessage = (message || "").replace(/"/g, '\\"');
@@ -309,25 +274,5 @@ export class NotificationService {
         });
       });
     });
-  }
-
-  /**
-   * Manually set the icon path for notifications
-   * @param iconPath Path to the icon file
-   */
-  static setIconPath(iconPath: string): void {
-    if (fs.existsSync(iconPath)) {
-      NotificationService.iconPath = iconPath;
-      console.log(`Notification icon path set to: ${iconPath}`);
-    } else {
-      console.warn(`Icon path does not exist: ${iconPath}`);
-    }
-  }
-
-  /**
-   * Get the current icon path
-   */
-  static getIconPath(): string | null {
-    return NotificationService.iconPath;
   }
 }

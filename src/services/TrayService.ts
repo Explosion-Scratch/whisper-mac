@@ -1,6 +1,7 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage } from "electron";
+import { app, BrowserWindow, Menu, Tray, nativeImage, Notification } from "electron";
 import { join } from "path";
 import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManager";
+import { NotificationService } from "./NotificationService";
 
 export type SetupStatus =
   | "idle"
@@ -26,6 +27,7 @@ export class TrayService {
     private readonly onLeftClick: () => void,
     private readonly onShowSettings: () => void,
     private readonly pluginManager: TranscriptionPluginManager,
+    private readonly notificationService: NotificationService,
   ) {}
 
   createTray() {
@@ -99,14 +101,41 @@ export class TrayService {
       
       if (result.success) {
         console.log(`Successfully activated plugin: ${result.activePlugin}`);
+        
+        // Show notification about plugin switch
+        const targetPlugin = this.pluginManager.getPlugin(result.activePlugin!);
+        if (targetPlugin) {
+          if (result.pluginChanged) {
+            if (result.activePlugin === pluginName) {
+              // Successfully switched to requested plugin
+              await this.showPluginSwitchNotification(targetPlugin.displayName, false);
+            } else {
+              // Fallback occurred - show notification with settings button
+              const requestedPlugin = this.pluginManager.getPlugin(pluginName);
+              const requestedDisplayName = requestedPlugin?.displayName || pluginName;
+              await this.showPluginSwitchNotification(
+                targetPlugin.displayName, 
+                true, 
+                requestedDisplayName
+              );
+            }
+          }
+        }
+        
         // Update tray menu to reflect the change
         this.updateTrayMenu(this.currentStatus);
       } else {
         console.error(`Failed to activate plugin ${pluginName}:`, result.errors);
-        // Could show a notification or error dialog here if needed
+        // Show error notification
+        await this.notificationService.sendErrorNotification(
+          `Failed to activate ${pluginName}. Please check plugin availability in Settings.`
+        );
       }
     } catch (error) {
       console.error(`Error activating plugin ${pluginName}:`, error);
+      await this.notificationService.sendErrorNotification(
+        `Error switching to ${pluginName}: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -200,6 +229,63 @@ export class TrayService {
       image.setTemplateImage(true);
       this.tray?.setImage(image);
     } catch {}
+  }
+
+  /**
+   * Show notification when switching plugins
+   */
+  private async showPluginSwitchNotification(
+    activePluginName: string,
+    isFallback: boolean = false,
+    requestedPluginName?: string
+  ): Promise<void> {
+    try {
+      if (isFallback && requestedPluginName) {
+        // For fallback scenarios, show notification with settings button
+        const message = `Switched to ${activePluginName} (couldn't switch to ${requestedPluginName})`;
+        
+        // Use native notification with action if supported
+        if (Notification.isSupported()) {
+          const notification = new Notification({
+            title: "WhisperMac",
+            body: message,
+            actions: [{
+              type: "button",
+              text: "Open Settings"
+            }]
+          });
+
+          notification.on('action', (event, index) => {
+            if (index === 0) {
+              // Open settings when button is clicked
+              this.onShowSettings();
+            }
+          });
+
+          notification.on('click', () => {
+            // Also open settings when notification itself is clicked
+            this.onShowSettings();
+          });
+
+          notification.show();
+        } else {
+          // Fallback to basic notification
+          await this.notificationService.sendNotification({
+            message: `${message}. Click here to open Settings.`,
+            sound: "default"
+          });
+        }
+      } else {
+        // Regular successful switch notification
+        await this.notificationService.sendSuccessNotification(
+          `Switched to ${activePluginName}`
+        );
+      }
+    } catch (error) {
+      console.error('Error showing plugin switch notification:', error);
+      // Fallback to console log
+      console.log(`PLUGIN SWITCH: ${isFallback ? 'Fallback to' : 'Switched to'} ${activePluginName}`);
+    }
   }
 
   private setDockIconToAppIcon() {
