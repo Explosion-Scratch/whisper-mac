@@ -177,5 +177,8 @@
     "name": "Follow the writing style that the user includes carefully",
     "if": ["writing_style"],
     "examples": []
+  },
+  {
+    "name": "Preserve original wording and phrases as much as possible, for example when writing an email, don't change the wording of the email, but feel free to format properly"
   }
 ]

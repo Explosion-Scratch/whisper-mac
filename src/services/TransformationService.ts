@@ -190,7 +190,8 @@ export class TransformationService {
     const nonCodeContent = textWithoutCodeBlocks.trim();
 
     if (
-      longestCodeContent.length > nonCodeContent.length * 2 &&
+      (longestCodeContent.length > nonCodeContent.length * 2 ||
+        (nonCodeContent.length < 100 && longestCodeContent.length > 60)) &&
       longestCodeContent.length > 0
     ) {
       return longestCodeContent.trim();
@@ -364,17 +365,6 @@ export class TransformationService {
   }
 
   /**
-   * Extract code block content if it's significantly longer than non-code content
-   */
-  private extractCode(text: string): string | null {
-    return TransformationService.extractCode(text);
-  }
-
-  private async removeChanged(text: string): Promise<string> {
-    return TransformationService.removeChanged(text);
-  }
-
-  /**
    * Remove extra whitespace and normalize spacing
    */
   async normalizeWhitespace(text: string): Promise<string> {
@@ -383,13 +373,6 @@ export class TransformationService {
 
     const transformed = text.replace(/\s+/g, " ").trim();
     return transformed;
-  }
-
-  /**
-   * Remove content between <think> tags and trim the result
-   */
-  private removeThink(text: string): string {
-    return TransformationService.removeThink(text);
   }
 
   /**
