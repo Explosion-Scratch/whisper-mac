@@ -216,7 +216,10 @@ export class TransformationService {
   static async removeChanged(text: string): Promise<string> {
     const transformed = text
       .trim()
-      .replace(/^(?:changed|new|replaced)\s*(?:text)\:?\s*/gi, "")
+      .replace(
+        /^(?:got|it|based|on|context|changed|polished|and|output|selection|selected|text|updated|result|the|of|course|Here's|here|is|!|\.|'| )+/gi,
+        "",
+      )
       .trim();
     return transformed;
   }

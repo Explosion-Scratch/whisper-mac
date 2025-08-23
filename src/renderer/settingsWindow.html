@@ -2160,7 +2160,7 @@
                             <div class="action-toggle">
                               <input
                                 type="checkbox"
-                                class="action-enabled-checkbox"
+                                class="action-enabled-checkbox checkbox"
                                 v-model="action.enabled"
                               />
                               <h4 class="action-name">{{ action.name }}</h4>
@@ -2557,7 +2557,7 @@
                             <div class="rule-toggle">
                               <input
                                 type="checkbox"
-                                class="rule-enabled-checkbox"
+                                class="rule-enabled-checkbox checkbox"
                                 v-model="rule.enabled"
                                 @click.stop
                               />
@@ -2730,6 +2730,7 @@
                   v-for="plugin in pluginData.plugins"
                   :key="plugin.name"
                   class="plugin-config-section"
+                  v-if="activePlugin === plugin.name"
                 >
                   <div class="plugin-header">
                     <div class="plugin-info">
