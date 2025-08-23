@@ -21,7 +21,7 @@ import {
   BaseTranscriptionPlugin,
   TranscriptionSetupProgress,
   TranscriptionPluginConfigSchema,
-  PluginOption,
+  PluginSchemaItem,
   PluginUIFunctions,
 } from "./TranscriptionPlugin";
 import { WavProcessor } from "../helpers/WavProcessor";
@@ -53,6 +53,8 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.modelManager = new ModelManager(config);
     this.voskScriptPath = this.resolveVoskScriptPath();
     this.setActivationCriteria({ runOnAll: false, skipTransformation: false });
+    // Initialize schema
+    this.schema = this.getSchema();
   }
 
   /**
@@ -136,7 +138,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
   private getCurrentModelName(): string {
     return (
       this.options.model ||
-      this.getOptions().find((opt) => opt.key === "model")?.default ||
+      this.getSchema().find((opt) => opt.key === "model")?.default ||
       "vosk-model-small-en-us-0.15"
     );
   }
@@ -168,7 +170,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
   ): Promise<boolean> {
     const modelName =
       options.model ||
-      this.getOptions().find((opt) => opt.key === "model")?.default ||
+      this.getSchema().find((opt) => opt.key === "model")?.default ||
       "vosk-model-small-en-us-0.15";
     if (this.isModelDownloaded(modelName)) {
       onLog?.(`Vosk model ${modelName} already available`);
@@ -838,7 +840,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   // New unified plugin system methods
-  getOptions() {
+  getSchema(): PluginSchemaItem[] {
     const voskModels = [
       {
         value: "vosk-model-small-en-us-0.15",
@@ -918,14 +920,14 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
     ];
   }
 
-  async verifyOptions(
+  async validateOptions(
     options: Record<string, any>,
   ): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
     if (options.model) {
       const validModels =
-        this.getOptions()
+        this.getSchema()
           .find((opt) => opt.key === "model")
           ?.options?.map((opt) => opt.value) || [];
       if (!validModels.includes(options.model)) {
@@ -935,7 +937,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     if (options.sampleRate) {
       const validRates =
-        this.getOptions()
+        this.getSchema()
           .find((opt) => opt.key === "sampleRate")
           ?.options?.map((opt) => opt.value) || [];
       if (!validRates.includes(options.sampleRate)) {

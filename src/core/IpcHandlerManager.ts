@@ -42,11 +42,34 @@ export class IpcHandlerManager {
   cleanupIpcHandlers(): void {
     console.log("=== Cleaning up IPC handlers ===");
 
+    // Remove all dictation handlers
     ipcMain.removeAllListeners("start-dictation");
     ipcMain.removeAllListeners("stop-dictation");
     ipcMain.removeAllListeners("cancel-dictation");
     ipcMain.removeAllListeners("close-dictation-window");
     ipcMain.removeAllListeners("download-model");
+
+    // Remove all plugin handlers
+    ipcMain.removeHandler("plugin:switch");
+    ipcMain.removeHandler("unified:isDownloading");
+
+    // Remove all onboarding handlers
+    ipcMain.removeHandler("onboarding:getInitialState");
+    ipcMain.removeHandler("onboarding:getPluginSchemas");
+    ipcMain.removeHandler("onboarding:getPluginOptions");
+    ipcMain.removeHandler("onboarding:getCurrentPluginInfo");
+    ipcMain.removeHandler("onboarding:checkAccessibility");
+    ipcMain.removeHandler("onboarding:resetAccessibilityCache");
+    ipcMain.removeHandler("onboarding:checkMicrophone");
+    ipcMain.removeHandler("onboarding:resetMicrophoneCache");
+    ipcMain.removeHandler("onboarding:setPlugin");
+    ipcMain.removeHandler("onboarding:setAiEnabled");
+    ipcMain.removeHandler("onboarding:setAiProvider");
+    ipcMain.removeHandler("onboarding:saveApiKey");
+    ipcMain.removeHandler("onboarding:complete");
+    ipcMain.removeHandler("onboarding:runSetup");
+
+    // Settings handlers are cleaned up by SettingsService
 
     console.log("=== IPC handlers cleaned up ===");
   }
@@ -193,11 +216,11 @@ export class IpcHandlerManager {
       return {
         ai: this.config.ai,
         plugin: activePlugin,
-        pluginOptions,
+        pluginOptions: JSON.parse(JSON.stringify(pluginOptions)),
       };
     });
 
-    ipcMain.handle("onboarding:getPluginOptions", () => {
+    ipcMain.handle("onboarding:getPluginSchemas", () => {
       const plugins = this.transcriptionPluginManager
         .getPlugins()
         .map((plugin) => ({
@@ -209,13 +232,33 @@ export class IpcHandlerManager {
           supportsBatchProcessing: plugin.supportsBatchProcessing,
         }));
 
-      const options = this.transcriptionPluginManager.getAllPluginOptions();
+      const schemas = this.transcriptionPluginManager.getAllPluginSchemas();
 
       return {
         plugins,
-        options,
+        schemas,
       };
     });
+
+    // Get plugin options for onboarding
+    ipcMain.handle(
+      "onboarding:getPluginOptions",
+      async (event, pluginName: string) => {
+        try {
+          return await this.transcriptionPluginManager.getPluginOptions(
+            pluginName,
+          );
+        } catch (error) {
+          console.error(
+            `Error getting options for plugin ${pluginName}:`,
+            error,
+          );
+          throw error;
+        }
+      },
+    );
+
+    // Schema and options handlers - these are handled by SettingsService
 
     ipcMain.handle("onboarding:getCurrentPluginInfo", () => {
       const activePlugin = this.transcriptionPluginManager.getActivePlugin();
@@ -281,7 +324,8 @@ export class IpcHandlerManager {
         // Store in unified plugin config system
         const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
         if (plugin) {
-          plugin.setOptions({ ...plugin.getCurrentOptions(), ...options });
+          const currentOptions = plugin.getOptions();
+          plugin.setOptions({ ...currentOptions, ...options });
         }
 
         // Don't activate the plugin during onboarding - just store the configuration
@@ -372,7 +416,9 @@ export class IpcHandlerManager {
         // Now activate the plugin after onboarding is complete
         const activePlugin = this.config.get("transcriptionPlugin") || "yap";
         const pluginOptions =
-          this.transcriptionPluginManager.getPluginOptions(activePlugin) || {};
+          (await this.transcriptionPluginManager.getPluginOptions(
+            activePlugin,
+          )) || {};
 
         await this.transcriptionPluginManager.setActivePlugin(
           activePlugin,
@@ -425,7 +471,9 @@ export class IpcHandlerManager {
 
         // Get plugin configuration from the unified plugin config system
         const pluginOptions =
-          this.transcriptionPluginManager.getPluginOptions(activePlugin) || {};
+          (await this.transcriptionPluginManager.getPluginOptions(
+            activePlugin,
+          )) || {};
 
         // Let the plugin handle its own setup and model downloading
         if (plugin.ensureModelAvailable) {

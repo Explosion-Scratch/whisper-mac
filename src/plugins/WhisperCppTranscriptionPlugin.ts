@@ -23,7 +23,7 @@ import {
   BaseTranscriptionPlugin,
   TranscriptionSetupProgress,
   TranscriptionPluginConfigSchema,
-  PluginOption,
+  PluginSchemaItem,
   PluginUIFunctions,
 } from "./TranscriptionPlugin";
 import { readPrompt } from "../helpers/getPrompt";
@@ -67,6 +67,9 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     // Load Core ML setting from options with fallback to old config
     this.useCoreML = false; // Will be set properly when options are loaded
+
+    // Initialize schema
+    this.schema = this.getSchema();
   }
 
   /**
@@ -298,8 +301,9 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       });
 
       // Transcribe with whisper.cpp
-      const rawTranscription =
-        await this.transcribeWithWhisperCpp(tempAudioPath);
+      const rawTranscription = await this.transcribeWithWhisperCpp(
+        tempAudioPath,
+      );
 
       // Clean up temp file
       try {
@@ -814,7 +818,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   // New unified plugin system methods
-  getOptions(): PluginOption[] {
+  getSchema(): PluginSchemaItem[] {
     const whisperModels = [
       {
         value: "ggml-tiny.bin",
@@ -908,7 +912,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       },
     ];
 
-    const options: PluginOption[] = [
+    const options: PluginSchemaItem[] = [
       {
         key: "model",
         type: "model-select",
@@ -977,14 +981,14 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     return options;
   }
 
-  async verifyOptions(
+  async validateOptions(
     options: Record<string, any>,
   ): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
     if (options.model) {
       const validModels =
-        this.getOptions()
+        this.getSchema()
           .find((opt) => opt.key === "model")
           ?.options?.map((opt) => opt.value) || [];
       if (!validModels.includes(options.model)) {
@@ -1026,7 +1030,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       // Get model from stored options (unified plugin system), fallback to default
       const modelName =
         this.options.model ||
-        this.getOptions().find((opt) => opt.key === "model")?.default ||
+        this.getSchema().find((opt) => opt.key === "model")?.default ||
         "ggml-base.en.bin";
       const modelPath = join(this.config.getModelsDir(), modelName);
 
@@ -1450,7 +1454,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   ): Promise<boolean> {
     const modelName =
       options.model ||
-      this.getOptions().find((opt) => opt.key === "model")?.default ||
+      this.getSchema().find((opt) => opt.key === "model")?.default ||
       "ggml-base.en.bin";
     onLog?.(`Ensuring Whisper.cpp model ${modelName} is available`);
 

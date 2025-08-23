@@ -52,7 +52,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   isUnifiedDownloading: () => ipcRenderer.invoke("unified:isDownloading"),
 
   // Unified plugin management
-  getPluginOptions: () => ipcRenderer.invoke("plugins:getOptions"),
+  getPluginSchemas: () => ipcRenderer.invoke("settings:getPluginSchemas"),
+  getPluginSchema: (pluginName: string) =>
+    ipcRenderer.invoke("settings:getPluginSchema", pluginName),
+  getPluginOptions: (pluginName: string) =>
+    ipcRenderer.invoke("settings:getPluginOptions", pluginName),
+  setPluginOptions: (pluginName: string, options: Record<string, any>) =>
+    ipcRenderer.invoke("settings:setPluginOptions", pluginName, options),
+  verifyPluginOptions: (pluginName: string, options: Record<string, any>) =>
+    ipcRenderer.invoke("settings:verifyPluginOptions", pluginName, options),
   getCurrentPluginInfo: () =>
     ipcRenderer.invoke("onboarding:getCurrentPluginInfo"),
   getActivePlugin: () => ipcRenderer.invoke("plugins:getActive"),
@@ -72,6 +80,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   clearAllPluginData: () => ipcRenderer.invoke("settings:clearAllPluginData"),
   clearAllPluginDataWithFallback: () =>
     ipcRenderer.invoke("settings:clearAllPluginDataWithFallback"),
+
+  // Secure storage management APIs
+  getSecureStorageInfo: (pluginName: string) =>
+    ipcRenderer.invoke("plugins:getSecureStorageInfo", { pluginName }),
+  clearSecureData: (pluginName: string) =>
+    ipcRenderer.invoke("plugins:clearSecureData", { pluginName }),
+  exportSecureData: (pluginName: string) =>
+    ipcRenderer.invoke("plugins:exportSecureData", { pluginName }),
 
   // Unified plugin switching progress listeners
   onPluginSwitchProgress: (callback: (progress: any) => void) => {
@@ -102,6 +118,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("settings:updated", (_event, settings) =>
       callback(settings),
     );
+  },
+
+  // Listen for clear progress updates
+  onClearProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on("settings:clearProgress", (_event, progress) =>
+      callback(progress),
+    );
+  },
+
+  // Listen for hide progress
+  onHideProgress: (callback: () => void) => {
+    ipcRenderer.on("settings:hideProgress", () => callback());
   },
 
   // Remove listeners

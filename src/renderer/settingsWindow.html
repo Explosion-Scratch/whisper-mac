@@ -2730,7 +2730,6 @@
                   v-for="plugin in pluginData.plugins"
                   :key="plugin.name"
                   class="plugin-config-section"
-                  v-if="activePlugin === plugin.name"
                 >
                   <div class="plugin-header">
                     <div class="plugin-info">
@@ -2749,7 +2748,7 @@
                   </div>
                   <div v-if="activePlugin === plugin.name">
                     <div
-                      v-for="option in pluginData.options[plugin.name]"
+                      v-for="option in pluginData.schemas[plugin.name]"
                       :key="option.key"
                       class="form-group plugin-option"
                     >

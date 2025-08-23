@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
         originalSettings: {},
         currentSectionId: null,
         validationErrors: {},
-        pluginData: { plugins: [], options: {} },
+        pluginData: { plugins: [], schemas: {} },
         activePlugin: null,
         pluginDataInfo: [],
         pluginDataItems: {},
@@ -52,13 +52,20 @@ document.addEventListener("DOMContentLoaded", () => {
           this.schema = await window.electronAPI.getSettingsSchema();
           this.settings = await window.electronAPI.getSettings();
           this.originalSettings = JSON.parse(JSON.stringify(this.settings));
+          console.log("this.settings", this.settings);
+          try {
+            this.pluginData = await window.electronAPI.getPluginSchemas();
+            console.log("this.pluginData", this.pluginData);
+          } catch (error) {
+            console.error("Failed to load plugin schemas:", error);
+            this.pluginData = { plugins: [], schemas: {} };
+          }
 
-          this.pluginData = await window.electronAPI.getPluginOptions();
           const pluginManagerActive =
             await window.electronAPI.getActivePlugin();
           this.activePlugin =
             pluginManagerActive || this.settings.transcriptionPlugin || "yap";
-
+          console.log("this.activePlugin", this.activePlugin);
           this.ensurePluginSettingsObjects();
 
           if (this.schema.length > 0) {
@@ -84,12 +91,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
       ensurePluginSettingsObjects() {
         if (!this.settings.plugin) this.settings.plugin = {};
+        if (
+          !this.pluginData ||
+          !this.pluginData.plugins ||
+          !this.pluginData.schemas
+        ) {
+          console.warn(
+            "Plugin data structure is incomplete, skipping plugin settings initialization",
+          );
+          return;
+        }
+
         for (const plugin of this.pluginData.plugins) {
           if (!this.settings.plugin[plugin.name]) {
             this.settings.plugin[plugin.name] = {};
           }
           // Ensure all options from schema have a default value if not present
-          const options = this.pluginData.options[plugin.name] || [];
+          const options = this.pluginData.schemas[plugin.name] || [];
           for (const option of options) {
             if (this.settings.plugin[plugin.name][option.key] === undefined) {
               this.settings.plugin[plugin.name][option.key] = option.default;

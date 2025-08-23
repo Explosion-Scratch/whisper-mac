@@ -17,7 +17,7 @@ import {
   BaseTranscriptionPlugin,
   TranscriptionSetupProgress,
   TranscriptionPluginConfigSchema,
-  PluginOption,
+  PluginSchemaItem,
   PluginUIFunctions,
 } from "./TranscriptionPlugin";
 
@@ -46,6 +46,8 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.yapBinaryPath = this.resolveYapBinaryPath();
     // Declare default activation criteria
     this.setActivationCriteria({ runOnAll: true, skipTransformation: false });
+    // Initialize schema
+    this.schema = this.getSchema();
   }
 
   /**
@@ -382,7 +384,7 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   // New unified plugin system methods
-  getOptions() {
+  getSchema(): PluginSchemaItem[] {
     return [
       {
         key: "locale",
@@ -417,14 +419,14 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
     ];
   }
 
-  async verifyOptions(
+  async validateOptions(
     options: Record<string, any>,
   ): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
     if (options.locale) {
       const validLocales =
-        this.getOptions()
+        this.getSchema()
           .find((opt) => opt.key === "locale")
           ?.options?.map((opt) => opt.value) || [];
       if (!validLocales.includes(options.locale)) {

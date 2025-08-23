@@ -1,6 +1,6 @@
 import {
   BaseTranscriptionPlugin,
-  PluginOption,
+  PluginSchemaItem,
   PluginUIFunctions,
   TranscriptionSetupProgress,
 } from "./TranscriptionPlugin";
@@ -39,6 +39,8 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.tempDir = mkdtempSync(join(tmpdir(), "gemini-plugin-"));
     // Set activation criteria: runOnAll (gets all audio) + skipTransformation (handles both transcription and transformation)
     this.setActivationCriteria({ runOnAll: true, skipTransformation: true });
+    // Initialize schema
+    this.schema = this.getSchema();
   }
 
   /**
@@ -73,7 +75,12 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     console.log("Current options:", this.options);
 
     // First, check if we have an API key in current options (for onboarding)
-    if (this.options.api_key) {
+    // Handle both cases: direct value or schema structure
+    if (
+      this.options.api_key &&
+      typeof this.options.api_key === "string" &&
+      this.options.api_key.trim() !== ""
+    ) {
       console.log("Found API key in current options, using it");
       this.apiKey = this.options.api_key;
       return true;
@@ -323,7 +330,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.setOptions(config);
   }
 
-  getOptions(): PluginOption[] {
+  getSchema(): PluginSchemaItem[] {
     const systemPrompt = this.readPromptFile("gemini_system_prompt.txt");
     const messagePrompt = this.readPromptFile("gemini_message_prompt.txt");
 
@@ -417,7 +424,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     ];
   }
 
-  async verifyOptions(
+  async validateOptions(
     options: Record<string, any>,
   ): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
@@ -441,12 +448,25 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     };
   }
 
-  async onActivated(uiFunctions?: PluginUIFunctions): Promise<void> {
+  private async loadApiKey(): Promise<string | null> {
     // Load secure configuration
     this.apiKey = await this.getSecureValue("api_key");
     this.modelConfig = await this.getSecureData("model_config");
 
-    const apiKey = await this.ensureApiKey();
+    // Check if we have an API key in current options (for onboarding)
+    if (
+      this.options.api_key &&
+      typeof this.options.api_key === "string" &&
+      this.options.api_key.trim() !== ""
+    ) {
+      this.apiKey = this.options.api_key;
+    }
+
+    return await this.ensureApiKey();
+  }
+
+  async onActivated(uiFunctions?: PluginUIFunctions): Promise<void> {
+    const apiKey = await this.loadApiKey();
     if (!apiKey) {
       throw new Error("Gemini API key not configured");
     }
@@ -456,11 +476,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   async initialize(): Promise<void> {
-    // Load secure configuration
-    this.apiKey = await this.getSecureValue("api_key");
-    this.modelConfig = await this.getSecureData("model_config");
-
-    const apiKey = await this.ensureApiKey();
+    const apiKey = await this.loadApiKey();
     if (!apiKey) {
       throw new Error("Gemini API key not configured");
     }

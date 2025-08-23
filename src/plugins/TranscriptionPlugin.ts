@@ -15,7 +15,7 @@ export interface ModelDownloadProgress {
   modelName?: string;
 }
 
-export interface PluginOption {
+export interface PluginSchemaItem {
   key: string;
   type: "string" | "number" | "boolean" | "select" | "model-select";
   label: string;
@@ -81,7 +81,9 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   protected isInitialized = false;
   protected isActive = false;
   protected currentState: PluginState = { isLoading: false };
-  protected options: Record<string, any> = {};
+  protected options: Record<string, any> = {}; // Actual option values
+  protected schema: PluginSchemaItem[] = []; // Schema definition
+
   protected activationCriteria: PluginActivationCriteria = {};
   protected onTranscriptionCallback: ((update: SegmentUpdate) => void) | null =
     null;
@@ -98,6 +100,8 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   constructor() {
     super();
     this.secureStorage = new SecureStorageService();
+    // Initialize schema in constructor
+    this.schema = this.getSchema();
   }
 
   // Existing transcription methods
@@ -118,9 +122,26 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   abstract cleanup(): Promise<void>;
   abstract getConfigSchema(): TranscriptionPluginConfigSchema;
 
-  // New unified plugin system methods
-  abstract getOptions(): PluginOption[];
-  abstract verifyOptions(
+  // Schema methods (for UI)
+  abstract getSchema(): PluginSchemaItem[];
+
+  getSchemaItems(): PluginSchemaItem[] {
+    return [...this.schema];
+  }
+
+  // Options methods (for runtime values)
+  getOptions(): Record<string, any> {
+    return { ...this.options };
+  }
+
+  setOptions(options: Record<string, any>): void {
+    console.log(`[${this.name}] Setting options:`, options);
+    this.options = { ...options };
+    console.log(`[${this.name}] Options set successfully`);
+  }
+
+  // Validation
+  abstract validateOptions(
     options: Record<string, any>,
   ): Promise<{ valid: boolean; errors: string[] }>;
   abstract onActivated(uiFunctions?: PluginUIFunctions): Promise<void>;
@@ -227,13 +248,6 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
     return this.isActive;
   }
 
-  /**
-   * Get current options
-   */
-  getCurrentOptions(): Record<string, any> {
-    return { ...this.options };
-  }
-
   protected setRunning(running: boolean): void {
     this.isRunning = running;
   }
@@ -282,15 +296,6 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
    */
   protected setActive(active: boolean): void {
     this.isActive = active;
-  }
-
-  /**
-   * Update stored options
-   */
-  setOptions(options: Record<string, any>): void {
-    console.log(`[${this.name}] Setting options:`, options);
-    this.options = { ...options };
-    console.log(`[${this.name}] Options set successfully`);
   }
 
   // Plugin secure storage methods

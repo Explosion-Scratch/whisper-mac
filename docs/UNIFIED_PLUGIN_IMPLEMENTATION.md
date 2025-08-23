@@ -13,7 +13,7 @@ The unified plugin system has been successfully implemented with the following c
 
 ### 2. Plugin Implementations
 
-All three plugins now implement the complete unified interface:
+All four plugins now implement the complete unified interface:
 
 #### YapTranscriptionPlugin
 
@@ -38,6 +38,15 @@ All three plugins now implement the complete unified interface:
 - ✅ Advanced configuration (sample rate, grammar recognition)
 - ✅ Model download integration
 - ✅ Python dependency management
+
+#### MistralTranscriptionPlugin
+
+- ✅ Complete unified interface implementation
+- ✅ Mistral AI API integration with Voxtral models
+- ✅ Secure API key storage and management
+- ✅ User-configurable runOnAll behavior
+- ✅ Transcription-only functionality
+- ✅ Fallback chain to offline plugins
 
 ### 3. Unified Features
 

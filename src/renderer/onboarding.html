@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -121,9 +121,7 @@
         background: rgba(255, 255, 255, 0.9);
         font-size: 12px;
         cursor: pointer;
-        transition:
-          background 0.15s ease,
-          transform 0.1s ease,
+        transition: background 0.15s ease, transform 0.1s ease,
           box-shadow 0.15s ease;
       }
       .btn[disabled] {
@@ -229,8 +227,7 @@
         width: 56px;
         height: 56px;
         border-radius: 12px;
-        box-shadow:
-          0 10px 30px rgba(0, 0, 0, 0.05),
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05),
           0 2px 10px rgba(0, 0, 0, 0.06) inset;
         user-select: none;
       }
@@ -787,38 +784,73 @@
             pluginSelect.value = initState.plugin || pluginSelect.value;
 
             // Load plugin information
-            const pluginData = await window.onboardingAPI.getPluginOptions();
-            availablePlugins.value = pluginData.plugins || [];
-            pluginOptions.value = pluginData.options || {};
-
-            // Set default options for each plugin
-            for (const [pluginName, options] of Object.entries(
-              pluginOptions.value,
-            )) {
-              selectedOptions.value[pluginName] = {};
-              for (const option of options) {
-                selectedOptions.value[pluginName][option.key] = option.default;
+            try {
+              const pluginData = await window.onboardingAPI.getPluginSchemas();
+              if (!pluginData || !pluginData.plugins || !pluginData.schemas) {
+                console.error(
+                  "Invalid plugin data structure received:",
+                  pluginData,
+                );
+                throw new Error("Failed to load plugin schemas");
               }
-            }
 
-            // Load current plugin options
-            updateCurrentPluginOptions();
+              availablePlugins.value = pluginData.plugins || [];
+              pluginOptions.value = pluginData.schemas || {};
+
+              // Set default options for each plugin
+              for (const [pluginName, options] of Object.entries(
+                pluginOptions.value,
+              )) {
+                selectedOptions.value[pluginName] = {};
+                for (const option of options) {
+                  selectedOptions.value[pluginName][option.key] =
+                    option.default;
+                }
+              }
+
+              // Load current plugin options
+              updateCurrentPluginOptions();
+            } catch (error) {
+              console.error("Failed to load plugin schemas:", error);
+              // Set fallback values
+              availablePlugins.value = [];
+              pluginOptions.value = {};
+            }
           };
 
           const updateCurrentPluginOptions = () => {
+            if (
+              !pluginOptions.value ||
+              !pluginOptions.value[pluginSelect.value]
+            ) {
+              console.warn(
+                `No options found for plugin: ${pluginSelect.value}`,
+              );
+              currentPluginOptions.value = [];
+              return;
+            }
             currentPluginOptions.value =
               pluginOptions.value[pluginSelect.value] || [];
           };
 
           const onPluginChange = () => {
-            updateCurrentPluginOptions();
+            try {
+              updateCurrentPluginOptions();
+            } catch (error) {
+              console.error("Error updating plugin options:", error);
+              currentPluginOptions.value = [];
+            }
           };
 
           const updateSelectedOption = (key, value) => {
-            if (!selectedOptions.value[pluginSelect.value]) {
-              selectedOptions.value[pluginSelect.value] = {};
+            try {
+              if (!selectedOptions.value[pluginSelect.value]) {
+                selectedOptions.value[pluginSelect.value] = {};
+              }
+              selectedOptions.value[pluginSelect.value][key] = value;
+            } catch (error) {
+              console.error("Error updating selected option:", error);
             }
-            selectedOptions.value[pluginSelect.value][key] = value;
           };
 
           const prev = () => {
@@ -868,10 +900,15 @@
                 selectedOptions.value[pluginSelect.value] || {};
               // Convert Vue reactive object to plain object to avoid cloning errors
               const plainOptions = JSON.parse(JSON.stringify(currentOptions));
-              await window.onboardingAPI.setPlugin(
-                pluginSelect.value,
-                plainOptions,
-              );
+              try {
+                await window.onboardingAPI.setPlugin(
+                  pluginSelect.value,
+                  plainOptions,
+                );
+              } catch (error) {
+                console.error("Failed to set plugin options:", error);
+                // Continue with the flow even if plugin options setting fails
+              }
             }
             if (idx.value === 4) {
               // If AI is enabled, validate configuration before proceeding

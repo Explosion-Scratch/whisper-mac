@@ -2,7 +2,7 @@ import { EventEmitter } from "events";
 import {
   BaseTranscriptionPlugin,
   TranscriptionSetupProgress,
-  PluginOption,
+  PluginSchemaItem,
   PluginState,
   PluginUIFunctions,
 } from "./TranscriptionPlugin";
@@ -172,7 +172,7 @@ export class TranscriptionPluginManager extends EventEmitter {
 
     // Verify options before proceeding
     if (Object.keys(finalOptions).length > 0) {
-      const validation = await plugin.verifyOptions(finalOptions);
+      const validation = await plugin.validateOptions(finalOptions);
       if (!validation.valid) {
         throw new Error(`Invalid options: ${validation.errors.join(", ")}`);
       }
@@ -393,14 +393,14 @@ export class TranscriptionPluginManager extends EventEmitter {
       // Set options before testing activation
       if (Object.keys(options).length > 0) {
         console.log("Verifying and testing plugin activation with options");
-        const validation = await plugin.verifyOptions(options);
+        const validation = await plugin.validateOptions(options);
         if (!validation.valid) {
           return {
             canActivate: false,
             error: `Invalid options: ${validation.errors.join(", ")}`,
           };
         }
-        plugin.updateOptions(options);
+        plugin.setOptions(options);
       }
       console.log("Attempting with new options");
 
@@ -586,8 +586,9 @@ export class TranscriptionPluginManager extends EventEmitter {
     console.log(
       `Attempting to activate default plugin with fallback: ${defaultPluginName}`,
     );
-    const fallbackResult =
-      await this.activatePluginWithFallback(defaultPluginName);
+    const fallbackResult = await this.activatePluginWithFallback(
+      defaultPluginName,
+    );
 
     if (fallbackResult.success) {
       if (fallbackResult.pluginChanged) {
@@ -610,22 +611,50 @@ export class TranscriptionPluginManager extends EventEmitter {
   }
 
   /**
-   * Get all plugin options for onboarding/settings UI
+   * Get all plugin schemas for onboarding/settings UI
    */
-  getAllPluginOptions(): Record<string, PluginOption[]> {
-    const pluginOptions: Record<string, PluginOption[]> = {};
+  getAllPluginSchemas(): Record<string, PluginSchemaItem[]> {
+    const pluginSchemas: Record<string, PluginSchemaItem[]> = {};
 
     for (const plugin of this.getPlugins()) {
-      pluginOptions[plugin.name] = plugin.getOptions();
+      pluginSchemas[plugin.name] = plugin.getSchema();
     }
 
-    return pluginOptions;
+    return pluginSchemas;
+  }
+
+  /**
+   * Get schema for a specific plugin
+   */
+  getPluginSchema(name: string): PluginSchemaItem[] | null {
+    const plugin = this.getPlugin(name);
+    return plugin ? plugin.getSchema() : null;
+  }
+
+  /**
+   * Set options for a specific plugin
+   */
+  async setPluginOptions(
+    name: string,
+    options: Record<string, any>,
+  ): Promise<void> {
+    const plugin = this.getPlugin(name);
+    if (!plugin) {
+      throw new Error(`Plugin ${name} not found`);
+    }
+
+    const validation = await plugin.validateOptions(options);
+    if (!validation.valid) {
+      throw new Error(`Invalid options: ${validation.errors.join(", ")}`);
+    }
+
+    plugin.setOptions(options);
   }
 
   /**
    * Get options for a specific plugin
    */
-  getPluginOptions(name: string): PluginOption[] | null {
+  async getPluginOptions(name: string): Promise<Record<string, any> | null> {
     const plugin = this.getPlugin(name);
     return plugin ? plugin.getOptions() : null;
   }
@@ -649,7 +678,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       throw new Error("No active plugin to update");
     }
 
-    const validation = await this.activePlugin.verifyOptions(options);
+    const validation = await this.activePlugin.validateOptions(options);
     if (!validation.valid) {
       throw new Error(`Invalid options: ${validation.errors.join(", ")}`);
     }
@@ -669,7 +698,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       return { valid: false, errors: [`Plugin ${name} not found`] };
     }
 
-    return await plugin.verifyOptions(options);
+    return await plugin.validateOptions(options);
   }
 
   /**

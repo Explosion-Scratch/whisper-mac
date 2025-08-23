@@ -297,13 +297,106 @@ export class SettingsService {
           supportsBatchProcessing: plugin.supportsBatchProcessing,
         }));
 
-      const options = this.transcriptionPluginManager.getAllPluginOptions();
+      const schemas = this.transcriptionPluginManager.getAllPluginSchemas();
 
       return {
         plugins,
-        options,
+        schemas,
       };
     });
+
+    // Plugin schema and options handlers
+    ipcMain.handle("settings:getPluginSchemas", async () => {
+      try {
+        if (!this.transcriptionPluginManager) {
+          throw new Error("Plugin manager not initialized");
+        }
+        return this.transcriptionPluginManager.getAllPluginSchemas();
+      } catch (error) {
+        console.error("Error getting plugin schemas:", error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle(
+      "settings:getPluginSchema",
+      async (event, pluginName: string) => {
+        try {
+          if (!this.transcriptionPluginManager) {
+            throw new Error("Plugin manager not initialized");
+          }
+          return this.transcriptionPluginManager.getPluginSchema(pluginName);
+        } catch (error) {
+          console.error(
+            `Error getting schema for plugin ${pluginName}:`,
+            error,
+          );
+          throw error;
+        }
+      },
+    );
+
+    ipcMain.handle(
+      "settings:setPluginOptions",
+      async (event, pluginName: string, options: Record<string, any>) => {
+        try {
+          if (!this.transcriptionPluginManager) {
+            throw new Error("Plugin manager not initialized");
+          }
+          await this.transcriptionPluginManager.setPluginOptions(
+            pluginName,
+            options,
+          );
+        } catch (error) {
+          console.error(
+            `Error setting options for plugin ${pluginName}:`,
+            error,
+          );
+          throw error;
+        }
+      },
+    );
+
+    ipcMain.handle(
+      "settings:getPluginOptions",
+      async (event, pluginName: string) => {
+        try {
+          if (!this.transcriptionPluginManager) {
+            throw new Error("Plugin manager not initialized");
+          }
+          return await this.transcriptionPluginManager.getPluginOptions(
+            pluginName,
+          );
+        } catch (error) {
+          console.error(
+            `Error getting options for plugin ${pluginName}:`,
+            error,
+          );
+          throw error;
+        }
+      },
+    );
+
+    ipcMain.handle(
+      "settings:verifyPluginOptions",
+      async (event, pluginName: string, options: Record<string, any>) => {
+        try {
+          if (!this.transcriptionPluginManager) {
+            throw new Error("Plugin manager not initialized");
+          }
+          return await this.transcriptionPluginManager.verifyPluginOptions(
+            pluginName,
+            options,
+          );
+        } catch (error) {
+          console.error(
+            `Error verifying options for plugin ${pluginName}:`,
+            error,
+          );
+          throw error;
+        }
+      },
+    );
 
     ipcMain.handle("plugins:getActive", () => {
       if (!this.transcriptionPluginManager) {
@@ -749,6 +842,58 @@ export class SettingsService {
 
   cleanup(): void {
     console.log("=== Cleaning up SettingsService ===");
+
+    // Clean up IPC handlers
+    const { ipcMain } = require("electron");
+
+    // Remove all settings handlers
+    ipcMain.removeHandler("settings:getSchema");
+    ipcMain.removeHandler("settings:get");
+    ipcMain.removeHandler("settings:save");
+    ipcMain.removeHandler("settings:resetAll");
+    ipcMain.removeHandler("settings:resetSection");
+    ipcMain.removeHandler("settings:import");
+    ipcMain.removeHandler("settings:export");
+    ipcMain.removeHandler("settings:closeWindow");
+    ipcMain.removeHandler("settings:saveApiKey");
+    ipcMain.removeHandler("settings:getApiKey");
+    ipcMain.removeHandler("settings:clearAllPluginData");
+    ipcMain.removeHandler("settings:clearAllPluginDataWithFallback");
+
+    // Remove all dialog handlers
+    ipcMain.removeHandler("dialog:showOpenDialog");
+    ipcMain.removeHandler("dialog:showSaveDialog");
+    ipcMain.removeHandler("dialog:showDirectoryDialog");
+
+    // Remove all AI handlers
+    ipcMain.removeHandler("ai:validateKeyAndListModels");
+    ipcMain.removeHandler("ai:validateConfiguration");
+
+    // Remove all plugin switching handlers
+    ipcMain.removeHandler("settings:switchPlugin");
+    ipcMain.removeHandler("settings:testPluginActivation");
+
+    // Remove all plugin management handlers
+    ipcMain.removeHandler("plugins:getOptions");
+    ipcMain.removeHandler("plugins:getActive");
+    ipcMain.removeHandler("plugins:updateActiveOptions");
+    ipcMain.removeHandler("plugins:deleteInactive");
+    ipcMain.removeHandler("settings:getPluginDataInfo");
+
+    // Remove all plugin schema and options handlers
+    ipcMain.removeHandler("settings:getPluginSchemas");
+    ipcMain.removeHandler("settings:getPluginSchema");
+    ipcMain.removeHandler("settings:setPluginOptions");
+    ipcMain.removeHandler("settings:getPluginOptions");
+    ipcMain.removeHandler("settings:verifyPluginOptions");
+
+    // Remove all data management handlers
+    ipcMain.removeHandler("plugins:listData");
+    ipcMain.removeHandler("plugins:deleteDataItem");
+    ipcMain.removeHandler("plugins:deleteAllData");
+    ipcMain.removeHandler("plugins:getSecureStorageInfo");
+    ipcMain.removeHandler("plugins:clearSecureData");
+    ipcMain.removeHandler("plugins:exportSecureData");
 
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       console.log("Destroying settings window...");
