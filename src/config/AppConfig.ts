@@ -2,6 +2,7 @@ import { join, resolve } from "path";
 import { homedir } from "os";
 import { readPrompt } from "../helpers/getPrompt";
 import { app } from "electron";
+import { readFileSync } from "fs";
 
 export type DictationWindowPosition = "active-app-corner" | "screen-corner";
 
@@ -16,6 +17,11 @@ export interface AiTransformationConfig {
   topP: number;
   messagePrompt: string;
 }
+
+export type Rule = {
+  name: string;
+  examples: { from: string; to: string }[];
+};
 
 export class AppConfig {
   modelPath: string;
@@ -32,6 +38,9 @@ export class AppConfig {
 
   // AI transformation configuration
   ai: AiTransformationConfig;
+
+  // Rules configuration
+  rules: Rule[];
 
   // Plugin configuration storage (no deprecated keys)
   private pluginConfig: Record<string, any> = {};
@@ -61,11 +70,14 @@ export class AppConfig {
       baseUrl: "https://api.cerebras.ai/v1/chat/completions",
       model: "qwen-3-32b",
       maxTokens: 16382,
-      temperature: 0.6,
+      temperature: 0.3,
       topP: 0.95,
       prompt: readPrompt("prompt"),
       messagePrompt: readPrompt("message"),
     };
+
+    // Rules defaults
+    this.rules = this.loadDefaultRules();
   }
 
   setModelPath(path: string): void {
@@ -113,5 +125,33 @@ export class AppConfig {
 
   setPluginConfig(config: Record<string, any>): void {
     this.pluginConfig = { ...this.pluginConfig, ...config };
+  }
+
+  /**
+   * Load default rules from rules.json file
+   */
+  private loadDefaultRules(): Rule[] {
+    try {
+      const rulesPath = resolve(__dirname, "../prompts/rules.json");
+      const rulesContent = readFileSync(rulesPath, "utf-8");
+      return JSON.parse(rulesContent);
+    } catch (error) {
+      console.warn("Failed to load default rules:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get current rules configuration
+   */
+  getRules(): Rule[] {
+    return [...this.rules];
+  }
+
+  /**
+   * Set rules configuration
+   */
+  setRules(rules: Rule[]): void {
+    this.rules = [...rules];
   }
 }

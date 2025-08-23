@@ -15,8 +15,8 @@ function copyFile(fromPath, toPath) {
   console.log(
     `Copied ${path.basename(fromPath)} -> ${path.relative(
       path.join(__dirname, ".."),
-      toPath
-    )}`
+      toPath,
+    )}`,
   );
 }
 
@@ -47,11 +47,11 @@ function copyDirFiltered(fromDir, toDir, allowedExtensions) {
 
   const vadWebDist = path.join(
     projectRoot,
-    "node_modules/@ricky0123/vad-web/dist"
+    "node_modules/@ricky0123/vad-web/dist",
   );
   const ortWebDist = path.join(
     projectRoot,
-    "node_modules/onnxruntime-web/dist"
+    "node_modules/onnxruntime-web/dist",
   );
 
   const vadFiles = [
@@ -75,14 +75,14 @@ function copyDirFiltered(fromDir, toDir, allowedExtensions) {
     copyDirFiltered(ortWebDist, distRendererDir, allowedExtensions);
   } else {
     console.warn(
-      `WARN: ${ortWebDist} not found; skipping onnxruntime-web copy.`
+      `WARN: ${ortWebDist} not found; skipping onnxruntime-web copy.`,
     );
   }
 
   // Copy audio visualizer script into dist/renderer
   const visualizerSrc = path.join(
     projectRoot,
-    "src/renderer/audio-visualizer.js"
+    "src/renderer/audio-visualizer.js",
   );
   const visualizerDest = path.join(distRendererDir, "audio-visualizer.js");
   if (fs.existsSync(visualizerSrc)) {

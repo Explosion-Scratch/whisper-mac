@@ -2,6 +2,7 @@ import { resolve } from "path";
 import { readPrompt } from "../helpers/getPrompt";
 import { app } from "electron";
 import { getDefaultActionsConfig } from "./DefaultActions";
+import { readFileSync } from "fs";
 
 export interface SettingsField {
   key: string;
@@ -227,6 +228,44 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     ],
   },
   {
+    id: "rules",
+    title: "Text Rules",
+    description: "Configure rules for text transformation and processing",
+    icon: "edit",
+    fields: [
+      {
+        key: "rules",
+        type: "textarea",
+        label: "Transformation Rules",
+        description:
+          "JSON array of rules for text transformation. Each rule should have a name and examples array with from/to pairs.",
+        defaultValue: loadDefaultRules(),
+        validation: (value) => {
+          try {
+            if (typeof value === "string") {
+              JSON.parse(value);
+            } else if (Array.isArray(value)) {
+              // Validate rule structure
+              for (const rule of value) {
+                if (!rule.name || !Array.isArray(rule.examples)) {
+                  return "Each rule must have a 'name' and 'examples' array";
+                }
+                for (const example of rule.examples) {
+                  if (!example.from || !example.to) {
+                    return "Each example must have 'from' and 'to' properties";
+                  }
+                }
+              }
+            }
+            return null;
+          } catch (error) {
+            return "Invalid JSON format";
+          }
+        },
+      },
+    ],
+  },
+  {
     id: "advanced",
     title: "Advanced",
     description: "Advanced configuration options",
@@ -276,8 +315,22 @@ export function getDefaultSettings(): Record<string, any> {
   return defaults;
 }
 
+/**
+ * Load default rules from rules.json file
+ */
+function loadDefaultRules(): any[] {
+  try {
+    const rulesPath = resolve(__dirname, "../prompts/rules.json");
+    const rulesContent = readFileSync(rulesPath, "utf-8");
+    return JSON.parse(rulesContent);
+  } catch (error) {
+    console.warn("Failed to load default rules:", error);
+    return [];
+  }
+}
+
 export function validateSettings(
-  settings: Record<string, any>,
+  settings: Record<string, any>
 ): Record<string, string> {
   const errors: Record<string, string> = {};
 

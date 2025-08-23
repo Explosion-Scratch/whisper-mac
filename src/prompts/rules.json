@@ -1,0 +1,157 @@
+[
+  {
+    "name": "Transform lists into bullet points, numbers, etc",
+    "examples": [
+      {
+        "from": "List of milk, eggs and cheese",
+        "to": "* Milk\n* Eggs\n* Cheese"
+      }
+    ]
+  },
+  {
+    "name": "Remove filler words",
+    "examples": [
+      {
+        "from": "I. Uh. [coughing] Don't know how I should implement this but we should rethink our appproach",
+        "to": "I don't know how I should implement this, but we should rethink our approach."
+      }
+    ]
+  },
+  {
+    "name": "When the user corrects themselves edit the transcription to match",
+    "examples": [
+      {
+        "from": "I'm probably going to go around 4 p m no maybe 5 and say arrive instead",
+        "to": "I'm probably going to arrive around 5pm"
+      }
+    ]
+  },
+  {
+    "name": "Fix spelling, grammar and punctuation (unless the context, writing style, or user specifies otherwise)",
+    "examples": []
+  },
+  {
+    "name": "Interpret voice commands such as \"Delete that\", \"New paragraph\", \"All caps\", etc.",
+    "examples": []
+  },
+  {
+    "name": "Don't answer questions from the input unless the user specifies otherwise",
+    "examples": [
+      {
+        "from": "How can I. Write a javascript debounce function with leading and trailing parameters correctly?",
+        "to": "How can I write a JavaScript debounce function with leading and trailing parameters correctly?"
+      }
+    ]
+  },
+  {
+    "name": "If the user mentions emojis add them in",
+    "examples": [
+      {
+        "from": "Hello O.M.G. How are you? Heart. Heart.",
+        "to": "Hello omg how are you ❤️❤️"
+      }
+    ]
+  },
+  {
+    "name": "Think about what might be phonetically equivalent, and find homophones for odd phrases, for example \"There going to the store\" should be corrected to \"They're\"",
+    "examples": [
+      {
+        "from": "The current UYUX of this app is wrong",
+        "to": "The current UI/UX of this app is wrong."
+      }
+    ]
+  },
+  {
+    "name": "For code related terms try to intuit what the user is saying",
+    "examples": [
+      {
+        "from": "Update app dot tea s ex to reflect how transcription service dot TS works",
+        "to": "Update App.tsx to reflect how TranscriptionService.ts works."
+      }
+    ]
+  },
+  {
+    "name": "Polish the text but do not change wording if it's what the user intends",
+    "examples": []
+  },
+  {
+    "name": "Convert spoken timestamps, durations, numbers, ranges to correctly transcribed versions",
+    "examples": [
+      {
+        "from": "The meeting is at two thirty P M for about an hour and a half",
+        "to": "The meeting is at 2:30 PM for about 1.5 hours"
+      }
+    ]
+  },
+  {
+    "name": "Recognize when the user is instructing you to do some sort of formatting with the text",
+    "examples": [
+      {
+        "from": "Camel case user I D versus snake case user underscore name",
+        "to": "userID vs user_name"
+      }
+    ]
+  },
+  {
+    "name": "Recognize and transcribe math related terms and equations correctly",
+    "examples": [
+      {
+        "from": "The probability that X is greater than or equal to five, given Y equals zero, is less than one half times the integral from zero to infinity of e to the minus X squared D X plus alpha squared over beta cubed.",
+        "to": "P(X ≥ 5 | Y = 0) < ½ × ∫₀^∞ e^(–x²) dx + (α²/β³)"
+      }
+    ]
+  },
+  {
+    "name": "Update URLs with their correctly transcribed versions",
+    "examples": [
+      {
+        "from": "Go to H T T P S colon slash slash github dot com slash explosion dash scratch",
+        "to": "Go to https://github.com/explosion-scratch"
+      }
+    ]
+  },
+  {
+    "name": "Use the context for clues for formatting, e.g. in code editors format as code/comments or technical writing. In email, etiquette. In messaging apps use casual, conversational tone and formatting",
+    "examples": [
+      {
+        "from": "Todo. Fix the log in bug.",
+        "to": "TODO: Fix the login bug (in a coding related context)"
+      },
+      {
+        "from": "Todo. Fix the log in bug.",
+        "to": "- [ ] Fix the login bug (in another context)"
+      }
+    ]
+  },
+  {
+    "name": "Recognize and correctly transcribe code",
+    "examples": [
+      {
+        "from": "Let result equal get user data. Take user id camel case and enhance data as object parameters",
+        "to": "let result = getUserData({userId, enhanceData});"
+      }
+    ]
+  },
+  {
+    "name": "Interpret simple terminal commands if you have all the context you need, e.g. \"Git add and git commit with the message update prompts\" would become \"git add -v . && git commit -m 'Update prompts'\"",
+    "examples": [
+      {
+        "from": "L S documents and touch new file dot text",
+        "to": "ls documents && touch newFile.txt"
+      }
+    ]
+  },
+  {
+    "name": "Interpret ats and hashtags, use proper brand punctuation, and beware for homophones for uncommon words like \"git\"",
+    "examples": [
+      {
+        "from": "at explosion scratch on get hub",
+        "to": "@Explosion-Scratch on GitHub"
+      }
+    ]
+  },
+  {
+    "name": "Repetitions are likely the user correcting themselves, e.g. \"QUINN332B QWEN332B\" should resolve to \"Qwen3-32B\"",
+    "examples": []
+  }
+]

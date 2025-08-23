@@ -49,36 +49,39 @@ let completedOperations = 0;
  * @param {number} maxConcurrent - Maximum concurrent operations
  * @returns {Promise} Promise that resolves when all operations complete
  */
-async function parallelCopy(operations, maxConcurrent = MAX_CONCURRENT_OPERATIONS) {
+async function parallelCopy(
+  operations,
+  maxConcurrent = MAX_CONCURRENT_OPERATIONS,
+) {
   if (operations.length === 0) return [];
 
   const results = [];
   const executing = [];
-  
+
   for (let i = 0; i < operations.length; i++) {
     const operation = operations[i];
-    
+
     const promise = copyWithRetry(operation.src, operation.dest, operation.type)
-      .then(result => {
+      .then((result) => {
         completedOperations++;
         updateProgress();
         return result;
       })
-      .catch(error => {
+      .catch((error) => {
         console.error(`Failed to copy ${operation.src}: ${error.message}`);
         return { success: false, error, operation };
       });
-    
+
     results.push(promise);
     executing.push(promise);
-    
+
     // Control concurrency
     if (executing.length >= maxConcurrent || i === operations.length - 1) {
       await Promise.all(executing);
       executing.length = 0;
     }
   }
-  
+
   return Promise.all(results);
 }
 
@@ -90,21 +93,25 @@ async function parallelCopy(operations, maxConcurrent = MAX_CONCURRENT_OPERATION
  * @param {number} attempts - Current attempt number
  * @returns {Promise} Promise that resolves on success
  */
-async function copyWithRetry(src, dest, type = 'file', attempts = 0) {
+async function copyWithRetry(src, dest, type = "file", attempts = 0) {
   try {
     // Ensure destination directory exists
     await fsPromises.mkdir(path.dirname(dest), { recursive: true });
-    
+
     // Copy the file
     await fsPromises.copyFile(src, dest);
-    
-    const relativeDest = path.relative(path.join(__dirname, '..'), dest);
+
+    const relativeDest = path.relative(path.join(__dirname, ".."), dest);
     console.log(`Copied ${path.basename(src)} to ${relativeDest}`);
-    
+
     return { success: true, src, dest, type };
   } catch (error) {
     if (attempts < MAX_RETRY_ATTEMPTS) {
-      console.warn(`Retry ${attempts + 1}/${MAX_RETRY_ATTEMPTS} for ${src}: ${error.message}`);
+      console.warn(
+        `Retry ${attempts + 1}/${MAX_RETRY_ATTEMPTS} for ${src}: ${
+          error.message
+        }`,
+      );
       await delay(RETRY_DELAY_MS * (attempts + 1)); // Exponential backoff
       return copyWithRetry(src, dest, type, attempts + 1);
     }
@@ -118,7 +125,7 @@ async function copyWithRetry(src, dest, type = 'file', attempts = 0) {
  * @returns {Promise} Promise that resolves after delay
  */
 function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -126,11 +133,15 @@ function delay(ms) {
  */
 function updateProgress() {
   if (totalOperations > 0) {
-    const percentage = Math.round((completedOperations / totalOperations) * 100);
-    process.stdout.write(`\rCopying files: ${completedOperations}/${totalOperations} (${percentage}%)`);
-    
+    const percentage = Math.round(
+      (completedOperations / totalOperations) * 100,
+    );
+    process.stdout.write(
+      `\rCopying files: ${completedOperations}/${totalOperations} (${percentage}%)`,
+    );
+
     if (completedOperations === totalOperations) {
-      console.log('\n✓ All file operations completed');
+      console.log("\n✓ All file operations completed");
     }
   }
 }
@@ -143,19 +154,19 @@ function updateProgress() {
  */
 async function discoverFiles(dirPath, extensions = EXTENSIONS) {
   if (!fs.existsSync(dirPath)) return [];
-  
+
   const files = [];
   const items = await fsPromises.readdir(dirPath);
-  
+
   for (const item of items) {
     const itemPath = path.join(dirPath, item);
     const stat = await fsPromises.stat(itemPath);
-    
-    if (stat.isFile() && extensions.some(ext => item.endsWith(ext))) {
+
+    if (stat.isFile() && extensions.some((ext) => item.endsWith(ext))) {
       files.push(itemPath);
     }
   }
-  
+
   return files;
 }
 
@@ -167,57 +178,57 @@ async function discoverFiles(dirPath, extensions = EXTENSIONS) {
  */
 async function discoverFilesRecursive(dirPath, extensions = EXTENSIONS) {
   if (!fs.existsSync(dirPath)) return [];
-  
+
   const files = [];
   const items = await fsPromises.readdir(dirPath);
-  
+
   for (const item of items) {
     const itemPath = path.join(dirPath, item);
     const stat = await fsPromises.stat(itemPath);
-    
+
     if (stat.isDirectory()) {
       const subFiles = await discoverFilesRecursive(itemPath, extensions);
       files.push(...subFiles);
-    } else if (extensions.some(ext => item.endsWith(ext))) {
+    } else if (extensions.some((ext) => item.endsWith(ext))) {
       files.push(itemPath);
     }
   }
-  
+
   return files;
 }
 
 // Parallel renderer file copying
 async function copyRendererFiles() {
-  console.log('\n📁 Copying renderer files...');
-  
+  console.log("\n📁 Copying renderer files...");
+
   if (!fs.existsSync(distDir)) {
     fs.mkdirSync(distDir, { recursive: true });
   }
 
   // Discover all renderer files
   const rendererFiles = await discoverFiles(srcDir, EXTENSIONS);
-  
+
   // Create copy operations
-  const operations = rendererFiles.map(srcFile => ({
+  const operations = rendererFiles.map((srcFile) => ({
     src: srcFile,
     dest: path.join(distDir, path.basename(srcFile)),
-    type: 'renderer'
+    type: "renderer",
   }));
-  
+
   // Add Vue.js copy operation if it exists
   if (fs.existsSync(vueSrcPath)) {
     operations.push({
       src: vueSrcPath,
       dest: vueDistPath,
-      type: 'vue'
+      type: "vue",
     });
   }
-  
+
   if (operations.length > 0) {
     totalOperations += operations.length;
     await parallelCopy(operations);
   } else {
-    console.log('No renderer files found to copy');
+    console.log("No renderer files found to copy");
   }
 }
 
@@ -229,8 +240,9 @@ async function downloadPhotonIfNeeded(zipPath) {
   }
 
   console.log("Photon zip not found, downloading...");
-  const PHOTON_URL = "https://github.com/connors/photon/archive/v0.1.2-alpha.zip";
-  
+  const PHOTON_URL =
+    "https://github.com/connors/photon/archive/v0.1.2-alpha.zip";
+
   return new Promise((resolve, reject) => {
     const curl = spawn("curl", ["-L", "-o", zipPath, PHOTON_URL]);
 
@@ -312,8 +324,8 @@ async function inflatePhotonZip(zipPath, destPath) {
             console.log(
               `Inflated Photon dist to ${path.relative(
                 __dirname + "/..",
-                destPath
-              )}`
+                destPath,
+              )}`,
             );
           } else {
             console.error("Dist directory not found in extracted Photon");
@@ -338,7 +350,7 @@ async function inflatePhotonZip(zipPath, destPath) {
 }
 
 async function setupPhoton() {
-  console.log('\n🔌 Setting up Photon...');
+  console.log("\n🔌 Setting up Photon...");
   try {
     // Download photon.zip if it doesn't exist
     await downloadPhotonIfNeeded(photonZipPath);
@@ -352,95 +364,94 @@ async function setupPhoton() {
 // Main execution function
 async function main() {
   const startTime = Date.now();
-  console.log('🚀 Starting parallel build process...');
-  
+  console.log("🚀 Starting parallel build process...");
+
   try {
     // Reset progress tracking
     totalOperations = 0;
     completedOperations = 0;
-    
+
     // Run operations in parallel where possible
     await Promise.all([
       copyRendererFiles(),
       setupPhoton(), // Can run in parallel with file copying
-      copyPromptsFiles()
+      copyPromptsFiles(),
     ]);
-    
+
     // Copy assets (depends on discovering files, so run after other operations)
     await copyAssetsParallel(assetsSrcDir, assetsDistDir);
-    
+
     const endTime = Date.now();
     const duration = ((endTime - startTime) / 1000).toFixed(2);
-    
+
     console.log(`\n\n✅ Build completed successfully in ${duration} seconds`);
     console.log(`📈 Total files processed: ${completedOperations}`);
-    
   } catch (error) {
-    console.error('\n❌ Build failed:', error.message);
+    console.error("\n❌ Build failed:", error.message);
     process.exit(1);
   }
 }
 
 // Execute main function
-main().catch(error => {
-  console.error('Fatal error:', error);
+main().catch((error) => {
+  console.error("Fatal error:", error);
   process.exit(1);
 });
 
 // Parallel prompts file copying
 async function copyPromptsFiles() {
-  console.log('\n📝 Copying prompts files...');
-  
+  console.log("\n📝 Copying prompts files...");
+
   if (!fs.existsSync(promptsDistDir)) {
     fs.mkdirSync(promptsDistDir, { recursive: true });
   }
 
-  // Discover all .txt files in prompts directory
-  const promptFiles = await discoverFiles(promptsSrcDir, ['.txt']);
-  
+  // Discover all .txt and .json files in prompts directory
+  const promptFiles = await discoverFiles(promptsSrcDir, [".txt", ".json"]);
+
   // Create copy operations
-  const operations = promptFiles.map(srcFile => ({
+  const operations = promptFiles.map((srcFile) => ({
     src: srcFile,
     dest: path.join(promptsDistDir, path.basename(srcFile)),
-    type: 'prompt'
+    type: "prompt",
   }));
-  
+
   if (operations.length > 0) {
     totalOperations += operations.length;
     await parallelCopy(operations);
   } else {
-    console.log('No prompt files found to copy');
+    console.log("No prompt files found to copy");
   }
 }
 
 // Parallel assets copying
 async function copyAssetsParallel(srcPath, destPath) {
-  console.log('\n🎨 Copying assets files...');
-  
+  console.log("\n🎨 Copying assets files...");
+
   if (!fs.existsSync(srcPath)) {
-    console.log('Assets directory not found, skipping');
+    console.log("Assets directory not found, skipping");
     return;
   }
 
   // Recursively discover all files
   const allFiles = await discoverFilesRecursive(srcPath, EXTENSIONS);
-  
+
   // Create copy operations maintaining directory structure
-  const operations = allFiles.map(srcFile => {
+  const operations = allFiles.map((srcFile) => {
     const relativePath = path.relative(srcPath, srcFile);
     const destFile = path.join(destPath, relativePath);
-    
+
     return {
       src: srcFile,
       dest: destFile,
-      type: 'asset'
+      type: "asset",
     };
   });
-  
+
   if (operations.length > 0) {
     totalOperations += operations.length;
     await parallelCopy(operations);
   } else {
-    console.log('No asset files found to copy');
+    console.log("No asset files found to copy");
   }
 }
