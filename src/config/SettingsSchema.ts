@@ -14,7 +14,8 @@ export interface SettingsField {
     | "textarea"
     | "slider"
     | "directory"
-    | "actions-editor";
+    | "actions-editor"
+    | "rules-editor";
   label: string;
   description?: string;
   defaultValue: any;
@@ -54,7 +55,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     id: "transcription",
     title: "Transcription",
     description: "Choose transcription engine and model",
-    icon: "microphone",
+    icon: "waveform",
     fields: [],
   },
 
@@ -209,13 +210,20 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
           "Template for formatting messages sent to AI service (use {selection}, {text}, {title}, {app} placeholders)",
         defaultValue: readPrompt("message"),
       },
+      {
+        key: "rules",
+        type: "rules-editor",
+        label: "Text Rules",
+        description: "Configure rules for text transformation and processing",
+        defaultValue: loadDefaultRules(),
+      },
     ],
   },
   {
     id: "actions",
     title: "Actions",
     description: "Configure voice-activated actions and commands",
-    icon: "lightning",
+    icon: "flow-arrow",
     fields: [
       {
         key: "actions",
@@ -227,62 +235,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
       },
     ],
   },
-  {
-    id: "rules",
-    title: "Text Rules",
-    description: "Configure rules for text transformation and processing",
-    icon: "edit",
-    fields: [
-      {
-        key: "rules",
-        type: "textarea",
-        label: "Transformation Rules",
-        description:
-          "JSON array of rules for text transformation. Each rule should have a name and examples array with from/to pairs. Rules can include an optional 'if' array with conditions: 'selection', 'context', 'writing_style'.",
-        defaultValue: loadDefaultRules(),
-        validation: (value) => {
-          try {
-            if (typeof value === "string") {
-              JSON.parse(value);
-            } else if (Array.isArray(value)) {
-              // Validate rule structure
-              for (const rule of value) {
-                if (!rule.name || !Array.isArray(rule.examples)) {
-                  return "Each rule must have a 'name' and 'examples' array";
-                }
-                for (const example of rule.examples) {
-                  if (!example.from || !example.to) {
-                    return "Each example must have 'from' and 'to' properties";
-                  }
-                }
-                // Validate if property if present
-                if (rule.if && !Array.isArray(rule.if)) {
-                  return "Rule 'if' property must be an array of strings";
-                }
-                if (rule.if) {
-                  const validConditions = [
-                    "selection",
-                    "context",
-                    "writing_style",
-                  ];
-                  for (const condition of rule.if) {
-                    if (!validConditions.includes(condition)) {
-                      return `Invalid condition '${condition}'. Valid conditions are: ${validConditions.join(
-                        ", ",
-                      )}`;
-                    }
-                  }
-                }
-              }
-            }
-            return null;
-          } catch (error) {
-            return "Invalid JSON format";
-          }
-        },
-      },
-    ],
-  },
+
   {
     id: "advanced",
     title: "Advanced",
@@ -340,7 +293,14 @@ function loadDefaultRules(): any[] {
   try {
     const rulesPath = resolve(__dirname, "../prompts/rules.json");
     const rulesContent = readFileSync(rulesPath, "utf-8");
-    return JSON.parse(rulesContent);
+    const rules = JSON.parse(rulesContent);
+
+    // Add enabled property and id to each rule
+    return rules.map((rule: any, index: number) => ({
+      ...rule,
+      id: `rule_${index}_${Date.now()}`,
+      enabled: true,
+    }));
   } catch (error) {
     console.warn("Failed to load default rules:", error);
     return [];

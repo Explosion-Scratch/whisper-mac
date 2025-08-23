@@ -1326,6 +1326,307 @@
         text-align: center;
       }
 
+      /* Rules Editor Styles */
+      .rules-editor-container {
+        overflow: hidden;
+      }
+
+      .rules-editor-toolbar {
+        padding: var(--spacing-md);
+        display: flex;
+        gap: var(--spacing-sm);
+        align-items: center;
+      }
+
+      .rules-list {
+        max-height: 600px;
+        overflow-y: auto;
+      }
+
+      .empty-rules-state {
+        padding: var(--spacing-xl);
+        text-align: center;
+        color: var(--color-text-secondary);
+      }
+
+      .empty-rules-state i {
+        font-size: 48px;
+        opacity: 0.5;
+        margin-bottom: var(--spacing-md);
+      }
+
+      .empty-rules-state p {
+        margin: 0;
+        font-size: var(--font-size-md);
+      }
+
+      .rule-card {
+        border: 1px solid var(--color-border-primary);
+        border-radius: var(--radius-md);
+        background: var(--color-bg-primary);
+        transition: all var(--transition-fast);
+        margin-bottom: var(--spacing-sm);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .rule-card:hover {
+        background: rgba(0, 122, 255, 0.02);
+        box-shadow: var(--shadow-md);
+        transform: translateY(-1px);
+      }
+
+      .rule-card.expanded {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 1px var(--color-primary);
+      }
+
+      .rule-card-header {
+        padding: var(--spacing-sm) var(--spacing-md);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        min-height: 48px;
+        position: relative;
+      }
+
+
+
+      .rule-info {
+        flex: 1;
+        overflow: hidden;
+      }
+
+      .rule-toggle {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        flex: 1;
+        min-width: 0;
+      }
+
+      .rule-enabled-checkbox {
+        margin: 0;
+      }
+
+      .rule-name {
+        margin: 0;
+        font-size: var(--font-size-md);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 300px;
+      }
+
+      .rule-description {
+        margin: 0;
+        font-size: var(--font-size-xs);
+        color: var(--color-text-tertiary);
+        line-height: 1.3;
+        margin-left: 28px;
+      }
+
+      .rule-controls {
+        display: flex;
+        gap: var(--spacing-xs);
+        align-items: center;
+        flex-shrink: 0;
+      }
+
+      .rule-card-body {
+        border-top: 1px solid var(--color-border-primary);
+        background: rgba(0, 0, 0, 0.02);
+        transition: all var(--transition-normal);
+        overflow: hidden;
+        transform-origin: top;
+      }
+
+      .rule-card-body.collapsed {
+        max-height: 0;
+        padding: 0;
+        border-top-color: transparent;
+      }
+
+      .rule-card-body:not(.collapsed) {
+        padding: var(--spacing-md);
+        max-height: 1000px;
+      }
+
+      .rule-form-group {
+        margin-bottom: var(--spacing-sm);
+      }
+
+      .rule-form-group label {
+        display: block;
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-medium);
+        color: var(--color-text-secondary);
+        margin-bottom: var(--spacing-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .rule-form-group .form-control {
+        width: 100%;
+        max-width: none;
+      }
+
+      .conditions-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--spacing-sm);
+      }
+
+      .condition-checkbox {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        font-size: var(--font-size-xs);
+        color: var(--color-text-secondary);
+        margin: 0;
+        cursor: pointer;
+        padding: var(--spacing-xs) var(--spacing-sm);
+        border: 1px solid var(--color-border-primary);
+        border-radius: var(--radius-sm);
+        background: var(--color-bg-primary);
+        transition: all var(--transition-fast);
+      }
+
+      .condition-checkbox:hover {
+        background: rgba(0, 122, 255, 0.05);
+        border-color: var(--color-primary);
+      }
+
+      .condition-checkbox input[type="checkbox"] {
+        display: none;
+      }
+
+      .condition-checkbox.active {
+        background: rgba(0, 122, 255, 0.1);
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+      }
+
+      .examples-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+      }
+
+      .example-item {
+        padding: var(--spacing-sm);
+        border: 1px solid var(--color-border-primary);
+        border-radius: var(--radius-sm);
+        background: var(--color-bg-primary);
+        position: relative;
+      }
+
+      .example-controls {
+        display: flex;
+        gap: var(--spacing-xs);
+        align-items: flex-start;
+      }
+
+      .example-inputs {
+        flex: 1;
+        display: flex;
+        gap: var(--spacing-xs);
+        align-items: center;
+      }
+
+      .example-inputs i {
+        color: var(--color-text-secondary);
+        font-size: var(--font-size-sm);
+      }
+
+      .btn-sm {
+        padding: 4px 6px;
+        font-size: var(--font-size-xs);
+        min-width: 24px;
+        height: 24px;
+      }
+
+      .btn-icon-only.btn-sm {
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .rule-enabled-checkbox {
+        margin: 0;
+        transform: scale(0.9);
+      }
+
+      .rule-move-btn {
+        cursor: pointer;
+        padding: var(--spacing-xs);
+        color: var(--color-text-secondary);
+        transition: color var(--transition-fast);
+        border-radius: var(--radius-sm);
+      }
+
+      .rule-move-btn:hover:not(.disabled) {
+        color: var(--color-primary);
+        background: rgba(0, 122, 255, 0.1);
+      }
+
+      .rule-move-btn.disabled {
+        color: var(--color-text-tertiary);
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+
+      .condition-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+      }
+
+      .condition-tag i {
+        font-size: var(--font-size-xs);
+      }
+
+      .example-inputs {
+        flex: 1;
+        display: flex;
+        gap: var(--spacing-md);
+        align-items: flex-start;
+      }
+
+      .example-column {
+        flex: 1;
+      }
+
+      .example-column label {
+        display: block;
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-medium);
+        color: var(--color-text-secondary);
+        margin-bottom: var(--spacing-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .example-textarea {
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+        font-size: var(--font-size-xs);
+        line-height: 1.4;
+        resize: vertical;
+        min-height: 80px;
+      }
+
+      .example-delete-btn {
+        position: absolute;
+        top: var(--spacing-xs);
+        right: var(--spacing-xs);
+        z-index: 1;
+      }
+
       .progress-overlay {
         position: fixed;
         top: 60px;
@@ -1643,7 +1944,7 @@
                 :class="{ 'has-error': validationErrors[field.key] }"
               >
                 <template
-                  v-if="field.type !== 'boolean' && field.type !== 'actions-editor'"
+                  v-if="field.type !== 'boolean' && field.type !== 'actions-editor' && field.type !== 'rules-editor'"
                 >
                   <label>
                     <i class="ph-duotone" :class="getFieldIcon(field)"></i>
@@ -2212,6 +2513,187 @@
                   </div>
                 </div>
 
+                <!-- Rules Editor -->
+                <div v-if="field.type === 'rules-editor'">
+                  <div class="rules-editor-container">
+                    <div class="rules-editor-toolbar">
+                      <button
+                        @click="addNewRule"
+                        type="button"
+                        class="btn btn-primary btn-sm"
+                      >
+                        <i class="ph-duotone ph-plus"></i> Add Rule
+                      </button>
+                      <button
+                        @click="resetRulesToDefaults"
+                        type="button"
+                        class="btn btn-default btn-sm"
+                      >
+                        <i class="ph-duotone ph-arrow-clockwise"></i> Reset ({{ enabledRulesCount }}/{{ totalRulesCount }} enabled)
+                      </button>
+                    </div>
+                    <div class="rules-list">
+                      <div
+                        v-if="!settings.rules?.length"
+                        class="empty-rules-state"
+                      >
+                        <i class="ph-duotone ph-text-aa"></i>
+                        <p>No rules configured</p>
+                        <p class="empty-subtitle">
+                          Add your first text transformation rule to get started
+                        </p>
+                      </div>
+                      <div
+                        v-for="(rule, index) in settings.rules || []"
+                        :key="rule.id || index"
+                        class="rule-card"
+                        :class="{ expanded: expandedRules[rule.id || index] }"
+                      >
+                        <div
+                          class="rule-card-header"
+                          @click="toggleRuleCard(rule.id || index)"
+                        >
+                          <div class="rule-info">
+                            <div class="rule-toggle">
+                              <input
+                                type="checkbox"
+                                class="rule-enabled-checkbox"
+                                v-model="rule.enabled"
+                                @click.stop
+                              />
+                              <h4 class="rule-name" :title="rule.name">{{ rule.name }}</h4>
+                            </div>
+                            <p class="rule-description">
+                              {{ rule.examples?.length || 0 }} {{ (rule.examples?.length || 0) === 1 ? 'example' : 'examples' }}
+                              <span v-if="rule.if && rule.if.length > 0" class="rule-conditions">
+                                • 
+                                <span v-for="(condition, idx) in rule.if" :key="condition" class="condition-tag">
+                                  <i :class="['ph-duotone', getConditionIcon(condition)]"></i>
+                                </span>
+                              </span>
+                            </p>
+                          </div>
+                          <div class="rule-controls">
+                            <i 
+                              class="ph-duotone ph-arrow-up rule-move-btn"
+                              @click.stop="moveRule(index, -1)"
+                              :class="{ disabled: index === 0 }"
+                              title="Move up"
+                            ></i>
+                            <i 
+                              class="ph-duotone ph-arrow-down rule-move-btn"
+                              @click.stop="moveRule(index, 1)"
+                              :class="{ disabled: index === (settings.rules?.length || 0) - 1 }"
+                              title="Move down"
+                            ></i>
+                            <button
+                              type="button"
+                              class="btn btn-icon-only btn-sm"
+                              @click.stop="deleteRule(index)"
+                              title="Delete rule"
+                            >
+                              <i class="ph-duotone ph-trash"></i>
+                            </button>
+                          </div>
+                        </div>
+                        <div
+                          class="rule-card-body"
+                          :class="{ collapsed: !expandedRules[rule.id || index] }"
+                        >
+                          <div class="rule-form-group">
+                            <label>Instructions</label>
+                            <input
+                              type="text"
+                              class="form-control"
+                              v-model="rule.name"
+                            />
+                          </div>
+                          <div class="rule-form-group">
+                            <label>Requires (optional)</label>
+                            <div class="conditions-list">
+                              <label class="condition-checkbox" :class="{ active: rule.if && rule.if.includes('selection') }">
+                                <input
+                                  type="checkbox"
+                                  :checked="rule.if && rule.if.includes('selection')"
+                                  @change="updateRuleCondition(rule, 'selection', $event.target.checked)"
+                                />
+                                <i class="ph-duotone ph-selection"></i>
+                                Selection
+                              </label>
+                              <label class="condition-checkbox" :class="{ active: rule.if && rule.if.includes('context') }">
+                                <input
+                                  type="checkbox"
+                                  :checked="rule.if && rule.if.includes('context')"
+                                  @change="updateRuleCondition(rule, 'context', $event.target.checked)"
+                                />
+                                <i class="ph-duotone ph-file-text"></i>
+                                Document
+                              </label>
+                              <label class="condition-checkbox" :class="{ active: rule.if && rule.if.includes('writing_style') }">
+                                <input
+                                  type="checkbox"
+                                  :checked="rule.if && rule.if.includes('writing_style')"
+                                  @change="updateRuleCondition(rule, 'writing_style', $event.target.checked)"
+                                />
+                                <i class="ph-duotone ph-pen-nib"></i>
+                                Writing style
+                              </label>
+                            </div>
+                          </div>
+                          <div class="section-header-small">
+                            <h5>Examples ({{ rule.examples?.length || 0 }})</h5>
+                            <button
+                              type="button"
+                              class="btn btn-sm"
+                              @click="addNewExample(index)"
+                            >
+                              <i class="ph-duotone ph-plus"></i> Add
+                            </button>
+                          </div>
+                          <div class="examples-list">
+                            <div
+                              v-for="(example, eIndex) in rule.examples || []"
+                              :key="eIndex"
+                              class="example-item"
+                            >
+                              <div class="example-controls">
+                                <div class="example-inputs">
+                                  <div class="example-column">
+                                    <label>From</label>
+                                    <textarea
+                                      class="form-control example-textarea"
+                                      placeholder="Input text..."
+                                      v-model="example.from"
+                                      rows="4"
+                                    ></textarea>
+                                  </div>
+                                  <div class="example-column">
+                                    <label>To</label>
+                                    <textarea
+                                      class="form-control example-textarea"
+                                      placeholder="Expected output..."
+                                      v-model="example.to"
+                                      rows="4"
+                                    ></textarea>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  class="btn btn-icon-only btn-negative btn-sm example-delete-btn"
+                                  @click="deleteExample(index, eIndex)"
+                                  title="Delete example"
+                                >
+                                  <i class="ph-duotone ph-trash"></i>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div
                   class="validation-error"
                   v-if="validationErrors[field.key]"
@@ -2286,11 +2768,7 @@
                           v-for="opt in option.options"
                           :value="opt.value"
                         >
-                          {{ opt.label }}<span
-                            v-if="opt.size && opt.size.trim()"
-                          >
-                            ({{ opt.size }})</span
-                          >
+                          {{ opt.label }}{{ opt.size ? ` (${opt.size})` : '' }}
                         </option>
                       </select>
                       <div

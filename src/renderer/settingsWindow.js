@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
         pluginDataInfo: [],
         pluginDataItems: {},
         expandedActions: {},
+        expandedRules: {},
         expandedDataPlugins: {},
         aiModelsState: { loading: false, loadedForBaseUrl: null, models: [] },
         status: { visible: false, message: "", type: "success" },
@@ -35,6 +36,13 @@ document.addEventListener("DOMContentLoaded", () => {
       pluginCountWithData() {
         return this.pluginDataInfo.filter((plugin) => plugin.dataSize > 0)
           .length;
+      },
+      enabledRulesCount() {
+        return (this.settings.rules || []).filter((rule) => rule.enabled)
+          .length;
+      },
+      totalRulesCount() {
+        return (this.settings.rules || []).length;
       },
     },
     methods: {
@@ -137,6 +145,9 @@ document.addEventListener("DOMContentLoaded", () => {
           actions: "ph-lightning",
           advanced: "ph-sliders-horizontal",
           data: "ph-database",
+          waveform: "ph-waveform",
+          "flow-arrow": "ph-flow-arrow",
+          database: "ph-database",
         };
         return iconMap[iconName] || "ph-gear";
       },
@@ -152,6 +163,7 @@ document.addEventListener("DOMContentLoaded", () => {
           directory: "ph-folder",
           "ai.model": "ph-brain",
           "ai.baseUrl": "ph-link",
+          "rules-editor": "ph-text-aa",
         };
         return iconMap[field.key] || iconMap[field.type] || "ph-gear";
       },
@@ -810,6 +822,103 @@ document.addEventListener("DOMContentLoaded", () => {
       updateHandlerType(handler) {
         // Reset config based on new type
         handler.config = {};
+      },
+
+      // --- RULES EDITOR METHODS ---
+      addNewRule() {
+        if (!this.settings.rules) {
+          this.settings.rules = [];
+        }
+
+        this.settings.rules.push({
+          id: "rule_" + Date.now(),
+          name: "New Rule",
+          enabled: true,
+          examples: [
+            {
+              from: "",
+              to: "",
+            },
+          ],
+        });
+      },
+
+      deleteRule(index) {
+        if (confirm("Delete this rule?")) {
+          this.settings.rules.splice(index, 1);
+        }
+      },
+
+      moveRule(index, direction) {
+        const rules = this.settings.rules;
+        const newIndex = index + direction;
+
+        if (newIndex >= 0 && newIndex < rules.length) {
+          // Use array destructuring to swap elements reactively
+          [rules[index], rules[newIndex]] = [rules[newIndex], rules[index]];
+        }
+      },
+
+      toggleRuleCard(ruleId) {
+        this.expandedRules[ruleId] = !this.expandedRules[ruleId];
+      },
+
+      async resetRulesToDefaults() {
+        if (confirm("Reset rules to defaults?")) {
+          const rulesField = this.schema
+            .find((s) => s.id === "ai")
+            ?.fields.find((f) => f.key === "rules");
+          if (rulesField) {
+            this.settings.rules = JSON.parse(
+              JSON.stringify(rulesField.defaultValue),
+            );
+            this.showStatus("Rules have been reset to default.", "success");
+          }
+        }
+      },
+
+      addNewExample(ruleIndex) {
+        if (!this.settings.rules[ruleIndex].examples) {
+          this.settings.rules[ruleIndex].examples = [];
+        }
+        this.settings.rules[ruleIndex].examples.push({
+          from: "",
+          to: "",
+        });
+      },
+
+      deleteExample(ruleIndex, exampleIndex) {
+        this.settings.rules[ruleIndex].examples.splice(exampleIndex, 1);
+      },
+
+      updateRuleCondition(rule, condition, checked) {
+        if (!rule.if) {
+          rule.if = [];
+        }
+
+        if (checked && !rule.if.includes(condition)) {
+          rule.if.push(condition);
+        } else if (!checked && rule.if.includes(condition)) {
+          rule.if = rule.if.filter((c) => c !== condition);
+        }
+      },
+
+      getConditionIcon(condition) {
+        const iconMap = {
+          selection: "ph-selection",
+          context: "ph-file-text",
+          writing_style: "ph-pen-nib",
+        };
+        return iconMap[condition] || "ph-gear";
+      },
+
+      getConditionLabel(condition) {
+        const labelMap = {
+          selection: "Selection",
+          context: "Document",
+          writing_style: "Writing style",
+        };
+        return labelMap[condition] || condition;
       },
     },
     mounted() {
