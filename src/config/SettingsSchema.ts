@@ -238,7 +238,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         type: "textarea",
         label: "Transformation Rules",
         description:
-          "JSON array of rules for text transformation. Each rule should have a name and examples array with from/to pairs.",
+          "JSON array of rules for text transformation. Each rule should have a name and examples array with from/to pairs. Rules can include an optional 'if' array with conditions: 'selection', 'context', 'writing_style'.",
         defaultValue: loadDefaultRules(),
         validation: (value) => {
           try {
@@ -253,6 +253,24 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
                 for (const example of rule.examples) {
                   if (!example.from || !example.to) {
                     return "Each example must have 'from' and 'to' properties";
+                  }
+                }
+                // Validate if property if present
+                if (rule.if && !Array.isArray(rule.if)) {
+                  return "Rule 'if' property must be an array of strings";
+                }
+                if (rule.if) {
+                  const validConditions = [
+                    "selection",
+                    "context",
+                    "writing_style",
+                  ];
+                  for (const condition of rule.if) {
+                    if (!validConditions.includes(condition)) {
+                      return `Invalid condition '${condition}'. Valid conditions are: ${validConditions.join(
+                        ", "
+                      )}`;
+                    }
                   }
                 }
               }

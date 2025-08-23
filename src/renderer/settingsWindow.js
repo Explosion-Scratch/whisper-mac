@@ -20,6 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
         isClearingAll: false,
         apiKeyInput: "",
         apiKeyValidationTimeout: null,
+        pendingPluginSwitch: false, // Track when plugin switch is pending due to failed immediate activation
       };
     },
     computed: {
@@ -32,9 +33,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }, 0);
       },
       pluginCountWithData() {
-        return this.pluginDataInfo.filter(plugin =>
-          plugin.dataSize > 0
-        ).length;
+        return this.pluginDataInfo.filter((plugin) => plugin.dataSize > 0)
+          .length;
       },
     },
     methods: {
@@ -68,7 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
         window.electronAPI.onPluginSwitchProgress((progress) => {
           this.showProgress(
             progress.message || "Processing...",
-            progress.percent || progress.progress || 0,
+            progress.percent || progress.progress || 0
           );
         });
         // Note: Add other listeners like onPluginOptionProgress if needed
@@ -108,7 +108,7 @@ document.addEventListener("DOMContentLoaded", () => {
             this.aiModelsState.loading = true;
             const result = await window.electronAPI.validateApiKeyAndListModels(
               this.settings.ai.baseUrl,
-              apiKey,
+              apiKey
             );
             if (result.success && result.models.length > 0) {
               this.aiModelsState.models = result.models;
@@ -156,11 +156,11 @@ document.addEventListener("DOMContentLoaded", () => {
         return iconMap[field.key] || iconMap[field.type] || "ph-gear";
       },
 
-      showStatus(message, type = "success") {
+      showStatus(message, type = "success", timeout = 3000) {
         this.status = { visible: true, message, type };
         setTimeout(() => {
           this.status.visible = false;
-        }, 3000);
+        }, timeout);
       },
 
       showProgress(message, percent) {
@@ -191,6 +191,58 @@ document.addEventListener("DOMContentLoaded", () => {
       async saveSettings() {
         this.isSaving = true;
         try {
+          // Check if plugin has changed and needs to be switched
+          const currentActivePlugin = this.settings.transcriptionPlugin;
+          const newActivePlugin = this.activePlugin;
+          const pluginChanged = currentActivePlugin !== newActivePlugin;
+
+          // Only attempt plugin switching in saveSettings if we're in fallback mode
+          // (i.e., immediate switch failed and user is now saving configuration)
+          if (pluginChanged && this.pendingPluginSwitch) {
+            // Test plugin activation before saving
+            const pluginOptions = JSON.parse(
+              JSON.stringify(this.settings.plugin[newActivePlugin] || {})
+            );
+            const testResult = await window.electronAPI.testPluginActivation(
+              newActivePlugin,
+              pluginOptions
+            );
+
+            if (!testResult.canActivate) {
+              this.showStatus(
+                `Cannot save: ${newActivePlugin} configuration is invalid. ${testResult.error}`,
+                "error"
+              );
+              return;
+            }
+
+            // Perform the plugin switch
+            this.showProgress(`Switching to ${newActivePlugin}...`, 0);
+            try {
+              await window.electronAPI.switchPlugin(newActivePlugin);
+              this.showStatus(
+                `Switched to ${newActivePlugin} successfully`,
+                "success"
+              );
+            } catch (switchError) {
+              this.showStatus(
+                `Failed to switch to ${newActivePlugin}: ${switchError.message}`,
+                "error"
+              );
+              this.activePlugin = currentActivePlugin; // Revert on failure
+              return;
+            } finally {
+              this.hideProgress();
+            }
+            // Clear the pending switch flag after successful switch
+            this.pendingPluginSwitch = false;
+          } else if (pluginChanged) {
+            // Plugin changed but no pending switch - this means immediate activation worked
+            // Just update the settings tracking
+            this.settings.transcriptionPlugin = this.activePlugin;
+          }
+
+          // Update the settings object with the active plugin
           this.settings.transcriptionPlugin = this.activePlugin;
 
           // Convert the reactive proxy to a plain object before sending
@@ -201,7 +253,9 @@ document.addEventListener("DOMContentLoaded", () => {
           // Update originalSettings from the plain object to ensure consistency
           this.originalSettings = settingsToSave;
 
-          this.showStatus("Settings saved successfully", "success");
+          if (!pluginChanged) {
+            this.showStatus("Settings saved successfully", "success");
+          }
         } catch (error) {
           console.error("Failed to save settings:", error);
           this.showStatus(`Failed to save settings: ${error.message}`, "error");
@@ -212,6 +266,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       cancelChanges() {
         this.settings = JSON.parse(JSON.stringify(this.originalSettings));
+        this.activePlugin = this.originalSettings.transcriptionPlugin || "yap";
+        this.pendingPluginSwitch = false; // Clear any pending plugin switch
         this.showStatus("Changes cancelled", "info");
       },
 
@@ -219,7 +275,7 @@ document.addEventListener("DOMContentLoaded", () => {
       async resetSection() {
         if (
           confirm(
-            `Reset all settings in the "${this.currentSection.title}" section to defaults?`,
+            `Reset all settings in the "${this.currentSection.title}" section to defaults?`
           )
         ) {
           await window.electronAPI.resetSettingsSection(this.currentSectionId);
@@ -244,7 +300,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         if (!result.canceled && result.filePaths.length > 0) {
           this.settings = await window.electronAPI.importSettings(
-            result.filePaths[0],
+            result.filePaths[0]
           );
           this.showStatus("Settings imported successfully", "success");
         }
@@ -257,7 +313,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!result.canceled) {
           await window.electronAPI.exportSettings(
             result.filePath,
-            this.settings,
+            this.settings
           );
           this.showStatus("Settings exported successfully", "success");
         }
@@ -275,7 +331,7 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(this.apiKeyValidationTimeout);
         this.apiKeyValidationTimeout = setTimeout(
           this.validateApiKeyAndModels,
-          1000,
+          1000
         );
       },
 
@@ -287,7 +343,7 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           const result = await window.electronAPI.validateApiKeyAndListModels(
             this.settings.ai.baseUrl,
-            this.apiKeyInput,
+            this.apiKeyInput
           );
           if (result.success && result.models.length > 0) {
             this.aiModelsState.models = result.models;
@@ -302,7 +358,7 @@ document.addEventListener("DOMContentLoaded", () => {
             this.aiModelsState.models = [];
             this.showStatus(
               `API Key validation failed: ${result.error}`,
-              "error",
+              "error"
             );
           }
         } catch (e) {
@@ -326,28 +382,96 @@ document.addEventListener("DOMContentLoaded", () => {
         const oldPlugin = this.settings.transcriptionPlugin;
         const newPlugin = this.activePlugin;
 
+        if (newPlugin === oldPlugin) {
+          return; // No change needed
+        }
+
+        // Show confirmation dialog for immediate switch attempt
         if (
           !confirm(
-            `Switch to ${newPlugin} plugin?\n\nThis may download required models if they are not already present.`,
+            `Switch to ${newPlugin} plugin?\n\nThis may download required models if they are not already present.`
           )
         ) {
           this.activePlugin = oldPlugin; // Revert selection
+          this.pendingPluginSwitch = false; // Clear any pending switch
           return;
         }
 
+        // First, try the original immediate activation flow
         this.showProgress(`Switching to ${newPlugin}...`, 0);
         try {
           await window.electronAPI.switchPlugin(this.activePlugin);
           this.settings.transcriptionPlugin = this.activePlugin; // Update internal setting tracking
           this.showStatus(
             `Switched to ${this.activePlugin} successfully`,
-            "success",
+            "success"
           );
-        } catch (e) {
-          this.showStatus(`Failed to switch plugin: ${e.message}`, "error");
-          this.activePlugin = oldPlugin; // Revert on failure
+          this.pendingPluginSwitch = false; // Clear any pending switch
+          return; // Success - no need for fallback behavior
+        } catch (switchError) {
+          // Original switch failed - now fall back to test-and-configure behavior
+          console.log(
+            `Immediate switch failed for ${newPlugin}, falling back to configuration mode:`,
+            switchError.message
+          );
+
+          this.hideProgress();
+
+          // Test if the plugin can be activated with current configuration
+          const pluginOptions = JSON.parse(
+            JSON.stringify(this.settings.plugin[newPlugin] || {})
+          );
+
+          try {
+            const testResult = await window.electronAPI.testPluginActivation(
+              newPlugin,
+              pluginOptions
+            );
+
+            if (!testResult.canActivate) {
+              // Plugin cannot be activated with current configuration
+              if (testResult.error && testResult.error.includes("API key")) {
+                // Show informative message for API key issues
+                this.showStatus(
+                  `${newPlugin} requires configuration. Please set up the API key and click "Save Settings" to activate.`,
+                  "warning",
+                  6000
+                );
+              } else {
+                // Show generic configuration error
+                this.showStatus(
+                  `${newPlugin} cannot be activated: ${testResult.error}. Please configure the plugin and click "Save Settings".`,
+                  "warning",
+                  6000
+                );
+              }
+
+              // Don't revert the selection - allow user to configure and save
+              // The actual plugin switch will happen when they click "Save Settings"
+              this.pendingPluginSwitch = true; // Mark that we have a pending plugin switch
+              return;
+            } else {
+              // Plugin test passed but original switch failed for other reasons
+              this.showStatus(
+                `Failed to switch to ${newPlugin}: ${switchError.message}. You can still configure and try again with "Save Settings".`,
+                "error",
+                6000
+              );
+              this.pendingPluginSwitch = true; // Mark that we have a pending plugin switch
+              return;
+            }
+          } catch (testError) {
+            console.error("Error testing plugin activation:", testError);
+            this.showStatus(
+              `Error with ${newPlugin}: ${testError.message}. Please check configuration and try "Save Settings".`,
+              "warning",
+              6000
+            );
+            this.pendingPluginSwitch = true; // Mark that we have a pending plugin switch
+            return;
+          }
         } finally {
-          setTimeout(() => this.hideProgress(), 2000);
+          this.hideProgress();
         }
       },
 
@@ -357,7 +481,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (
           !confirm(
-            `This will switch to the '${newModelName}' model and download it if it's not available. Continue?`,
+            `This will switch to the '${newModelName}' model and download it if it's not available. Continue?`
           )
         ) {
           // The UI will be out of sync temporarily, but since we haven't
@@ -419,7 +543,7 @@ document.addEventListener("DOMContentLoaded", () => {
       async clearPluginData(pluginName) {
         if (
           confirm(
-            `Are you sure you want to clear all data for ${pluginName}? This cannot be undone.`,
+            `Are you sure you want to clear all data for ${pluginName}? This cannot be undone.`
           )
         ) {
           try {
@@ -455,7 +579,7 @@ document.addEventListener("DOMContentLoaded", () => {
               "• All plugin-specific data\n\n" +
               "If the current plugin can't reactivate after clearing, " +
               "the system will automatically switch to an available fallback plugin.\n\n" +
-              "This action cannot be undone. Continue?",
+              "This action cannot be undone. Continue?"
           )
         ) {
           return;
@@ -468,7 +592,8 @@ document.addEventListener("DOMContentLoaded", () => {
           this.showProgress("Clearing all plugin data...", 0);
 
           // Call the enhanced backend method with fallback support
-          const result = await window.electronAPI.clearAllPluginDataWithFallback();
+          const result =
+            await window.electronAPI.clearAllPluginDataWithFallback();
 
           if (result.success) {
             // Handle plugin change notification
@@ -482,7 +607,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 result.failedPlugins
               );
             } else {
-              this.showStatus("All plugin data cleared successfully", "success");
+              this.showStatus(
+                "All plugin data cleared successfully",
+                "success"
+              );
             }
 
             // Refresh data display with updated info
@@ -492,13 +620,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // Update the active plugin dropdown in UI
             this.updateActivePluginDisplay();
-
           } else {
             throw new Error(result.error || "Failed to clear plugin data");
           }
         } catch (error) {
           console.error("Failed to clear all plugin data:", error);
-          this.showStatus(`Failed to clear plugin data: ${error.message}`, "error");
+          this.showStatus(
+            `Failed to clear plugin data: ${error.message}`,
+            "error"
+          );
         } finally {
           this.isClearingAll = false;
           this.hideProgress();
@@ -507,9 +637,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // New method to show plugin change notification
       showPluginChangeNotification(originalPlugin, newPlugin, failedPlugins) {
-        const failedList = failedPlugins && failedPlugins.length > 0
-          ? ` (Failed: ${failedPlugins.join(", ")})`
-          : "";
+        const failedList =
+          failedPlugins && failedPlugins.length > 0
+            ? ` (Failed: ${failedPlugins.join(", ")})`
+            : "";
 
         // Show a more prominent warning-style notification
         this.showStatus(
@@ -522,18 +653,20 @@ document.addEventListener("DOMContentLoaded", () => {
         console.warn(`Plugin fallback occurred during data clearing:`, {
           original: originalPlugin,
           new: newPlugin,
-          failed: failedPlugins
+          failed: failedPlugins,
         });
       },
 
       // New method to update UI elements after plugin change
       updateActivePluginDisplay() {
         // Update the plugin selection dropdown
-        const pluginSelect = document.querySelector('select[data-setting="transcriptionPlugin"]');
+        const pluginSelect = document.querySelector(
+          'select[data-setting="transcriptionPlugin"]'
+        );
         if (pluginSelect) {
           pluginSelect.value = this.activePlugin;
           // Trigger change event to update any dependent UI
-          pluginSelect.dispatchEvent(new Event('change'));
+          pluginSelect.dispatchEvent(new Event("change"));
         }
 
         // Note: Other UI elements are automatically updated via Vue's reactive data binding
@@ -627,7 +760,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ?.fields.find((f) => f.key === "actions");
           if (actionsField) {
             this.settings.actions = JSON.parse(
-              JSON.stringify(actionsField.defaultValue),
+              JSON.stringify(actionsField.defaultValue)
             );
             this.showStatus("Actions have been reset to default.", "success");
           }
@@ -649,7 +782,7 @@ document.addEventListener("DOMContentLoaded", () => {
       deletePattern(actionIndex, patternIndex) {
         this.settings.actions.actions[actionIndex].matchPatterns.splice(
           patternIndex,
-          1,
+          1
         );
       },
 
@@ -670,7 +803,7 @@ document.addEventListener("DOMContentLoaded", () => {
       deleteHandler(actionIndex, handlerIndex) {
         this.settings.actions.actions[actionIndex].handlers.splice(
           handlerIndex,
-          1,
+          1
         );
       },
 

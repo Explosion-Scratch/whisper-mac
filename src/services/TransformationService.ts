@@ -67,7 +67,14 @@ export class TransformationService {
       .replace(/{selection}/g, savedState.text || "")
       .replace(/{context}/g, context.text)
       .replace(/{text}/g, text || "")
-      .replace(/{rules}/g, this.prototype.createRuleText(rules))
+      .replace(
+        /{rules}/g,
+        this.prototype.createRuleText(rules, {
+          hasSelection: savedState.hasSelection,
+          hasContext: context.hasContext,
+          hasWritingStyle: !!writingStyle,
+        })
+      )
       .replace(/{writing_style}/g, writingStyle || "");
 
     const repTagIf = (
@@ -112,14 +119,39 @@ export class TransformationService {
   /**
    * Create rule text from an array of rules
    * @param rules Array of rules to format
+   * @param context Context information for conditional rule filtering
    * @returns Formatted rule text
    */
-  private createRuleText(rules: Rule[]): string {
+  private createRuleText(
+    rules: Rule[],
+    context: {
+      hasSelection: boolean;
+      hasContext: boolean;
+      hasWritingStyle: boolean;
+    }
+  ): string {
+    const filteredRules = rules.filter((rule) => {
+      if (!rule.if) return true;
+
+      return rule.if.every((condition) => {
+        switch (condition) {
+          case "selection":
+            return context.hasSelection;
+          case "context":
+            return context.hasContext;
+          case "writing_style":
+            return context.hasWritingStyle;
+          default:
+            return true;
+        }
+      });
+    });
+
     return (
-      rules
+      filteredRules
         .map((rule, i) => {
           let out = `${i + 1}. ${rule.name}`;
-          if (rule.examples.length) {
+          if (rule?.examples?.length) {
             out +=
               ":\n" +
               rule.examples

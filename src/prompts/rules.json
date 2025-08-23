@@ -153,5 +153,29 @@
   {
     "name": "Repetitions are likely the user correcting themselves, e.g. \"QUINN332B QWEN332B\" should resolve to \"Qwen3-32B\"",
     "examples": []
+  },
+  {
+    "name": "Make edits to the selection if requested",
+    "if": ["selection"],
+    "examples": [
+      {
+        "from": "[email selected] Add Sincerely",
+        "to": "[The email with sincerely added correctly]"
+      }
+    ]
+  },
+  {
+    "name": "If the user says something seemingly unrelated to the suggestion output the selection with the user's text added at the end, or where the user specifies",
+    "if": ["selection"]
+  },
+  {
+    "name": "Use the provided context text only for reference to help you understand the context of <ROUGH_TRANSCRIPTION>. Use this context to help you clarify things.",
+    "if": ["context"],
+    "examples": []
+  },
+  {
+    "name": "Follow the writing style that the user includes carefully",
+    "if": ["writing_style"],
+    "examples": []
   }
 ]

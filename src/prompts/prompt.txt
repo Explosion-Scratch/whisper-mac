@@ -13,4 +13,4 @@ Modify writing style based on the current context and these notes by the user:
 </WRITING_STYLE>
 </writing_style>
 
-Perform these modifications based on the context, selection, transcription, and active window/application given.
+Perform these modifications based on the<context> context, and</context><sel>, selection, and</sel> rough transcription.

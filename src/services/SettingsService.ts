@@ -261,6 +261,25 @@ export class SettingsService {
       },
     );
 
+    // Test plugin activation without actually switching
+    ipcMain.handle(
+      "settings:testPluginActivation",
+      async (
+        event,
+        payload: { pluginName: string; options?: Record<string, any> }
+      ) => {
+        if (!this.transcriptionPluginManager) {
+          return { canActivate: false, error: "Plugin manager not available" };
+        }
+
+        const { pluginName, options = {} } = payload;
+        return await this.transcriptionPluginManager.testPluginActivation(
+          pluginName,
+          options
+        );
+      }
+    );
+
     // Unified plugin management handlers
     ipcMain.handle("plugins:getOptions", () => {
       if (!this.transcriptionPluginManager) {

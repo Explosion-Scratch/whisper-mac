@@ -21,6 +21,7 @@ export interface AiTransformationConfig {
 export type Rule = {
   name: string;
   examples: { from: string; to: string }[];
+  if?: string[];
 };
 
 export class AppConfig {
