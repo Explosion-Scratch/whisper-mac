@@ -135,15 +135,25 @@ export class ConfigurableActionsService extends EventEmitter {
 
   private async executeOpenUrl(config: any): Promise<boolean> {
     try {
-      let url = config.urlTemplate;
+      try {
+        const url = new URL(config.urlTemplate).toString();
+        await shell.openExternal(url);
+        return true;
+      } catch (error) {
+        // Do nothing
+      }
+      // Through this magic "H.T.P.S., colon/slash, github.com/explosion-scratch." -> https://github.com/explosion-scratch.
+      let url = config.urlTemplate.trim();
       url = url.replace(/[,\.\s]+$/i, "");
       url = url.replace(/^[,\.\s]+/i, "");
       url = url.replace(/\W*(?:colon|:|cologne)\W*/gi, ":");
       url = url.replace(/\W*(?:slash)\W*/gi, "/");
       url = url.replace(/\W*(?:dot)\W*/gi, ".");
-      url = url.replace(/^h(\W?t|p)+(\W?t|p)+(\W?s)?/i, "https://");
+      url = url.replace(/^h(\W?t|b|e|p)+(\W?t|b|e|p)+(\W?s)?/i, "https://");
       url = url.replace(/(\:\/\/)+/gi, "://");
+      url = url.replace(/^h[a-z]{1,7}\:?\//i, "https://");
       url = url.replace(/\/+/gi, "/");
+      url = url.trim();
       // Validate URL
       if (!url || typeof url !== "string") {
         return false;

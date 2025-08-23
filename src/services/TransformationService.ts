@@ -194,12 +194,14 @@ export class TransformationService {
         (nonCodeContent.length < 100 && longestCodeContent.length > 60)) &&
       longestCodeContent.length > 0
     ) {
-      return longestCodeContent.trim();
+      return this.removeInlineCodeTicks(longestCodeContent.trim());
     }
 
     return null;
   }
-
+  static removeInlineCodeTicks(text: string): string {
+    return text.trim().replace(/^`/g, "").replace(/`$/g, "");
+  }
   /**
    * Remove content between <think> tags and trim the result
    * @param text The text to process
