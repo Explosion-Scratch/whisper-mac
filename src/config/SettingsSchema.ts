@@ -268,7 +268,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
                   for (const condition of rule.if) {
                     if (!validConditions.includes(condition)) {
                       return `Invalid condition '${condition}'. Valid conditions are: ${validConditions.join(
-                        ", "
+                        ", ",
                       )}`;
                     }
                   }
@@ -348,7 +348,7 @@ function loadDefaultRules(): any[] {
 }
 
 export function validateSettings(
-  settings: Record<string, any>
+  settings: Record<string, any>,
 ): Record<string, string> {
   const errors: Record<string, string> = {};
 

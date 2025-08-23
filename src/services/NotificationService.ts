@@ -47,14 +47,14 @@ export class NotificationService {
           subtitle,
           message,
           sound,
-          icon
+          icon,
         );
       } else {
         console.log("Falling back to AppleScript notifications");
         // Fallback to AppleScript for environments where Electron notifications aren't available
         await this.executeAppleScript(
           this.buildNotificationScript(title, subtitle, message, sound, icon),
-          timeout
+          timeout,
         );
       }
     } catch (error) {
@@ -106,7 +106,7 @@ export class NotificationService {
    */
   async sendSuccessNotification(
     message: string,
-    title?: string
+    title?: string,
   ): Promise<void> {
     await this.sendNotification({
       title: title || "WhisperMac",
@@ -134,7 +134,7 @@ export class NotificationService {
     subtitle?: string,
     message?: string,
     sound?: string,
-    icon?: string
+    icon?: string,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
@@ -199,7 +199,7 @@ export class NotificationService {
     subtitle?: string,
     message?: string,
     sound?: string,
-    icon?: string
+    icon?: string,
   ): string {
     // Escape quotes in the message and title to prevent AppleScript injection
     const escapedMessage = (message || "").replace(/"/g, '\\"');
@@ -225,12 +225,12 @@ export class NotificationService {
 
   private async executeAppleScript(
     script: string,
-    timeout: number = NotificationService.TIMEOUT_MS
+    timeout: number = NotificationService.TIMEOUT_MS,
   ): Promise<string> {
     const result = await this.executeProcess(
       "osascript",
       ["-e", script],
-      timeout
+      timeout,
     );
 
     if (!result.success) {
@@ -243,7 +243,7 @@ export class NotificationService {
   private async executeProcess(
     command: string,
     args: string[],
-    timeout: number = NotificationService.TIMEOUT_MS
+    timeout: number = NotificationService.TIMEOUT_MS,
   ): Promise<ProcessResult> {
     return new Promise((resolve) => {
       const process = execFile(
@@ -264,7 +264,7 @@ export class NotificationService {
               error: stderr,
             });
           }
-        }
+        },
       );
 
       process.on("error", (error) => {

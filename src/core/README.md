@@ -1,10 +1,14 @@
 # Core Utilities Architecture
 
-This directory contains the refactored core utilities that were extracted from the monolithic `main.ts` file. Each utility class has a single responsibility and follows clean code principles.
+This directory contains the refactored core utilities that were extracted from
+the monolithic `main.ts` file. Each utility class has a single responsibility
+and follows clean code principles.
 
 ## Architecture Overview
 
-The main application (`WhisperMacApp`) now orchestrates these focused utility classes instead of handling everything internally. This provides better separation of concerns, testability, and maintainability.
+The main application (`WhisperMacApp`) now orchestrates these focused utility
+classes instead of handling everything internally. This provides better
+separation of concerns, testability, and maintainability.
 
 ## Utility Classes
 
@@ -98,7 +102,8 @@ The main application (`WhisperMacApp`) now orchestrates these focused utility cl
 2. **Testability**: Individual utilities can be unit tested in isolation
 3. **Maintainability**: Changes to one area don't affect others
 4. **Reusability**: Utilities can be reused or extended independently
-5. **Readability**: The main app class is now much cleaner and easier to understand
+5. **Readability**: The main app class is now much cleaner and easier to
+   understand
 6. **Dependency Injection**: Clear dependencies make the system more flexible
 
 ## Usage in Main App

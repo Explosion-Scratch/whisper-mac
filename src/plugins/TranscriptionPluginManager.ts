@@ -47,7 +47,7 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   registerPlugin(plugin: BaseTranscriptionPlugin): void {
     console.log(
-      `Registering transcription plugin: ${plugin.displayName} (${plugin.name})`
+      `Registering transcription plugin: ${plugin.displayName} (${plugin.name})`,
     );
     this.plugins.set(plugin.name, plugin);
 
@@ -87,17 +87,17 @@ export class TranscriptionPluginManager extends EventEmitter {
       plugins.map(async (plugin) => ({
         plugin,
         available: await plugin.isAvailable(),
-      }))
+      })),
     );
 
     return availabilityChecks
       .filter(
         (
-          result
+          result,
         ): result is PromiseFulfilledResult<{
           plugin: BaseTranscriptionPlugin;
           available: boolean;
-        }> => result.status === "fulfilled" && result.value.available
+        }> => result.status === "fulfilled" && result.value.available,
       )
       .map((result) => result.value.plugin);
   }
@@ -115,7 +115,7 @@ export class TranscriptionPluginManager extends EventEmitter {
   async setActivePlugin(
     name: string,
     options: Record<string, any> = {},
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
     const plugin = this.getPlugin(name);
     if (!plugin) {
@@ -135,7 +135,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     if (Object.keys(finalOptions).length > 0) {
       console.log(
         `Setting options for ${name} before availability check:`,
-        finalOptions
+        finalOptions,
       );
       plugin.setOptions(finalOptions);
     }
@@ -243,14 +243,14 @@ export class TranscriptionPluginManager extends EventEmitter {
   async startTranscription(
     onUpdate: (update: SegmentUpdate) => void,
     onProgress?: (progress: TranscriptionSetupProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<void> {
     if (!this.activePlugin) {
       throw new Error("No active transcription plugin set");
     }
 
     console.log(
-      `Starting transcription with plugin: ${this.activePlugin.displayName}`
+      `Starting transcription with plugin: ${this.activePlugin.displayName}`,
     );
     await this.activePlugin.startTranscription(onUpdate, onProgress, onLog);
 
@@ -271,7 +271,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     }
 
     console.log(
-      `Stopping transcription with plugin: ${this.activePlugin.displayName}`
+      `Stopping transcription with plugin: ${this.activePlugin.displayName}`,
     );
     await this.activePlugin.stopTranscription();
   }
@@ -299,7 +299,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     if (!this.bufferingEnabled) return;
     const total = this.bufferedAudioChunks.reduce(
       (acc, cur) => acc + cur.length,
-      0
+      0,
     );
     if (total === 0) return;
 
@@ -372,7 +372,7 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   async testPluginActivation(
     pluginName: string,
-    options: Record<string, any> = {}
+    options: Record<string, any> = {},
   ): Promise<{ canActivate: boolean; error?: string }> {
     const plugin = this.getPlugin(pluginName);
     if (!plugin) {
@@ -423,7 +423,7 @@ export class TranscriptionPluginManager extends EventEmitter {
   async activatePluginWithFallback(
     primaryPluginName?: string,
     options: Record<string, any> = {},
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<{
     success: boolean;
     activePlugin: string | null;
@@ -439,19 +439,19 @@ export class TranscriptionPluginManager extends EventEmitter {
     }
 
     console.log(
-      `Attempting to activate plugin with fallback: ${primaryPluginName}`
+      `Attempting to activate plugin with fallback: ${primaryPluginName}`,
     );
 
     // First, try the primary plugin
     const primaryTest = await this.testPluginActivation(
       primaryPluginName,
-      options
+      options,
     );
     if (primaryTest.canActivate) {
       try {
         await this.setActivePlugin(primaryPluginName, options, uiFunctions);
         console.log(
-          `Successfully activated primary plugin: ${primaryPluginName}`
+          `Successfully activated primary plugin: ${primaryPluginName}`,
         );
         return {
           success: true,
@@ -462,13 +462,13 @@ export class TranscriptionPluginManager extends EventEmitter {
       } catch (error: any) {
         errors[primaryPluginName] = error.message || String(error);
         console.log(
-          `Primary plugin activation failed during setActivePlugin: ${error.message}`
+          `Primary plugin activation failed during setActivePlugin: ${error.message}`,
         );
       }
     } else {
       errors[primaryPluginName] = primaryTest.error || "Unknown error";
       console.log(
-        `Primary plugin failed test activation: ${primaryTest.error}`
+        `Primary plugin failed test activation: ${primaryTest.error}`,
       );
     }
 
@@ -481,7 +481,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       if (customFallback.length > 0) {
         console.log(
           `Using custom fallback chain for ${primaryPluginName}:`,
-          customFallback
+          customFallback,
         );
         fallbackPlugins = customFallback;
       }
@@ -493,7 +493,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       fallbackPlugins = allPlugins.filter((name) => name !== primaryPluginName);
       console.log(
         `No custom fallback chain, trying all other plugins:`,
-        fallbackPlugins
+        fallbackPlugins,
       );
     }
 
@@ -506,7 +506,7 @@ export class TranscriptionPluginManager extends EventEmitter {
         try {
           await this.setActivePlugin(fallbackName, {}, uiFunctions);
           console.log(
-            `Successfully activated fallback plugin: ${fallbackName}`
+            `Successfully activated fallback plugin: ${fallbackName}`,
           );
           return {
             success: true,
@@ -573,7 +573,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       } catch (error) {
         console.error(
           `Failed to initialize plugin ${plugin.displayName}:`,
-          error
+          error,
         );
       }
     });
@@ -584,27 +584,26 @@ export class TranscriptionPluginManager extends EventEmitter {
     const defaultPluginName = this.getDefaultPluginName();
 
     console.log(
-      `Attempting to activate default plugin with fallback: ${defaultPluginName}`
+      `Attempting to activate default plugin with fallback: ${defaultPluginName}`,
     );
-    const fallbackResult = await this.activatePluginWithFallback(
-      defaultPluginName
-    );
+    const fallbackResult =
+      await this.activatePluginWithFallback(defaultPluginName);
 
     if (fallbackResult.success) {
       if (fallbackResult.pluginChanged) {
         console.log(
-          `Plugin changed during startup fallback: ${defaultPluginName} → ${fallbackResult.activePlugin}`
+          `Plugin changed during startup fallback: ${defaultPluginName} → ${fallbackResult.activePlugin}`,
         );
         // Update the stored default if plugin changed
         this.setDefaultPluginName(fallbackResult.activePlugin!);
       }
       console.log(
-        `Successfully activated plugin: ${fallbackResult.activePlugin}`
+        `Successfully activated plugin: ${fallbackResult.activePlugin}`,
       );
     } else {
       console.warn(
         "No transcription plugins could be activated. Errors:",
-        fallbackResult.errors
+        fallbackResult.errors,
       );
       // Don't throw error here - app should still start, but show warning
     }
@@ -644,7 +643,7 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   async updateActivePluginOptions(
     options: Record<string, any>,
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
     if (!this.activePlugin) {
       throw new Error("No active plugin to update");
@@ -663,7 +662,7 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   async verifyPluginOptions(
     name: string,
-    options: Record<string, any>
+    options: Record<string, any>,
   ): Promise<{ valid: boolean; errors: string[] }> {
     const plugin = this.getPlugin(name);
     if (!plugin) {
@@ -713,7 +712,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       } catch (error) {
         console.error(
           `Error clearing data for plugin ${plugin.displayName}:`,
-          error
+          error,
         );
       }
     });
@@ -726,7 +725,7 @@ export class TranscriptionPluginManager extends EventEmitter {
    * Returns updated plugin data info and activation results
    */
   async clearAllPluginDataWithFallback(
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<{
     success: boolean;
     pluginChanged: boolean;
@@ -744,7 +743,7 @@ export class TranscriptionPluginManager extends EventEmitter {
   }> {
     const originalPlugin = this.getActivePluginName();
     console.log(
-      `Starting clearAllPluginDataWithFallback, current plugin: ${originalPlugin}`
+      `Starting clearAllPluginDataWithFallback, current plugin: ${originalPlugin}`,
     );
 
     try {
@@ -756,7 +755,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       const fallbackResult = await this.activatePluginWithFallback(
         originalPlugin || undefined,
         {},
-        uiFunctions
+        uiFunctions,
       );
 
       // Get updated plugin data info
@@ -773,7 +772,7 @@ export class TranscriptionPluginManager extends EventEmitter {
         }
 
         console.log(
-          `Data clearing with fallback completed. Plugin: ${originalPlugin} → ${fallbackResult.activePlugin}`
+          `Data clearing with fallback completed. Plugin: ${originalPlugin} → ${fallbackResult.activePlugin}`,
         );
 
         return {
@@ -787,7 +786,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       } else {
         console.error(
           "Failed to activate any plugin after data clearing:",
-          fallbackResult.errors
+          fallbackResult.errors,
         );
         return {
           success: false,
@@ -797,7 +796,7 @@ export class TranscriptionPluginManager extends EventEmitter {
           failedPlugins,
           updatedDataInfo,
           error: `All plugins failed to activate after data clearing. Errors: ${JSON.stringify(
-            fallbackResult.errors
+            fallbackResult.errors,
           )}`,
         };
       }
@@ -846,7 +845,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     const plugins = this.getPlugins();
     console.log(
       `Found ${plugins.length} plugins:`,
-      plugins.map((p) => p.name)
+      plugins.map((p) => p.name),
     );
 
     const dataInfo = await Promise.all(
@@ -865,7 +864,7 @@ export class TranscriptionPluginManager extends EventEmitter {
         } catch (error) {
           console.error(
             `Error getting data info for plugin ${plugin.displayName}:`,
-            error
+            error,
           );
           return {
             name: plugin.name,
@@ -875,7 +874,7 @@ export class TranscriptionPluginManager extends EventEmitter {
             dataPath: plugin.getDataPath(),
           };
         }
-      })
+      }),
     );
 
     console.log("Plugin data info result:", dataInfo);

@@ -45,7 +45,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   switchPlugin: (pluginName: string, modelName?: string) =>
     ipcRenderer.invoke("settings:switchPlugin", { pluginName, modelName }),
   testPluginActivation: (pluginName: string, options?: Record<string, any>) =>
-    ipcRenderer.invoke("settings:testPluginActivation", { pluginName, options }),
+    ipcRenderer.invoke("settings:testPluginActivation", {
+      pluginName,
+      options,
+    }),
   isUnifiedDownloading: () => ipcRenderer.invoke("unified:isDownloading"),
 
   // Unified plugin management
@@ -67,7 +70,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   deleteAllPluginData: (pluginName: string) =>
     ipcRenderer.invoke("plugins:deleteAllData", { pluginName }),
   clearAllPluginData: () => ipcRenderer.invoke("settings:clearAllPluginData"),
-  clearAllPluginDataWithFallback: () => ipcRenderer.invoke("settings:clearAllPluginDataWithFallback"),
+  clearAllPluginDataWithFallback: () =>
+    ipcRenderer.invoke("settings:clearAllPluginDataWithFallback"),
 
   // Unified plugin switching progress listeners
   onPluginSwitchProgress: (callback: (progress: any) => void) => {

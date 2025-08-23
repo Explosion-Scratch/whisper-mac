@@ -266,7 +266,7 @@ export class SettingsService {
       "settings:testPluginActivation",
       async (
         event,
-        payload: { pluginName: string; options?: Record<string, any> }
+        payload: { pluginName: string; options?: Record<string, any> },
       ) => {
         if (!this.transcriptionPluginManager) {
           return { canActivate: false, error: "Plugin manager not available" };
@@ -275,9 +275,9 @@ export class SettingsService {
         const { pluginName, options = {} } = payload;
         return await this.transcriptionPluginManager.testPluginActivation(
           pluginName,
-          options
+          options,
         );
-      }
+      },
     );
 
     // Unified plugin management handlers
@@ -596,36 +596,40 @@ export class SettingsService {
         }
 
         console.log("Clearing all plugin data with fallback activation...");
-        const result = await this.transcriptionPluginManager.clearAllPluginDataWithFallback({
-          showProgress: (message: string, percent: number) => {
-            // Send progress updates to renderer if settings window is open
-            if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
-              this.settingsWindow.webContents.send("settings:clearProgress", {
-                message,
-                percent,
-              });
-            }
-          },
-          showError: (error: string) => {
-            console.error("Plugin activation error during fallback:", error);
-          },
-          showSuccess: (message: string) => {
-            console.log("Plugin activation success:", message);
-          },
-          hideProgress: () => {
-            // Hide progress in renderer
-            if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
-              this.settingsWindow.webContents.send("settings:hideProgress");
-            }
-          },
-        } as any);
+        const result =
+          await this.transcriptionPluginManager.clearAllPluginDataWithFallback({
+            showProgress: (message: string, percent: number) => {
+              // Send progress updates to renderer if settings window is open
+              if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+                this.settingsWindow.webContents.send("settings:clearProgress", {
+                  message,
+                  percent,
+                });
+              }
+            },
+            showError: (error: string) => {
+              console.error("Plugin activation error during fallback:", error);
+            },
+            showSuccess: (message: string) => {
+              console.log("Plugin activation success:", message);
+            },
+            hideProgress: () => {
+              // Hide progress in renderer
+              if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+                this.settingsWindow.webContents.send("settings:hideProgress");
+              }
+            },
+          } as any);
 
-        console.log("All plugin data cleared with fallback activation completed:", {
-          success: result.success,
-          pluginChanged: result.pluginChanged,
-          newActivePlugin: result.newActivePlugin,
-          failedPlugins: result.failedPlugins,
-        });
+        console.log(
+          "All plugin data cleared with fallback activation completed:",
+          {
+            success: result.success,
+            pluginChanged: result.pluginChanged,
+            newActivePlugin: result.newActivePlugin,
+            failedPlugins: result.failedPlugins,
+          },
+        );
 
         return result;
       } catch (error: any) {

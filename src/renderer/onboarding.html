@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -121,7 +121,9 @@
         background: rgba(255, 255, 255, 0.9);
         font-size: 12px;
         cursor: pointer;
-        transition: background 0.15s ease, transform 0.1s ease,
+        transition:
+          background 0.15s ease,
+          transform 0.1s ease,
           box-shadow 0.15s ease;
       }
       .btn[disabled] {
@@ -227,7 +229,8 @@
         width: 56px;
         height: 56px;
         border-radius: 12px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05),
+        box-shadow:
+          0 10px 30px rgba(0, 0, 0, 0.05),
           0 2px 10px rgba(0, 0, 0, 0.06) inset;
         user-select: none;
       }
@@ -747,7 +750,7 @@
           const setupDone = ref(false);
 
           const nextLabel = computed(() =>
-            idx.value === 5 ? "Finish" : "Next"
+            idx.value === 5 ? "Finish" : "Next",
           );
 
           const canProceed = computed(() => {
@@ -790,7 +793,7 @@
 
             // Set default options for each plugin
             for (const [pluginName, options] of Object.entries(
-              pluginOptions.value
+              pluginOptions.value,
             )) {
               selectedOptions.value[pluginName] = {};
               for (const option of options) {
@@ -867,7 +870,7 @@
               const plainOptions = JSON.parse(JSON.stringify(currentOptions));
               await window.onboardingAPI.setPlugin(
                 pluginSelect.value,
-                plainOptions
+                plainOptions,
               );
             }
             if (idx.value === 4) {
@@ -876,7 +879,7 @@
                 const result = await window.electronAPI.validateAiConfiguration(
                   aiBaseUrl.value,
                   aiModel.value,
-                  aiApiKey.value
+                  aiApiKey.value,
                 );
 
                 if (!result.isValid) {
@@ -890,7 +893,7 @@
               if (aiEnabled.value) {
                 await window.onboardingAPI.setAiProvider(
                   aiBaseUrl.value,
-                  aiModel.value
+                  aiModel.value,
                 );
               }
             }
@@ -951,7 +954,7 @@
               const result =
                 await window.electronAPI.validateApiKeyAndListModels(
                   aiBaseUrl.value,
-                  aiApiKey.value
+                  aiApiKey.value,
                 );
               if (!result?.success) {
                 keyStatus.value = `Validation failed: ${
@@ -985,7 +988,7 @@
                 const result = await window.electronAPI.validateAiConfiguration(
                   aiBaseUrl.value,
                   aiModel.value,
-                  aiApiKey.value
+                  aiApiKey.value,
                 );
 
                 if (!result.isValid) {

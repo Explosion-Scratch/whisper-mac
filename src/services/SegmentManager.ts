@@ -29,7 +29,7 @@ export class SegmentManager extends EventEmitter {
     transformationService: TransformationService,
     textInjectionService: TextInjectionService,
     selectedTextService: SelectedTextService,
-    configurableActionsService?: ConfigurableActionsService
+    configurableActionsService?: ConfigurableActionsService,
   ) {
     super();
     this.transformationService = transformationService;
@@ -53,7 +53,7 @@ export class SegmentManager extends EventEmitter {
   setInitialSelectedText(text: string): void {
     this.initialSelectedText = text.trim();
     console.log(
-      `[SegmentManager] Set initial selected text: "${this.initialSelectedText}"`
+      `[SegmentManager] Set initial selected text: "${this.initialSelectedText}"`,
     );
   }
 
@@ -76,7 +76,7 @@ export class SegmentManager extends EventEmitter {
           uniqueSegments.push(segment);
         } else {
           console.log(
-            `[SegmentManager] Removed duplicate segment: "${transcribedSegment.text}" (${transcribedSegment.start}-${transcribedSegment.end})`
+            `[SegmentManager] Removed duplicate segment: "${transcribedSegment.text}" (${transcribedSegment.start}-${transcribedSegment.end})`,
           );
         }
       } else {
@@ -96,11 +96,11 @@ export class SegmentManager extends EventEmitter {
     completed: boolean,
     start?: number,
     end?: number,
-    confidence?: number
+    confidence?: number,
   ): TranscribedSegment {
     const trimmedText = text.trim();
     console.log(
-      `[SegmentManager] Attempting to add segment: "${trimmedText}" (completed: ${completed})`
+      `[SegmentManager] Attempting to add segment: "${trimmedText}" (completed: ${completed})`,
     );
 
     // Check for actions in completed segments before processing
@@ -111,7 +111,7 @@ export class SegmentManager extends EventEmitter {
         console.log(
           `[SegmentManager] Action detected: "${
             actionMatch.actionId
-          }" with argument: "${actionMatch.extractedArgument || "none"}"`
+          }" with argument: "${actionMatch.extractedArgument || "none"}"`,
         );
 
         // Store action information for potential transformation skipping
@@ -142,7 +142,7 @@ export class SegmentManager extends EventEmitter {
     // One-shot ignore for the next completed segment after a flush
     if (completed && this.ignoreNextCompleted) {
       console.log(
-        "[SegmentManager] Ignoring next completed segment post-flush"
+        "[SegmentManager] Ignoring next completed segment post-flush",
       );
       this.ignoreNextCompleted = false;
       return {
@@ -160,7 +160,7 @@ export class SegmentManager extends EventEmitter {
     // If a completed segment arrives, delete all in-progress segments.
     if (completed) {
       this.segments = this.segments.filter(
-        (s) => s.type === "transcribed" && s.completed
+        (s) => s.type === "transcribed" && s.completed,
       );
       this.segments.push({
         id: uuidv4(),
@@ -177,7 +177,7 @@ export class SegmentManager extends EventEmitter {
     // If it's a new in-progress segment, clear out all other old ones first.
     if (!completed) {
       this.segments = this.segments.filter(
-        (s) => s.type !== "transcribed" || s.completed
+        (s) => s.type !== "transcribed" || s.completed,
       );
     }
 
@@ -199,7 +199,7 @@ export class SegmentManager extends EventEmitter {
 
     this.emit("segment-added", segment);
     console.log(
-      `[SegmentManager] Added transcribed segment: "${trimmedText}" (completed: ${completed})`
+      `[SegmentManager] Added transcribed segment: "${trimmedText}" (completed: ${completed})`,
     );
     return segment;
   }
@@ -221,7 +221,7 @@ export class SegmentManager extends EventEmitter {
     console.log("[SegmentManager] Transform and inject all segments");
 
     const segmentsToProcess = this.segments.filter(
-      (s) => s.type === "transcribed"
+      (s) => s.type === "transcribed",
     ) as TranscribedSegment[];
 
     if (segmentsToProcess.length === 0) {
@@ -230,7 +230,7 @@ export class SegmentManager extends EventEmitter {
     }
 
     console.log(
-      `[SegmentManager] Transforming and injecting ${segmentsToProcess.length} segments`
+      `[SegmentManager] Transforming and injecting ${segmentsToProcess.length} segments`,
     );
 
     try {
@@ -252,7 +252,7 @@ export class SegmentManager extends EventEmitter {
           console.log(
             `[SegmentManager] Direct-injected text (skip reason: ${
               options?.skipTransformation ? "plugin" : "action"
-            }): "${originalText}"`
+            }): "${originalText}"`,
           );
         }
 
@@ -269,18 +269,18 @@ export class SegmentManager extends EventEmitter {
       const transformResult =
         await this.transformationService.transformSegments(
           segmentsToProcess,
-          await this.selectedTextService.getSelectedText()
+          await this.selectedTextService.getSelectedText(),
         );
 
       if (!transformResult.success) {
         console.error(
           "[SegmentManager] Transformation failed:",
-          transformResult.error
+          transformResult.error,
         );
         return await this.handleTransformationFallback(
           segmentsToProcess,
           transformResult.error || "Transformation failed",
-          options.onInjecting
+          options.onInjecting,
         );
       }
 
@@ -296,7 +296,7 @@ export class SegmentManager extends EventEmitter {
       this.lastExecutedAction = null; // Reset after use
 
       console.log(
-        `[SegmentManager] Transform and inject completed successfully`
+        `[SegmentManager] Transform and inject completed successfully`,
       );
 
       return {
@@ -309,7 +309,7 @@ export class SegmentManager extends EventEmitter {
       return await this.handleTransformationFallback(
         segmentsToProcess,
         error instanceof Error ? error.message : "Unknown error",
-        options.onInjecting
+        options.onInjecting,
       );
     }
   }
@@ -328,7 +328,7 @@ export class SegmentManager extends EventEmitter {
   private async handleTransformationFallback(
     segmentsToProcess: TranscribedSegment[],
     error: string,
-    onInjecting?: () => void
+    onInjecting?: () => void,
   ): Promise<FlushResult> {
     const originalText = segmentsToProcess
       .map((segment) => segment.text.trim())
@@ -337,7 +337,7 @@ export class SegmentManager extends EventEmitter {
 
     if (originalText) {
       console.log(
-        `[SegmentManager] Falling back to injecting original text: "${originalText}"`
+        `[SegmentManager] Falling back to injecting original text: "${originalText}"`,
       );
       onInjecting?.();
       await this.textInjectionService.insertText(originalText);
@@ -359,7 +359,7 @@ export class SegmentManager extends EventEmitter {
    */
   clearAllSegments(): void {
     console.log(
-      `[SegmentManager] Clearing all ${this.segments.length} segments and selected text`
+      `[SegmentManager] Clearing all ${this.segments.length} segments and selected text`,
     );
     this.segments = [];
     this.initialSelectedText = null;
@@ -378,7 +378,7 @@ export class SegmentManager extends EventEmitter {
 
     const lastSegment = this.segments.pop();
     console.log(
-      `[SegmentManager] Deleted last segment: "${lastSegment?.text}" (${lastSegment?.id})`
+      `[SegmentManager] Deleted last segment: "${lastSegment?.text}" (${lastSegment?.id})`,
     );
     this.emit("segment-deleted", lastSegment);
     return true;
@@ -398,7 +398,7 @@ export class SegmentManager extends EventEmitter {
     lastSegment.text = newContent.trim();
 
     console.log(
-      `[SegmentManager] Replaced segment content: "${oldContent}" -> "${newContent}"`
+      `[SegmentManager] Replaced segment content: "${oldContent}" -> "${newContent}"`,
     );
     this.emit("segment-content-replaced", {
       segment: lastSegment,
@@ -422,7 +422,7 @@ export class SegmentManager extends EventEmitter {
     console.log(
       `[SegmentManager] Deleted ${actualCount} segments: ${deletedSegments
         .map((s) => `"${s.text}"`)
-        .join(", ")}`
+        .join(", ")}`,
     );
     this.emit("segments-deleted", deletedSegments);
     return actualCount;
@@ -443,7 +443,7 @@ export class SegmentManager extends EventEmitter {
     if (hasEllipses) {
       lastSegment.text = originalText.replace(/\.\.\.+$/, "").trim();
       console.log(
-        `[SegmentManager] Removed ellipses from segment: "${originalText}" -> "${lastSegment.text}"`
+        `[SegmentManager] Removed ellipses from segment: "${originalText}" -> "${lastSegment.text}"`,
       );
       this.emit("segment-ellipses-removed", {
         segment: lastSegment,
@@ -475,7 +475,7 @@ export class SegmentManager extends EventEmitter {
     lastSegment.text = transformedText;
 
     console.log(
-      `[SegmentManager] Lowercased first word: "${originalText}" -> "${transformedText}"`
+      `[SegmentManager] Lowercased first word: "${originalText}" -> "${transformedText}"`,
     );
     this.emit("segment-first-word-lowercased", {
       segment: lastSegment,
@@ -513,7 +513,7 @@ export class SegmentManager extends EventEmitter {
    */
   getCompletedTranscribedSegments(): TranscribedSegment[] {
     return this.segments.filter(
-      (s) => s.type === "transcribed" && s.completed
+      (s) => s.type === "transcribed" && s.completed,
     ) as TranscribedSegment[];
   }
 
@@ -522,7 +522,7 @@ export class SegmentManager extends EventEmitter {
    */
   getInProgressTranscribedSegments(): TranscribedSegment[] {
     return this.segments.filter(
-      (s) => s.type === "transcribed" && !s.completed
+      (s) => s.type === "transcribed" && !s.completed,
     ) as TranscribedSegment[];
   }
 
@@ -556,13 +556,13 @@ export class SegmentManager extends EventEmitter {
     inProgress: number;
   } {
     const transcribed = this.segments.filter(
-      (s) => s.type === "transcribed"
+      (s) => s.type === "transcribed",
     ).length;
     const completed = this.segments.filter(
-      (s) => s.type === "transcribed" && s.completed
+      (s) => s.type === "transcribed" && s.completed,
     ).length;
     const inProgress = this.segments.filter(
-      (s) => s.type === "transcribed" && !s.completed
+      (s) => s.type === "transcribed" && !s.completed,
     ).length;
 
     return {

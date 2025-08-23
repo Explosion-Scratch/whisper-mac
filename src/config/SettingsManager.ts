@@ -44,7 +44,7 @@ export class SettingsManager extends EventEmitter {
       console.log(
         "Migrating data directory",
         this.config.dataDir,
-        currentDataDir
+        currentDataDir,
       );
       this.migrateDataDirectory(this.config.dataDir, currentDataDir);
       this.config.setDataDir(currentDataDir);
@@ -73,7 +73,7 @@ export class SettingsManager extends EventEmitter {
           loadedDataDir !== this.config.dataDir
         ) {
           console.log(
-            `Settings loaded from different data directory: ${loadedDataDir}`
+            `Settings loaded from different data directory: ${loadedDataDir}`,
           );
           this.previousDataDir = loadedDataDir;
         }
@@ -93,7 +93,7 @@ export class SettingsManager extends EventEmitter {
    * To { "plugin.whisper-cpp.model": "..." }
    */
   private normalizePluginSettings(
-    settings: Record<string, any>
+    settings: Record<string, any>,
   ): Record<string, any> {
     const normalized = { ...settings };
 
@@ -125,7 +125,7 @@ export class SettingsManager extends EventEmitter {
    * This prevents nested plugin objects from being saved to disk
    */
   private ensureFlattenedPluginSettings(
-    settings: Record<string, any>
+    settings: Record<string, any>,
   ): Record<string, any> {
     const flattened = { ...settings };
 
@@ -303,13 +303,13 @@ export class SettingsManager extends EventEmitter {
     // Dictation window settings
     this.config.dictationWindowPosition = this.get(
       "dictationWindowPosition",
-      "screen-corner"
+      "screen-corner",
     ) as DictationWindowPosition;
     this.config.dictationWindowWidth = this.get("dictationWindowWidth", 400);
     this.config.dictationWindowHeight = this.get("dictationWindowHeight", 50);
     this.config.showDictationWindowAlways = this.get(
       "showDictationWindowAlways",
-      false
+      false,
     );
 
     // Text processing
@@ -321,7 +321,7 @@ export class SettingsManager extends EventEmitter {
       writingStyle: this.get("ai.writingStyle", this.config.ai.writingStyle),
       baseUrl: this.get(
         "ai.baseUrl",
-        "https://api.cerebras.ai/v1/chat/completions"
+        "https://api.cerebras.ai/v1/chat/completions",
       ),
       model: this.get("ai.model", "qwen-3-32b"),
       maxTokens: this.get("ai.maxTokens", 16382),
@@ -403,7 +403,7 @@ export class SettingsManager extends EventEmitter {
     this.set("dictationWindowHeight", this.config.dictationWindowHeight);
     this.set(
       "showDictationWindowAlways",
-      this.config.showDictationWindowAlways
+      this.config.showDictationWindowAlways,
     );
 
     // Text processing
@@ -536,14 +536,14 @@ export class SettingsManager extends EventEmitter {
       // Verify that the migration was successful by checking if key directories exist
       const expectedDirs = ["models", "cache"];
       const missingDirs = expectedDirs.filter(
-        (dir) => !existsSync(join(newDir, dir))
+        (dir) => !existsSync(join(newDir, dir)),
       );
 
       if (missingDirs.length > 0) {
         console.warn(
           `Some expected directories are missing in new location: ${missingDirs.join(
-            ", "
-          )}`
+            ", ",
+          )}`,
         );
       }
 

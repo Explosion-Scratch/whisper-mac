@@ -53,7 +53,7 @@ export class TextInjectionService {
       throw new Error(
         `Failed to insert text: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     }
   }
@@ -124,7 +124,7 @@ export class TextInjectionService {
 
   private async executeProcess(
     command: string,
-    args: string[]
+    args: string[],
   ): Promise<ProcessResult> {
     return new Promise((resolve) => {
       const process = execFile(
@@ -145,7 +145,7 @@ export class TextInjectionService {
               error: stderr,
             });
           }
-        }
+        },
       );
 
       process.on("error", (error) => {
@@ -193,7 +193,7 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
     } catch (error) {
       console.error("Failed to show accessibility instructions:", error);
       await this.notificationService.sendErrorNotification(
-        "Accessibility permissions required - check System Preferences"
+        "Accessibility permissions required - check System Preferences",
       );
     }
   }
@@ -214,7 +214,7 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
     } catch (error) {
       console.error("Failed to open System Preferences:", error);
       await this.notificationService.sendErrorNotification(
-        "Failed to open System Preferences"
+        "Failed to open System Preferences",
       );
     }
   }

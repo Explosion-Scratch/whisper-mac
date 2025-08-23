@@ -86,12 +86,12 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
         this.apiKey = await this.getSecureValue("api_key");
         console.log(
           "API key loaded from secure storage:",
-          this.apiKey ? "present" : "not found"
+          this.apiKey ? "present" : "not found",
         );
       } catch (error) {
         console.warn(
           "Failed to load Gemini API key from secure storage:",
-          error
+          error,
         );
         console.log("No API key available");
         return false;
@@ -106,7 +106,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
   async startTranscription(
     onUpdate: (update: SegmentUpdate) => void,
     onProgress?: (progress: TranscriptionSetupProgress) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<void> {
     // Initialize Gemini API connection
     const apiKey = await this.ensureApiKey();
@@ -169,7 +169,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
 
   async processAudioWithContext(
     audioWavBase64: string,
-    screenshotBase64?: string
+    screenshotBase64?: string,
   ): Promise<string> {
     // Get context using existing services
     const selectedTextService = new SelectedTextService();
@@ -203,7 +203,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
       processedMessagePrompt,
       audioWavBase64,
       screenshotBase64,
-      savedState
+      savedState,
     );
 
     // Use TransformationService static methods for response processing
@@ -217,7 +217,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     messagePrompt: string,
     audioWavBase64: string,
     screenshotBase64?: string,
-    savedState?: SelectedTextResult
+    savedState?: SelectedTextResult,
   ): Promise<string> {
     const apiKey = await this.ensureApiKey();
     if (!apiKey) {
@@ -226,7 +226,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     const modelId = this.modelConfig?.model || "gemini-2.5-flash";
     const url = `${this.apiBase}/models/${encodeURIComponent(
-      modelId
+      modelId,
     )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
     // Use TransformationService static methods to build request parts
@@ -235,7 +235,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
       messagePrompt,
       audioWavBase64,
       screenshotBase64,
-      savedState
+      savedState,
     );
 
     const body = {
@@ -418,7 +418,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   async verifyOptions(
-    options: Record<string, any>
+    options: Record<string, any>,
   ): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
@@ -484,7 +484,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
 
   async updateOptions(
     options: Record<string, any>,
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
     console.log("=== Gemini updateOptions called ===");
     console.log("Options received:", options);
@@ -505,7 +505,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
         const storedKey = await this.getSecureValue("api_key");
         console.log(
           "Verification - stored key matches:",
-          storedKey === options.api_key
+          storedKey === options.api_key,
         );
       } catch (error) {
         console.error("❌ Failed to store Gemini API key:", error);
@@ -553,7 +553,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
   public async ensureModelAvailable(
     options: Record<string, any>,
     onProgress?: (progress: any) => void,
-    onLog?: (line: string) => void
+    onLog?: (line: string) => void,
   ): Promise<boolean> {
     onLog?.("Gemini plugin doesn't require model downloads");
     onProgress?.({
@@ -566,7 +566,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
 
   async downloadModel(
     modelName: string,
-    uiFunctions?: PluginUIFunctions
+    uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
     // Gemini models are cloud-based, no download needed
     uiFunctions?.showSuccess(`Gemini model ${modelName} is ready to use`);
