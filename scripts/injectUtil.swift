@@ -31,9 +31,15 @@ func backupClipboard() -> [(NSPasteboard.PasteboardType, Data)] {
 func restoreClipboard(_ saved: [(NSPasteboard.PasteboardType, Data)]) {
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
+    
+    // Create a new pasteboard item for all the saved data
+    let newItem = NSPasteboardItem()
     for (type, data) in saved {
-        pasteboard.setData(data, forType: type)
+        newItem.setData(data, forType: type)
     }
+    
+    // Add the item to the pasteboard
+    pasteboard.writeObjects([newItem])
 }
 
 // MARK: - Paste Logic
@@ -51,9 +57,11 @@ func pasteUsingCommandV() {
     vDown?.flags = .maskCommand
     vUp?.flags = .maskCommand
     cmdDown?.post(tap: .cghidEventTap)
-    usleep(10000)
+    usleep(15000)  // Slightly longer delay for more reliable key events
     vDown?.post(tap: .cghidEventTap)
+    usleep(15000)  // Add delay between key down and up
     vUp?.post(tap: .cghidEventTap)
+    usleep(15000)  // Add delay before releasing command
     cmdUp?.post(tap: .cghidEventTap)
 }
 
@@ -221,9 +229,18 @@ case .copy(let text):
 case .inject(let text):
     let backup = backupClipboard()
     if ClipboardManager.copyToClipboard(text) {
-        usleep(100_000)
+        usleep(200_000)  // Increased delay to ensure clipboard is set
+        
+        // Verify the clipboard was set correctly
+        let clipboardContent = ClipboardManager.getClipboardContent()
+        if clipboardContent != text {
+            fputs("Clipboard verification failed. Expected: \(text), Got: \(clipboardContent ?? "nil")\n", stderr)
+            restoreClipboard(backup)
+            exit(1)
+        }
+        
         pasteUsingCommandV()
-        usleep(100_000)
+        usleep(300_000)  // Increased delay to ensure paste completes
         restoreClipboard(backup)
         print("Injected, pasted, and restored clipboard.")
         exit(0)
