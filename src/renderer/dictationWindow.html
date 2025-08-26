@@ -531,10 +531,12 @@
             if (isSpeaking.value) {
               return true;
             }
-
+            if (currentStatus.value === "idle" && isRecording.value) {
+              return true;
+            }
             // Priority 2: In these final states, never show the visualizer.
             if (
-              ["transforming", "injecting", "complete", "idle"].includes(
+              ["transforming", "injecting", "complete"].includes(
                 currentStatus.value,
               )
             ) {
@@ -579,6 +581,7 @@
           let analyser = null;
           let sourceNode = null;
           let rmsArray = null;
+          let allowFinalFlush = false;
 
           const scrollToEnd = () => {
             if (textScrollContainer.value) {
@@ -682,8 +685,12 @@
                 },
                 onSpeechEnd: (audio) => {
                   isSpeaking.value = false;
-                  if (isRecording.value && audio.length > 0) {
+                  if (
+                    (isRecording.value || allowFinalFlush) &&
+                    audio.length > 0
+                  ) {
                     window.electronAPI.sendAudioSegment(audio);
+                    allowFinalFlush = false;
                   }
                 },
               });
@@ -747,19 +754,29 @@
             selectedText.value = data.selectedText || "";
             isRunOnAllPlugin.value = data.isRunOnAll || false;
             resetTranscription();
+            isSpeaking.value = false;
+            allowFinalFlush = false;
+            currentStatus.value = "idle";
           };
 
           const startRecording = async () => {
             isRecording.value = true;
+            allowFinalFlush = false;
             resetTranscription();
             await enableVADStream();
+            await startVAD();
             nextTick(setupVisualizer);
           };
 
           const stopRecording = async () => {
             isRecording.value = false;
-            await disableVADStream();
-            teardownVisualizer();
+            allowFinalFlush = true;
+            await stopVAD();
+            setTimeout(async () => {
+              allowFinalFlush = false;
+              await disableVADStream();
+              teardownVisualizer();
+            }, 320);
           };
 
           const updateTranscription = (update) => {
@@ -776,6 +793,8 @@
           const clearDictation = () => {
             isRecording.value = false;
             resetTranscription();
+            isSpeaking.value = false;
+            allowFinalFlush = false;
           };
 
           watch([displaySegments], () => nextTick(scrollToEnd));
@@ -827,7 +846,27 @@
             }
           }
 
-          function teardownVisualizer() {}
+          function teardownVisualizer() {
+            try {
+              if (visualizer && typeof visualizer.stop === "function") {
+                visualizer.stop();
+              }
+            } catch (_) {}
+            visualizer = null;
+            if (resizeObserver && textScrollContainer.value) {
+              try {
+                resizeObserver.unobserve(textScrollContainer.value);
+              } catch (_) {}
+            }
+            resizeObserver = null;
+            const canvas = document.getElementById("waveCanvas");
+            if (canvas && canvas.getContext) {
+              const ctx = canvas.getContext("2d");
+              if (ctx) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+              }
+            }
+          }
 
           return {
             isRecording,

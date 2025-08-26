@@ -93,7 +93,7 @@
     ]
   },
   {
-    "name": "Recognize and transcribe math related terms and equations correctly",
+    "name": "Recognize and transcribe math related terms and equations as ASCII math",
     "examples": [
       {
         "from": "The probability that X is greater than or equal to five, given Y equals zero, is less than one half times the integral from zero to infinity of e to the minus X squared D X plus alpha squared over beta cubed.",

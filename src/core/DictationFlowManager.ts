@@ -94,6 +94,7 @@ export class DictationFlowManager {
       this.state = "finishing";
       console.log("=== Finishing current dictation with transform+inject ===");
       this.dictationWindowService.stopRecording(); // Stop VAD audio processing
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       if (!this.hasSegmentsToProcess()) {
         const criteria =
@@ -282,7 +283,7 @@ export class DictationFlowManager {
   }
 
   private async processVadAudioSegment(audioData: Float32Array): Promise<void> {
-    if (this.state !== "recording") {
+    if (this.state !== "recording" && this.state !== "finishing") {
       return;
     }
 
