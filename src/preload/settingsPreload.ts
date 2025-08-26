@@ -139,4 +139,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // App information
   getAppVersion: () => ipcRenderer.invoke("app:getVersion"),
+  getPackageInfo: () => ipcRenderer.invoke("app:getPackageInfo"),
+
+  // External URL handling
+  openExternalUrl: (url: string) =>
+    ipcRenderer.invoke("app:openExternalUrl", url),
 });

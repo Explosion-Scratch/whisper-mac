@@ -3198,7 +3198,7 @@
             <div class="about-header">
               <img src="../assets/icon.png" alt="WhisperMac Icon" class="about-app-icon" />
               <h1 class="about-app-name">{{ packageInfo?.name || 'WhisperMac' }}</h1>
-              <a v-if="packageInfo?.repository?.url" :href="getRepoUrl()" target="_blank" class="about-app-version">Version {{ appVersion }}</a>
+              <a v-if="packageInfo?.repository?.url" href="#" @click.prevent="openExternalLink(getRepoUrl())" class="about-app-version">Version {{ appVersion }}</a>
               <span v-else class="about-app-version">Version {{ appVersion }}</span>
               <p class="about-app-description">
                 {{ packageInfo?.description || 'AI-powered dictation for Mac using multiple transcription engines' }}
@@ -3235,11 +3235,11 @@
                   License: {{ packageInfo.license }}
                 </p>
                 <p v-if="packageInfo.homepage" class="about-footer-text">
-                  <a :href="packageInfo.homepage" target="_blank" class="about-footer-link">Homepage</a>
+                  <a href="#" @click.prevent="openExternalLink(packageInfo.homepage)" class="about-footer-link">Homepage</a>
                   <span v-if="packageInfo.bugs?.url"> • </span>
-                  <a v-if="packageInfo.bugs?.url" :href="packageInfo.bugs.url" target="_blank" class="about-footer-link">Report Issues</a>
+                  <a v-if="packageInfo.bugs?.url" href="#" @click.prevent="openExternalLink(packageInfo.bugs.url)" class="about-footer-link">Report Issues</a>
                   <span v-if="packageInfo.repository?.url"> • </span>
-                  <a v-if="packageInfo.repository?.url" :href="getRepoUrl()" target="_blank" class="about-footer-link">Repository</a>
+                  <a v-if="packageInfo.repository?.url" href="#" @click.prevent="openExternalLink(getRepoUrl())" class="about-footer-link">Repository</a>
                 </p>
               </div>
             </div>

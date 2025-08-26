@@ -801,6 +801,17 @@ export class SettingsService {
         };
       }
     });
+
+    ipcMain.handle("app:openExternalUrl", async (_event, url: string) => {
+      try {
+        const { shell } = require("electron");
+        await shell.openExternal(url);
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to open external URL:", error);
+        return { success: false, error: (error as Error).message };
+      }
+    });
   }
 
   private broadcastSettingsUpdate(): void {
@@ -969,6 +980,7 @@ export class SettingsService {
     // Remove app information handlers
     ipcMain.removeHandler("app:getVersion");
     ipcMain.removeHandler("app:getPackageInfo");
+    ipcMain.removeHandler("app:openExternalUrl");
 
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       console.log("Destroying settings window...");

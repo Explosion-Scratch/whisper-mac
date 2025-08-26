@@ -49,14 +49,18 @@ document.addEventListener("DOMContentLoaded", () => {
     },
     methods: {
       // --- INITIALIZATION ---
-      openAuthorLink(event) {
+      async openAuthorLink(event) {
         event.preventDefault();
         if (this.packageInfo?.repository?.url) {
           const repoUrl = this.packageInfo.repository.url
             .replace("git+", "")
             .replace(".git", "");
           const authorUrl = repoUrl.split("/").slice(0, -1).join("/");
-          window.open(authorUrl, "_blank");
+          try {
+            await window.electronAPI.openExternalUrl(authorUrl);
+          } catch (error) {
+            console.error("Failed to open author link:", error);
+          }
         }
       },
 
@@ -67,6 +71,14 @@ document.addEventListener("DOMContentLoaded", () => {
             .replace(".git", "");
         }
         return "https://github.com/explosion-scratch/whisper-mac";
+      },
+
+      async openExternalLink(url) {
+        try {
+          await window.electronAPI.openExternalUrl(url);
+        } catch (error) {
+          console.error("Failed to open external link:", error);
+        }
       },
 
       async init() {
