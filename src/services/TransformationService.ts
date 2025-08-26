@@ -212,6 +212,18 @@ export class TransformationService {
   }
 
   /**
+   * Remove quoted text that starts and ends with quotes
+   * @param text The text to process
+   * @returns Text with quotes removed
+   */
+  static removeQuotes(text: string): string {
+    return text
+      .replace(/^["'`]/, "")
+      .replace(/["'`]$/, "")
+      .trim();
+  }
+
+  /**
    * Remove "changed/new/replaced text:" prefixes
    * @param text The text to process
    * @returns Text with prefixes removed
@@ -465,6 +477,7 @@ export class TransformationService {
       data.choices[0].message.content,
     );
     transformed = await TransformationService.removeChanged(transformed);
+    transformed = TransformationService.removeQuotes(transformed);
     console.log("AI transformed text:", transformed);
     return transformed;
   }
