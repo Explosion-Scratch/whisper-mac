@@ -14,6 +14,8 @@ import { mkdtempSync, existsSync, readdirSync } from "fs";
 import { tmpdir } from "os";
 import { v4 as uuidv4 } from "uuid";
 
+const PROCESS_ALL_AUDIO = true;
+
 export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
   readonly name = "mistral";
   readonly displayName = "Mistral AI";
@@ -33,8 +35,11 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
     super();
     this.config = config;
     this.tempDir = mkdtempSync(join(tmpdir(), "mistral-plugin-"));
-    // Default activation criteria - user configurable
-    this.setActivationCriteria({ runOnAll: false, skipTransformation: false });
+    // Default activation criteria - always process all audio
+    this.setActivationCriteria({
+      runOnAll: PROCESS_ALL_AUDIO,
+      skipTransformation: false,
+    });
 
     // Initialize schema
     this.schema = this.getSchema();
@@ -350,13 +355,6 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
           enum: ["voxtral-mini-latest", "voxtral-small-latest"],
           default: "voxtral-mini-latest",
         },
-        runOnAll: {
-          type: "boolean",
-          title: "Process All Audio",
-          description:
-            "Process complete audio context instead of individual segments",
-          default: false,
-        },
       },
       required: ["api_key"],
     };
@@ -392,15 +390,6 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
           },
         ],
         category: "basic",
-      },
-      {
-        key: "runOnAll",
-        type: "boolean",
-        label: "Process All Audio",
-        description:
-          "Process complete audio context instead of individual segments",
-        default: false,
-        category: "advanced",
       },
     ];
   }
@@ -440,10 +429,9 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
       throw new Error("Mistral API key not configured");
     }
 
-    // Update activation criteria based on runOnAll setting
-    const runOnAll = this.options.runOnAll || false;
+    // Update activation criteria - always process all audio
     this.setActivationCriteria({
-      runOnAll: runOnAll,
+      runOnAll: PROCESS_ALL_AUDIO,
       skipTransformation: false,
     });
 
@@ -539,10 +527,9 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
       console.log("No API key in options to store");
     }
 
-    // Update activation criteria based on runOnAll setting
-    const runOnAll = options.runOnAll || false;
+    // Update activation criteria - always process all audio
     this.setActivationCriteria({
-      runOnAll: runOnAll,
+      runOnAll: PROCESS_ALL_AUDIO,
       skipTransformation: false,
     });
 
