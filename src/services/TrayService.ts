@@ -255,7 +255,6 @@ export class TrayService {
         });
         return;
       }
-      showDictationWindow();
     } catch {}
   }
 
