@@ -760,6 +760,47 @@ export class SettingsService {
         return "1.0.0";
       }
     });
+
+    ipcMain.handle("app:getPackageInfo", () => {
+      try {
+        const packageJson = require("../../package.json");
+        const repoUrl =
+          packageJson.repository?.url ||
+          "git+https://github.com/explosion-scratch/whisper-mac.git";
+        const cleanRepoUrl = repoUrl.replace("git+", "").replace(".git", "");
+
+        return {
+          name: packageJson.build?.productName || packageJson.name,
+          version: packageJson.version,
+          description: packageJson.description,
+          author: packageJson.author,
+          repository: packageJson.repository,
+          homepage: packageJson.homepage || cleanRepoUrl,
+          license: packageJson.license,
+          bugs: packageJson.bugs || { url: `${cleanRepoUrl}/issues` },
+          keywords: packageJson.keywords || [],
+        };
+      } catch (error) {
+        console.error("Failed to get package info:", error);
+        return {
+          name: "WhisperMac",
+          version: "1.0.0",
+          description:
+            "AI-powered dictation for Mac using multiple transcription engines",
+          author: "Explosion Scratch",
+          repository: {
+            type: "git",
+            url: "git+https://github.com/explosion-scratch/whisper-mac.git",
+          },
+          homepage: "https://github.com/explosion-scratch/whisper-mac",
+          license: "MIT",
+          bugs: {
+            url: "https://github.com/explosion-scratch/whisper-mac/issues",
+          },
+          keywords: [],
+        };
+      }
+    });
   }
 
   private broadcastSettingsUpdate(): void {
@@ -927,6 +968,7 @@ export class SettingsService {
 
     // Remove app information handlers
     ipcMain.removeHandler("app:getVersion");
+    ipcMain.removeHandler("app:getPackageInfo");
 
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       console.log("Destroying settings window...");

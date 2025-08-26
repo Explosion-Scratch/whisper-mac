@@ -21,10 +21,12 @@
     "build:mac": "bun run build && electron-builder --mac --publish=never",
     "pack:prod": "NODE_ENV=production bun install && electron-builder --dir"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/explosion-scratch/whisper-mac.git"
+  },
   "dependencies": {
-    "@nut-tree-fork/nut-js": "^4.2.6",
     "@ricky0123/vad-web": "^0.0.22",
-    "axios": "^1.4.0",
     "copy-paste": "^2.2.0",
     "keytar": "^7.9.0",
     "uuid": "^9.0.0"

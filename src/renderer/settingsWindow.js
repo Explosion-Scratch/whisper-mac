@@ -23,6 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
         apiKeyValidationTimeout: null,
         pendingPluginSwitch: false, // Track when plugin switch is pending due to failed immediate activation
         appVersion: "1.0.0", // Will be populated from package.json
+        packageInfo: null, // Will be populated from package.json
       };
     },
     computed: {
@@ -48,6 +49,26 @@ document.addEventListener("DOMContentLoaded", () => {
     },
     methods: {
       // --- INITIALIZATION ---
+      openAuthorLink(event) {
+        event.preventDefault();
+        if (this.packageInfo?.repository?.url) {
+          const repoUrl = this.packageInfo.repository.url
+            .replace("git+", "")
+            .replace(".git", "");
+          const authorUrl = repoUrl.split("/").slice(0, -1).join("/");
+          window.open(authorUrl, "_blank");
+        }
+      },
+
+      getRepoUrl() {
+        if (this.packageInfo?.repository?.url) {
+          return this.packageInfo.repository.url
+            .replace("git+", "")
+            .replace(".git", "");
+        }
+        return "https://github.com/explosion-scratch/whisper-mac";
+      },
+
       async init() {
         try {
           this.schema = await window.electronAPI.getSettingsSchema();
@@ -69,12 +90,14 @@ document.addEventListener("DOMContentLoaded", () => {
           console.log("this.activePlugin", this.activePlugin);
           this.ensurePluginSettingsObjects();
 
-          // Load app version
+          // Load app version and package info
           try {
             this.appVersion = await window.electronAPI.getAppVersion();
+            this.packageInfo = await window.electronAPI.getPackageInfo();
           } catch (error) {
             console.error("Failed to load app version:", error);
             this.appVersion = "1.0.0";
+            this.packageInfo = null;
           }
 
           if (this.schema.length > 0) {

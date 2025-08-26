@@ -1812,6 +1812,23 @@
         color: var(--color-text-secondary);
       }
 
+      .about-footer-details {
+        margin-top: var(--spacing-sm);
+        padding-top: var(--spacing-sm);
+        border-top: 1px solid var(--color-border-primary);
+      }
+
+      .about-footer-link {
+        color: var(--color-primary);
+        text-decoration: none;
+        transition: all var(--transition-normal);
+      }
+
+      .about-footer-link:hover {
+        color: var(--color-primary-hover);
+        text-decoration: underline;
+      }
+
       @keyframes spin {
         to {
           transform: rotate(360deg);
@@ -2033,6 +2050,18 @@
 
         .about-action-btn:hover {
           background: rgba(255, 255, 255, 0.15);
+        }
+
+        .about-footer-details {
+          border-top-color: var(--color-border-primary);
+        }
+
+        .about-footer-link {
+          color: var(--color-primary);
+        }
+
+        .about-footer-link:hover {
+          color: var(--color-primary-hover);
         }
       }
     </style>
@@ -3168,12 +3197,14 @@
           <div class="about-container">
             <div class="about-header">
               <img src="../assets/icon.png" alt="WhisperMac Icon" class="about-app-icon" />
-              <h1 class="about-app-name">WhisperMac</h1>
-              <a href="https://github.com/explosion-scratch/whisper-mac/releases" target="_blank" class="about-app-version">Version {{ appVersion }}</a>
+              <h1 class="about-app-name">{{ packageInfo?.name || 'WhisperMac' }}</h1>
+              <a v-if="packageInfo?.repository?.url" :href="getRepoUrl()" target="_blank" class="about-app-version">Version {{ appVersion }}</a>
+              <span v-else class="about-app-version">Version {{ appVersion }}</span>
               <p class="about-app-description">
-                AI-powered dictation for Mac using multiple transcription engines
+                {{ packageInfo?.description || 'AI-powered dictation for Mac using multiple transcription engines' }}
               </p>
-              <a href="https://github.com/explosion-scratch" target="_blank" class="about-app-author">By Explosion-Scratch</a>
+              <a v-if="packageInfo?.author" href="#" @click="openAuthorLink" class="about-app-author">By {{ packageInfo.author }}</a>
+              <span v-else class="about-app-author">By Explosion-Scratch</span>
             </div>
 
             <div class="about-actions">
@@ -3199,6 +3230,18 @@
               <p class="about-footer-text">
                 Import or export all your WhisperMac settings to backup or transfer between installations.
               </p>
+              <div v-if="packageInfo" class="about-footer-details">
+                <p v-if="packageInfo.license" class="about-footer-text">
+                  License: {{ packageInfo.license }}
+                </p>
+                <p v-if="packageInfo.homepage" class="about-footer-text">
+                  <a :href="packageInfo.homepage" target="_blank" class="about-footer-link">Homepage</a>
+                  <span v-if="packageInfo.bugs?.url"> • </span>
+                  <a v-if="packageInfo.bugs?.url" :href="packageInfo.bugs.url" target="_blank" class="about-footer-link">Report Issues</a>
+                  <span v-if="packageInfo.repository?.url"> • </span>
+                  <a v-if="packageInfo.repository?.url" :href="getRepoUrl()" target="_blank" class="about-footer-link">Repository</a>
+                </p>
+              </div>
             </div>
           </div>
         </main>
