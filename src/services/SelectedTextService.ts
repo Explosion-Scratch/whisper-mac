@@ -17,9 +17,11 @@ export interface ActiveWindowInfo {
 
 export class SelectedTextService {
   private injectUtilPath: string;
+  private getSelectionPath: string;
 
   constructor() {
     this.injectUtilPath = `${process.cwd()}/dist/injectUtil`;
+    this.getSelectionPath = `${process.cwd()}/dist/get-selection`;
   }
 
   getClipboardContent(): string {
@@ -61,18 +63,16 @@ export class SelectedTextService {
     const originalClipboard = this.getClipboardContent();
 
     try {
-      const { stdout, stderr } = await execFileAsync(this.injectUtilPath, [
-        "--get-selection",
-      ]);
+      const { stdout, stderr } = await execFileAsync(this.getSelectionPath, []);
 
       if (stderr) {
-        console.error("injectUtil stderr:", stderr);
+        console.error("get-selection stderr:", stderr);
       }
 
       const selectedText = stdout.trim();
       const hasSelection = selectedText.length > 0;
 
-      console.log("injectUtil-based result:", {
+      console.log("get-selection-based result:", {
         text: selectedText,
         hasSelection,
         length: selectedText.length,
@@ -88,7 +88,7 @@ export class SelectedTextService {
       console.log("SelectedTextService.getSelectedText output:", result);
       return result;
     } catch (error) {
-      console.error("Failed to get selected text using injectUtil:", error);
+      console.error("Failed to get selected text using get-selection:", error);
       return {
         text: "",
         originalClipboard: originalClipboard,

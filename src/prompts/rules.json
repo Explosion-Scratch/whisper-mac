@@ -180,5 +180,15 @@
   },
   {
     "name": "Preserve original wording and phrases as much as possible, for example when writing an email, don't change the wording of the email, but feel free to format properly"
+  },
+  {
+    "name": "Beware that what the user is saying may not relate to the context",
+    "if": ["context"],
+    "examples": [
+      {
+        "from": "Make the loading spinner faster during transformation or injection steps (given SettingsService.ts as context)",
+        "to": "Make the loading spinner faster during transformation or injection steps. (You can't infer that SettingsService.ts is relevant so the user's wording should be retained)"
+      }
+    ]
   }
 ]

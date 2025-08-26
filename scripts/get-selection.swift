@@ -1,4 +1,3 @@
-#!/usr/bin/env swift
 import Foundation
 import ApplicationServices
 import AppKit
