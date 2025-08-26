@@ -1,5 +1,8 @@
-import { keyboard, Key } from "@nut-tree-fork/nut-js";
 import { clipboard } from "electron";
+import { execFile } from "child_process";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
 
 export interface SelectedTextResult {
   text: string;
@@ -13,6 +16,12 @@ export interface ActiveWindowInfo {
 }
 
 export class SelectedTextService {
+  private injectUtilPath: string;
+
+  constructor() {
+    this.injectUtilPath = `${process.cwd()}/dist/injectUtil`;
+  }
+
   getClipboardContent(): string {
     return clipboard.readText();
   }
@@ -22,42 +31,28 @@ export class SelectedTextService {
   }
 
   async getActiveWindowInfo(): Promise<ActiveWindowInfo> {
-    return new Promise((resolve) => {
-      const { execFile } = require("child_process");
+    try {
+      const { stdout, stderr } = await execFileAsync(this.injectUtilPath, [
+        "--window-app-details",
+      ]);
 
-      const script = `
-        tell application "System Events"
-          set frontApp to first application process whose frontmost is true
-          set frontWindow to first window of frontApp
-          set windowTitle to name of frontWindow
-          set appName to name of frontApp
-          return windowTitle & "|" & appName
-        end tell
-      `;
+      if (stderr) {
+        console.error("injectUtil stderr:", stderr);
+      }
 
-      execFile("osascript", ["-e", script], (error: any, stdout: string) => {
-        if (error) {
-          console.error("AppleScript error getting window info:", error);
-          resolve({ title: "", appName: "" });
-          return;
-        }
-
-        try {
-          const parts = stdout.trim().split("|");
-          if (parts.length === 2) {
-            resolve({
-              title: parts[0] || "",
-              appName: parts[1] || "",
-            });
-          } else {
-            resolve({ title: "", appName: "" });
-          }
-        } catch (parseError) {
-          console.error("Failed to parse window info:", parseError);
-          resolve({ title: "", appName: "" });
-        }
-      });
-    });
+      const parts = stdout.trim().split("|");
+      if (parts.length === 2) {
+        return {
+          title: parts[0] || "",
+          appName: parts[1] || "",
+        };
+      } else {
+        return { title: "", appName: "" };
+      }
+    } catch (error) {
+      console.error("Failed to get window info using injectUtil:", error);
+      return { title: "", appName: "" };
+    }
   }
 
   async getSelectedText(): Promise<SelectedTextResult> {
@@ -66,39 +61,34 @@ export class SelectedTextService {
     const originalClipboard = this.getClipboardContent();
 
     try {
-      const marker = "1z4*5eiur_45r|uyt}r4";
-      this.setClipboardContent(marker);
+      const { stdout, stderr } = await execFileAsync(this.injectUtilPath, [
+        "--get-selection",
+      ]);
 
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      if (stderr) {
+        console.error("injectUtil stderr:", stderr);
+      }
 
-      await keyboard.pressKey(Key.LeftCmd, Key.C);
-      await keyboard.releaseKey(Key.LeftCmd, Key.C);
+      const selectedText = stdout.trim();
+      const hasSelection = selectedText.length > 0;
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      const newClipboard = this.getClipboardContent();
-      const trimmedText = newClipboard.trim();
-
-      console.log("Clipboard-based result:", {
-        text: trimmedText,
-        hasSelection: trimmedText.length > 0,
-        length: trimmedText.length,
-        originalClipboard: originalClipboard,
-        newClipboard: newClipboard,
+      console.log("injectUtil-based result:", {
+        text: selectedText,
+        hasSelection,
+        length: selectedText.length,
+        originalClipboard,
       });
 
-      const clipboardChanged =
-        newClipboard !== originalClipboard && newClipboard !== marker;
-
-      let out = {
-        text: clipboardChanged ? trimmedText : "",
-        hasSelection: trimmedText.length > 0 && clipboardChanged,
-        originalClipboard: originalClipboard,
+      const result: SelectedTextResult = {
+        text: selectedText,
+        hasSelection,
+        originalClipboard,
       };
-      console.log("SelectedTextService.getSelectedText output:", out);
-      return out;
+
+      console.log("SelectedTextService.getSelectedText output:", result);
+      return result;
     } catch (error) {
-      console.error("Failed to get selected text:", error);
+      console.error("Failed to get selected text using injectUtil:", error);
       return {
         text: "",
         originalClipboard: originalClipboard,

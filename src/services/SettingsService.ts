@@ -311,7 +311,24 @@ export class SettingsService {
         if (!this.transcriptionPluginManager) {
           throw new Error("Plugin manager not initialized");
         }
-        return this.transcriptionPluginManager.getAllPluginSchemas();
+
+        const plugins = this.transcriptionPluginManager
+          .getPlugins()
+          .map((plugin) => ({
+            name: plugin.name,
+            displayName: plugin.displayName,
+            description: plugin.description,
+            version: plugin.version,
+            supportsRealtime: plugin.supportsRealtime,
+            supportsBatchProcessing: plugin.supportsBatchProcessing,
+          }));
+
+        const schemas = this.transcriptionPluginManager.getAllPluginSchemas();
+
+        return {
+          plugins,
+          schemas,
+        };
       } catch (error) {
         console.error("Error getting plugin schemas:", error);
         throw error;
@@ -763,6 +780,8 @@ export class SettingsService {
       height: 600,
       minWidth: 600,
       minHeight: 400,
+      maxWidth: 600,
+      maxHeight: 500,
       transparent: true,
       backgroundColor: "#00000000",
       vibrancy: "under-window",

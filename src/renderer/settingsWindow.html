@@ -13,10 +13,6 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css"
     />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/style.css"
-    />
     <style>
       [v-cloak] {
         display: none;
@@ -218,7 +214,7 @@
         font-weight: var(--font-weight-semibold);
       }
 
-      .nav-group-item.active .icon {
+      .nav-group-item.active .icn {
         color: var(--color-primary);
       }
 
@@ -235,7 +231,7 @@
         box-shadow: 0 0 4px rgba(0, 122, 255, 0.3);
       }
 
-      .nav-group-item .icon {
+      .nav-group-item .icn {
         margin-right: var(--spacing-sm);
         width: 18px;
         height: 18px;
@@ -248,12 +244,12 @@
         opacity: 0.8;
       }
 
-      .nav-group-item:hover .icon {
+      .nav-group-item:hover .icn {
         opacity: 1;
         transform: scale(1.05);
       }
 
-      .nav-group-item.active .icon {
+      .nav-group-item.active .icn {
         opacity: 1;
         transform: scale(1.1);
       }
@@ -535,14 +531,14 @@
         color: var(--color-text-primary);
       }
 
-      .btn-icon-only {
+      .btn-icn-only {
         padding: 6px;
         min-width: 28px;
         width: 28px;
         height: 28px;
       }
 
-      .btn-icon-only .ph-duotone {
+      .btn-icn-only .ph-duotone {
         margin: 0;
         font-size: 14px;
       }
@@ -1544,11 +1540,11 @@
       .btn-sm {
         padding: 4px 6px;
         font-size: var(--font-size-xs);
-        min-width: 24px;
+        min-width: 90px;
         height: 24px;
       }
 
-      .btn-icon-only.btn-sm {
+      .btn-icn-only.btn-sm {
         width: 24px;
         height: 24px;
         padding: 0;
@@ -1876,21 +1872,21 @@
         <div class="toolbar-actions">
           <button
             @click="resetAll"
-            class="btn btn-default btn-icon-only action-btn"
+            class="btn btn-default btn-icn-only action-btn"
             title="Reset all settings to defaults"
           >
             <i class="ph ph-arrow-clockwise"></i>
           </button>
           <button
             @click="importSettings"
-            class="btn btn-default btn-icon-only action-btn"
+            class="btn btn-default btn-icn-only action-btn"
             title="Import settings from file"
           >
             <i class="ph ph-download-simple"></i>
           </button>
           <button
             @click="exportSettings"
-            class="btn btn-default btn-icon-only action-btn"
+            class="btn btn-default btn-icn-only action-btn"
             title="Export settings to file"
           >
             <i class="ph ph-upload-simple"></i>
@@ -1909,7 +1905,7 @@
               @click="showSection(section.id)"
             >
               <i
-                class="icon ph-duotone"
+                class="icn ph"
                 :class="getIcon(section.icon || section.id)"
               ></i>
               {{ section.title }}
@@ -2172,7 +2168,7 @@
                           <div class="action-controls">
                             <button
                               type="button"
-                              class="btn btn-icon-only"
+                              class="btn btn-icn-only"
                               @click="moveAction(index, -1)"
                               :disabled="index === 0"
                               title="Move up"
@@ -2181,7 +2177,7 @@
                             </button>
                             <button
                               type="button"
-                              class="btn btn-icon-only"
+                              class="btn btn-icn-only"
                               @click="moveAction(index, 1)"
                               :disabled="index === (settings.actions?.actions?.length || 0) - 1"
                               title="Move down"
@@ -2190,7 +2186,7 @@
                             </button>
                             <button
                               type="button"
-                              class="btn btn-icon-only"
+                              class="btn btn-icn-only"
                               @click="toggleActionCard(action.id)"
                               title="View action details"
                             >
@@ -2198,7 +2194,7 @@
                             </button>
                             <button
                               type="button"
-                              class="btn btn-icon-only btn-negative"
+                              class="btn btn-icn-only btn-negative"
                               @click="deleteAction(index)"
                               title="Delete action"
                             >
@@ -2298,7 +2294,7 @@
                                 >
                                 <button
                                   type="button"
-                                  class="btn btn-icon-only btn-negative"
+                                  class="btn btn-icn-only btn-negative"
                                   @click="deletePattern(index, pIndex)"
                                 >
                                   <i class="ph-duotone ph-x"></i>
@@ -2351,7 +2347,7 @@
                                 />
                                 <button
                                   type="button"
-                                  class="btn btn-icon-only btn-negative"
+                                  class="btn btn-icn-only btn-negative"
                                   @click="deleteHandler(index, hIndex)"
                                 >
                                   <i class="ph-duotone ph-x"></i>
@@ -2588,7 +2584,7 @@
                             ></i>
                             <button
                               type="button"
-                              class="btn btn-icon-only btn-sm"
+                              class="btn btn-icn-only btn-sm"
                               @click.stop="deleteRule(index)"
                               title="Delete rule"
                             >
@@ -2679,7 +2675,7 @@
                                 </div>
                                 <button
                                   type="button"
-                                  class="btn btn-icon-only btn-negative btn-sm example-delete-btn"
+                                  class="btn btn-icn-only btn-negative btn-sm example-delete-btn"
                                   @click="deleteExample(index, eIndex)"
                                   title="Delete example"
                                 >

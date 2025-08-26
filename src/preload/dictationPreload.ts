@@ -117,6 +117,8 @@ declare global {
       cancelDictation: () => void;
       minimizeWindow: () => void;
       logMessage: (message: string) => void;
+      onPlayEndSound: (callback: () => void) => void;
+      sendAudioSegment: (audioData: Float32Array) => void;
     };
   }
 }
