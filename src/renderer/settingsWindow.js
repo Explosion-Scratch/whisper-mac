@@ -22,6 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
         apiKeyInput: "",
         apiKeyValidationTimeout: null,
         pendingPluginSwitch: false, // Track when plugin switch is pending due to failed immediate activation
+        appVersion: "1.0.0", // Will be populated from package.json
       };
     },
     computed: {
@@ -67,6 +68,14 @@ document.addEventListener("DOMContentLoaded", () => {
             pluginManagerActive || this.settings.transcriptionPlugin || "yap";
           console.log("this.activePlugin", this.activePlugin);
           this.ensurePluginSettingsObjects();
+
+          // Load app version
+          try {
+            this.appVersion = await window.electronAPI.getAppVersion();
+          } catch (error) {
+            console.error("Failed to load app version:", error);
+            this.appVersion = "1.0.0";
+          }
 
           if (this.schema.length > 0) {
             this.showSection(this.schema[0].id);
@@ -937,6 +946,15 @@ document.addEventListener("DOMContentLoaded", () => {
           writing_style: "Writing style",
         };
         return labelMap[condition] || condition;
+      },
+
+      // --- ABOUT SECTION METHODS ---
+      async importAllSettings() {
+        await this.importSettings();
+      },
+
+      async exportAllSettings() {
+        await this.exportSettings();
       },
     },
     mounted() {

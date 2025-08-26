@@ -136,4 +136,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   removeAllListeners: (channel: string) => {
     ipcRenderer.removeAllListeners(channel);
   },
+
+  // App information
+  getAppVersion: () => ipcRenderer.invoke("app:getVersion"),
 });

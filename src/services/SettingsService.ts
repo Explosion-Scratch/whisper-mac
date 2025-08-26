@@ -749,6 +749,17 @@ export class SettingsService {
         );
       }
     });
+
+    // App information
+    ipcMain.handle("app:getVersion", () => {
+      try {
+        const packageJson = require("../../package.json");
+        return packageJson.version;
+      } catch (error) {
+        console.error("Failed to get app version:", error);
+        return "1.0.0";
+      }
+    });
   }
 
   private broadcastSettingsUpdate(): void {
@@ -913,6 +924,9 @@ export class SettingsService {
     ipcMain.removeHandler("plugins:getSecureStorageInfo");
     ipcMain.removeHandler("plugins:clearSecureData");
     ipcMain.removeHandler("plugins:exportSecureData");
+
+    // Remove app information handlers
+    ipcMain.removeHandler("app:getVersion");
 
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       console.log("Destroying settings window...");

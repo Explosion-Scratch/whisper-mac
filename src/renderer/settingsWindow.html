@@ -1660,6 +1660,158 @@
         transition: width 0.3s ease;
       }
 
+      /* About Section Styles */
+      .about-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: var(--spacing-xl);
+        background: linear-gradient(135deg, rgba(0, 122, 255, 0.03), rgba(0, 122, 255, 0.01));
+      }
+
+      .about-container {
+        max-width: 500px;
+        width: 100%;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid var(--color-border-primary);
+        border-radius: var(--radius-lg);
+        padding: var(--spacing-xl);
+        box-shadow: var(--shadow-lg);
+        backdrop-filter: blur(10px);
+        transition: all var(--transition-normal);
+      }
+
+      .about-container:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: translateY(-1px);
+      }
+
+      .about-header {
+        margin-bottom: var(--spacing-xl);
+      }
+
+      .about-app-icon {
+        width: 80px;
+        height: 80px;
+        border-radius: var(--radius-lg);
+        margin: 0 auto var(--spacing-lg);
+        transition: all var(--transition-normal);
+      }
+
+      .about-app-icon:hover {
+        transform: scale(1.02);
+        filter: brightness(1.1);
+      }
+
+      .about-app-name {
+        font-size: 28px;
+        font-weight: 300;
+        color: var(--color-text-primary);
+        margin: 0 0 var(--spacing-sm);
+        letter-spacing: -0.5px;
+        transition: color var(--transition-normal);
+      }
+
+      .about-app-name:hover {
+        color: var(--color-primary);
+      }
+
+      .about-app-version {
+        font-size: var(--font-size-lg);
+        color: var(--color-primary);
+        font-weight: var(--font-weight-medium);
+        margin: 0 0 var(--spacing-md);
+        text-decoration: none;
+        transition: all var(--transition-normal);
+        display: inline-block;
+      }
+
+      .about-app-version:hover {
+        color: var(--color-primary-hover);
+        transform: translateY(-1px);
+      }
+
+      .about-app-description {
+        font-size: var(--font-size-md);
+        color: var(--color-text-secondary);
+        line-height: 1.5;
+        margin: 0 0 var(--spacing-sm);
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+        transition: color var(--transition-normal);
+      }
+
+      .about-app-description:hover {
+        color: var(--color-text-primary);
+      }
+
+      .about-app-author {
+        font-size: var(--font-size-sm);
+        color: var(--color-text-tertiary);
+        margin: 0;
+        font-style: italic;
+        text-decoration: none;
+        transition: all var(--transition-normal);
+        display: inline-block;
+      }
+
+      .about-app-author:hover {
+        color: var(--color-primary);
+        transform: translateY(-1px);
+      }
+
+      .about-actions {
+        display: flex;
+        gap: var(--spacing-md);
+        justify-content: center;
+        margin-bottom: var(--spacing-lg);
+      }
+
+      .about-action-btn {
+        padding: var(--spacing-md) var(--spacing-lg);
+        font-size: var(--font-size-md);
+        font-weight: var(--font-weight-medium);
+        min-width: 140px;
+        background: rgba(255, 255, 255, 0.9);
+        color: var(--color-text-primary);
+        border: 1px solid var(--color-border-primary);
+        transition: all var(--transition-normal);
+      }
+
+      .about-action-btn:hover {
+        background: rgba(255, 255, 255, 1);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .about-action-btn:active {
+        transform: translateY(0);
+      }
+
+      .about-footer {
+        border-top: 1px solid var(--color-border-primary);
+        padding-top: var(--spacing-lg);
+        transition: border-color var(--transition-normal);
+      }
+
+      .about-footer:hover {
+        border-top-color: var(--color-primary);
+      }
+
+      .about-footer-text {
+        font-size: var(--font-size-sm);
+        color: var(--color-text-tertiary);
+        margin: 0;
+        line-height: 1.4;
+        transition: color var(--transition-normal);
+      }
+
+      .about-footer:hover .about-footer-text {
+        color: var(--color-text-secondary);
+      }
+
       @keyframes spin {
         to {
           transform: rotate(360deg);
@@ -1863,6 +2015,25 @@
         ::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.3);
         }
+
+        .about-content {
+          background: linear-gradient(135deg, rgba(0, 122, 255, 0.08), rgba(0, 122, 255, 0.04));
+        }
+
+        .about-container {
+          background: rgba(255, 255, 255, 0.05);
+          border-color: var(--color-border-primary);
+        }
+
+        .about-action-btn {
+          background: rgba(255, 255, 255, 0.1);
+          color: var(--color-text-primary);
+          border-color: var(--color-border-primary);
+        }
+
+        .about-action-btn:hover {
+          background: rgba(255, 255, 255, 0.15);
+        }
       }
     </style>
   </head>
@@ -1910,6 +2081,14 @@
                 :class="getIcon(section.icon || section.id)"
               ></i>
               {{ section.title }}
+            </a>
+            <a
+              class="nav-group-item"
+              :class="{ active: currentSectionId === 'about' }"
+              @click="showSection('about')"
+            >
+              <i class="icn ph ph-info"></i>
+              About
             </a>
           </div>
         </nav>
@@ -2982,6 +3161,46 @@
               </button>
             </div>
           </form>
+        </main>
+
+        <!-- About Section -->
+        <main class="settings-content about-content" v-if="currentSectionId === 'about'">
+          <div class="about-container">
+            <div class="about-header">
+              <img src="../assets/icon.png" alt="WhisperMac Icon" class="about-app-icon" />
+              <h1 class="about-app-name">WhisperMac</h1>
+              <a href="https://github.com/explosion-scratch/whisper-mac/releases" target="_blank" class="about-app-version">Version {{ appVersion }}</a>
+              <p class="about-app-description">
+                AI-powered dictation for Mac using multiple transcription engines
+              </p>
+              <a href="https://github.com/explosion-scratch" target="_blank" class="about-app-author">By Explosion-Scratch</a>
+            </div>
+
+            <div class="about-actions">
+              <button
+                type="button"
+                @click="importAllSettings"
+                class="btn btn-primary about-action-btn"
+              >
+                <i class="ph-duotone ph-download-simple"></i>
+                Import Settings
+              </button>
+              <button
+                type="button"
+                @click="exportAllSettings"
+                class="btn btn-primary about-action-btn"
+              >
+                <i class="ph-duotone ph-upload-simple"></i>
+                Export Settings
+              </button>
+            </div>
+
+            <div class="about-footer">
+              <p class="about-footer-text">
+                Import or export all your WhisperMac settings to backup or transfer between installations.
+              </p>
+            </div>
+          </div>
         </main>
       </div>
 
