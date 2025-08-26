@@ -15,7 +15,8 @@ export interface SettingsField {
     | "slider"
     | "directory"
     | "actions-editor"
-    | "rules-editor";
+    | "rules-editor"
+    | "hotkey";
   label: string;
   description?: string;
   defaultValue: any;
@@ -232,6 +233,53 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         description:
           "Configure actions that can be triggered by voice commands during dictation",
         defaultValue: getDefaultActionsConfig(),
+      },
+    ],
+  },
+
+  {
+    id: "hotkeys",
+    title: "Hotkeys",
+    description: "Configure keyboard shortcuts for app functions",
+    icon: "cog",
+    fields: [
+      {
+        key: "hotkeys.startStopDictation",
+        type: "hotkey",
+        label: "Start/Stop Dictation",
+        description: "Keyboard shortcut to start or stop dictation recording",
+        defaultValue: "Control+D",
+      },
+      {
+        key: "hotkeys.cancelDictation",
+        type: "hotkey",
+        label: "Cancel Dictation",
+        description:
+          "Keyboard shortcut to cancel ongoing dictation without saving",
+        defaultValue: "",
+      },
+      {
+        key: "hotkeys.injectLastResult",
+        type: "hotkey",
+        label: "Inject Last Result",
+        description:
+          "Keyboard shortcut to inject the last transformed result into active app",
+        defaultValue: "",
+      },
+      {
+        key: "hotkeys.cyclePlugin",
+        type: "hotkey",
+        label: "Cycle Plugin",
+        description:
+          "Keyboard shortcut to cycle to the next available transcription plugin",
+        defaultValue: "",
+      },
+      {
+        key: "hotkeys.quitApp",
+        type: "hotkey",
+        label: "Quit App",
+        description: "Keyboard shortcut to quit WhisperMac",
+        defaultValue: "",
       },
     ],
   },

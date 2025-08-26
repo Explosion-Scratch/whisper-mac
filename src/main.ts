@@ -23,6 +23,7 @@ import {
   AppStateManager,
   WindowManager,
   ShortcutManager,
+  ShortcutActions,
   ErrorManager,
   CleanupManager,
   DictationFlowManager,
@@ -150,6 +151,9 @@ class WhisperMacApp {
     this.settingsService.setUnifiedModelDownloadService(
       this.unifiedModelDownloadService,
     );
+    this.shortcutManager.setTranscriptionPluginManager(
+      this.transcriptionPluginManager,
+    );
   }
 
   private setupEventListeners(): void {
@@ -197,6 +201,16 @@ class WhisperMacApp {
     if (this.configurableActionsService && actionsConfig?.actions) {
       this.configurableActionsService.setActions(actionsConfig.actions);
     }
+
+    // Track last transformed result for hotkey injection
+    this.segmentManager.on(
+      "transformed",
+      (result: { transformedText: string }) => {
+        if (result.transformedText) {
+          this.shortcutManager.setLastTransformedResult(result.transformedText);
+        }
+      },
+    );
   }
 
   async initialize(): Promise<void> {
@@ -234,6 +248,7 @@ class WhisperMacApp {
       () => this.settingsService.openSettingsWindow(),
       this.transcriptionPluginManager,
       this.notificationService,
+      this.settingsManager,
     );
     this.trayService.createTray();
 
@@ -254,6 +269,9 @@ class WhisperMacApp {
       this.trayService,
       this.errorManager,
     );
+
+    // Set dictationFlowManager reference in shortcutManager after recreating it
+    this.shortcutManager.setDictationFlowManager(this.dictationFlowManager);
   }
 
   private handleTrayClick(): void {
@@ -266,9 +284,37 @@ class WhisperMacApp {
   }
 
   private onInitializationComplete(): void {
-    this.shortcutManager.registerShortcuts(() => this.handleShortcutPress());
+    this.registerHotkeys();
     this.ipcHandlerManager.setupIpcHandlers();
     this.trayInteractionManager.hideDockAfterOnboarding();
+  }
+
+  private registerHotkeys(): void {
+    const hotkeySettings =
+      (this.settingsManager.get("hotkeys") as Record<string, string>) || {};
+
+    const actions: ShortcutActions = {
+      onToggleRecording: () => this.handleShortcutPress(),
+      onCancelDictation: () => this.shortcutManager.cancelDictation(),
+      onInjectLastResult: () => this.shortcutManager.injectLastResult(),
+      onCyclePlugin: () => this.shortcutManager.cycleToNextPlugin(),
+      onQuitApp: () => this.shortcutManager.quitApp(),
+    };
+
+    this.shortcutManager.registerShortcuts(hotkeySettings, actions);
+
+    // Listen for hotkey setting changes and re-register shortcuts
+    this.settingsManager.on("setting-changed", (key: string, value: any) => {
+      if (key.startsWith("hotkeys.")) {
+        console.log(`Hotkey setting changed: ${key} = ${value}`);
+        this.registerHotkeys();
+
+        // Update tray menu to show new hotkey
+        if (this.trayService && key === "hotkeys.startStopDictation") {
+          this.trayService.refreshTrayMenu();
+        }
+      }
+    });
   }
 
   private handleOnboardingComplete(): void {

@@ -73,6 +73,11 @@ document.addEventListener("DOMContentLoaded", () => {
         return "https://github.com/explosion-scratch/whisper-mac";
       },
 
+      getReleasesUrl() {
+        const repoUrl = this.getRepoUrl();
+        return `${repoUrl}/releases/tag/v${this.appVersion}`;
+      },
+
       async openExternalLink(url) {
         try {
           await window.electronAPI.openExternalUrl(url);
@@ -398,6 +403,91 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!result.canceled && result.filePaths.length > 0) {
           this.setSettingValue(key, result.filePaths[0]);
         }
+      },
+
+      // --- HOTKEY METHODS ---
+      captureHotkey(event, key) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        // Ignore if just modifier keys pressed
+        const modifierKeys = [
+          "Control",
+          "Alt",
+          "Shift",
+          "Meta",
+          "Command",
+          "AltGraph",
+        ];
+        if (modifierKeys.includes(event.key)) {
+          return;
+        }
+
+        // Build hotkey string
+        const parts = [];
+
+        // Distinguish between Ctrl and Cmd on macOS
+        if (event.ctrlKey && !event.metaKey) parts.push("Control");
+        if (event.metaKey) parts.push("CommandOrControl");
+        if (event.altKey) parts.push("Alt");
+        if (event.shiftKey) parts.push("Shift");
+
+        // Use event.code for better key detection, especially with Alt combinations
+        let keyToUse = event.key;
+
+        // Handle special keys and Alt combinations
+        if (event.altKey && event.code.startsWith("Key")) {
+          // For Alt + letter combinations, use the base key from code
+          keyToUse = event.code.replace("Key", "");
+        } else if (event.altKey && event.code.startsWith("Digit")) {
+          // For Alt + number combinations
+          keyToUse = event.code.replace("Digit", "");
+        }
+
+        // Map special keys
+        const keyMap = {
+          " ": "Space",
+          " ": "Space",
+          ArrowUp: "Up",
+          ArrowDown: "Down",
+          ArrowLeft: "Left",
+          ArrowRight: "Right",
+          Backspace: "BackSpace",
+          Delete: "Delete",
+          Enter: "Return",
+          Tab: "Tab",
+          Escape: "Escape",
+          // Handle function keys
+          F1: "F1",
+          F2: "F2",
+          F3: "F3",
+          F4: "F4",
+          F5: "F5",
+          F6: "F6",
+          F7: "F7",
+          F8: "F8",
+          F9: "F9",
+          F10: "F10",
+          F11: "F11",
+          F12: "F12",
+        };
+
+        const normalizedKey = keyMap[keyToUse] || keyToUse;
+
+        // Don't add modifier keys again
+        if (!modifierKeys.includes(normalizedKey)) {
+          parts.push(normalizedKey);
+        }
+
+        const hotkeyString = parts.join("+");
+
+        if (hotkeyString && parts.length > 0) {
+          this.setSettingValue(key, hotkeyString);
+        }
+      },
+
+      clearHotkey(key) {
+        this.setSettingValue(key, "");
       },
 
       // --- AI PROVIDER METHODS ---

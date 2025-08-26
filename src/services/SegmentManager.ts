@@ -289,6 +289,9 @@ export class SegmentManager extends EventEmitter {
         options.onInjecting?.();
         await this.textInjectionService.insertText(transformedText);
         console.log(`[SegmentManager] Injected text: "${transformedText}"`);
+
+        // Emit transformed event for hotkey last result tracking
+        this.emit("transformed", { transformedText });
       }
 
       // Clear all segments after successful transform+inject

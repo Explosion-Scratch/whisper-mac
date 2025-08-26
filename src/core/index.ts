@@ -9,3 +9,4 @@ export { InitializationManager } from "./InitializationManager";
 export { TrayInteractionManager } from "./TrayInteractionManager";
 
 export type { SetupStatus } from "./AppStateManager";
+export type { ShortcutActions } from "./ShortcutManager";

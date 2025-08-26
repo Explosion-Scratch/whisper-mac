@@ -9,6 +9,7 @@ import {
 import { join } from "path";
 import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManager";
 import { NotificationService } from "./NotificationService";
+import { SettingsManager } from "../config/SettingsManager";
 
 export type SetupStatus =
   | "idle"
@@ -35,6 +36,7 @@ export class TrayService {
     private readonly onShowSettings: () => void,
     private readonly pluginManager: TranscriptionPluginManager,
     private readonly notificationService: NotificationService,
+    private readonly settingsManager: SettingsManager,
   ) {}
 
   createTray() {
@@ -83,7 +85,9 @@ export class TrayService {
       // Create menu items for available plugins
       const pluginItems: Electron.MenuItemConstructorOptions[] =
         availablePlugins.map((plugin) => ({
-          label: `${plugin.displayName}${activePluginName === plugin.name ? " ✓" : ""}`,
+          label: `${plugin.displayName}${
+            activePluginName === plugin.name ? " ✓" : ""
+          }`,
           type: "normal",
           enabled: activePluginName !== plugin.name, // Disable current active plugin
           click: () => this.activatePlugin(plugin.name),
@@ -107,8 +111,9 @@ export class TrayService {
   private async activatePlugin(pluginName: string): Promise<void> {
     try {
       console.log(`Attempting to activate plugin: ${pluginName}`);
-      const result =
-        await this.pluginManager.activatePluginWithFallback(pluginName);
+      const result = await this.pluginManager.activatePluginWithFallback(
+        pluginName,
+      );
 
       if (result.success) {
         console.log(`Successfully activated plugin: ${result.activePlugin}`);
@@ -152,7 +157,9 @@ export class TrayService {
     } catch (error) {
       console.error(`Error activating plugin ${pluginName}:`, error);
       await this.notificationService.sendErrorNotification(
-        `Error switching to ${pluginName}: ${error instanceof Error ? error.message : String(error)}`,
+        `Error switching to ${pluginName}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
   }
@@ -173,11 +180,16 @@ export class TrayService {
       // Generate plugin submenu asynchronously
       const pluginSubmenu = await this.generatePluginSubmenu();
 
+      // Get configured hotkey for start/stop dictation
+      const hotkeySettings =
+        (this.settingsManager.get("hotkeys") as Record<string, string>) || {};
+      const startStopHotkey = hotkeySettings.startStopDictation || "Control+D";
+
       const contextMenu = Menu.buildFromTemplate([
         {
           label: "Start Dictation",
           click: () => this.onLeftClick(),
-          accelerator: "Ctrl+D",
+          accelerator: startStopHotkey,
         },
         { type: "separator" },
         { label: "Settings", click: () => this.onShowSettings() },
@@ -191,6 +203,13 @@ export class TrayService {
       this.trayMenu = contextMenu;
       this.tray.setToolTip("WhisperMac - AI Dictation");
     }
+  }
+
+  /**
+   * Refresh the tray menu without changing the status
+   */
+  async refreshTrayMenu() {
+    await this.updateTrayMenu(this.currentStatus);
   }
 
   updateTrayIcon(state: "idle" | "recording") {
@@ -305,7 +324,9 @@ export class TrayService {
       console.error("Error showing plugin switch notification:", error);
       // Fallback to console log
       console.log(
-        `PLUGIN SWITCH: ${isFallback ? "Fallback to" : "Switched to"} ${activePluginName}`,
+        `PLUGIN SWITCH: ${
+          isFallback ? "Fallback to" : "Switched to"
+        } ${activePluginName}`,
       );
     }
   }

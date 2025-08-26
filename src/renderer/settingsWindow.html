@@ -410,6 +410,55 @@
         min-width: 80px;
       }
 
+      /* Hotkey Input */
+      .hotkey-container {
+        display: flex;
+        gap: var(--spacing-sm);
+        max-width: 400px;
+        align-items: center;
+      }
+
+      .hotkey-input {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.06);
+        cursor: pointer;
+        font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace;
+        font-size: var(--font-size-sm);
+        text-align: center;
+        transition: var(--transition-fast);
+      }
+
+      .hotkey-input:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .hotkey-input:focus {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+      }
+
+      .hotkey-input::placeholder {
+        color: var(--color-text-tertiary);
+        font-style: italic;
+      }
+
+      .hotkey-clear-btn {
+        flex-shrink: 0;
+        min-width: 32px;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+      }
+
+      .hotkey-clear-btn i {
+        font-size: 14px;
+      }
+
       /* Textarea */
       .form-control textarea {
         min-height: 80px;
@@ -2321,6 +2370,31 @@
                   </button>
                 </div>
 
+                <!-- Hotkey Input -->
+                <div
+                  v-if="field.type === 'hotkey'"
+                  class="hotkey-container"
+                >
+                  <input
+                    type="text"
+                    class="form-control hotkey-input"
+                    :value="getSettingValue(field.key)"
+                    @input="setSettingValue(field.key, $event.target.value)"
+                    @keydown="captureHotkey($event, field.key)"
+                    :placeholder="field.placeholder || 'Press keys to set hotkey'"
+                    readonly
+                  />
+                  <button
+                    type="button"
+                    @click="clearHotkey(field.key)"
+                    class="btn btn-default hotkey-clear-btn"
+                    v-if="getSettingValue(field.key)"
+                    title="Clear hotkey"
+                  >
+                    <i class="ph-duotone ph-x"></i>
+                  </button>
+                </div>
+
                 <!-- Actions Editor -->
                 <div v-if="field.type === 'actions-editor' && settings.actions">
                   <div class="actions-editor-container">
@@ -3198,7 +3272,7 @@
             <div class="about-header">
               <img src="../assets/icon.png" alt="WhisperMac Icon" class="about-app-icon" />
               <h1 class="about-app-name">{{ packageInfo?.name || 'WhisperMac' }}</h1>
-              <a v-if="packageInfo?.repository?.url" href="#" @click.prevent="openExternalLink(getRepoUrl())" class="about-app-version">Version {{ appVersion }}</a>
+              <a v-if="packageInfo?.repository?.url" href="#" @click.prevent="openExternalLink(getReleasesUrl())" class="about-app-version">Version {{ appVersion }}</a>
               <span v-else class="about-app-version">Version {{ appVersion }}</span>
               <p class="about-app-description">
                 {{ packageInfo?.description || 'AI-powered dictation for Mac using multiple transcription engines' }}
