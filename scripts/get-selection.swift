@@ -158,9 +158,11 @@ func selectedTextFromAX(_ element: AXUIElement) -> String? {
 
 // ---------- Clipboard fallback (safe) ----------
 func copySelectionWithCmdCPreserveClipboard() -> String? {
-    // Save current string clipboard (best-effort)
     let pasteboard = NSPasteboard.general
-    let originalStrings = pasteboard.pasteboardItems?.map { item -> [NSPasteboard.PasteboardType: Data] in
+
+    // Snapshot current clipboard and change count
+    let originalChangeCount = pasteboard.changeCount
+    let originalItems = pasteboard.pasteboardItems?.map { item -> [NSPasteboard.PasteboardType: Data] in
         var dict: [NSPasteboard.PasteboardType: Data] = [:]
         for type in item.types {
             if let d = item.data(forType: type) {
@@ -169,8 +171,7 @@ func copySelectionWithCmdCPreserveClipboard() -> String? {
         }
         return dict
     } ?? []
-
-    vprint("Saved \(originalStrings.count) pasteboard items for restore (best-effort).")
+    vprint("Saved \(originalItems.count) pasteboard items for restore (best-effort). changeCount=\(originalChangeCount)")
 
     // Post synthetic Cmd-C. This requires accessibility/assistive access (we already checked).
     guard let src = CGEventSource(stateID: .combinedSessionState) else {
@@ -178,7 +179,6 @@ func copySelectionWithCmdCPreserveClipboard() -> String? {
         return nil
     }
 
-    // Virtual keycode for 'c' on ANSI layout is 8. Not fully universal but works on most macs.
     let keyCodeC: CGKeyCode = 8
 
     if let keyDown = CGEvent(keyboardEventSource: src, virtualKey: keyCodeC, keyDown: true) {
@@ -191,29 +191,37 @@ func copySelectionWithCmdCPreserveClipboard() -> String? {
         keyUp.post(tap: .cghidEventTap)
     } else { vprint("Failed to create keyUp event") }
 
-    // Wait a short moment for the copy to complete
-    usleep(120_000) // 120ms
+    // Wait for pasteboard to change up to a short timeout
+    let start = Date()
+    var changed = false
+    repeat {
+        usleep(30_000) // 30ms
+        if pasteboard.changeCount != originalChangeCount { changed = true; break }
+    } while Date().timeIntervalSince(start) < 0.3
+
+    if !changed {
+        vprint("Pasteboard did not change after Cmd-C; assuming no selection.")
+        return nil
+    }
 
     // Try to read string from pasteboard
     let copied = pasteboard.string(forType: .string)
     vprint("Clipboard after Cmd-C contains: \(copied?.count ?? 0) characters")
 
-    // Restore pasteboard items (best-effort)
-    if !originalStrings.isEmpty {
-        pasteboard.clearContents()
-        var restoredItems: [NSPasteboardItem] = []
-        for dict in originalStrings {
-            let item = NSPasteboardItem()
-            for (type, data) in dict {
-                item.setData(data, forType: type)
-            }
-            restoredItems.append(item)
-        }
-        let success = pasteboard.writeObjects(restoredItems)
-        vprint("Restored original pasteboard items: \(success)")
+    // Restore pasteboard items (best-effort) since we observed a change
+    pasteboard.clearContents()
+    var restoredItems: [NSPasteboardItem] = []
+    for dict in originalItems {
+        let item = NSPasteboardItem()
+        for (type, data) in dict { item.setData(data, forType: type) }
+        restoredItems.append(item)
     }
+    let success = pasteboard.writeObjects(restoredItems)
+    vprint("Restored original pasteboard items: \(success)")
 
-    return copied
+    // Only return non-empty strings
+    if let s = copied, !s.isEmpty { return s }
+    return nil
 }
 
 // ---------- Main ----------
@@ -227,7 +235,7 @@ if !ensureAccessibilityTrusted() {
 guard let focused = getFocusedUIElement() else {
     vprint("No focused element found.")
     // Try clipboard fallback anyway (best-effort)
-    if let fallback = copySelectionWithCmdCPreserveClipboard() {
+    if let fallback = copySelectionWithCmdCPreserveClipboard(), !fallback.isEmpty {
         print(fallback)
         exit(0)
     } else {
