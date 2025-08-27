@@ -19,6 +19,12 @@ const assetsSrcDir = path.join(__dirname, "../assets");
 const assetsDistDir = path.join(__dirname, "../dist/assets");
 const vueSrcPath = path.join(__dirname, "_vue.js");
 const vueDistPath = path.join(distDir, "vue.js");
+const macInputBuiltPath = path.join(
+  __dirname,
+  "../native/mac-input/build/Release/mac_input.node",
+);
+const macInputDistDir = path.join(__dirname, "../dist/src/native");
+const macInputDistPath = path.join(macInputDistDir, "mac_input.node");
 
 const EXTENSIONS = [
   ".html",
@@ -377,6 +383,20 @@ async function main() {
       setupPhoton(), // Can run in parallel with file copying
       copyPromptsFiles(),
     ]);
+
+    // Copy native mac_input.node if it exists
+    if (fs.existsSync(macInputBuiltPath)) {
+      await fsPromises.mkdir(macInputDistDir, { recursive: true });
+      await fsPromises.copyFile(macInputBuiltPath, macInputDistPath);
+      console.log(
+        `Copied native addon to ${path.relative(
+          path.join(__dirname, ".."),
+          macInputDistPath,
+        )}`,
+      );
+    } else {
+      console.log("mac_input.node not found; skipping native addon copy");
+    }
 
     // Copy assets (depends on discovering files, so run after other operations)
     await copyAssetsParallel(assetsSrcDir, assetsDistDir);

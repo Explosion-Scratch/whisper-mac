@@ -1,9 +1,9 @@
 import { execFile } from "child_process";
 import { join } from "path";
-import fs from "fs";
 import { existsSync } from "fs";
 import { NotificationService } from "./NotificationService";
-import { systemPreferences } from "electron";
+import { systemPreferences, clipboard } from "electron";
+import { macInput } from "../native/MacInput";
 
 interface ProcessResult {
   success: boolean;
@@ -25,8 +25,13 @@ export class TextInjectionService {
 
   private resolveInjectUtilPath(): void {
     const paths = [
+      // Dev build output
       join(__dirname, "../injectUtil"),
+      // Packaged app Resources
       join(process.resourcesPath, "injectUtil"),
+      // Packaged app executable directory (Contents/MacOS)
+      // process.execPath points to Contents/MacOS/<AppName>
+      join(process.execPath, "../injectUtil"),
     ];
     let i = paths.find((i) => existsSync(i));
     if (i) {
@@ -48,11 +53,17 @@ export class TextInjectionService {
     try {
       const hasAccessibility = await this.checkAccessibilityPermissions();
 
-      if (hasAccessibility) {
-        await this.injectTextWithUtil(text);
-      } else {
+      if (!hasAccessibility) {
         await this.copyToClipboardOnly(text);
+        return;
       }
+
+      if (macInput && typeof macInput.pasteCommandV === "function") {
+        await this.injectTextInProcess(text);
+        return;
+      }
+
+      await this.injectTextWithUtil(text);
     } catch (error) {
       console.error("Text insertion failed:", error);
       throw new Error(
@@ -60,6 +71,21 @@ export class TextInjectionService {
           error instanceof Error ? error.message : String(error)
         }`,
       );
+    }
+  }
+
+  private async injectTextInProcess(text: string): Promise<void> {
+    const backup = await this.backupClipboard();
+    try {
+      const copied = await this.copyToClipboard(text);
+      if (!copied) throw new Error("Failed to copy to clipboard");
+      await this.delay(200);
+      const current = await this.readClipboard();
+      if (current !== text) throw new Error("Clipboard verification failed");
+      macInput.pasteCommandV?.();
+      await this.delay(300);
+    } finally {
+      await this.restoreClipboard(backup);
     }
   }
 
@@ -115,7 +141,7 @@ export class TextInjectionService {
       const durationMs = Date.now() - startedAt;
       this.accessibilityEnabled = Boolean(enabled);
       console.log(
-        "TextInjectionService.checkAccessibilityPermissions result:",
+        "TextInjectionService.checkAccessibilityPermissions (in-process) result:",
         { enabled: this.accessibilityEnabled, durationMs },
       );
       return this.accessibilityEnabled;
@@ -233,5 +259,44 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
   resetAccessibilityCache(): void {
     console.log("TextInjectionService.resetAccessibilityCache called");
     this.accessibilityEnabled = null;
+  }
+
+  private async backupClipboard(): Promise<string | null> {
+    try {
+      return clipboard.readText() ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async restoreClipboard(backup: string | null): Promise<void> {
+    try {
+      if (backup === null) {
+        clipboard.clear();
+      } else {
+        clipboard.writeText(backup);
+      }
+    } catch {}
+  }
+
+  private async copyToClipboard(text: string): Promise<boolean> {
+    try {
+      clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async readClipboard(): Promise<string | null> {
+    try {
+      return clipboard.readText() ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async delay(ms: number): Promise<void> {
+    await new Promise((r) => setTimeout(r, ms));
   }
 }

@@ -16,6 +16,7 @@
     "dist": "electron-builder --publish=never",
     "setup:plugins": "node scripts/setup-plugins.js",
     "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js && bun scripts/download-photon.js && node scripts/build-injectutil.js && node scripts/build-get-selection.js",
+    "build:native:mac": "cd native/mac-input && node-gyp rebuild",
     "postinstall": "bun run prep",
     "icons": "node scripts/generate-icons.js",
     "build:mac": "bun run build && electron-builder --mac --publish=never",
