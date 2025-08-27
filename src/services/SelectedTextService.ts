@@ -1,4 +1,3 @@
-import { clipboard } from "electron";
 import { macInput } from "../native/MacInput";
 
 export interface SelectedTextResult {
@@ -14,14 +13,6 @@ export interface ActiveWindowInfo {
 
 export class SelectedTextService {
   constructor() {}
-
-  getClipboardContent(): string {
-    return clipboard.readText();
-  }
-
-  setClipboardContent(text: string): void {
-    clipboard.writeText(text);
-  }
 
   async getActiveWindowInfo(): Promise<ActiveWindowInfo> {
     try {
@@ -40,22 +31,23 @@ export class SelectedTextService {
   }
 
   async getSelectedText(): Promise<SelectedTextResult> {
-    const originalClipboard = this.getClipboardContent();
     try {
       const result = macInput?.getSelectedText?.();
       if (!result) {
-        return { text: "", hasSelection: false, originalClipboard };
+        return { text: "", hasSelection: false, originalClipboard: "" };
       }
+      const text = String(result.text || "");
+      const originalFromNative = String(result.originalClipboard || "");
+      const hasSelection =
+        text.trim().length > 0 && text !== originalFromNative;
       return {
-        text: String(result.text || ""),
-        hasSelection: Boolean(result.hasSelection),
-        originalClipboard: String(
-          result.originalClipboard || originalClipboard || "",
-        ),
+        text,
+        hasSelection,
+        originalClipboard: originalFromNative,
       };
     } catch (error) {
       console.error("Failed to get selected text via native addon:", error);
-      return { text: "", hasSelection: false, originalClipboard };
+      return { text: "", hasSelection: false, originalClipboard: "" };
     }
   }
 }

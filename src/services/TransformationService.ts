@@ -374,8 +374,8 @@ export class TransformationService {
     if (extractedCode) {
       return extractedCode;
     }
-
-    return transformedText.trim();
+    // Perform quote removal only after attempting code extraction
+    return TransformationService.removeQuotes(transformedText).trim();
   }
 
   /**
@@ -477,7 +477,6 @@ export class TransformationService {
       data.choices[0].message.content,
     );
     transformed = await TransformationService.removeChanged(transformed);
-    transformed = TransformationService.removeQuotes(transformed);
     console.log("AI transformed text:", transformed);
     return transformed;
   }
