@@ -20,6 +20,16 @@ try {
 
 export type MacInputBinding = {
   pasteCommandV?: () => void;
+  injectText?: (text: string) => void;
+  copyToClipboard?: (text: string) => boolean;
+  getClipboardText?: () => string | null;
+  checkPermissions?: () => boolean;
+  getWindowAppDetails?: () => string | null;
+  getSelectedText?: () => {
+    text: string;
+    hasSelection: boolean;
+    originalClipboard: string;
+  };
 };
 
 export const macInput: MacInputBinding = nativeBinding as MacInputBinding;

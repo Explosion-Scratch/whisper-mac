@@ -7,7 +7,7 @@
   "scripts": {
     "fullclean": "rm -rf dist .crush *.log vendor release build && bun install",
     "clear:userdata": "rm -rf \"$HOME/Library/Application Support/WhisperMac\" \"$HOME/Library/Application Support/Electron\" \"$HOME/Library/Application Support/whispermac\" \"$HOME/Library/Application Support/electron\" .whispermac-data",
-    "build": "tsc && node scripts/copy-assets.js && node scripts/prep-vad-assets.js && node scripts/build-injectutil.js && node scripts/build-get-selection.js",
+    "build": "tsc && node scripts/copy-assets.js && node scripts/prep-vad-assets.js",
     "killothers": "pkill -f Electron || true && pkill -f electron || true && pkill -f whisper || true && pkill -f WhisperMac || true",
     "start": "bun run killothers && electron dist/main.js",
     "dev": "nodemon --exec \"bun run single-dev\" --ignore dist --ignore photon --ignore .crush",
@@ -15,7 +15,7 @@
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never",
     "setup:plugins": "node scripts/setup-plugins.js",
-    "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js && bun scripts/download-photon.js && node scripts/build-injectutil.js && node scripts/build-get-selection.js",
+    "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js && bun scripts/download-photon.js && node scripts/build-get-selection.js",
     "build:native:mac": "cd native/mac-input && node-gyp rebuild",
     "postinstall": "bun run prep",
     "icons": "node scripts/generate-icons.js",
@@ -31,7 +31,8 @@
     "copy-paste": "^2.2.0",
     "electron-log": "^5.4.3",
     "keytar": "^7.9.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "node-addon-api": "^7.1.0"
   },
   "devDependencies": {
     "sharp": "^0.34.3",
@@ -59,14 +60,6 @@
     "asar": true,
     "compression": "maximum",
     "extraResources": [
-      {
-        "from": "dist/injectUtil",
-        "to": "injectUtil"
-      },
-      {
-        "from": "dist/get-selection",
-        "to": "get-selection"
-      },
       {
         "from": "vendor/yap",
         "to": "yap",

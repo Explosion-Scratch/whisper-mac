@@ -5,9 +5,7 @@ const fsPromises = require("fs").promises;
 const path = require("path");
 const { spawn } = require("child_process");
 
-// Build injectUtil Swift binary
-console.log("Building injectUtil Swift binary...");
-require("./build-injectutil.js");
+// Legacy injectUtil removed. Using native addon instead.
 
 const srcDir = path.join(__dirname, "../src/renderer");
 const distDir = path.join(__dirname, "../dist/renderer");

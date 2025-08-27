@@ -1,8 +1,5 @@
 import { clipboard } from "electron";
-import { execFile } from "child_process";
-import { promisify } from "util";
-
-const execFileAsync = promisify(execFile);
+import { macInput } from "../native/MacInput";
 
 export interface SelectedTextResult {
   text: string;
@@ -16,13 +13,7 @@ export interface ActiveWindowInfo {
 }
 
 export class SelectedTextService {
-  private injectUtilPath: string;
-  private getSelectionPath: string;
-
-  constructor() {
-    this.injectUtilPath = `${process.cwd()}/dist/injectUtil`;
-    this.getSelectionPath = `${process.cwd()}/dist/get-selection`;
-  }
+  constructor() {}
 
   getClipboardContent(): string {
     return clipboard.readText();
@@ -34,66 +25,37 @@ export class SelectedTextService {
 
   async getActiveWindowInfo(): Promise<ActiveWindowInfo> {
     try {
-      const { stdout, stderr } = await execFileAsync(this.injectUtilPath, [
-        "--window-app-details",
-      ]);
-
-      if (stderr) {
-        console.error("injectUtil stderr:", stderr);
-      }
-
-      const parts = stdout.trim().split("|");
+      const { macInput } = await import("../native/MacInput");
+      const details = macInput?.getWindowAppDetails?.();
+      if (!details) return { title: "", appName: "" };
+      const parts = String(details).trim().split("|");
       if (parts.length === 2) {
-        return {
-          title: parts[0] || "",
-          appName: parts[1] || "",
-        };
-      } else {
-        return { title: "", appName: "" };
+        return { title: parts[0] || "", appName: parts[1] || "" };
       }
+      return { title: "", appName: "" };
     } catch (error) {
-      console.error("Failed to get window info using injectUtil:", error);
+      console.error("Failed to get window info via native addon:", error);
       return { title: "", appName: "" };
     }
   }
 
   async getSelectedText(): Promise<SelectedTextResult> {
-    console.log("=== SelectedTextService.getSelectedText ===");
-
     const originalClipboard = this.getClipboardContent();
-
     try {
-      const { stdout, stderr } = await execFileAsync(this.getSelectionPath, []);
-
-      if (stderr) {
-        console.error("get-selection stderr:", stderr);
+      const result = macInput?.getSelectedText?.();
+      if (!result) {
+        return { text: "", hasSelection: false, originalClipboard };
       }
-
-      const selectedText = stdout.trim();
-      const hasSelection = selectedText.length > 0;
-
-      console.log("get-selection-based result:", {
-        text: selectedText,
-        hasSelection,
-        length: selectedText.length,
-        originalClipboard,
-      });
-
-      const result: SelectedTextResult = {
-        text: selectedText,
-        hasSelection,
-        originalClipboard,
-      };
-
-      console.log("SelectedTextService.getSelectedText output:", result);
-      return result;
-    } catch (error) {
-      console.error("Failed to get selected text using get-selection:", error);
       return {
-        text: "",
-        originalClipboard: originalClipboard,
-        hasSelection: false,
+        text: String(result.text || ""),
+        hasSelection: Boolean(result.hasSelection),
+        originalClipboard: String(
+          result.originalClipboard || originalClipboard || "",
+        ),
       };
+    } catch (error) {
+      console.error("Failed to get selected text via native addon:", error);
+      return { text: "", hasSelection: false, originalClipboard };
     }
   }
 }

@@ -23,27 +23,7 @@ export class TextInjectionService {
     this.resolveInjectUtilPath();
   }
 
-  private resolveInjectUtilPath(): void {
-    const paths = [
-      // Dev build output
-      join(__dirname, "../injectUtil"),
-      // Packaged app Resources
-      join(process.resourcesPath, "injectUtil"),
-      // Packaged app executable directory (Contents/MacOS)
-      // process.execPath points to Contents/MacOS/<AppName>
-      join(process.execPath, "../injectUtil"),
-    ];
-    let i = paths.find((i) => existsSync(i));
-    if (i) {
-      console.log("TextInjectionService.resolveInjectUtilPath resolved:", i);
-      this.injectUtilPath = i;
-    } else {
-      console.error(
-        "TextInjectionService.resolveInjectUtilPath failed; tried:",
-        paths,
-      );
-    }
-  }
+  private resolveInjectUtilPath(): void {}
 
   async insertText(text: string): Promise<void> {
     if (!text?.trim()) {
@@ -58,12 +38,18 @@ export class TextInjectionService {
         return;
       }
 
+      if (macInput && typeof macInput.injectText === "function") {
+        macInput.injectText(text);
+        return;
+      }
+
       if (macInput && typeof macInput.pasteCommandV === "function") {
         await this.injectTextInProcess(text);
         return;
       }
 
-      await this.injectTextWithUtil(text);
+      // As a last resort, copy-only notification
+      await this.copyToClipboardOnly(text);
     } catch (error) {
       console.error("Text insertion failed:", error);
       throw new Error(
@@ -89,40 +75,18 @@ export class TextInjectionService {
     }
   }
 
-  private async injectTextWithUtil(text: string): Promise<void> {
-    if (!this.injectUtilPath) {
-      throw new Error("injectUtil binary path not resolved");
-    }
-
-    if (!existsSync(this.injectUtilPath)) {
-      throw new Error(`injectUtil binary not found at: ${this.injectUtilPath}`);
-    }
-
-    const result = await this.executeProcess(this.injectUtilPath, [text]);
-
-    if (!result.success) {
-      throw new Error(`injectUtil failed: ${result.error}`);
-    }
-  }
+  private async injectTextWithUtil(_: string): Promise<void> {}
 
   private async copyToClipboardOnly(text: string): Promise<void> {
     try {
-      // Try injectUtil first
-      if (this.injectUtilPath && existsSync(this.injectUtilPath)) {
-        const result = await this.executeProcess(this.injectUtilPath, [
-          "--copy",
-          text,
-        ]);
-        if (result.success) {
+      if (macInput?.copyToClipboard) {
+        const ok = macInput.copyToClipboard(text);
+        if (ok) {
           await this.notificationService.sendClipboardNotification();
           return;
         }
       }
-    } catch (error) {
-      console.warn("injectUtil copy failed:", error);
-    }
-
-    // If injectUtil copy fails, just show notification
+    } catch {}
     await this.notificationService.sendClipboardNotification();
   }
 
@@ -137,7 +101,9 @@ export class TextInjectionService {
 
     try {
       const startedAt = Date.now();
-      const enabled = systemPreferences.isTrustedAccessibilityClient(false);
+      const enabled = macInput?.checkPermissions
+        ? macInput.checkPermissions()
+        : systemPreferences.isTrustedAccessibilityClient(false);
       const durationMs = Date.now() - startedAt;
       this.accessibilityEnabled = Boolean(enabled);
       console.log(
