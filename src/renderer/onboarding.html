@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Welcome to WhisperMac</title>
+    <script>
+      if (window.__electronLog) {
+        Object.assign(console, window.__electronLog);
+      }
+    </script>
     <link rel="stylesheet" href="../photon/css/photon.css" />
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
@@ -862,8 +867,16 @@
             // Check accessibility permissions before allowing progression from step 1
             if (idx.value === 1) {
               // Reset cache to ensure we get fresh results
+              console.log(
+                "Renderer:onboarding next() accessibility check start",
+              );
               await window.onboardingAPI.resetAccessibilityCache();
+              const t0 = Date.now();
               const hasAccess = await window.onboardingAPI.checkAccessibility();
+              console.log(
+                "Renderer:onboarding next() accessibility check result",
+                JSON.stringify({ hasAccess, durationMs: Date.now() - t0 }),
+              );
               if (!hasAccess) {
                 accessStatus.value =
                   "Please enable accessibility permissions first";
@@ -945,8 +958,14 @@
             isCheckingAccess.value = true;
             accessStatus.value = "Checking...";
             // Reset cache to ensure we get fresh results
+            console.log("Renderer:onboarding checkAccess() start");
             await window.onboardingAPI.resetAccessibilityCache();
+            const t0 = Date.now();
             const ok = await window.onboardingAPI.checkAccessibility();
+            console.log(
+              "Renderer:onboarding checkAccess() result",
+              JSON.stringify({ ok, durationMs: Date.now() - t0 }),
+            );
             accessStatus.value = ok
               ? "Enabled"
               : "Instructions shown. Please enable and return.";

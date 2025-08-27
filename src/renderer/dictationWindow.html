@@ -3,6 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <title>Dictation</title>
+    <script>
+      if (window.__electronLog) {
+        Object.assign(console, window.__electronLog);
+      }
+    </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
       * {

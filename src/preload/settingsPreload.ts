@@ -1,4 +1,8 @@
 import { contextBridge, ipcRenderer } from "electron";
+const g: any = globalThis as any;
+if (g && g.__electronLog && typeof g.__electronLog.log === "function") {
+  Object.assign(console, g.__electronLog);
+}
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object

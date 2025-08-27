@@ -1,10 +1,37 @@
 import { contextBridge, ipcRenderer } from "electron";
+const g: any = globalThis as any;
+if (g && g.__electronLog && typeof g.__electronLog.log === "function") {
+  Object.assign(console, g.__electronLog);
+}
 
 contextBridge.exposeInMainWorld("onboardingAPI", {
   getInitialState: () => ipcRenderer.invoke("onboarding:getInitialState"),
-  checkAccessibility: () => ipcRenderer.invoke("onboarding:checkAccessibility"),
-  resetAccessibilityCache: () =>
-    ipcRenderer.invoke("onboarding:resetAccessibilityCache"),
+  checkAccessibility: () => {
+    console.log("Preload:onboarding.checkAccessibility invoke -> main");
+    const startedAt = Date.now();
+    return ipcRenderer
+      .invoke("onboarding:checkAccessibility")
+      .then((ok) => {
+        const durationMs = Date.now() - startedAt;
+        console.log(
+          "Preload:onboarding.checkAccessibility result",
+          JSON.stringify({ ok, durationMs }),
+        );
+        return ok;
+      })
+      .catch((err) => {
+        const durationMs = Date.now() - startedAt;
+        console.error(
+          "Preload:onboarding.checkAccessibility error",
+          JSON.stringify({ message: err?.message || String(err), durationMs }),
+        );
+        throw err;
+      });
+  },
+  resetAccessibilityCache: () => {
+    console.log("Preload:onboarding.resetAccessibilityCache -> main");
+    return ipcRenderer.invoke("onboarding:resetAccessibilityCache");
+  },
   checkMicrophone: () => ipcRenderer.invoke("onboarding:checkMicrophone"),
   resetMicrophoneCache: () =>
     ipcRenderer.invoke("onboarding:resetMicrophoneCache"),

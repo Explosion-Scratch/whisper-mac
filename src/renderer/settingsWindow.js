@@ -1,3 +1,33 @@
+/**
+ * Creates a console method wrapper that attempts to deep-clone arguments
+ * using JSON.stringify/JSON.parse before delegating to the underlying
+ * console method. Falls back to original arguments on failure.
+ */
+function createCloningLogger(methodName) {
+  return (...args) => {
+    try {
+      const clonedArgs = args.map((arg) => {
+        try {
+          return JSON.parse(JSON.stringify(arg));
+        } catch (_) {
+          return arg;
+        }
+      });
+      console[methodName](...clonedArgs);
+    } catch (_) {
+      try {
+        console[methodName](...args);
+      } catch (_) {}
+    }
+  };
+}
+
+window.log = createCloningLogger("log");
+window.info = createCloningLogger("info");
+window.warn = createCloningLogger("warn");
+window.error = createCloningLogger("error");
+window.debug = createCloningLogger("debug");
+
 document.addEventListener("DOMContentLoaded", () => {
   const app = Vue.createApp({
     data() {
@@ -59,7 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
           try {
             await window.electronAPI.openExternalUrl(authorUrl);
           } catch (error) {
-            console.error("Failed to open author link:", error);
+            window.error("Failed to open author link:", error);
           }
         }
       },
@@ -82,21 +112,25 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           await window.electronAPI.openExternalUrl(url);
         } catch (error) {
-          console.error("Failed to open external link:", error);
+          window.error("Failed to open external link:", error);
         }
       },
 
       async init() {
         try {
-          this.schema = await window.electronAPI.getSettingsSchema();
-          this.settings = await window.electronAPI.getSettings();
+          this.schema = JSON.parse(
+            JSON.stringify(await window.electronAPI.getSettingsSchema()),
+          );
+          this.settings = JSON.parse(
+            JSON.stringify(await window.electronAPI.getSettings()),
+          );
           this.originalSettings = JSON.parse(JSON.stringify(this.settings));
-          console.log("this.settings", this.settings);
+          window.log("this.settings", this.originalSettings);
           try {
             this.pluginData = await window.electronAPI.getPluginSchemas();
-            console.log("this.pluginData", this.pluginData);
+            window.log("this.pluginData", this.pluginData);
           } catch (error) {
-            console.error("Failed to load plugin schemas:", error);
+            window.error("Failed to load plugin schemas:", error);
             this.pluginData = { plugins: [], schemas: {} };
           }
 
@@ -104,7 +138,7 @@ document.addEventListener("DOMContentLoaded", () => {
             await window.electronAPI.getActivePlugin();
           this.activePlugin =
             pluginManagerActive || this.settings.transcriptionPlugin || "yap";
-          console.log("this.activePlugin", this.activePlugin);
+          window.log("this.activePlugin", this.activePlugin);
           this.ensurePluginSettingsObjects();
 
           // Load app version and package info
@@ -112,7 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
             this.appVersion = await window.electronAPI.getAppVersion();
             this.packageInfo = await window.electronAPI.getPackageInfo();
           } catch (error) {
-            console.error("Failed to load app version:", error);
+            window.error("Failed to load app version:", error);
             this.appVersion = "1.0.0";
             this.packageInfo = null;
           }
@@ -123,7 +157,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           this.setupIpcListeners();
         } catch (error) {
-          console.error("Failed to initialize settings window:", error);
+          window.error("Failed to initialize settings window:", error);
           this.showStatus("Failed to load settings", "error");
         }
       },
@@ -145,7 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
           !this.pluginData.plugins ||
           !this.pluginData.schemas
         ) {
-          console.warn(
+          window.warn(
             "Plugin data structure is incomplete, skipping plugin settings initialization",
           );
           return;
@@ -191,7 +225,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           }
         } catch (e) {
-          console.error("Failed to auto-load AI models:", e);
+          window.error("Failed to auto-load AI models:", e);
         } finally {
           this.aiModelsState.loading = false;
         }
@@ -336,7 +370,7 @@ document.addEventListener("DOMContentLoaded", () => {
             this.showStatus("Settings saved successfully", "success");
           }
         } catch (error) {
-          console.error("Failed to save settings:", error);
+          window.error("Failed to save settings:", error);
           this.showStatus(`Failed to save settings: ${error.message}`, "error");
         } finally {
           this.isSaving = false;
@@ -574,7 +608,7 @@ document.addEventListener("DOMContentLoaded", () => {
           return; // Success - no need for fallback behavior
         } catch (switchError) {
           // Original switch failed - now fall back to test-and-configure behavior
-          console.log(
+          window.log(
             `Immediate switch failed for ${newPlugin}, falling back to configuration mode:`,
             switchError.message,
           );
@@ -625,7 +659,7 @@ document.addEventListener("DOMContentLoaded", () => {
               return;
             }
           } catch (testError) {
-            console.error("Error testing plugin activation:", testError);
+            window.error("Error testing plugin activation:", testError);
             this.showStatus(
               `Error with ${newPlugin}: ${testError.message}. Please check configuration and try "Save Settings".`,
               "warning",
@@ -685,7 +719,7 @@ document.addEventListener("DOMContentLoaded", () => {
           this.expandedDataPlugins = {};
           this.showStatus("Data management refreshed", "success");
         } catch (error) {
-          console.error("Failed to refresh data management:", error);
+          window.error("Failed to refresh data management:", error);
           this.showStatus("Failed to refresh data management", "error");
         } finally {
           setTimeout(() => this.hideProgress(), 1000);
@@ -788,7 +822,7 @@ document.addEventListener("DOMContentLoaded", () => {
             throw new Error(result.error || "Failed to clear plugin data");
           }
         } catch (error) {
-          console.error("Failed to clear all plugin data:", error);
+          window.error("Failed to clear all plugin data:", error);
           this.showStatus(
             `Failed to clear plugin data: ${error.message}`,
             "error",
@@ -814,7 +848,7 @@ document.addEventListener("DOMContentLoaded", () => {
         );
 
         // Also show in console for debugging
-        console.warn(`Plugin fallback occurred during data clearing:`, {
+        window.warn(`Plugin fallback occurred during data clearing:`, {
           original: originalPlugin,
           new: newPlugin,
           failed: failedPlugins,

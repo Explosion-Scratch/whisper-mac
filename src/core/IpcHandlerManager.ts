@@ -277,11 +277,31 @@ export class IpcHandlerManager {
 
   private setupOnboardingActionHandlers(): void {
     ipcMain.handle("onboarding:checkAccessibility", async () => {
-      const ok = await this.textInjector.ensureAccessibilityPermissions();
-      return ok;
+      console.log("IPC:onboarding:checkAccessibility invoked");
+      const startedAt = Date.now();
+      try {
+        const ok = await this.textInjector.ensureAccessibilityPermissions();
+        const durationMs = Date.now() - startedAt;
+        console.log(
+          "IPC:onboarding:checkAccessibility result",
+          JSON.stringify({ ok, durationMs }),
+        );
+        return ok;
+      } catch (error: any) {
+        const durationMs = Date.now() - startedAt;
+        console.error(
+          "IPC:onboarding:checkAccessibility error",
+          JSON.stringify({
+            message: error?.message || String(error),
+            durationMs,
+          }),
+        );
+        throw error;
+      }
     });
 
     ipcMain.handle("onboarding:resetAccessibilityCache", () => {
+      console.log("IPC:onboarding:resetAccessibilityCache invoked");
       this.textInjector.resetAccessibilityCache();
       return true;
     });

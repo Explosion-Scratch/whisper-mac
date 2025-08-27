@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from "electron";
+import log from "electron-log/main";
 
 import {
   TranscriptionPluginManager,
@@ -63,6 +64,11 @@ class WhisperMacApp {
   private readonly dockIconRelPath = "../assets/icon.png";
 
   constructor() {
+    log.initialize();
+    Object.assign(console, log.functions);
+    log.transports.ipc.level = "info";
+    log.transports.file.level = "info";
+    log.transports.console.level = "info";
     this.initializeServices();
     this.initializeManagers();
     this.setupServiceConnections();

@@ -3,6 +3,7 @@ import { join } from "path";
 import fs from "fs";
 import { existsSync } from "fs";
 import { NotificationService } from "./NotificationService";
+import { systemPreferences } from "electron";
 
 interface ProcessResult {
   success: boolean;
@@ -29,9 +30,13 @@ export class TextInjectionService {
     ];
     let i = paths.find((i) => existsSync(i));
     if (i) {
+      console.log("TextInjectionService.resolveInjectUtilPath resolved:", i);
       this.injectUtilPath = i;
     } else {
-      console.error("Failed to resolve injectUtil path");
+      console.error(
+        "TextInjectionService.resolveInjectUtilPath failed; tried:",
+        paths,
+      );
     }
   }
 
@@ -96,27 +101,29 @@ export class TextInjectionService {
   }
 
   private async checkAccessibilityPermissions(): Promise<boolean> {
-    console.log("Is enabled: ", this.accessibilityEnabled);
+    console.log(
+      "TextInjectionService.checkAccessibilityPermissions cache:",
+      this.accessibilityEnabled,
+    );
     if (this.accessibilityEnabled !== null) {
       return this.accessibilityEnabled;
     }
 
     try {
-      if (!this.injectUtilPath || !existsSync(this.injectUtilPath)) {
-        console.log("Can't find inject util");
-        this.accessibilityEnabled = false;
-        return false;
-      }
-
-      const result = await this.executeProcess(this.injectUtilPath, [
-        "--check-perms",
-      ]);
-      this.accessibilityEnabled =
-        result.success && result.output?.trim() === "true";
-      console.log("Accessibility check result:", this.accessibilityEnabled);
+      const startedAt = Date.now();
+      const enabled = systemPreferences.isTrustedAccessibilityClient(false);
+      const durationMs = Date.now() - startedAt;
+      this.accessibilityEnabled = Boolean(enabled);
+      console.log(
+        "TextInjectionService.checkAccessibilityPermissions result:",
+        { enabled: this.accessibilityEnabled, durationMs },
+      );
       return this.accessibilityEnabled;
     } catch (error) {
-      console.warn("Accessibility check failed:", error);
+      console.warn(
+        "TextInjectionService.checkAccessibilityPermissions failed:",
+        error,
+      );
       this.accessibilityEnabled = false;
       return false;
     }
@@ -158,9 +165,13 @@ export class TextInjectionService {
   }
 
   async ensureAccessibilityPermissions(): Promise<boolean> {
+    console.log("TextInjectionService.ensureAccessibilityPermissions invoked");
     const hasAccessibility = await this.checkAccessibilityPermissions();
 
     if (!hasAccessibility) {
+      console.log(
+        "TextInjectionService.ensureAccessibilityPermissions showing instructions",
+      );
       await this.showAccessibilityInstructions();
     }
 
@@ -220,6 +231,7 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
   }
 
   resetAccessibilityCache(): void {
+    console.log("TextInjectionService.resetAccessibilityCache called");
     this.accessibilityEnabled = null;
   }
 }

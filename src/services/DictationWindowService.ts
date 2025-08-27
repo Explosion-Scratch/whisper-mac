@@ -145,6 +145,10 @@ export class DictationWindowService extends EventEmitter {
     this.dictationWindow.webContents.on(
       "ipc-message",
       (event, channel, ...args) => {
+        if (channel === "__ELECTRON_LOG__") {
+          //nothing;
+          return;
+        }
         console.log("=== DictationWindowService: IPC message received ===");
         console.log("Channel:", channel);
 
