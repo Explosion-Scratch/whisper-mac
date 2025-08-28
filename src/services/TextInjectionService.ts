@@ -20,35 +20,41 @@ export class TextInjectionService {
 
   constructor(notificationService?: NotificationService) {
     this.notificationService = notificationService || new NotificationService();
-    this.resolveInjectUtilPath();
   }
-
-  private resolveInjectUtilPath(): void {}
 
   async insertText(text: string): Promise<void> {
     if (!text?.trim()) {
+      console.error("insertText: Provided text is empty or whitespace");
       throw new Error("Text cannot be empty");
     }
 
     try {
+      console.log("insertText: Checking accessibility permissions");
       const hasAccessibility = await this.checkAccessibilityPermissions();
 
       if (!hasAccessibility) {
+        console.log(
+          "insertText: Accessibility not enabled, copying to clipboard only",
+        );
         await this.copyToClipboardOnly(text);
         return;
       }
 
       if (macInput && typeof macInput.injectText === "function") {
+        console.log("insertText: Using macInput.injectText");
         macInput.injectText(text);
         return;
       }
 
       if (macInput && typeof macInput.pasteCommandV === "function") {
+        console.log(
+          "insertText: Using macInput.pasteCommandV with injectTextInProcess",
+        );
         await this.injectTextInProcess(text);
         return;
       }
 
-      // As a last resort, copy-only notification
+      console.log("insertText: Fallback to copyToClipboardOnly");
       await this.copyToClipboardOnly(text);
     } catch (error) {
       console.error("Text insertion failed:", error);
@@ -74,8 +80,6 @@ export class TextInjectionService {
       await this.restoreClipboard(backup);
     }
   }
-
-  private async injectTextWithUtil(_: string): Promise<void> {}
 
   private async copyToClipboardOnly(text: string): Promise<void> {
     try {

@@ -232,7 +232,7 @@ export class TransformationService {
     const transformed = text
       .trim()
       .replace(
-        /^(?:got|it|based|on|context|changed|polished|and|output|selection|selected|text|updated|result|the|of|course|Here's|here|is|!|\.|'| )+/gi,
+        /^(?:got|it|sure|based|on|context|changed|polished|and|output|selection|selected|text|updated|result|the|of|course|Here's|here|is|!|\.|'| )+\:/gi,
         "",
       )
       .trim();
@@ -472,6 +472,9 @@ export class TransformationService {
     if (!data.choices || !data.choices[0]?.message?.content) {
       throw new Error("Invalid AI API response format");
     }
+
+    console.log("=== AI IMMEDIATE OUTPUT (PRE-TRANSFORMATION) ===");
+    console.log("Raw AI response:", data.choices[0].message.content);
 
     let transformed = TransformationService.removeThink(
       data.choices[0].message.content,

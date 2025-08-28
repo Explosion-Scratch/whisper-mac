@@ -15,11 +15,15 @@
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never",
     "setup:plugins": "node scripts/setup-plugins.js",
-    "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js && bun scripts/download-photon.js && node scripts/build-get-selection.js",
-    "build:native:mac": "cd native/mac-input && node-gyp rebuild",
+    "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js && bun scripts/download-photon.js && node scripts/build-get-selection.js && bun run build:native",
+    "build:native": "cd native/mac-input && node-gyp rebuild",
     "postinstall": "bun run prep",
     "icons": "node scripts/generate-icons.js",
+    "bundleid": "mdls -name kMDItemCFBundleIdentifier -r release/mac-arm64/WhisperMac.app",
+    "removequarantine": "xattr -cr release/mac-arm64/WhisperMac.app",
+    "resetperms": "tccutil reset All com.whispermac.app",
     "build:mac": "bun run build && electron-builder --mac --publish=never",
+    "build:dev": "rm -rf /Applications/WhisperMac.app && bun run build:mac && bun run removequarantine && bun run resetperms && rs release/mac-arm64/WhisperMac.app /Applications && osascript -e 'tell application \"WhisperMac\" to activate' && tail -f ~/Library/Logs/whispermac/main.log",
     "pack:prod": "NODE_ENV=production bun install && electron-builder --dir"
   },
   "repository": {
@@ -86,7 +90,8 @@
       "category": "public.app-category.productivity",
       "target": "dir",
       "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
-      "icon": "build/icons/WhisperMac.icns"
+      "icon": "build/icons/WhisperMac.icns",
+      "identity": null
     },
     "win": {},
     "linux": {},

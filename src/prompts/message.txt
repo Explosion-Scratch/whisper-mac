@@ -10,9 +10,12 @@ Operate based on the selection. E.g. make any changes requested, or if the user 
 {text}
 </ROUGH_TRANSCRIPTION>
 
+<context>
+Use the following only for context. The transcription may or may not relate in any way.
 <CONTEXT>
 {context}
 </CONTEXT>
+</context>
 
 <INSTRUCTION>
 Now output only the changed<sel> selection</sel> text. No explanations or other text.
