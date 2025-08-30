@@ -101,20 +101,21 @@ export class DictationWindowService extends EventEmitter {
       backgroundColor: "#00000000",
       vibrancy: "sidebar",
       visualEffectState: "active",
-      alwaysOnTop: true, // Set to true to make window floating across all desktops
+      alwaysOnTop: true,
       skipTaskbar: true,
       resizable: false,
       minimizable: false,
       maximizable: false,
       closable: true,
-      movable: true, // Ensure window is movable
+      movable: true,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
         preload: join(__dirname, "../preload/dictationPreload.js"),
       },
-      show: false, // Don't show immediately
+      show: false,
     });
+    this.dictationWindow.setVisibleOnAllWorkspaces(true);
 
     // Load the dictation window HTML
     await this.dictationWindow.loadFile(
@@ -405,7 +406,7 @@ export class DictationWindowService extends EventEmitter {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       try {
         return this.dictationWindow.isVisible();
-      } catch {}
+      } catch { }
     }
     return false;
   }
