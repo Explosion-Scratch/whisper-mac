@@ -1,7 +1,7 @@
 import { BrowserWindow, app } from "electron";
 import { join } from "path";
 
-export type ErrorAction = "ok" | "quit";
+export type ErrorAction = "ok" | "quit" | "settings" | "later";
 
 export interface ErrorPayload {
   title: string;
@@ -11,6 +11,14 @@ export interface ErrorPayload {
 
 export class ErrorWindowService {
   private window: BrowserWindow | null = null;
+  private onSettingsAction?: () => void;
+
+  /**
+   * Set callback for when the settings action is triggered
+   */
+  setSettingsCallback(callback: () => void): void {
+    this.onSettingsAction = callback;
+  }
 
   /**
    * Shows the error window with the provided payload.
@@ -69,12 +77,18 @@ export class ErrorWindowService {
         if (action === "quit") {
           try {
             app.quit();
-          } catch {}
+          } catch { }
         }
-        if (action === "ok") {
+        if (action === "ok" || action === "later") {
           try {
             this.window?.hide();
-          } catch {}
+          } catch { }
+        }
+        if (action === "settings") {
+          try {
+            this.window?.hide();
+            this.onSettingsAction?.();
+          } catch { }
         }
       }
     });

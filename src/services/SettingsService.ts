@@ -7,6 +7,9 @@ import { SETTINGS_SCHEMA } from "../config/SettingsSchema";
 import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManager";
 import { PluginUIFunctions } from "../plugins/TranscriptionPlugin";
 import { UnifiedModelDownloadService } from "./UnifiedModelDownloadService";
+import { PermissionsManager } from "./PermissionsManager";
+import { TextInjectionService } from "./TextInjectionService";
+import { MicrophonePermissionService } from "./MicrophonePermissionService";
 
 export class SettingsService {
   private settingsWindow: BrowserWindow | null = null;
@@ -17,6 +20,7 @@ export class SettingsService {
   private transcriptionPluginManager: TranscriptionPluginManager | null = null;
   private unifiedModelDownloadService: UnifiedModelDownloadService | null =
     null;
+  private permissionsManager: PermissionsManager | null = null;
 
   constructor(config: AppConfig) {
     this.config = config;
@@ -25,6 +29,17 @@ export class SettingsService {
 
     // Load existing settings on startup
     this.loadSettings();
+  }
+
+  /**
+   * Set dependencies for permissions management
+   */
+  setPermissionsDependencies(
+    textInjector: TextInjectionService,
+    microphoneService?: MicrophonePermissionService,
+  ): void {
+    const microphone = microphoneService || new MicrophonePermissionService();
+    this.permissionsManager = new PermissionsManager(textInjector, microphone);
   }
 
   /**
@@ -69,6 +84,11 @@ export class SettingsService {
           this.settingsManager.saveSettings();
           this.settingsManager.applyToConfig();
 
+          // Reset permission caches when settings change to avoid restart requirement
+          if (this.permissionsManager) {
+            this.permissionsManager.resetCaches();
+          }
+
           // Notify other windows about settings update
           this.broadcastSettingsUpdate();
 
@@ -86,6 +106,11 @@ export class SettingsService {
         this.settingsManager.reset();
         this.settingsManager.saveSettings();
         this.settingsManager.applyToConfig();
+
+        // Reset permission caches when settings are reset
+        if (this.permissionsManager) {
+          this.permissionsManager.resetCaches();
+        }
 
         this.broadcastSettingsUpdate();
 
@@ -812,6 +837,156 @@ export class SettingsService {
         return { success: false, error: (error as Error).message };
       }
     });
+
+    // Permissions management
+    ipcMain.handle("permissions:getAll", async () => {
+      if (!this.permissionsManager) {
+        throw new Error("Permissions manager not initialized");
+      }
+      try {
+        return await this.permissionsManager.getAllPermissions();
+      } catch (error) {
+        console.error("Failed to get all permissions:", error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle("permissions:checkAccessibility", async () => {
+      if (!this.permissionsManager) {
+        throw new Error("Permissions manager not initialized");
+      }
+      try {
+        return await this.permissionsManager.checkAccessibilityPermissions();
+      } catch (error) {
+        console.error("Failed to check accessibility permissions:", error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle("permissions:checkMicrophone", async () => {
+      if (!this.permissionsManager) {
+        throw new Error("Permissions manager not initialized");
+      }
+      try {
+        return await this.permissionsManager.checkMicrophonePermissions();
+      } catch (error) {
+        console.error("Failed to check microphone permissions:", error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle("permissions:resetCaches", () => {
+      if (!this.permissionsManager) {
+        return {
+          success: false,
+          error: "Permissions manager not initialized",
+        };
+      }
+      try {
+        this.permissionsManager.resetCaches();
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to reset permission caches:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    ipcMain.handle("permissions:openSystemPreferences", async () => {
+      if (!this.permissionsManager) {
+        return {
+          success: false,
+          error: "Permissions manager not initialized",
+        };
+      }
+      try {
+        await this.permissionsManager.openSystemPreferences();
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to open system preferences:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    // Quiet permission checking (no prompts)
+    ipcMain.handle("permissions:getAllQuiet", async () => {
+      if (!this.permissionsManager) {
+        throw new Error("Permissions manager not initialized");
+      }
+      try {
+        return await this.permissionsManager.getAllPermissionsQuiet();
+      } catch (error) {
+        console.error("Failed to get all permissions quietly:", error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle("permissions:checkAccessibilityQuiet", async () => {
+      if (!this.permissionsManager) {
+        throw new Error("Permissions manager not initialized");
+      }
+      try {
+        return await this.permissionsManager.checkAccessibilityPermissionsQuiet();
+      } catch (error) {
+        console.error("Failed to check accessibility permissions quietly:", error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle("permissions:checkMicrophoneQuiet", async () => {
+      if (!this.permissionsManager) {
+        throw new Error("Permissions manager not initialized");
+      }
+      try {
+        return await this.permissionsManager.checkMicrophonePermissionsQuiet();
+      } catch (error) {
+        console.error("Failed to check microphone permissions quietly:", error);
+        throw error;
+      }
+    });
+
+    // Open specific system preferences
+    ipcMain.handle("permissions:openAccessibilitySettings", async () => {
+      if (!this.permissionsManager) {
+        throw new Error("Permissions manager not initialized");
+      }
+      try {
+        await this.permissionsManager.openAccessibilityPreferences();
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to open accessibility settings:", error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle("permissions:openMicrophoneSettings", async () => {
+      if (!this.permissionsManager) {
+        throw new Error("Permissions manager not initialized");
+      }
+      try {
+        await this.permissionsManager.openMicrophonePreferences();
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to open microphone settings:", error);
+        throw error;
+      }
+    });
+
+    // Open settings window to specific section
+    ipcMain.handle("settings:openToSection", async (_event, sectionId: string) => {
+      try {
+        this.openSettingsWindow(sectionId);
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to open settings to section:", error);
+        throw error;
+      }
+    });
   }
 
   private broadcastSettingsUpdate(): void {
@@ -825,7 +1000,7 @@ export class SettingsService {
     });
   }
 
-  openSettingsWindow(): void {
+  openSettingsWindow(sectionId?: string): void {
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       try {
         if (this.settingsWindow.isMinimized()) {
@@ -834,7 +1009,11 @@ export class SettingsService {
         // Ensure hidden window is shown on reopen
         this.settingsWindow.show();
         this.settingsWindow.focus();
-      } catch {}
+        // Send section to navigate to if specified
+        if (sectionId) {
+          this.settingsWindow.webContents.send("settings:navigateToSection", sectionId);
+        }
+      } catch { }
       return;
     }
 
@@ -869,6 +1048,10 @@ export class SettingsService {
     this.settingsWindow.once("ready-to-show", () => {
       this.settingsWindow?.show();
       this.emitWindowVisibility(true);
+      // Send section to navigate to if specified
+      if (sectionId) {
+        this.settingsWindow?.webContents.send("settings:navigateToSection", sectionId);
+      }
     });
 
     // Clean up when window is closed
@@ -907,7 +1090,7 @@ export class SettingsService {
     this.windowVisibilityCallbacks.forEach((cb) => {
       try {
         cb(visible);
-      } catch (e) {}
+      } catch (e) { }
     });
   }
 

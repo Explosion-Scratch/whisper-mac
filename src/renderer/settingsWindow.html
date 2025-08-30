@@ -1710,6 +1710,79 @@
         transition: width 0.3s ease;
       }
 
+      /* Permissions Section Styles */
+      .form-group.permission-granted {
+        border-color: var(--color-success);
+        background: rgba(52, 199, 89, 0.03);
+      }
+
+      .permission-status-container {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        margin-bottom: var(--spacing-sm);
+        flex-wrap: wrap;
+      }
+
+      .status-badge {
+        padding: 3px 8px;
+        border-radius: var(--radius-sm);
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .status-badge.granted {
+        background: rgba(52, 199, 89, 0.15);
+        color: var(--color-success);
+      }
+
+      .status-badge.denied {
+        background: rgba(255, 59, 48, 0.15);
+        color: var(--color-error);
+      }
+
+      .status-badge.unknown {
+        background: rgba(255, 149, 0, 0.15);
+        color: var(--color-warning);
+      }
+
+      .status-error {
+        font-size: var(--font-size-sm);
+        color: var(--color-error);
+        font-style: italic;
+      }
+
+      .permission-actions {
+        display: flex;
+        gap: var(--spacing-sm);
+        flex-wrap: wrap;
+      }
+
+      .form-group.info-group {
+        background: rgba(0, 122, 255, 0.03);
+        border-color: rgba(0, 122, 255, 0.1);
+      }
+
+      .form-group.info-group .field-description p {
+        margin: 0 0 var(--spacing-xs) 0;
+        line-height: 1.4;
+      }
+
+      .form-group.info-group .field-description p:last-child {
+        margin-bottom: 0;
+      }
+
+      .spinning {
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
       /* About Section Styles */
       .about-content {
         display: flex;
@@ -2114,6 +2187,50 @@
           color: var(--color-primary-hover);
         }
       }
+
+      /* Permissions Custom Content */
+      .permissions-custom-content {
+        padding: var(--spacing-md);
+        max-width: 100%;
+        margin: 0 auto;
+        background: var(--color-surface);
+        border-radius: var(--border-radius-lg);
+        border: 1px solid var(--color-border);
+      }
+
+      .permissions-section {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-lg);
+      }
+
+      .permissions-custom-content .section-header {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--spacing-md);
+        padding-bottom: var(--spacing-md);
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      .permissions-custom-content .section-header i {
+        font-size: var(--font-size-xl);
+        color: var(--color-primary);
+        margin-top: 2px;
+      }
+
+      .permissions-custom-content .section-title {
+        font-size: var(--font-size-lg);
+        font-weight: 600;
+        color: var(--color-text-primary);
+        margin: 0 0 var(--spacing-xs) 0;
+      }
+
+      .permissions-custom-content .section-description {
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+        margin: 0;
+        line-height: 1.5;
+      }
     </style>
   </head>
   <body>
@@ -2174,7 +2291,7 @@
 
         <main class="settings-content" v-if="currentSection && settings">
           <form @submit.prevent="saveSettings">
-            <div class="settings-section">
+            <div v-if="currentSectionId !== 'permissions'" class="settings-section">
               <div class="section-header">
                 <i
                   class="ph-duotone"
@@ -2193,6 +2310,7 @@
 
               <!-- REGULAR FIELDS RENDERER -->
               <div
+                v-if="currentSectionId !== 'permissions'"
                 v-for="field in currentSection.fields"
                 :key="field.key"
                 class="form-group"
@@ -3237,7 +3355,7 @@
               </div>
             </div>
 
-            <div class="form-actions">
+            <div v-if="currentSectionId !== 'permissions'" class="form-actions">
               <button
                 type="submit"
                 class="btn btn-primary"
@@ -3265,7 +3383,124 @@
               </button>
             </div>
           </form>
+
+          <!-- Permissions Content -->
+          <div v-if="currentSectionId === 'permissions'" class="settings-section">
+            <div class="section-header">
+              <i class="ph-duotone ph-shield"></i>
+              <div>
+                <h2 class="section-title">Permissions</h2>
+                <p class="section-description">
+                  Manage system permissions required by WhisperMac for full functionality
+                </p>
+              </div>
+            </div>
+
+            <!-- Accessibility Permission -->
+            <div class="form-group" :class="{ 'permission-granted': permissions?.accessibility?.granted }">
+              <label>
+                <i class="ph-duotone ph-cursor-click"></i>
+                Accessibility Permissions
+              </label>
+              <div class="field-description">
+                Required for WhisperMac to automatically insert transcribed text where you're typing.
+              </div>
+              <div class="permission-status-container">
+                <span class="status-badge" :class="getAccessibilityStatusClass()">
+                  {{ getAccessibilityStatusText() }}
+                </span>
+                <span v-if="permissions?.accessibility?.error" class="status-error">
+                  {{ permissions.accessibility.error }}
+                </span>
+              </div>
+              <div class="permission-actions">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary"
+                  @click="openAccessibilitySettings"
+                >
+                  <i class="ph-duotone ph-gear"></i>
+                  Open Settings
+                </button>
+              </div>
+            </div>
+
+            <!-- Microphone Permission -->
+            <div class="form-group" :class="{ 'permission-granted': permissions?.microphone?.granted }">
+              <label>
+                <i class="ph-duotone ph-microphone"></i>
+                Microphone Permissions
+              </label>
+              <div class="field-description">
+                Required for WhisperMac to capture your voice for transcription and dictation.
+              </div>
+              <div class="permission-status-container">
+                <span class="status-badge" :class="getMicrophoneStatusClass()">
+                  {{ getMicrophoneStatusText() }}
+                </span>
+                <span v-if="permissions?.microphone?.error" class="status-error">
+                  {{ permissions.microphone.error }}
+                </span>
+              </div>
+              <div class="permission-actions">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary"
+                  @click="openMicrophoneSettings"
+                >
+                  <i class="ph-duotone ph-gear"></i>
+                  Open Settings
+                </button>
+              </div>
+            </div>
+
+            <!-- Global Actions -->
+            <div class="form-group">
+              <label>
+                <i class="ph-duotone ph-gear-six"></i>
+                Quick Actions
+              </label>
+              <div class="field-description">
+                Manage permissions and open system settings.
+              </div>
+              <div class="permission-actions">
+                <button
+                  type="button"
+                  class="btn btn-default"
+                  @click="refreshAllPermissions"
+                  :disabled="isRefreshingAll"
+                >
+                  <i v-if="isRefreshingAll" class="ph-duotone ph-circle-notch spinning"></i>
+                  <i v-else class="ph-duotone ph-arrows-clockwise"></i>
+                  {{ isRefreshingAll ? 'Refreshing...' : 'Refresh All' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-default"
+                  @click="openSystemPreferences"
+                >
+                  <i class="ph-duotone ph-gear-six"></i>
+                  Open System Settings
+                </button>
+              </div>
+            </div>
+
+            <!-- Help Information -->
+            <div class="form-group info-group">
+              <label>
+                <i class="ph-duotone ph-info"></i>
+                Important Information
+              </label>
+              <div class="field-description">
+                <p><strong>Note:</strong> Permission changes take effect immediately in most cases.</p>
+                <p>If features aren't working after granting permissions, try refreshing the status or restarting the app.</p>
+                <p>WhisperMac will show permission dialogs when needed if permissions are missing.</p>
+              </div>
+            </div>
+          </div>
         </main>
+
+
 
         <!-- About Section -->
         <main class="settings-content about-content" v-if="currentSectionId === 'about'">

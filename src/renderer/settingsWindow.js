@@ -17,7 +17,7 @@ function createCloningLogger(methodName) {
     } catch (_) {
       try {
         console[methodName](...args);
-      } catch (_) {}
+      } catch (_) { }
     }
   };
 }
@@ -48,6 +48,11 @@ document.addEventListener("DOMContentLoaded", () => {
         status: { visible: false, message: "", type: "success" },
         progress: { visible: false, message: "", percent: 0 },
         isSaving: false,
+        // Permissions state
+        permissions: null,
+        isCheckingAccessibility: false,
+        isCheckingMicrophone: false,
+        isRefreshingAll: false,
         isClearingAll: false,
         apiKeyInput: "",
         apiKeyValidationTimeout: null,
@@ -169,6 +174,12 @@ document.addEventListener("DOMContentLoaded", () => {
             progress.percent || progress.progress || 0,
           );
         });
+
+        // Listen for navigation to specific sections
+        window.electronAPI.onNavigateToSection((sectionId) => {
+          this.showSection(sectionId);
+        });
+
         // Note: Add other listeners like onPluginOptionProgress if needed
       },
 
@@ -207,6 +218,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (sectionId === "ai") {
           this.loadAiModelsIfConfigured();
+        }
+        if (sectionId === "permissions") {
+          this.loadPermissions();
         }
       },
 
@@ -249,6 +263,8 @@ document.addEventListener("DOMContentLoaded", () => {
           waveform: "ph-waveform",
           "flow-arrow": "ph-flow-arrow",
           database: "ph-database",
+          shield: "ph-shield",
+          keyboard: "ph-keyboard",
         };
         return iconMap[iconName] || "ph-gear";
       },
@@ -282,6 +298,142 @@ document.addEventListener("DOMContentLoaded", () => {
 
       hideProgress() {
         this.progress.visible = false;
+      },
+
+      // --- PERMISSIONS MANAGEMENT ---
+      async loadPermissions() {
+        try {
+          window.log("Loading permissions status...");
+          this.permissions = await window.electronAPI.getPermissionsQuiet();
+          window.log("Permissions loaded:", this.permissions);
+        } catch (error) {
+          window.error("Failed to load permissions:", error);
+          this.showStatus("Failed to load permissions status", "error");
+        }
+      },
+
+      async checkAccessibilityPermissions() {
+        this.isCheckingAccessibility = true;
+        try {
+          window.log("Checking accessibility permissions...");
+          const status = await window.electronAPI.checkAccessibilityPermissions();
+          if (this.permissions) {
+            this.permissions.accessibility = status;
+          }
+
+          if (status.granted) {
+            this.showStatus("Accessibility permissions are enabled", "success");
+          } else {
+            this.showStatus("Accessibility permissions need to be enabled in System Settings", "warning");
+          }
+
+          window.log("Accessibility permission status:", status);
+        } catch (error) {
+          window.error("Failed to check accessibility permissions:", error);
+          this.showStatus("Failed to check accessibility permissions", "error");
+        } finally {
+          this.isCheckingAccessibility = false;
+        }
+      },
+
+      async checkMicrophonePermissions() {
+        this.isCheckingMicrophone = true;
+        try {
+          window.log("Checking microphone permissions...");
+          const status = await window.electronAPI.checkMicrophonePermissions();
+          if (this.permissions) {
+            this.permissions.microphone = status;
+          }
+
+          if (status.granted) {
+            this.showStatus("Microphone permissions are enabled", "success");
+          } else {
+            this.showStatus("Microphone permissions need to be enabled in System Settings", "warning");
+          }
+
+          window.log("Microphone permission status:", status);
+        } catch (error) {
+          window.error("Failed to check microphone permissions:", error);
+          this.showStatus("Failed to check microphone permissions", "error");
+        } finally {
+          this.isCheckingMicrophone = false;
+        }
+      },
+
+      async refreshAllPermissions() {
+        this.isRefreshingAll = true;
+        try {
+          window.log("Refreshing all permissions...");
+          await window.electronAPI.resetPermissionCaches();
+          await this.loadPermissions();
+          this.showStatus("Permission status refreshed", "success");
+        } catch (error) {
+          window.error("Failed to refresh permissions:", error);
+          this.showStatus("Failed to refresh permission status", "error");
+        } finally {
+          this.isRefreshingAll = false;
+        }
+      },
+
+      async openSystemPreferences() {
+        try {
+          window.log("Opening System Settings...");
+          await window.electronAPI.openSystemPreferences();
+          this.showStatus("System Settings opened - return here after making changes", "info");
+        } catch (error) {
+          window.error("Failed to open System Settings:", error);
+          this.showStatus("Failed to open System Settings", "error");
+        }
+      },
+
+      async openAccessibilitySettings() {
+        try {
+          window.log("Opening Accessibility Settings...");
+          await window.electronAPI.openAccessibilitySettings();
+          this.showStatus("Accessibility Settings opened - return here after making changes", "info");
+        } catch (error) {
+          window.error("Failed to open Accessibility Settings:", error);
+          this.showStatus("Failed to open Accessibility Settings", "error");
+        }
+      },
+
+      async openMicrophoneSettings() {
+        try {
+          window.log("Opening Microphone Settings...");
+          await window.electronAPI.openMicrophoneSettings();
+          this.showStatus("Microphone Settings opened - return here after making changes", "info");
+        } catch (error) {
+          window.error("Failed to open Microphone Settings:", error);
+          this.showStatus("Failed to open Microphone Settings", "error");
+        }
+      },
+
+      getAccessibilityStatusClass() {
+        if (!this.permissions?.accessibility?.checked) {
+          return "unknown";
+        }
+        return this.permissions.accessibility.granted ? "granted" : "denied";
+      },
+
+      getAccessibilityStatusText() {
+        if (!this.permissions?.accessibility?.checked) {
+          return "Checking...";
+        }
+        return this.permissions.accessibility.granted ? "Granted" : "Not Granted";
+      },
+
+      getMicrophoneStatusClass() {
+        if (!this.permissions?.microphone?.checked) {
+          return "unknown";
+        }
+        return this.permissions.microphone.granted ? "granted" : "denied";
+      },
+
+      getMicrophoneStatusText() {
+        if (!this.permissions?.microphone?.checked) {
+          return "Checking...";
+        }
+        return this.permissions.microphone.granted ? "Granted" : "Not Granted";
       },
 
       // --- DATA HANDLING ---
@@ -772,12 +924,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (
           !confirm(
             "This will delete ALL data from ALL plugins.\n\nThis includes:\n" +
-              "• Downloaded models and temporary files\n" +
-              "• Secure storage data (API keys, settings)\n" +
-              "• All plugin-specific data\n\n" +
-              "If the current plugin can't reactivate after clearing, " +
-              "the system will automatically switch to an available fallback plugin.\n\n" +
-              "This action cannot be undone. Continue?",
+            "• Downloaded models and temporary files\n" +
+            "• Secure storage data (API keys, settings)\n" +
+            "• All plugin-specific data\n\n" +
+            "If the current plugin can't reactivate after clearing, " +
+            "the system will automatically switch to an available fallback plugin.\n\n" +
+            "This action cannot be undone. Continue?",
           )
         ) {
           return;

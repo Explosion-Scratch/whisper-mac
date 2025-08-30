@@ -91,7 +91,11 @@
       "target": "dir",
       "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
       "icon": "build/icons/WhisperMac.icns",
-      "identity": null
+      "identity": null,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "WhisperMac needs microphone access to capture your voice for accurate speech-to-text transcription and dictation.",
+        "NSAccessibilityUsageDescription": "WhisperMac needs accessibility permissions to automatically insert transcribed text where you're typing, providing seamless dictation workflow."
+      }
     },
     "win": {},
     "linux": {},

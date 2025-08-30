@@ -7,16 +7,16 @@ import { readFileSync } from "fs";
 export interface SettingsField {
   key: string;
   type:
-    | "text"
-    | "number"
-    | "boolean"
-    | "select"
-    | "textarea"
-    | "slider"
-    | "directory"
-    | "actions-editor"
-    | "rules-editor"
-    | "hotkey";
+  | "text"
+  | "number"
+  | "boolean"
+  | "select"
+  | "textarea"
+  | "slider"
+  | "directory"
+  | "actions-editor"
+  | "rules-editor"
+  | "hotkey";
   label: string;
   description?: string;
   defaultValue: any;
@@ -241,7 +241,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     id: "hotkeys",
     title: "Hotkeys",
     description: "Configure keyboard shortcuts for app functions",
-    icon: "cog",
+    icon: "keyboard",
     fields: [
       {
         key: "hotkeys.startStopDictation",
@@ -284,6 +284,13 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     ],
   },
 
+  {
+    id: "permissions",
+    title: "Permissions",
+    description: "Manage system permissions required by WhisperMac",
+    icon: "shield",
+    fields: [],
+  },
   {
     id: "advanced",
     title: "Advanced",

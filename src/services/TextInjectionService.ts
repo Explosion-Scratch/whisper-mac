@@ -59,8 +59,7 @@ export class TextInjectionService {
     } catch (error) {
       console.error("Text insertion failed:", error);
       throw new Error(
-        `Failed to insert text: ${
-          error instanceof Error ? error.message : String(error)
+        `Failed to insert text: ${error instanceof Error ? error.message : String(error)
         }`,
       );
     }
@@ -90,11 +89,11 @@ export class TextInjectionService {
           return;
         }
       }
-    } catch {}
+    } catch { }
     await this.notificationService.sendClipboardNotification();
   }
 
-  private async checkAccessibilityPermissions(): Promise<boolean> {
+  async checkAccessibilityPermissions(): Promise<boolean> {
     console.log(
       "TextInjectionService.checkAccessibilityPermissions cache:",
       this.accessibilityEnabled,
@@ -246,7 +245,7 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
       } else {
         clipboard.writeText(backup);
       }
-    } catch {}
+    } catch { }
   }
 
   private async copyToClipboard(text: string): Promise<boolean> {

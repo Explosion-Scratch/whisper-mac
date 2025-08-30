@@ -24,7 +24,7 @@ export class IpcHandlerManager {
     private onFinishDictation: () => Promise<void>,
     private onCancelDictation: () => Promise<void>,
     private onOnboardingComplete?: () => void,
-  ) {}
+  ) { }
 
   setupIpcHandlers(): void {
     this.setupDictationHandlers();
@@ -280,7 +280,7 @@ export class IpcHandlerManager {
       console.log("IPC:onboarding:checkAccessibility invoked");
       const startedAt = Date.now();
       try {
-        const ok = await this.textInjector.ensureAccessibilityPermissions();
+        const ok = await this.textInjector.checkAccessibilityPermissions();
         const durationMs = Date.now() - startedAt;
         console.log(
           "IPC:onboarding:checkAccessibility result",
@@ -311,7 +311,7 @@ export class IpcHandlerManager {
         "../services/MicrophonePermissionService"
       );
       const microphoneService = new MicrophonePermissionService();
-      const ok = await microphoneService.ensureMicrophonePermissions();
+      const ok = await microphoneService.checkMicrophonePermissions();
       return ok;
     });
 

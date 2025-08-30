@@ -42,8 +42,34 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("error:data", (_e, payload) => callback(payload));
   },
   saveApiKeySecure: (apiKey: string) =>
-    ipcRenderer.invoke("settings:saveApiKey", { apiKey }),
-  getApiKeySecure: () => ipcRenderer.invoke("settings:getApiKey"),
+    ipcRenderer.invoke("keychain:saveApiKey", apiKey),
+  getApiKeySecure: () => ipcRenderer.invoke("keychain:getApiKey"),
+  deleteApiKeySecure: () => ipcRenderer.invoke("keychain:deleteApiKey"),
+
+  // Permissions management - quiet methods
+  getPermissionsQuiet: () => ipcRenderer.invoke("permissions:getAllQuiet"),
+  checkAccessibilityQuiet: () => ipcRenderer.invoke("permissions:checkAccessibilityQuiet"),
+  checkMicrophoneQuiet: () => ipcRenderer.invoke("permissions:checkMicrophoneQuiet"),
+
+  // Open specific system preferences
+  openAccessibilitySettings: () => ipcRenderer.invoke("permissions:openAccessibilitySettings"),
+  openMicrophoneSettings: () => ipcRenderer.invoke("permissions:openMicrophoneSettings"),
+
+  // Settings navigation
+  openSettingsToSection: (sectionId: string) =>
+    ipcRenderer.invoke("settings:openToSection", sectionId),
+
+  // Listen for navigation events
+  onNavigateToSection: (callback: (sectionId: string) => void) => {
+    ipcRenderer.on("settings:navigateToSection", (_e, sectionId) => callback(sectionId));
+  },
+
+  // Existing permissions methods
+  getPermissions: () => ipcRenderer.invoke("permissions:getAll"),
+  checkAccessibility: () => ipcRenderer.invoke("permissions:checkAccessibility"),
+  checkMicrophone: () => ipcRenderer.invoke("permissions:checkMicrophone"),
+  refreshAllPermissions: () => ipcRenderer.invoke("permissions:resetCaches"),
+  openSystemPreferences: () => ipcRenderer.invoke("permissions:openSystemPreferences"),
 
   // Unified plugin switching
   switchPlugin: (pluginName: string, modelName?: string) =>
@@ -148,4 +174,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // External URL handling
   openExternalUrl: (url: string) =>
     ipcRenderer.invoke("app:openExternalUrl", url),
+
+  // Permissions management
+  getAllPermissions: () => ipcRenderer.invoke("permissions:getAll"),
+  checkAccessibilityPermissions: () => ipcRenderer.invoke("permissions:checkAccessibility"),
+  checkMicrophonePermissions: () => ipcRenderer.invoke("permissions:checkMicrophone"),
+  resetPermissionCaches: () => ipcRenderer.invoke("permissions:resetCaches"),
 });

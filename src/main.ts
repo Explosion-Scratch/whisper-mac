@@ -157,6 +157,7 @@ class WhisperMacApp {
     this.settingsService.setUnifiedModelDownloadService(
       this.unifiedModelDownloadService,
     );
+    this.settingsService.setPermissionsDependencies(this.textInjector);
     this.shortcutManager.setTranscriptionPluginManager(
       this.transcriptionPluginManager,
     );
@@ -165,8 +166,7 @@ class WhisperMacApp {
   private setupEventListeners(): void {
     this.segmentManager.on("action-detected", async (actionMatch) => {
       console.log(
-        `[Main] Action detected via segment manager: "${
-          actionMatch.actionId
+        `[Main] Action detected via segment manager: "${actionMatch.actionId
         }" with argument: "${actionMatch.extractedArgument || "none"}"`,
       );
 
@@ -184,8 +184,7 @@ class WhisperMacApp {
           await this.dictationFlowManager.stopDictation();
         } else {
           console.log(
-            `[Main] Action ${
-              action?.id || actionMatch.actionId
+            `[Main] Action ${action?.id || actionMatch.actionId
             } continues transcription`,
           );
         }
@@ -293,6 +292,14 @@ class WhisperMacApp {
     this.registerHotkeys();
     this.ipcHandlerManager.setupIpcHandlers();
     this.trayInteractionManager.hideDockAfterOnboarding();
+    this.setupErrorManagerCallback();
+    this.checkPermissionsOnLaunch();
+  }
+
+  private setupErrorManagerCallback(): void {
+    this.errorManager.setSettingsCallback(() => {
+      this.settingsService.openSettingsWindow("permissions");
+    });
   }
 
   private registerHotkeys(): void {
@@ -388,6 +395,54 @@ class WhisperMacApp {
 
   async showError(payload: any): Promise<void> {
     await this.errorManager.showError(payload);
+  }
+
+  private async checkPermissionsOnLaunch(): Promise<void> {
+    try {
+      // Don't check permissions if onboarding isn't complete
+      const settings = this.settingsService.getCurrentSettings();
+      if (!settings?.onboardingComplete) {
+        return;
+      }
+
+      // Get permissions manager from settings service
+      const permissionsManager = (this.settingsService as any).permissionsManager;
+      if (!permissionsManager) {
+        console.log("Permissions manager not available, skipping launch check");
+        return;
+      }
+
+      const permissions = await permissionsManager.getAllPermissionsQuiet();
+      const missingPermissions: string[] = [];
+
+      if (!permissions.accessibility.granted) {
+        missingPermissions.push("Accessibility");
+      }
+      if (!permissions.microphone.granted) {
+        missingPermissions.push("Microphone");
+      }
+
+      if (missingPermissions.length > 0) {
+        await this.showPermissionsAlert(missingPermissions);
+      }
+    } catch (error) {
+      console.error("Failed to check permissions on launch:", error);
+    }
+  }
+
+  private async showPermissionsAlert(missingPermissions: string[]): Promise<void> {
+    const permissionList = missingPermissions.join(" and ");
+    const message = `WhisperMac needs ${permissionList} permission${missingPermissions.length > 1 ? 's' : ''} to work properly.
+
+${permissionList} permission${missingPermissions.length > 1 ? 's are' : ' is'} required for full functionality.
+
+Click "Open Settings" to grant the necessary permissions.`;
+
+    await this.errorManager.showError({
+      title: "Permissions Required",
+      description: message,
+      actions: ["settings", "later"],
+    });
   }
 }
 

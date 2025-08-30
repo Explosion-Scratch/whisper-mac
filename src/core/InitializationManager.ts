@@ -22,7 +22,7 @@ export class InitializationManager {
     private ipcHandlerManager: IpcHandlerManager,
     private onInitializationComplete: () => void,
     private onOnboardingComplete?: () => void,
-  ) {}
+  ) { }
 
   async initialize(): Promise<void> {
     await this.setupDataDirectories();
@@ -89,7 +89,7 @@ export class InitializationManager {
 
   private async checkAccessibilityPermissions(): Promise<void> {
     try {
-      await this.textInjector.ensureAccessibilityPermissions();
+      await this.textInjector.checkAccessibilityPermissions();
       console.log("Accessibility permissions checked");
     } catch (error) {
       console.error("Failed to check accessibility permissions:", error);

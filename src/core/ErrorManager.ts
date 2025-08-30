@@ -12,6 +12,10 @@ export class ErrorManager {
     this.setupGlobalErrorHandlers();
   }
 
+  setSettingsCallback(callback: () => void): void {
+    this.errorService.setSettingsCallback(callback);
+  }
+
   private setupGlobalErrorHandlers(): void {
     process.on("uncaughtException", (err: any) => {
       console.error("Uncaught exception:", err);

@@ -162,8 +162,23 @@
         const items = Array.isArray(list) && list.length ? list : ["ok"];
         items.forEach((a) => {
           const btn = document.createElement("button");
-          btn.className = "btn" + (a === "quit" ? " btn-danger" : "");
-          btn.textContent = a === "quit" ? "Quit" : "OK";
+          let className = "btn";
+          let buttonText = "OK";
+          
+          if (a === "quit") {
+            className += " btn-danger";
+            buttonText = "Quit";
+          } else if (a === "settings") {
+            className += " btn-primary";
+            buttonText = "Open Settings";
+          } else if (a === "later") {
+            buttonText = "Later";
+          } else if (a === "ok") {
+            buttonText = "OK";
+          }
+          
+          btn.className = className;
+          btn.textContent = buttonText;
           btn.addEventListener("click", () => window.errorAPI.act(a));
           actionsEl.appendChild(btn);
         });
