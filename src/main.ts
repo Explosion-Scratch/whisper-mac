@@ -70,6 +70,7 @@ class WhisperMacApp {
     log.transports.file.level = "info";
     log.transports.console.level = "info";
     this.initializeServices();
+    this.setupPermissionsDependencies();
     this.initializeManagers();
     this.setupServiceConnections();
     this.setupEventListeners();
@@ -126,6 +127,7 @@ class WhisperMacApp {
       this.settingsManager,
       this.errorManager,
       this.appStateManager,
+      this.settingsService.getPermissionsManager(),
       () => this.dictationFlowManager.startDictation(),
       () => this.dictationFlowManager.stopDictation(),
       () => this.dictationFlowManager.finishCurrentDictation(),
@@ -147,6 +149,10 @@ class WhisperMacApp {
     );
   }
 
+  private setupPermissionsDependencies(): void {
+    this.settingsService.setPermissionsDependencies(this.textInjector);
+  }
+
   private setupServiceConnections(): void {
     this.settingsService.setTranscriptionPluginManager(
       this.transcriptionPluginManager,
@@ -157,7 +163,6 @@ class WhisperMacApp {
     this.settingsService.setUnifiedModelDownloadService(
       this.unifiedModelDownloadService,
     );
-    this.settingsService.setPermissionsDependencies(this.textInjector);
     this.shortcutManager.setTranscriptionPluginManager(
       this.transcriptionPluginManager,
     );

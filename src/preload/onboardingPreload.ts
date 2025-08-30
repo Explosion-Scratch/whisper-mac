@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
   checkMicrophone: () => ipcRenderer.invoke("onboarding:checkMicrophone"),
   resetMicrophoneCache: () =>
     ipcRenderer.invoke("onboarding:resetMicrophoneCache"),
+  openSettings: (section?: string) =>
+    ipcRenderer.invoke("onboarding:openSettings", section),
+  openSystemPreferences: (type?: string) =>
+    ipcRenderer.invoke("onboarding:openSystemPreferences", type),
   getPluginSchemas: () => ipcRenderer.invoke("onboarding:getPluginSchemas"),
   getPluginOptions: (pluginName: string) =>
     ipcRenderer.invoke("onboarding:getPluginOptions", pluginName),

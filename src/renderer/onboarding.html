@@ -422,6 +422,22 @@
                   enabled to automatically paste transcribed text. The app will
                   check for permissions every few seconds.
                 </div>
+                <div v-if="showAccessibilityHelp" class="row" style="margin-top: 12px; gap: 8px;">
+                  <button 
+                    class="btn" 
+                    @click="openSystemPreferences('accessibility')"
+                    style="font-size: 11px;"
+                  >
+                    Open System Preferences
+                  </button>
+                  <button 
+                    class="btn" 
+                    @click="openSettings('permissions')"
+                    style="font-size: 11px;"
+                  >
+                    Open Settings
+                  </button>
+                </div>
               </div>
             </div>
           </section>
@@ -464,6 +480,22 @@
                   <strong>Required:</strong> Microphone permissions must be
                   enabled to capture your voice for transcription. The app will
                   check for permissions every few seconds.
+                </div>
+                <div v-if="showMicrophoneHelp" class="row" style="margin-top: 12px; gap: 8px;">
+                  <button 
+                    class="btn" 
+                    @click="openSystemPreferences('microphone')"
+                    style="font-size: 11px;"
+                  >
+                    Open System Preferences
+                  </button>
+                  <button 
+                    class="btn" 
+                    @click="openSettings('permissions')"
+                    style="font-size: 11px;"
+                  >
+                    Open Settings
+                  </button>
                 </div>
               </div>
             </div>
@@ -731,8 +763,10 @@
           const idx = ref(0);
           const accessStatus = ref("Not checked yet");
           const isCheckingAccess = ref(false);
+          const showAccessibilityHelp = ref(false);
           const microphoneStatus = ref("Not checked yet");
           const isCheckingMicrophone = ref(false);
+          const showMicrophoneHelp = ref(false);
           const aiEnabled = ref(false);
           const aiBaseUrl = ref("");
           const aiModel = ref("");
@@ -966,9 +1000,14 @@
               "Renderer:onboarding checkAccess() result",
               JSON.stringify({ ok, durationMs: Date.now() - t0 }),
             );
-            accessStatus.value = ok
-              ? "Enabled"
-              : "Instructions shown. Please enable and return.";
+            if (ok) {
+              accessStatus.value = "Enabled";
+              showAccessibilityHelp.value = false;
+            } else {
+              accessStatus.value = "Please grant accessibility permissions";
+              // Show options to open system preferences or settings
+              showAccessibilityHelp.value = true;
+            }
             isCheckingAccess.value = false;
           };
 
@@ -992,11 +1031,13 @@
               });
 
               microphoneStatus.value = "Enabled";
+              showMicrophoneHelp.value = false;
             } catch (error) {
               console.error("Microphone permission denied:", error);
-              microphoneStatus.value =
-                "Instructions shown. Please enable and return.";
-              // Show system preferences dialog
+              microphoneStatus.value = "Please grant microphone permissions";
+              // Show options to open system preferences or settings
+              showMicrophoneHelp.value = true;
+              // Also try the main process check to show system dialog
               await window.onboardingAPI.checkMicrophone();
             }
             isCheckingMicrophone.value = false;
@@ -1084,6 +1125,22 @@
             await window.onboardingAPI.runSetup();
           };
 
+          const openSystemPreferences = async (type) => {
+            try {
+              await window.onboardingAPI.openSystemPreferences(type);
+            } catch (error) {
+              console.error(`Failed to open ${type} preferences:`, error);
+            }
+          };
+
+          const openSettings = async (section) => {
+            try {
+              await window.onboardingAPI.openSettings(section);
+            } catch (error) {
+              console.error(`Failed to open settings for ${section}:`, error);
+            }
+          };
+
           onMounted(() => {
             init();
 
@@ -1131,8 +1188,10 @@
             idx,
             accessStatus,
             isCheckingAccess,
+            showAccessibilityHelp,
             microphoneStatus,
             isCheckingMicrophone,
+            showMicrophoneHelp,
             aiEnabled,
             aiBaseUrl,
             aiModel,
@@ -1161,7 +1220,8 @@
             checkMicrophone,
             onAiEnabledChange,
             validateAiConfig,
-
+            openSystemPreferences,
+            openSettings,
             saveKey,
             runSetup,
           };

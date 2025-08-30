@@ -1,10 +1,11 @@
+import { systemPreferences } from "electron";
+
 export class MicrophonePermissionService {
   private microphoneEnabled: boolean | null = null;
 
   /**
    * Check if the application has microphone permissions
-   * Note: This method is called from the main process but the actual
-   * permission check happens in the renderer process
+   * Uses Electron's systemPreferences API to check microphone access status
    */
   async checkMicrophonePermissions(): Promise<boolean> {
     if (this.microphoneEnabled !== null) {
@@ -15,10 +16,24 @@ export class MicrophonePermissionService {
       "=== MicrophonePermissionService.checkMicrophonePermissions ===",
     );
 
-    // Since we can't access navigator.mediaDevices from the main process,
-    // we'll just show the instructions and let the renderer handle the actual check
-    this.microphoneEnabled = false;
-    return false;
+    try {
+      // Use Electron's systemPreferences API to check microphone access
+      const microphoneAccessStatus = systemPreferences.getMediaAccessStatus('microphone');
+      console.log("Microphone access status:", microphoneAccessStatus);
+
+      // 'granted' means the user has explicitly granted permission
+      // 'not-determined' means the user hasn't been asked yet
+      // 'denied' means the user has explicitly denied permission
+      // 'restricted' means access is restricted (parental controls, etc.)
+      // 'unknown' means the status cannot be determined
+      this.microphoneEnabled = microphoneAccessStatus === 'granted';
+
+      return this.microphoneEnabled;
+    } catch (error) {
+      console.error("Error checking microphone permissions:", error);
+      this.microphoneEnabled = false;
+      return false;
+    }
   }
 
   /**
@@ -71,16 +86,48 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
       "=== MicrophonePermissionService.ensureMicrophonePermissions ===",
     );
 
-    const hasMicrophone = await this.checkMicrophonePermissions();
+    // Reset cache to get fresh status
+    this.microphoneEnabled = null;
 
-    if (!hasMicrophone) {
-      console.log(
-        "Microphone permissions not enabled, showing instructions...",
-      );
+    try {
+      const microphoneAccessStatus = systemPreferences.getMediaAccessStatus('microphone');
+      console.log("Current microphone access status:", microphoneAccessStatus);
+
+      if (microphoneAccessStatus === 'granted') {
+        this.microphoneEnabled = true;
+        return true;
+      } else if (microphoneAccessStatus === 'not-determined') {
+        // Try to ask for microphone access by making a request
+        try {
+          console.log("Requesting microphone access...");
+          await systemPreferences.askForMediaAccess('microphone');
+
+          // Check status again after request
+          const newStatus = systemPreferences.getMediaAccessStatus('microphone');
+          console.log("Microphone access status after request:", newStatus);
+          this.microphoneEnabled = newStatus === 'granted';
+
+          if (!this.microphoneEnabled) {
+            await this.showMicrophoneInstructions();
+          }
+
+          return this.microphoneEnabled;
+        } catch (error) {
+          console.error("Error requesting microphone access:", error);
+          await this.showMicrophoneInstructions();
+          return false;
+        }
+      } else {
+        // Status is 'denied', 'restricted', or 'unknown'
+        console.log("Microphone permissions not enabled, showing instructions...");
+        await this.showMicrophoneInstructions();
+        return false;
+      }
+    } catch (error) {
+      console.error("Error in ensureMicrophonePermissions:", error);
       await this.showMicrophoneInstructions();
+      return false;
     }
-
-    return hasMicrophone;
   }
 
   /**

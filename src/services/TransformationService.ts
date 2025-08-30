@@ -204,11 +204,37 @@ export class TransformationService {
   }
   /**
    * Remove content between <think> tags and trim the result
+   * Also removes content that ends with </think> but doesn't start with <think>
    * @param text The text to process
    * @returns Text with think tags removed
    */
   static removeThink(text: string): string {
-    return text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    let result = "";
+    let parts = text.split("<think>");
+    result += parts[0];
+    for (let i = 1; i < parts.length; i++) {
+      const afterThink = parts[i].split("</think>");
+      if (afterThink.length > 1) {
+        result += afterThink.slice(1).join("</think>");
+      } else {
+        result += parts[i];
+      }
+    }
+
+    // Handle case where content doesn't start with <think> but ends with </think>
+    // Only apply this when there's exactly one </think> and no <think> tags
+    const thinkStartCount = (result.match(/<think>/g) || []).length;
+    const thinkEndCount = (result.match(/<\/think>/g) || []).length;
+
+    if (thinkEndCount === 1 && thinkStartCount === 0) {
+      const thinkEndIndex = result.lastIndexOf("</think>");
+      if (thinkEndIndex !== -1) {
+        // Find the last occurrence of </think> and remove everything before it
+        result = result.substring(thinkEndIndex + 8); // 8 is length of "</think>"
+      }
+    }
+
+    return result.trim();
   }
 
   /**
@@ -265,13 +291,13 @@ export class TransformationService {
       { text: systemPrompt + "\n\n" + messagePrompt },
       ...(screenshotBase64
         ? [
-            {
-              inlineData: {
-                mimeType: "image/png",
-                data: screenshotBase64,
-              },
+          {
+            inlineData: {
+              mimeType: "image/png",
+              data: screenshotBase64,
             },
-          ]
+          },
+        ]
         : []),
       {
         inlineData: {
@@ -405,7 +431,7 @@ export class TransformationService {
     try {
       const secure = new SecureStorageService();
       apiKey = (await secure.getApiKey()) || undefined;
-    } catch (e) {}
+    } catch (e) { }
     if (!apiKey) apiKey = process.env["AI_API_KEY"];
     if (!apiKey)
       throw new Error(
@@ -475,9 +501,12 @@ export class TransformationService {
 
     console.log("=== AI IMMEDIATE OUTPUT (PRE-TRANSFORMATION) ===");
     console.log("Raw AI response:", data.choices[0].message.content);
-
+    const content = data?.choices[0]?.message?.content?.trim();
+    if (!content) {
+      throw new Error("Invalid AI API response format");
+    }
     let transformed = TransformationService.removeThink(
-      data.choices[0].message.content,
+      content,
     );
     transformed = await TransformationService.removeChanged(transformed);
     console.log("AI transformed text:", transformed);

@@ -53,6 +53,16 @@ export class SettingsService {
     this.unifiedModelDownloadService = service;
   }
 
+  /**
+   * Get the permissions manager instance
+   */
+  getPermissionsManager(): PermissionsManager {
+    if (!this.permissionsManager) {
+      throw new Error("Permissions manager not initialized. Call setPermissionsDependencies first.");
+    }
+    return this.permissionsManager;
+  }
+
   private setupIpcHandlers(): void {
     // Get settings schema
     ipcMain.handle("settings:getSchema", () => {
@@ -246,6 +256,33 @@ export class SettingsService {
       );
       const secure = new SecureStorageService();
       return await secure.getApiKey();
+    });
+
+    // Keychain handlers (used by settings window)
+    ipcMain.handle("keychain:saveApiKey", async (_e, apiKey: string) => {
+      const { SecureStorageService } = await import(
+        "../services/SecureStorageService"
+      );
+      const secure = new SecureStorageService();
+      await secure.setApiKey(apiKey);
+      return { success: true };
+    });
+
+    ipcMain.handle("keychain:getApiKey", async () => {
+      const { SecureStorageService } = await import(
+        "../services/SecureStorageService"
+      );
+      const secure = new SecureStorageService();
+      return await secure.getApiKey();
+    });
+
+    ipcMain.handle("keychain:deleteApiKey", async () => {
+      const { SecureStorageService } = await import(
+        "../services/SecureStorageService"
+      );
+      const secure = new SecureStorageService();
+      await secure.deleteApiKey();
+      return { success: true };
     });
 
     // Handle plugin switching with model downloads
@@ -1122,6 +1159,9 @@ export class SettingsService {
     ipcMain.removeHandler("settings:closeWindow");
     ipcMain.removeHandler("settings:saveApiKey");
     ipcMain.removeHandler("settings:getApiKey");
+    ipcMain.removeHandler("keychain:saveApiKey");
+    ipcMain.removeHandler("keychain:getApiKey");
+    ipcMain.removeHandler("keychain:deleteApiKey");
     ipcMain.removeHandler("settings:clearAllPluginData");
     ipcMain.removeHandler("settings:clearAllPluginDataWithFallback");
 

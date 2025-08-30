@@ -8,6 +8,7 @@ import { SettingsManager } from "../config/SettingsManager";
 import { DefaultActionsConfig } from "../types/ActionTypes";
 import { ErrorManager } from "./ErrorManager";
 import { AppStateManager } from "./AppStateManager";
+import { PermissionsManager } from "../services/PermissionsManager";
 
 export class IpcHandlerManager {
   constructor(
@@ -19,6 +20,7 @@ export class IpcHandlerManager {
     private settingsManager: SettingsManager,
     private errorManager: ErrorManager,
     private appStateManager: AppStateManager,
+    private permissionsManager: PermissionsManager,
     private onStartDictation: () => Promise<void>,
     private onStopDictation: () => Promise<void>,
     private onFinishDictation: () => Promise<void>,
@@ -280,13 +282,13 @@ export class IpcHandlerManager {
       console.log("IPC:onboarding:checkAccessibility invoked");
       const startedAt = Date.now();
       try {
-        const ok = await this.textInjector.checkAccessibilityPermissions();
+        const result = await this.permissionsManager.checkAccessibilityPermissions();
         const durationMs = Date.now() - startedAt;
         console.log(
           "IPC:onboarding:checkAccessibility result",
-          JSON.stringify({ ok, durationMs }),
+          JSON.stringify({ ok: result.granted, durationMs }),
         );
-        return ok;
+        return result.granted;
       } catch (error: any) {
         const durationMs = Date.now() - startedAt;
         console.error(
@@ -302,23 +304,50 @@ export class IpcHandlerManager {
 
     ipcMain.handle("onboarding:resetAccessibilityCache", () => {
       console.log("IPC:onboarding:resetAccessibilityCache invoked");
-      this.textInjector.resetAccessibilityCache();
+      this.permissionsManager.resetCaches();
       return true;
     });
 
     ipcMain.handle("onboarding:checkMicrophone", async () => {
-      const { MicrophonePermissionService } = await import(
-        "../services/MicrophonePermissionService"
-      );
-      const microphoneService = new MicrophonePermissionService();
-      const ok = await microphoneService.checkMicrophonePermissions();
-      return ok;
+      try {
+        const result = await this.permissionsManager.checkMicrophonePermissions();
+        return result.granted;
+      } catch (error: any) {
+        console.error("IPC:onboarding:checkMicrophone error", error);
+        throw error;
+      }
     });
 
     ipcMain.handle("onboarding:resetMicrophoneCache", () => {
-      // Note: Microphone permission cache is managed in the renderer process
-      // This is just a placeholder for consistency with accessibility pattern
+      console.log("IPC:onboarding:resetMicrophoneCache invoked");
+      this.permissionsManager.resetCaches();
       return true;
+    });
+
+    ipcMain.handle("onboarding:openSettings", async (_event, section?: string) => {
+      try {
+        this.settingsService.openSettingsWindow(section);
+        return { success: true };
+      } catch (error: any) {
+        console.error("Failed to open settings:", error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("onboarding:openSystemPreferences", async (_event, type?: string) => {
+      try {
+        if (type === "accessibility") {
+          await this.permissionsManager.openAccessibilityPreferences();
+        } else if (type === "microphone") {
+          await this.permissionsManager.openMicrophonePreferences();
+        } else {
+          await this.permissionsManager.openSystemPreferences();
+        }
+        return { success: true };
+      } catch (error: any) {
+        console.error("Failed to open system preferences:", error);
+        return { success: false, error: error.message };
+      }
     });
 
     // Legacy handlers removed - now using unified plugin system
