@@ -166,6 +166,8 @@ export class ShortcutManager {
 
   quitApp(): void {
     console.log("Quitting app via shortcut");
+    // Use app.quit() which will trigger the before-quit event
+    // and our proper cleanup sequence in main.ts
     app.quit();
   }
 

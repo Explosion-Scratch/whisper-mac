@@ -21,7 +21,7 @@ const macInputBuiltPath = path.join(
   __dirname,
   "../native/mac-input/build/Release/mac_input.node",
 );
-const macInputDistDir = path.join(__dirname, "../dist/src/native");
+const macInputDistDir = path.join(__dirname, "../dist/native");
 const macInputDistPath = path.join(macInputDistDir, "mac_input.node");
 
 const EXTENSIONS = [
@@ -112,8 +112,7 @@ async function copyWithRetry(src, dest, type = "file", attempts = 0) {
   } catch (error) {
     if (attempts < MAX_RETRY_ATTEMPTS) {
       console.warn(
-        `Retry ${attempts + 1}/${MAX_RETRY_ATTEMPTS} for ${src}: ${
-          error.message
+        `Retry ${attempts + 1}/${MAX_RETRY_ATTEMPTS} for ${src}: ${error.message
         }`,
       );
       await delay(RETRY_DELAY_MS * (attempts + 1)); // Exponential backoff

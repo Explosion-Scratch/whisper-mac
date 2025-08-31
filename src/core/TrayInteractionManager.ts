@@ -80,21 +80,38 @@ export class TrayInteractionManager {
             );
             if (!onboardingVisible) this.trayService.showDock(false);
           }
-        } catch (e) {}
+        } catch (error) {
+          console.error("Error in dock visibility check:", error);
+        }
       });
-    } catch (e) {}
+    } catch (error) {
+      console.error("Error setting up dock visibility monitoring:", error);
+    }
   }
 
   hideDockAfterOnboarding(): void {
     try {
-      const settingsVisible = this.settingsService.isWindowVisible();
-      if (!settingsVisible) app.dock?.hide();
-    } catch (e) {}
+      // Add small delay to ensure onboarding window is fully closed
+      setTimeout(() => {
+        try {
+          const settingsVisible = this.settingsService.isWindowVisible();
+          if (!settingsVisible) {
+            app.dock?.hide();
+          }
+        } catch (error) {
+          console.error("Error hiding dock after onboarding:", error);
+        }
+      }, 100);
+    } catch (error) {
+      console.error("Error in hideDockAfterOnboarding:", error);
+    }
   }
 
   showDockAfterOnboarding(): void {
     try {
       app.dock?.show();
-    } catch (e) {}
+    } catch (error) {
+      console.error("Error showing dock after onboarding:", error);
+    }
   }
 }

@@ -1145,6 +1145,9 @@ export class SettingsService {
   cleanup(): void {
     console.log("=== Cleaning up SettingsService ===");
 
+    // Remove all event listeners from this service
+    this.removeAllListeners();
+
     // Clean up IPC handlers
     const { ipcMain } = require("electron");
 
@@ -1245,6 +1248,13 @@ export class SettingsService {
       };
     }
     return { ok: true };
+  }
+
+  /**
+   * Remove all event listeners for cleanup
+   */
+  removeAllListeners(): void {
+    this.windowVisibilityCallbacks.clear();
   }
 
   /**

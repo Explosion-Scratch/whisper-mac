@@ -480,6 +480,9 @@ export class IpcHandlerManager {
           .set("onboardingComplete", true);
         this.settingsService.getSettingsManager().saveSettings();
 
+        // Reset permission caches to ensure fresh checks after onboarding
+        this.permissionsManager.resetCaches();
+
         // Call the onboarding completion handler to continue initialization
         if (this.onOnboardingComplete) {
           this.onOnboardingComplete();

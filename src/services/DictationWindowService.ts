@@ -414,8 +414,17 @@ export class DictationWindowService extends EventEmitter {
   cleanup(): void {
     console.log("=== Cleaning up DictationWindowService ===");
 
+    // Remove all event listeners
+    this.removeAllListeners();
+
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       console.log("Destroying dictation window...");
+      // Send cleanup signal to renderer before destroying
+      try {
+        this.dictationWindow.webContents.send("cleanup-before-destroy");
+      } catch (error) {
+        // Ignore errors if webContents is not available
+      }
       this.dictationWindow.destroy();
     }
 

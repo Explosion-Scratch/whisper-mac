@@ -176,7 +176,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
         let hasOutput = false;
         whisperProcess.stdout?.on("data", (data) => {
-          console.log("Whisper.cpp data: ", data.toString());
           hasOutput = true;
           resolve(true);
         });
@@ -779,17 +778,11 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
             const rawTranscription = readFileSync(txtOutputPath, "utf8").trim();
             unlinkSync(txtOutputPath); // Clean up output file
 
-            console.log(
-              `Whisper.cpp raw transcription from file: "${rawTranscription}"`,
-            );
             resolve(rawTranscription || "[No speech detected]");
           } catch (fileError) {
             // If we can't read the file, try to get output from stdout
             const rawTranscription = stdout.trim();
 
-            console.log(
-              `Whisper.cpp raw transcription from stdout: "${rawTranscription}"`,
-            );
             resolve(rawTranscription || "[No speech detected]");
           }
         } else {
@@ -1476,7 +1469,9 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         showDownloadProgress: (downloadProgress: any) => {
           onProgress?.(downloadProgress);
         },
-        hideProgress: () => {},
+        hideProgress: () => {
+          // No-op: Progress hiding handled by caller
+        },
         showError: (error: string) => {
           onLog?.(`Error: ${error}`);
         },

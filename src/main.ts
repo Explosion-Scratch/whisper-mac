@@ -391,11 +391,27 @@ class WhisperMacApp {
   }
 
   async cleanup(): Promise<void> {
-    const finishingTimeout =
-      this.dictationFlowManager.setFinishingTimeout(null);
-    this.cleanupManager.setFinishingTimeout(finishingTimeout);
-    await this.cleanupManager.cleanup();
-    this.ipcHandlerManager.cleanupIpcHandlers();
+    console.log("=== WhisperMacApp cleanup starting ===");
+
+    try {
+      // Cancel any finishing timeout from dictation flow
+      const finishingTimeout =
+        this.dictationFlowManager.setFinishingTimeout(null);
+      this.cleanupManager.setFinishingTimeout(finishingTimeout);
+
+      // Clean up IPC handlers first to prevent new requests
+      console.log("Cleaning up IPC handlers...");
+      this.ipcHandlerManager.cleanupIpcHandlers();
+
+      // Then perform comprehensive cleanup
+      console.log("Starting comprehensive cleanup...");
+      await this.cleanupManager.cleanup();
+
+      console.log("=== WhisperMacApp cleanup completed ===");
+    } catch (error) {
+      console.error("Error during WhisperMacApp cleanup:", error);
+      // Don't re-throw - we want the app to quit even if cleanup fails
+    }
   }
 
   async showError(payload: any): Promise<void> {
@@ -410,28 +426,47 @@ class WhisperMacApp {
         return;
       }
 
-      // Get permissions manager from settings service
-      const permissionsManager = (this.settingsService as any).permissionsManager;
-      if (!permissionsManager) {
-        console.log("Permissions manager not available, skipping launch check");
-        return;
-      }
-
-      const permissions = await permissionsManager.getAllPermissionsQuiet();
-      const missingPermissions: string[] = [];
-
-      if (!permissions.accessibility.granted) {
-        missingPermissions.push("Accessibility");
-      }
-      if (!permissions.microphone.granted) {
-        missingPermissions.push("Microphone");
-      }
-
-      if (missingPermissions.length > 0) {
-        await this.showPermissionsAlert(missingPermissions);
-      }
+      // Add delay to ensure all services are initialized
+      setTimeout(() => {
+        this.checkPermissionsOnLaunchDelayed().catch(error => {
+          console.error("Failed to check permissions on launch:", error);
+        });
+      }, 500);
     } catch (error) {
       console.error("Failed to check permissions on launch:", error);
+    }
+  }
+
+  private async checkPermissionsOnLaunchDelayed(): Promise<void> {
+    // Type-safe access to permissions manager
+    if (!this.settingsService || typeof (this.settingsService as any).permissionsManager === 'undefined') {
+      console.log("Permissions manager not available, skipping launch check");
+      return;
+    }
+
+    const permissionsManager = (this.settingsService as any).permissionsManager;
+    const permissions = await permissionsManager.getAllPermissionsQuiet();
+    const missingPermissions: string[] = [];
+
+    if (!permissions.accessibility.granted) {
+      missingPermissions.push("Accessibility");
+    }
+
+    // For microphone permissions, if status is "not-determined", try to request them properly
+    if (!permissions.microphone.granted) {
+      try {
+        const microphoneStatus = await permissionsManager.ensureMicrophonePermissions();
+        if (!microphoneStatus.granted) {
+          missingPermissions.push("Microphone");
+        }
+      } catch (error) {
+        console.error("Error ensuring microphone permissions:", error);
+        missingPermissions.push("Microphone");
+      }
+    }
+
+    if (missingPermissions.length > 0) {
+      await this.showPermissionsAlert(missingPermissions);
     }
   }
 
@@ -454,29 +489,67 @@ Click "Open Settings" to grant the necessary permissions.`;
 const appInstance = new WhisperMacApp();
 appInstance.initialize();
 
+let isQuitting = false;
+
+app.on("before-quit", async (event: Electron.Event) => {
+  console.log("App quit requested");
+
+  if (!isQuitting) {
+    console.log("Starting app cleanup process...");
+    event.preventDefault();
+    isQuitting = true;
+
+    try {
+      await appInstance.cleanup();
+      console.log("Cleanup completed, quitting app...");
+      app.quit();
+    } catch (error) {
+      console.error("Error during cleanup:", error);
+      setTimeout(() => {
+        console.log("Force quitting due to cleanup error...");
+        process.exit(1);
+      }, 2000);
+    }
+  }
+});
+
 app.on("will-quit", () => {
-  appInstance.cleanup();
+  console.log("App will quit now");
 });
 
-process.on("SIGINT", () => {
+process.on("SIGINT", async () => {
   console.log("Received SIGINT, forcing app quit...");
-  appInstance.cleanup();
-  process.exit(0);
+  if (!isQuitting) {
+    isQuitting = true;
+    try {
+      await appInstance.cleanup();
+    } catch (error) {
+      console.error("Error during SIGINT cleanup:", error);
+    }
+    process.exit(0);
+  }
 });
 
-process.on("SIGTERM", () => {
+process.on("SIGTERM", async () => {
   console.log("Received SIGTERM, forcing app quit...");
-  appInstance.cleanup();
-  process.exit(0);
+  if (!isQuitting) {
+    isQuitting = true;
+    try {
+      await appInstance.cleanup();
+    } catch (error) {
+      console.error("Error during SIGTERM cleanup:", error);
+    }
+    process.exit(0);
+  }
 });
 
 app.on("window-all-closed", (event: Electron.Event) => {
-  event.preventDefault();
-  console.log("All windows closed, but keeping app running (menu bar app)");
-});
-
-app.on("before-quit", (event: Electron.Event) => {
-  console.log("App quit requested");
+  // For menu bar apps, we usually prevent quit when all windows close
+  // But allow quit if the user explicitly requested it
+  if (!isQuitting) {
+    event.preventDefault();
+    console.log("All windows closed, but keeping app running (menu bar app)");
+  }
 });
 
 app.on("activate", () => {
