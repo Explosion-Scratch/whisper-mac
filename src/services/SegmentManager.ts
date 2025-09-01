@@ -67,9 +67,8 @@ export class SegmentManager extends EventEmitter {
     for (const segment of this.segments) {
       if (segment.type === "transcribed") {
         const transcribedSegment = segment as TranscribedSegment;
-        const key = `${transcribedSegment.start}-${
-          transcribedSegment.end
-        }-${transcribedSegment.text.trim()}`;
+        const key = `${transcribedSegment.start}-${transcribedSegment.end
+          }-${transcribedSegment.text.trim()}`;
 
         if (!seen.has(key)) {
           seen.add(key);
@@ -109,8 +108,7 @@ export class SegmentManager extends EventEmitter {
         this.configurableActionsService.detectAction(trimmedText);
       if (actionMatch) {
         console.log(
-          `[SegmentManager] Action detected: "${
-            actionMatch.actionId
+          `[SegmentManager] Action detected: "${actionMatch.actionId
           }" with argument: "${actionMatch.extractedArgument || "none"}"`,
         );
 
@@ -221,7 +219,7 @@ export class SegmentManager extends EventEmitter {
     console.log("[SegmentManager] Transform and inject all segments");
 
     const segmentsToProcess = this.segments.filter(
-      (s) => s.type === "transcribed",
+      (s) => s.type === "transcribed" && (s as TranscribedSegment).completed,
     ) as TranscribedSegment[];
 
     if (segmentsToProcess.length === 0) {
@@ -250,8 +248,7 @@ export class SegmentManager extends EventEmitter {
           options.onInjecting?.();
           await this.textInjectionService.insertText(originalText);
           console.log(
-            `[SegmentManager] Direct-injected text (skip reason: ${
-              options?.skipTransformation ? "plugin" : "action"
+            `[SegmentManager] Direct-injected text (skip reason: ${options?.skipTransformation ? "plugin" : "action"
             }): "${originalText}"`,
           );
         }

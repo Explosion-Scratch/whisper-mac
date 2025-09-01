@@ -138,6 +138,10 @@ export class DictationFlowManager {
         }
       }
 
+      // Wait briefly for any in-flight transcription to complete so we don't inject placeholders
+      const waitSucceeded = await this.waitForCompletedSegments(8000);
+      console.log("Wait for completed segments:", waitSucceeded);
+
       console.log(
         "=== Transforming and injecting all accumulated segments ===",
       );
@@ -362,5 +366,21 @@ export class DictationFlowManager {
 
   private updateTrayIcon(state: "idle" | "recording"): void {
     this.trayService?.updateTrayIcon(state);
+  }
+
+  private async waitForCompletedSegments(timeoutMs: number): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const completed = this.segmentManager.getCompletedTranscribedSegments();
+      if (completed.length > 0) {
+        return true;
+      }
+      const inProgress = this.segmentManager.getInProgressTranscribedSegments();
+      if (inProgress.length === 0) {
+        return false;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return false;
   }
 }
