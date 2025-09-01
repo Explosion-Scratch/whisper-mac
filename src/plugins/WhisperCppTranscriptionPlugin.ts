@@ -197,14 +197,17 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
           resolve(false);
         });
 
-        // Timeout after 5 seconds
-        setTimeout(() => {
+        // Timeout after 5 seconds with cleanup
+        const timeout = setTimeout(() => {
           if (!whisperProcess.killed) {
             console.log("Whisper.cpp binary check timed out");
             whisperProcess.kill();
             resolve(false);
           }
         }, 5000);
+
+        whisperProcess.on("close", () => clearTimeout(timeout));
+        whisperProcess.on("error", () => clearTimeout(timeout));
       });
     } catch (error) {
       console.error("Whisper.cpp binary availability check failed:", error);
@@ -799,14 +802,18 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         reject(error);
       });
 
-      // Set timeout to prevent hanging (3 minutes)
-      setTimeout(() => {
+      // Set timeout to prevent hanging (3 minutes) with cleanup
+      const timeout = setTimeout(() => {
         if (!whisperProcess.killed) {
           console.error("Whisper.cpp transcription timeout after 3 minutes");
           whisperProcess.kill();
           reject(new Error("Whisper.cpp transcription timeout"));
         }
-      }, 180000); // 3 minute timeout
+      }, 180000);
+
+      const clearAll = () => clearTimeout(timeout);
+      whisperProcess.on("close", clearAll);
+      whisperProcess.on("error", clearAll);
     });
   }
 

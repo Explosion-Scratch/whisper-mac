@@ -270,17 +270,7 @@ class WhisperMacApp {
       this.trayService,
       this.windowManager,
     );
-
-    // Update dictationFlowManager with trayService reference
-    this.dictationFlowManager = new DictationFlowManager(
-      this.transcriptionPluginManager,
-      this.dictationWindowService,
-      this.segmentManager,
-      this.trayService,
-      this.errorManager,
-    );
-
-    // Set dictationFlowManager reference in shortcutManager after recreating it
+    this.dictationFlowManager.setTrayService(this.trayService);
     this.shortcutManager.setDictationFlowManager(this.dictationFlowManager);
   }
 
@@ -406,6 +396,7 @@ class WhisperMacApp {
       // Then perform comprehensive cleanup
       console.log("Starting comprehensive cleanup...");
       await this.cleanupManager.cleanup();
+      await this.transcriptionPluginManager.cleanup();
 
       console.log("=== WhisperMacApp cleanup completed ===");
     } catch (error) {

@@ -33,12 +33,12 @@ export class TranscriptionPluginManager extends EventEmitter {
     appEventBus.on("dictation-window-shown", () => {
       try {
         this.activePlugin?.onDictationWindowShow?.();
-      } catch {}
+      } catch { }
     });
     appEventBus.on("dictation-window-hidden", () => {
       try {
         this.activePlugin?.onDictationWindowHide?.();
-      } catch {}
+      } catch { }
     });
   }
 
@@ -213,7 +213,7 @@ export class TranscriptionPluginManager extends EventEmitter {
         const criteria = plugin.getActivationCriteria?.() || {};
         this.bufferingEnabled = !!criteria.runOnAll;
         this.bufferedAudioChunks = [];
-      } catch {}
+      } catch { }
 
       this.emit("active-plugin-changed", plugin);
       console.log(`Active transcription plugin set to: ${plugin.displayName}`);
@@ -259,7 +259,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       const criteria = this.activePlugin.getActivationCriteria?.() || {};
       this.bufferingEnabled = !!criteria.runOnAll;
       this.bufferedAudioChunks = [];
-    } catch {}
+    } catch { }
   }
 
   /**
@@ -342,6 +342,12 @@ export class TranscriptionPluginManager extends EventEmitter {
 
     if (this.bufferingEnabled) {
       this.bufferedAudioChunks.push(audioData);
+      const maxBufferedSamples = 16000 * 60; // cap ~60s at 16kHz mono
+      let total = this.bufferedAudioChunks.reduce((acc, cur) => acc + cur.length, 0);
+      while (total > maxBufferedSamples && this.bufferedAudioChunks.length > 0) {
+        const removed = this.bufferedAudioChunks.shift();
+        total -= removed ? removed.length : 0;
+      }
       return;
     }
 

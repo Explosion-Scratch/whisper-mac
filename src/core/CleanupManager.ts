@@ -98,7 +98,8 @@ export class CleanupManager {
   }
 
   private cleanupServices(): void {
-    this.transcriptionPluginManager.cleanup();
+    // Best-effort async cleanup; don't await here to keep shutdown fast
+    void this.transcriptionPluginManager.cleanup();
     this.trayService?.destroy();
     console.log("Services cleaned up");
   }

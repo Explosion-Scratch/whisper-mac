@@ -13,7 +13,13 @@ try {
     // Dev: built via node-gyp under native/mac-input
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     nativeBinding = require("../../native/mac-input/build/Release/mac_input.node");
-  } catch {
+  } catch (err) {
+    // Surface a clear warning for missing native binding in development/packaged builds
+    // This is intentionally non-throwing so the app can fall back to clipboard injection
+    // eslint-disable-next-line no-console
+    console.warn(
+      "mac_input native module could not be loaded; falling back to non-native text injection",
+    );
     nativeBinding = {};
   }
 }

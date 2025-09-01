@@ -24,6 +24,10 @@ export class DictationFlowManager {
     );
   }
 
+  setTrayService(trayService: TrayService | null): void {
+    this.trayService = trayService;
+  }
+
   // Public methods to check state
   isRecording(): boolean {
     return this.state === "recording";
@@ -112,8 +116,7 @@ export class DictationFlowManager {
       }
 
       console.log(
-        `Found ${
-          this.segmentManager.getAllSegments().length
+        `Found ${this.segmentManager.getAllSegments().length
         } segments to transform and inject`,
       );
 
@@ -261,8 +264,7 @@ export class DictationFlowManager {
 
       const transcriptionEndTime = Date.now();
       console.log(
-        `Transcription setup: ${
-          transcriptionEndTime - transcriptionStartTime
+        `Transcription setup: ${transcriptionEndTime - transcriptionStartTime
         }ms`,
       );
     } catch (error: any) {
