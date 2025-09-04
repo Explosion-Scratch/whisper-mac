@@ -19,12 +19,15 @@
     "build:native": "cd native/mac-input && node-gyp rebuild",
     "postinstall": "bun run prep",
     "icons": "node scripts/generate-icons.js",
-    "bundleid": "mdls -name kMDItemCFBundleIdentifier -r release/mac-arm64/WhisperMac.app",
-    "removequarantine": "xattr -cr release/mac-arm64/WhisperMac.app",
+    "bundleid": "mdls -name kMDItemCFBundleIdentifier -r release/mac-arm64/WhisperMac.app || mdls -name kMDItemCFBundleIdentifier -r release/mac-x64/WhisperMac.app",
+    "removequarantine": "xattr -cr release/mac-arm64/WhisperMac.app && xattr -cr release/mac-x64/WhisperMac.app",
     "resetperms": "tccutil reset All com.whispermac.app",
-    "build:mac": "bun run build && electron-builder --mac --publish=never",
+    "build:mac": "bun run build && electron-builder --publish=never",
+    "build:mac:arm64": "bun run build && electron-builder --arm64 --publish=never",
+    "build:mac:x64": "bun run build && electron-builder --x64 --publish=never",
     "build:dev": "rm -rf /Applications/WhisperMac.app && bun run build:mac && bun run removequarantine && bun run resetperms && rs release/mac-arm64/WhisperMac.app /Applications && osascript -e 'tell application \"WhisperMac\" to activate' && tail -f ~/Library/Logs/whispermac/main.log",
-    "pack:prod": "NODE_ENV=production bun install && electron-builder --dir"
+    "pack:prod": "NODE_ENV=production bun install && electron-builder --dir",
+    "start:prod": "rm -rf release && rm -rf /Applications/WhisperMac.app && bun run killothers && bun run build:mac && rs release/mac-arm64/WhisperMac.app /Applications && osascript -e 'tell application \"WhisperMac\" to activate' && tail -f ~/Library/Logs/whispermac/main.log"
   },
   "repository": {
     "type": "git",
@@ -88,7 +91,15 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "target": "dir",
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
       "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
       "icon": "build/icons/WhisperMac.icns",
       "identity": null,

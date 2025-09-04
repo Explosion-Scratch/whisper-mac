@@ -12,3 +12,4 @@ build/
 build
 scripts/photon.zip
 node_modules/
+release-zip/
