@@ -1,0 +1,119 @@
+#!/bin/bash
+
+# Pre-commit hook to build and upload pre-release to GitHub
+set -e
+
+echo "🚀 Starting pre-commit build and release process..."
+
+# Get current version and commit info
+VERSION=$(node -p "require('./package.json').version")
+COMMIT_HASH=$(git rev-parse --short HEAD)
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
+
+# Create pre-release tag
+PRE_RELEASE_TAG="v${VERSION}-pre-${COMMIT_HASH}-${TIMESTAMP}"
+
+echo "📦 Building for version: ${VERSION}"
+echo "🏷️  Pre-release tag: ${PRE_RELEASE_TAG}"
+
+# Clean previous builds
+echo "🧹 Cleaning previous builds..."
+rm -rf release/
+
+# Build the app for both architectures
+echo "🔨 Building macOS app (ARM64 and x64)..."
+bun run build:mac
+
+# Check if build was successful
+if [ ! -d "release/mac-arm64" ] || [ ! -d "release/mac" ]; then
+    echo "❌ Build failed - release directories not found"
+    exit 1
+fi
+
+# Create zip files for each architecture in parallel
+echo "📁 Preparing release files..."
+
+ARM64_ZIP="WhisperMac-${VERSION}-pre-${COMMIT_HASH}-arm64.zip"
+X64_ZIP="WhisperMac-${VERSION}-pre-${COMMIT_HASH}-x64.zip"
+
+echo "🗜️  Creating zip files in parallel..."
+
+# Create both zip files in parallel using proper zip format
+(
+    echo "Creating ARM64 zip: $ARM64_ZIP"
+    cd release/mac-arm64
+    zip -r -q "../../$ARM64_ZIP" WhisperMac.app
+) &
+ARM64_PID=$!
+
+(
+    echo "Creating x64 zip: $X64_ZIP"
+    cd release/mac
+    zip -r -q "../../$X64_ZIP" WhisperMac.app
+) &
+X64_PID=$!
+
+# Wait for both to complete
+wait $ARM64_PID
+wait $X64_PID
+
+echo "✅ Both archives created successfully"
+
+# Check if GitHub CLI is available
+if ! command -v gh &> /dev/null; then
+    echo "❌ GitHub CLI (gh) is not installed. Please install it first:"
+    echo "   brew install gh"
+    echo "   gh auth login"
+    exit 1
+fi
+
+# Check if user is authenticated with GitHub
+if ! gh auth status &> /dev/null; then
+    echo "❌ Not authenticated with GitHub. Please run:"
+    echo "   gh auth login"
+    exit 1
+fi
+
+# Get repository info
+REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+echo "📡 Repository: $REPO"
+
+# Create pre-release
+echo "🚀 Creating GitHub pre-release..."
+RELEASE_NOTES="Pre-release build for commit ${COMMIT_HASH} on branch ${BRANCH}
+
+## Changes
+- Automated pre-release build
+- Built for macOS (ARM64 and x64)
+- Commit: ${COMMIT_HASH}
+- Timestamp: ${TIMESTAMP}
+
+## Installation
+1. Download the zip file
+2. Extract the .app files
+3. Move to Applications folder
+4. Right-click and select 'Open' (first time only)
+
+## Note
+This is a pre-release build. Use with caution."
+
+# Create the release with both zip files
+gh release create "$PRE_RELEASE_TAG" \
+    "$ARM64_ZIP" \
+    "$X64_ZIP" \
+    --title "WhisperMac ${VERSION} Pre-release (${COMMIT_HASH})" \
+    --notes "$RELEASE_NOTES" \
+    --prerelease \
+    --draft=false
+
+echo "✅ Pre-release created successfully!"
+echo "🔗 Release URL: https://github.com/$REPO/releases/tag/$PRE_RELEASE_TAG"
+echo "📦 ARM64 zip: $ARM64_ZIP"
+echo "📦 x64 zip: $X64_ZIP"
+
+# Clean up zip files
+rm -f "$ARM64_ZIP" "$X64_ZIP"
+
+echo "🎉 Pre-commit hook completed successfully!"
+echo "   You can now proceed with your commit."
