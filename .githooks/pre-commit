@@ -1,5 +1,7 @@
 #!/bin/bash
 
+fd -u '^\.DS_Store$' -I -tf -X rm
+
 # Pre-commit hook to build and upload pre-release to GitHub
 set -e
 
