@@ -342,12 +342,6 @@ export class TranscriptionPluginManager extends EventEmitter {
 
     if (this.bufferingEnabled) {
       this.bufferedAudioChunks.push(audioData);
-      const maxBufferedSamples = 16000 * 60; // cap ~60s at 16kHz mono
-      let total = this.bufferedAudioChunks.reduce((acc, cur) => acc + cur.length, 0);
-      while (total > maxBufferedSamples && this.bufferedAudioChunks.length > 0) {
-        const removed = this.bufferedAudioChunks.shift();
-        total -= removed ? removed.length : 0;
-      }
       return;
     }
 
