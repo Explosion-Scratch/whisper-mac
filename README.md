@@ -15,3 +15,6 @@ Local first, extensible, privacy friendly and fast dictation app for macOS. It s
 
 ## Installation
 I will build it and upload it once I have things ironed out but for now clone the repo, run `bun run prep` (to download and setup whisper binaries, needs to be done on a apple silicon mac for support for whisper-cli-metal) and then `bun run build`.
+
+
+> **Shameless Plug**: You can install this really easily using my tool [`justinstall`](https://github.com/explosion-scratch/justinstall) which aims to easily install most types of tool
