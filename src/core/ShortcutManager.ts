@@ -1,6 +1,7 @@
 import { globalShortcut, app } from "electron";
 import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManager";
 import { DictationFlowManager } from "./DictationFlowManager";
+import { SettingsManager } from "../config/SettingsManager";
 
 export interface ShortcutActions {
   onToggleRecording: () => void;
@@ -15,6 +16,7 @@ export class ShortcutManager {
   private transcriptionPluginManager: TranscriptionPluginManager | null = null;
   private dictationFlowManager: DictationFlowManager | null = null;
   private lastTransformedResult: string | null = null;
+  private settingsManager: SettingsManager | null = null;
 
   setTranscriptionPluginManager(manager: TranscriptionPluginManager): void {
     this.transcriptionPluginManager = manager;
@@ -24,8 +26,29 @@ export class ShortcutManager {
     this.dictationFlowManager = manager;
   }
 
+  setSettingsManager(manager: SettingsManager): void {
+    this.settingsManager = manager;
+    this.loadLastTransformedResult();
+  }
+
+  private loadLastTransformedResult(): void {
+    if (this.settingsManager) {
+      const savedResult = this.settingsManager.get("internal.lastTransformedResult");
+      if (savedResult && typeof savedResult === "string") {
+        this.lastTransformedResult = savedResult;
+        console.log(`[ShortcutManager] Loaded last transformed result from storage: "${savedResult}"`);
+      }
+    }
+  }
+
   setLastTransformedResult(result: string): void {
     this.lastTransformedResult = result;
+
+    // Persist the result for future app sessions
+    if (this.settingsManager) {
+      this.settingsManager.set("internal.lastTransformedResult", result);
+      this.settingsManager.saveSettings();
+    }
   }
 
   registerShortcuts(
@@ -134,6 +157,18 @@ export class ShortcutManager {
   async injectLastResult(): Promise<void> {
     if (!this.lastTransformedResult) {
       console.log("No last result available to inject");
+
+      // Show a notification to the user
+      try {
+        const { NotificationService } = await import("../services/NotificationService");
+        const notificationService = new NotificationService();
+        await notificationService.sendNotification({
+          title: "No Last Result",
+          message: "No previous transcription result available to inject. Try dictating some text first.",
+        });
+      } catch (error) {
+        console.error("Failed to show notification:", error);
+      }
       return;
     }
 

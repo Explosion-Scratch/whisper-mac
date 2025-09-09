@@ -174,6 +174,27 @@ export class SettingsManager extends EventEmitter {
     return item && typeof item === "object" && !Array.isArray(item);
   }
 
+  /**
+   * Compare old and new settings and emit setting-changed events for changed values
+   */
+  private emitChangedSettings(oldSettings: Record<string, any>, newSettings: Record<string, any>, prefix = ""): void {
+    const allKeys = new Set([...Object.keys(oldSettings), ...Object.keys(newSettings)]);
+
+    for (const key of allKeys) {
+      const fullKey = prefix ? `${prefix}.${key}` : key;
+      const oldValue = oldSettings[key];
+      const newValue = newSettings[key];
+
+      if (this.isObject(oldValue) && this.isObject(newValue)) {
+        // Recursively check nested objects
+        this.emitChangedSettings(oldValue, newValue, fullKey);
+      } else if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+        // Value changed, emit event
+        this.emit("setting-changed", fullKey, newValue);
+      }
+    }
+  }
+
   saveSettings(): void {
     try {
       // Ensure directory exists
@@ -219,6 +240,9 @@ export class SettingsManager extends EventEmitter {
     const keys = key.split(".");
     let current = this.settings;
 
+    // Get the old value to check if it actually changed
+    const oldValue = this.get(key);
+
     for (let i = 0; i < keys.length - 1; i++) {
       const k = keys[i];
       if (!current[k] || typeof current[k] !== "object") {
@@ -228,6 +252,11 @@ export class SettingsManager extends EventEmitter {
     }
 
     current[keys[keys.length - 1]] = value;
+
+    // Emit setting-changed event if the value actually changed
+    if (JSON.stringify(oldValue) !== JSON.stringify(value)) {
+      this.emit("setting-changed", key, value);
+    }
 
     // If dataDir changed, migrate data
     if (
@@ -246,7 +275,12 @@ export class SettingsManager extends EventEmitter {
 
   setAll(newSettings: Record<string, any>): void {
     const oldDataDir = this.get<string>("dataDir");
+    const oldSettings = { ...this.settings };
+
     this.settings = this.mergeDeep(getDefaultSettings(), newSettings);
+
+    // Emit setting-changed events for any changed values
+    this.emitChangedSettings(oldSettings, this.settings);
 
     // Check if dataDir changed and migrate if necessary
     const newDataDir = this.get<string>("dataDir");
@@ -261,7 +295,11 @@ export class SettingsManager extends EventEmitter {
   }
 
   reset(): void {
+    const oldSettings = { ...this.settings };
     this.settings = getDefaultSettings();
+
+    // Emit setting-changed events for any changed values
+    this.emitChangedSettings(oldSettings, this.settings);
   }
 
   resetSection(sectionId: string): void {
@@ -274,6 +312,9 @@ export class SettingsManager extends EventEmitter {
         let currentDefaults = defaults;
         let currentSettings = this.settings;
 
+        // Get the old value before resetting
+        const oldValue = this.get(field.key);
+
         for (let i = 0; i < keys.length - 1; i++) {
           currentDefaults = currentDefaults[keys[i]];
           if (!currentSettings[keys[i]]) {
@@ -283,7 +324,13 @@ export class SettingsManager extends EventEmitter {
         }
 
         const finalKey = keys[keys.length - 1];
-        currentSettings[finalKey] = currentDefaults[finalKey];
+        const newValue = currentDefaults[finalKey];
+        currentSettings[finalKey] = newValue;
+
+        // Emit setting-changed event if the value actually changed
+        if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+          this.emit("setting-changed", field.key, newValue);
+        }
       });
     }
   }

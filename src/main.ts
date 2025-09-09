@@ -166,6 +166,8 @@ class WhisperMacApp {
     this.shortcutManager.setTranscriptionPluginManager(
       this.transcriptionPluginManager,
     );
+    this.shortcutManager.setDictationFlowManager(this.dictationFlowManager);
+    this.shortcutManager.setSettingsManager(this.settingsManager);
   }
 
   private setupEventListeners(): void {
