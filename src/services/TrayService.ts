@@ -43,7 +43,7 @@ export class TrayService {
     const initialIconPath = join(__dirname, this.trayIconIdleRelPath);
     this.tray = new Tray(initialIconPath);
     this.setTrayIcon(this.trayIconIdleRelPath);
-    this.setDockIconToAppIcon();
+    // Dock icon is now handled by the .icns file in electron-builder config
     this.tray.setIgnoreDoubleClickEvents(true);
     this.tray.on("click", () => {
       if (this.currentStatus !== "idle") {
@@ -330,16 +330,6 @@ export class TrayService {
     }
   }
 
-  private setDockIconToAppIcon() {
-    try {
-      const primaryPath = join(__dirname, this.dockIconRelPath);
-      let dockImage = nativeImage.createFromPath(primaryPath);
-      if (dockImage.isEmpty()) {
-        const devPath = join(__dirname, "..", "assets", "icon.png");
-        const devImage = nativeImage.createFromPath(devPath);
-        if (!devImage.isEmpty()) dockImage = devImage;
-      }
-      if (!dockImage.isEmpty() && app.dock) app.dock.setIcon(dockImage);
-    } catch {}
-  }
+  // Dock icon is now handled by the .icns file in electron-builder config
+  // No need to manually set it anymore
 }
