@@ -661,14 +661,27 @@
           const initializeVAD = async () => {
             try {
               if (!window.vad) throw new Error("VAD library not loaded");
+              
+              // Get selected microphone from settings
+              const selectedMicrophone = await window.electronAPI.getSelectedMicrophone() || "default";
+              
+              // Build audio constraints with selected microphone
+              const audioConstraints = {
+                sampleRate: 16000,
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+              };
+              
+              // Add device ID if not using default
+              if (selectedMicrophone !== "default") {
+                audioConstraints.deviceId = { exact: selectedMicrophone };
+              }
+              
               const stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                  sampleRate: 16000,
-                  channelCount: 1,
-                  echoCancellation: true,
-                  noiseSuppression: true,
-                },
+                audio: audioConstraints,
               });
+              
               mediaStream.value = stream;
               stream
                 .getAudioTracks()
@@ -704,6 +717,54 @@
               await startVAD();
             } catch (error) {
               console.error("Failed to initialize VAD:", error);
+              // If specific microphone fails, try with default
+              try {
+                console.log("Falling back to default microphone");
+                const stream = await navigator.mediaDevices.getUserMedia({
+                  audio: {
+                    sampleRate: 16000,
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                  },
+                });
+                
+                mediaStream.value = stream;
+                stream
+                  .getAudioTracks()
+                  .forEach((track) => (track.enabled = false));
+                const myVAD = await window.vad.MicVAD.new({
+                  baseAssetPath: "./",
+                  onnxWASMBasePath: "./",
+                  model: "v5",
+                  positiveSpeechThreshold: 0.5,
+                  negativeSpeechThreshold: 0.35,
+                  preSpeechPadFrames: 40,
+                  redemptionFrames: 10,
+                  frameSamples: 512,
+                  minSpeechFrames: 3,
+                  submitUserSpeechOnPause: true,
+                  stream: stream,
+                  onSpeechStart: () => {
+                    isSpeaking.value = true;
+                  },
+                  onSpeechEnd: (audio) => {
+                    isSpeaking.value = false;
+                    if (
+                      (isRecording.value || allowFinalFlush) &&
+                      audio.length > 0
+                    ) {
+                      window.electronAPI.sendAudioSegment(audio);
+                      allowFinalFlush = false;
+                    }
+                  },
+                });
+                vadInstance.value = myVAD;
+                isVadInitialized.value = true;
+                await startVAD();
+              } catch (fallbackError) {
+                console.error("Failed to initialize VAD with fallback:", fallbackError);
+              }
             }
           };
 

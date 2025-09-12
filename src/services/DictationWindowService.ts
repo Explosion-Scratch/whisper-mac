@@ -129,41 +129,31 @@ export class DictationWindowService extends EventEmitter {
   private setupWindowEventHandlers(): void {
     if (!this.dictationWindow) return;
 
-    // Handle window close
     this.dictationWindow.on("closed", () => {
-      console.log("=== DictationWindowService: Window closed event ===");
       this.dictationWindow = null;
-      console.log("Dictation window closed and reference cleared");
     });
 
-    // Handle window close request
     this.dictationWindow.on("close", (event) => {
-      console.log("=== DictationWindowService: Window close request ===");
       console.log("Close event details:", event);
     });
 
-    // Handle IPC messages from renderer
     this.dictationWindow.webContents.on(
       "ipc-message",
       (event, channel, ...args) => {
         if (channel === "__ELECTRON_LOG__") {
-          //nothing;
           return;
         }
-        console.log("=== DictationWindowService: IPC message received ===");
+
         console.log("Channel:", channel);
 
         switch (channel) {
           case "close-dictation-window":
-            console.log("Handling close-dictation-window IPC");
             this.hideAndReloadWindow();
             break;
           case "cancel-dictation":
-            console.log("Handling cancel-dictation IPC");
             this.hideAndReloadWindow();
             break;
           case "minimize-dictation-window":
-            console.log("Handling minimize-dictation-window IPC");
             this.dictationWindow?.minimize();
             break;
           case "dictation-log":

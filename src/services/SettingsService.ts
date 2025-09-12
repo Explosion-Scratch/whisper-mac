@@ -65,19 +65,47 @@ export class SettingsService {
 
   private setupIpcHandlers(): void {
     // Get settings schema
-    ipcMain.handle("settings:getSchema", () => {
-      // Strip out validation functions since they can't be serialized through IPC
-      // Also hide internal sections such as onboarding from the UI
-      const serializableSchema = SETTINGS_SCHEMA.filter(
-        (section) => section.id !== "onboarding",
-      ).map((section) => ({
-        ...section,
-        fields: section.fields.map((field) => {
-          const { validation, ...serializableField } = field;
-          return serializableField;
-        }),
-      }));
-      return serializableSchema;
+    ipcMain.handle("settings:getSchema", async () => {
+      try {
+        console.log("Getting settings schema...");
+
+        // Strip out validation functions since they can't be serialized through IPC
+        // Also hide internal sections such as onboarding from the UI
+        const serializableSchema = SETTINGS_SCHEMA.filter(
+          (section) => section.id !== "onboarding",
+        ).map((section) => ({
+          ...section,
+          fields: section.fields.map((field) => {
+            const { validation, ...serializableField } = field;
+
+            // Set default microphone options - will be populated by frontend
+            if (field.key === "selectedMicrophone") {
+              return {
+                ...serializableField,
+                options: [
+                  { value: "default", label: "System Default" }
+                ]
+              };
+            }
+
+            return serializableField;
+          }),
+        }));
+        return serializableSchema;
+      } catch (error) {
+        console.error("Failed to get settings schema:", error);
+        // Fallback to schema without microphone options
+        const serializableSchema = SETTINGS_SCHEMA.filter(
+          (section) => section.id !== "onboarding",
+        ).map((section) => ({
+          ...section,
+          fields: section.fields.map((field) => {
+            const { validation, ...serializableField } = field;
+            return serializableField;
+          }),
+        }));
+        return serializableSchema;
+      }
     });
 
     // Get current settings
@@ -1024,6 +1052,7 @@ export class SettingsService {
         throw error;
       }
     });
+
   }
 
   private broadcastSettingsUpdate(): void {

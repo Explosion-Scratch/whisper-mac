@@ -19,6 +19,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - No specific test runner configured, but tests can be run directly with Node.js:
   `node dist/core/PromiseManager.test.js`
+  `node dist/services/AiValidationService.test.js`
 
 ### Utility Commands
 
@@ -50,7 +51,7 @@ Electron-based menu bar app for AI-powered dictation using multiple transcriptio
 
 1. **TranscriptionPluginManager** - Plugin system for different transcription engines
 
-   - Supports YAP (Apple Speech) and Whisper.cpp plugins
+   - Supports YAP (Apple Speech), Whisper.cpp, Vosk, Mistral, and Gemini plugins
    - Manages plugin lifecycle (init, switch, cleanup)
    - Handles audio segment processing and transcription updates
 
@@ -81,14 +82,14 @@ Electron-based menu bar app for AI-powered dictation using multiple transcriptio
 - Modular plugin system in `src/plugins/`
 - Each plugin implements the `TranscriptionPlugin` interface
 - Plugins register with the manager and handle their own initialization
-- Current plugins: `YapTranscriptionPlugin`, `WhisperCppTranscriptionPlugin`
+- Current plugins: `YapTranscriptionPlugin`, `WhisperCppTranscriptionPlugin`, `VoskTranscriptionPlugin`, `MistralTranscriptionPlugin`, `GeminiTranscriptionPlugin`
 
 ### Configuration System
 
 - Schema-based settings in `src/config/SettingsSchema.ts`
 - Settings manager with validation
-- Supports nested configuration structure
-- Sections: Onboarding, Transcription, General, Dictation Window, AI Enhancement, Advanced
+- Supports nested configuration structure with multiple field types
+- Sections: Onboarding, Transcription, General, Dictation Window, AI Enhancement, Advanced, Actions Editor, Rules Editor
 
 ### UI Windows
 

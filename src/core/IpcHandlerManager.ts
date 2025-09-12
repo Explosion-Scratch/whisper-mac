@@ -50,6 +50,7 @@ export class IpcHandlerManager {
     ipcMain.removeAllListeners("cancel-dictation");
     ipcMain.removeAllListeners("close-dictation-window");
     ipcMain.removeAllListeners("download-model");
+    ipcMain.removeHandler("dictation:getSelectedMicrophone");
 
     // Remove all plugin handlers
     ipcMain.removeHandler("plugin:switch");
@@ -95,6 +96,11 @@ export class IpcHandlerManager {
     ipcMain.on("close-dictation-window", () => {
       console.log("Closing dictation window via IPC, finishing flow...");
       this.onFinishDictation();
+    });
+
+    // Get selected microphone from settings
+    ipcMain.handle("dictation:getSelectedMicrophone", async () => {
+      return this.settingsManager.get("selectedMicrophone", "default");
     });
   }
 

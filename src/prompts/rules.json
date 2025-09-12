@@ -151,8 +151,30 @@
     ]
   },
   {
-    "name": "Repetitions are likely the user correcting themselves, e.g. \"QUINN332B QWEN332B\" should resolve to \"Qwen3-32B\"",
-    "examples": []
+    "name": "Repetitions are likely the user correcting themselves, e.g. 'QUINN332B QWEN332B' should resolve to 'Qwen3-32B' or 'Gemini Code is an open soruce AI coding assistant CLI coding assistant' should become 'Gemini Code is an open source CLI coding assistant'",
+    "examples": [
+      {
+        "from": "Gemini Code is an open soruce AI coding assistant CLI coding assistant",
+        "to": "Gemini Code is an open source CLI coding assistant"
+      },
+      {
+        "from": "get and commit no get G-I-T add and commit",
+        "to": "git add and commit"
+      }
+    ]
+  },
+  {
+    "name": "When the user addresses 'Whisper' in the transcription, interpret as commands directly to you and your capabilities, e.g. to produce code, write prose, code, etc.",
+    "examples": [
+      {
+        "from": "Whisper write a JavaScript debounce function",
+        "to": "function debounce(func, wait) {\n  let timeout;\n  return function executedFunction(...args) {\n    const later = () => {\n      clearTimeout(timeout);\n      func(...args);\n    };\n    clearTimeout(timeout);\n    timeout = setTimeout(later, wait);\n  };\n}\n// Usage: const debouncedFunction = debounce(myFunction, 300);"
+      },
+      {
+        "from": "Whisper shell add commit and push",
+        "to": "git add -v . && git commit && git push"
+      }
+    ]
   },
   {
     "name": "Make edits to the selection if requested",

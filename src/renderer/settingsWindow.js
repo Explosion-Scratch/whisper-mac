@@ -28,6 +28,7 @@ window.warn = createCloningLogger("warn");
 window.error = createCloningLogger("error");
 window.debug = createCloningLogger("debug");
 
+
 document.addEventListener("DOMContentLoaded", () => {
   const app = Vue.createApp({
     data() {
@@ -83,6 +84,59 @@ document.addEventListener("DOMContentLoaded", () => {
       },
     },
     methods: {
+      // --- MICROPHONE ENUMERATION ---
+      async enumerateMicrophones() {
+        try {
+          console.log("Enumerating microphones...");
+
+          // Request audio permissions first
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: false
+            }
+          });
+
+          // Stop the stream immediately after getting permissions
+          stream.getTracks().forEach(track => track.stop());
+
+          // Now enumerate all devices
+          const allDevices = await navigator.mediaDevices.enumerateDevices();
+
+          // Filter for audio input devices
+          const audioInputs = allDevices
+            .filter(device => device.kind === 'audioinput')
+            .map(device => ({
+              deviceId: device.deviceId,
+              label: device.label || (device.deviceId === 'default' ? 'System Default' : 'Microphone'),
+              groupId: device.groupId
+            }));
+
+          console.log("Found microphones:", audioInputs);
+
+          // Ensure we have at least the default option
+          if (!audioInputs.some(device => device.deviceId === 'default')) {
+            audioInputs.unshift({
+              deviceId: 'default',
+              label: 'System Default',
+              groupId: undefined
+            });
+          }
+
+          return audioInputs;
+        } catch (error) {
+          console.error("Failed to enumerate microphones:", error);
+
+          // Return fallback data on error
+          return [{
+            deviceId: 'default',
+            label: 'System Default',
+            groupId: undefined
+          }];
+        }
+      },
+
       // --- INITIALIZATION ---
       async openAuthorLink(event) {
         event.preventDefault();
@@ -131,6 +185,17 @@ document.addEventListener("DOMContentLoaded", () => {
           );
           this.originalSettings = JSON.parse(JSON.stringify(this.settings));
           window.log("this.settings", this.originalSettings);
+
+          // Enumerate microphones and update options
+          try {
+            const microphones = await this.enumerateMicrophones();
+            console.log("Enumerated microphones:", microphones);
+
+            // Update the microphone options in the schema
+            this.updateMicrophoneOptions(microphones);
+          } catch (error) {
+            console.error("Failed to enumerate microphones:", error);
+          }
           try {
             this.pluginData = await window.electronAPI.getPluginSchemas();
             window.log("this.pluginData", this.pluginData);
@@ -165,6 +230,33 @@ document.addEventListener("DOMContentLoaded", () => {
           window.error("Failed to initialize settings window:", error);
           this.showStatus("Failed to load settings", "error");
         }
+      },
+
+      // Update microphone options in the schema
+      updateMicrophoneOptions(microphones) {
+        console.log("Updating microphone options in schema:", microphones);
+
+        // Convert microphones to options format
+        const microphoneOptions = microphones.map(mic => ({
+          value: mic.deviceId,
+          label: mic.label
+        }));
+
+        // Update the schema
+        this.schema = this.schema.map(section => ({
+          ...section,
+          fields: section.fields.map(field => {
+            if (field.key === "selectedMicrophone") {
+              return {
+                ...field,
+                options: microphoneOptions
+              };
+            }
+            return field;
+          })
+        }));
+
+        console.log("Updated schema with microphone options");
       },
 
       setupIpcListeners() {

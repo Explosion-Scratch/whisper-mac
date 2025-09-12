@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Permissions management - quiet methods
   getPermissionsQuiet: () => ipcRenderer.invoke("permissions:getAllQuiet"),
+
   checkAccessibilityQuiet: () => ipcRenderer.invoke("permissions:checkAccessibilityQuiet"),
   checkMicrophoneQuiet: () => ipcRenderer.invoke("permissions:checkMicrophoneQuiet"),
 

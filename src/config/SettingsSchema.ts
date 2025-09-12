@@ -67,6 +67,14 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     icon: "window",
     fields: [
       {
+        key: "selectedMicrophone",
+        type: "select",
+        label: "Selected Microphone",
+        description: "Choose which microphone to use for audio capture",
+        defaultValue: "default",
+        options: [], // Will be populated dynamically with available microphones
+      },
+      {
         key: "dictationWindowPosition",
         type: "select",
         label: "Window Position",

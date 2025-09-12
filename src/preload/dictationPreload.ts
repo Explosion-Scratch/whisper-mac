@@ -98,6 +98,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   sendAudioSegment: (audioData: Float32Array) => {
     ipcRenderer.send("vad-audio-segment", Array.from(audioData));
   },
+
+  // Get selected microphone from settings
+  getSelectedMicrophone: () => {
+    return ipcRenderer.invoke("dictation:getSelectedMicrophone");
+  },
 });
 
 // Declare the global interface for TypeScript
@@ -123,6 +128,7 @@ declare global {
       logMessage: (message: string) => void;
       onPlayEndSound: (callback: () => void) => void;
       sendAudioSegment: (audioData: Float32Array) => void;
+      getSelectedMicrophone: () => Promise<string>;
     };
   }
 }
