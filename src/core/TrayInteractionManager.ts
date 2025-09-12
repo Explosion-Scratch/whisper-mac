@@ -91,17 +91,22 @@ export class TrayInteractionManager {
 
   hideDockAfterOnboarding(): void {
     try {
-      // Add small delay to ensure onboarding window is fully closed
+      // Add delay to ensure onboarding window is fully closed and app is stable
       setTimeout(() => {
         try {
+          const settings = this.settingsService.getCurrentSettings();
+          const isOnboardingComplete = !!settings?.onboardingComplete;
           const settingsVisible = this.settingsService.isWindowVisible();
-          if (!settingsVisible) {
+          
+          // Only hide dock if onboarding is complete and settings window is not visible
+          if (isOnboardingComplete && !settingsVisible) {
+            console.log("Hiding dock icon after onboarding completion");
             app.dock?.hide();
           }
         } catch (error) {
           console.error("Error hiding dock after onboarding:", error);
         }
-      }, 100);
+      }, 2000); // Increased timeout to ensure app is fully initialized
     } catch (error) {
       console.error("Error in hideDockAfterOnboarding:", error);
     }

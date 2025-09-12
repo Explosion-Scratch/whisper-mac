@@ -154,12 +154,20 @@
     "name": "Repetitions are likely the user correcting themselves, e.g. 'QUINN332B QWEN332B' should resolve to 'Qwen3-32B' or 'Gemini Code is an open soruce AI coding assistant CLI coding assistant' should become 'Gemini Code is an open source CLI coding assistant'",
     "examples": [
       {
-        "from": "Gemini Code is an open soruce AI coding assistant CLI coding assistant",
+        "from": "Gemini Code is an open source AI coding assistant CLI coding assistant",
         "to": "Gemini Code is an open source CLI coding assistant"
       },
       {
         "from": "get and commit no get G-I-T add and commit",
         "to": "git add and commit"
+      },
+      {
+        "from": "get hub dot com slash explosion scratch with a hyphen between explosion and scratch",
+        "to": "github.com/explosion-scratch"
+      },
+      {
+        "from": "Eggs milk cheese all on separate bullet points with gouda in parentheses by cheese",
+        "to": "* Eggs\n* Milk\n* Cheese (gouda)"
       }
     ]
   },
