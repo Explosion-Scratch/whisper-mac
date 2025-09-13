@@ -2,12 +2,14 @@ import { EventEmitter } from "events";
 
 export interface PromiseData {
   id: string;
-  status: "pending" | "resolved" | "rejected";
+  status: "pending" | "resolved" | "rejected" | "cancelled";
   data?: any;
   error?: any;
   timestamp: number;
   resolveTime?: number;
   rejectTime?: number;
+  cancelTime?: number;
+  dependencies?: string[];
 }
 
 /**
@@ -155,6 +157,11 @@ export class PromiseManager extends EventEmitter {
         return;
       }
 
+      if (promiseData.status === "cancelled") {
+        reject(new Error(`Promise '${name}' was cancelled`));
+        return;
+      }
+
       // Store resolvers for when the promise completes
       this.resolvers.set(name, resolve);
       this.rejectors.set(name, reject);
@@ -204,6 +211,22 @@ export class PromiseManager extends EventEmitter {
   }
 
   /**
+   * Execute operations sequentially
+   */
+  async sequence(operations: Array<() => Promise<any>>): Promise<any[]> {
+    const results = [];
+    for (const operation of operations) {
+      try {
+        const result = await operation();
+        results.push(result);
+      } catch (error) {
+        results.push({ error });
+      }
+    }
+    return results;
+  }
+
+  /**
    * Check if a promise exists
    */
   hasPromise(name: string): boolean {
@@ -215,7 +238,7 @@ export class PromiseManager extends EventEmitter {
    */
   getPromiseStatus(
     name: string,
-  ): "pending" | "resolved" | "rejected" | "not-found" {
+  ): "pending" | "resolved" | "rejected" | "cancelled" | "not-found" {
     const promiseData = this.promises.get(name);
     return promiseData ? promiseData.status : "not-found";
   }
@@ -268,6 +291,30 @@ export class PromiseManager extends EventEmitter {
     }
 
     return existed;
+  }
+
+  /**
+   * Cancel a promise
+   */
+  cancel(name: string): boolean {
+    const promiseData = this.promises.get(name);
+    if (!promiseData || promiseData.status !== "pending") {
+      return false;
+    }
+
+    promiseData.status = "cancelled";
+    promiseData.cancelTime = Date.now();
+
+    const rejector = this.rejectors.get(name);
+    if (rejector) {
+      rejector(new Error(`Promise '${name}' was cancelled`));
+      this.resolvers.delete(name);
+      this.rejectors.delete(name);
+    }
+
+    this.emit("promise-cancelled", { name });
+    console.log(`[PromiseManager] Cancelled promise: ${name}`);
+    return true;
   }
 
   /**

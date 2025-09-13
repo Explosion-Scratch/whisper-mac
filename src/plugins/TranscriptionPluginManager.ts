@@ -9,6 +9,7 @@ import {
 import { SegmentUpdate } from "../types/SegmentTypes";
 import { AppConfig } from "../config/AppConfig";
 import { appEventBus } from "../services/AppEventBus";
+import { promiseManager } from "../core/PromiseManager";
 
 export class TranscriptionPluginManager extends EventEmitter {
   private plugins: Map<string, BaseTranscriptionPlugin> = new Map();
@@ -83,23 +84,27 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   async getAvailablePlugins(): Promise<BaseTranscriptionPlugin[]> {
     const plugins = this.getPlugins();
-    const availabilityChecks = await Promise.allSettled(
-      plugins.map(async (plugin) => ({
-        plugin,
-        available: await plugin.isAvailable(),
-      })),
-    );
+    const checkId = `plugin:availability:check:${Date.now()}`;
+    promiseManager.start(checkId);
+    
+    // Use sequential execution to avoid resource conflicts
+    const operations = plugins.map((plugin) => async () => {
+      try {
+        const available = await plugin.isAvailable();
+        return { plugin, available, success: true };
+      } catch (error) {
+        return { plugin, available: false, success: false, error };
+      }
+    });
+    
+    const results = await promiseManager.sequence(operations);
 
-    return availabilityChecks
-      .filter(
-        (
-          result,
-        ): result is PromiseFulfilledResult<{
-          plugin: BaseTranscriptionPlugin;
-          available: boolean;
-        }> => result.status === "fulfilled" && result.value.available,
-      )
-      .map((result) => result.value.plugin);
+    const availablePlugins = results
+      .filter(result => result.success && result.available)
+      .map(result => result.plugin);
+
+    promiseManager.resolve(checkId, { count: availablePlugins.length });
+    return availablePlugins;
   }
 
   /**
@@ -566,19 +571,26 @@ export class TranscriptionPluginManager extends EventEmitter {
     }
 
     const plugins = this.getPlugins();
-    const initPromises = plugins.map(async (plugin) => {
+    const initId = `plugin:initialize:all:${Date.now()}`;
+    promiseManager.start(initId);
+    
+    // Use sequential initialization to avoid resource conflicts
+    const initOperations = plugins.map((plugin) => async () => {
       try {
         await plugin.initialize();
         console.log(`Plugin ${plugin.displayName} initialized successfully`);
+        return { plugin, success: true };
       } catch (error) {
         console.error(
           `Failed to initialize plugin ${plugin.displayName}:`,
           error,
         );
+        return { plugin, success: false, error };
       }
     });
 
-    await Promise.allSettled(initPromises);
+    await promiseManager.sequence(initOperations);
+    promiseManager.resolve(initId);
 
     // Set active plugin using fallback system
     const defaultPluginName = this.getDefaultPluginName();
@@ -735,18 +747,25 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   async clearAllPluginData(): Promise<void> {
     const plugins = this.getPlugins();
-    const clearPromises = plugins.map(async (plugin) => {
+    const clearId = `plugin:clear:all:${Date.now()}`;
+    promiseManager.start(clearId);
+    
+    // Use sequential clearing to avoid filesystem conflicts
+    const clearOperations = plugins.map((plugin) => async () => {
       try {
         await plugin.deleteAllData();
+        return { plugin, success: true };
       } catch (error) {
         console.error(
           `Error clearing data for plugin ${plugin.displayName}:`,
           error,
         );
+        return { plugin, success: false, error };
       }
     });
 
-    await Promise.allSettled(clearPromises);
+    await promiseManager.sequence(clearOperations);
+    promiseManager.resolve(clearId);
   }
 
   /**
@@ -877,35 +896,40 @@ export class TranscriptionPluginManager extends EventEmitter {
       plugins.map((p) => p.name),
     );
 
-    const dataInfo = await Promise.all(
-      plugins.map(async (plugin) => {
-        try {
-          console.log(`Getting data size for plugin ${plugin.name}...`);
-          const dataSize = await plugin.getDataSize();
-          console.log(`Plugin ${plugin.name} data size: ${dataSize}`);
-          return {
-            name: plugin.name,
-            displayName: plugin.displayName,
-            isActive: this.activePlugin === plugin,
-            dataSize,
-            dataPath: plugin.getDataPath(),
-          };
-        } catch (error) {
-          console.error(
-            `Error getting data info for plugin ${plugin.displayName}:`,
-            error,
-          );
-          return {
-            name: plugin.name,
-            displayName: plugin.displayName,
-            isActive: this.activePlugin === plugin,
-            dataSize: 0,
-            dataPath: plugin.getDataPath(),
-          };
-        }
-      }),
-    );
+    // Use sequential execution to avoid filesystem conflicts
+    const dataInfoId = `plugin:data-info:${Date.now()}`;
+    promiseManager.start(dataInfoId);
+    
+    const dataInfoOperations = plugins.map((plugin) => async () => {
+      try {
+        console.log(`Getting data size for plugin ${plugin.name}...`);
+        const dataSize = await plugin.getDataSize();
+        console.log(`Plugin ${plugin.name} data size: ${dataSize}`);
+        return {
+          name: plugin.name,
+          displayName: plugin.displayName,
+          isActive: this.activePlugin === plugin,
+          dataSize,
+          dataPath: plugin.getDataPath(),
+        };
+      } catch (error) {
+        console.error(
+          `Error getting data info for plugin ${plugin.displayName}:`,
+          error,
+        );
+        return {
+          name: plugin.name,
+          displayName: plugin.displayName,
+          isActive: this.activePlugin === plugin,
+          dataSize: 0,
+          dataPath: plugin.getDataPath(),
+        };
+      }
+    });
 
+    const dataInfo = await promiseManager.sequence(dataInfoOperations);
+    promiseManager.resolve(dataInfoId);
+    
     console.log("Plugin data info result:", dataInfo);
     return dataInfo;
   }
@@ -927,16 +951,23 @@ export class TranscriptionPluginManager extends EventEmitter {
     }
 
     const plugins = this.getPlugins();
-    const cleanupPromises = plugins.map(async (plugin) => {
+    const cleanupId = `plugin:cleanup:all:${Date.now()}`;
+    promiseManager.start(cleanupId);
+    
+    // Use sequential cleanup to avoid resource conflicts
+    const cleanupOperations = plugins.map((plugin) => async () => {
       try {
         await plugin.cleanup();
         await plugin.destroy();
+        return { plugin, success: true };
       } catch (error) {
         console.error(`Error cleaning up plugin ${plugin.displayName}:`, error);
+        return { plugin, success: false, error };
       }
     });
 
-    await Promise.allSettled(cleanupPromises);
+    await promiseManager.sequence(cleanupOperations);
+    promiseManager.resolve(cleanupId);
 
     this.activePlugin = null;
     this.plugins.clear();

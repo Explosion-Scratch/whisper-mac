@@ -9,6 +9,7 @@ import { DefaultActionsConfig } from "../types/ActionTypes";
 import { ErrorManager } from "./ErrorManager";
 import { AppStateManager } from "./AppStateManager";
 import { PermissionsManager } from "../services/PermissionsManager";
+import { promiseManager } from "./PromiseManager";
 
 export class IpcHandlerManager {
   constructor(
@@ -32,6 +33,7 @@ export class IpcHandlerManager {
     this.setupDictationHandlers();
     this.setupModelDownloadHandlers();
     this.setupPluginHandlers();
+    this.setupPromiseManagerHandlers();
     console.log("IPC Handlers set up");
   }
 
@@ -166,6 +168,36 @@ export class IpcHandlerManager {
         }
       },
     );
+  }
+
+  private setupPromiseManagerHandlers(): void {
+    // PromiseManager coordination handlers
+    ipcMain.handle("promiseManager:waitFor", async (event, promiseName: string, timeout?: number) => {
+      return await promiseManager.waitFor(promiseName, timeout);
+    });
+
+    ipcMain.handle("promiseManager:start", async (event, promiseName: string, data?: any) => {
+      promiseManager.start(promiseName, data);
+      return true;
+    });
+
+    ipcMain.handle("promiseManager:resolve", async (event, promiseName: string, data?: any) => {
+      promiseManager.resolve(promiseName, data);
+      return true;
+    });
+
+    ipcMain.handle("promiseManager:reject", async (event, promiseName: string, error?: any) => {
+      promiseManager.reject(promiseName, error);
+      return true;
+    });
+
+    ipcMain.handle("promiseManager:cancel", async (event, promiseName: string) => {
+      return promiseManager.cancel(promiseName);
+    });
+
+    ipcMain.handle("promiseManager:getStatus", async (event, promiseName: string) => {
+      return promiseManager.getPromiseStatus(promiseName);
+    });
   }
 
   private setupPluginHandlers(): void {

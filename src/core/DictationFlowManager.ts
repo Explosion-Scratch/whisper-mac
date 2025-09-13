@@ -4,12 +4,14 @@ import { SegmentManager } from "../services/SegmentManager";
 import { TrayService } from "../services/TrayService";
 import { SegmentUpdate } from "../types/SegmentTypes";
 import { ErrorManager } from "./ErrorManager";
+import { promiseManager } from "./PromiseManager";
 
 export type DictationState = "idle" | "recording" | "finishing";
 
 export class DictationFlowManager {
   private state: DictationState = "idle";
   private finishingTimeout: NodeJS.Timeout | null = null;
+  private currentSessionId: string | null = null;
 
   constructor(
     private transcriptionPluginManager: TranscriptionPluginManager,
@@ -46,6 +48,8 @@ export class DictationFlowManager {
   async startDictation(): Promise<void> {
     if (this.state !== "idle") return;
 
+    this.currentSessionId = `dictation-${Date.now()}`;
+    promiseManager.start(`dictation:init:${this.currentSessionId}`);
     this.state = "recording";
     const startTime = Date.now();
     try {
@@ -54,6 +58,8 @@ export class DictationFlowManager {
       this.clearState();
       this.setupAccumulatingMode();
 
+      // Coordinate window show
+      promiseManager.start(`dictation:window:show:${this.currentSessionId}`);
       const windowStartTime = Date.now();
       const criteria =
         this.transcriptionPluginManager.getActivePluginActivationCriteria();
@@ -62,14 +68,24 @@ export class DictationFlowManager {
       );
       const windowEndTime = Date.now();
       console.log(`Window display: ${windowEndTime - windowStartTime}ms`);
+      promiseManager.resolve(`dictation:window:show:${this.currentSessionId}`);
 
+      // Coordinate transcription start
+      promiseManager.start(`dictation:transcription:start:${this.currentSessionId}`);
       await this.startTranscription();
       this.startRecording();
+      promiseManager.resolve(`dictation:transcription:start:${this.currentSessionId}`);
+
+      // Mark initialization complete
+      promiseManager.resolve(`dictation:init:${this.currentSessionId}`);
 
       const totalTime = Date.now() - startTime;
       console.log(`=== Dictation started successfully in ${totalTime}ms ===`);
     } catch (error) {
       console.error("Failed to start dictation:", error);
+      if (this.currentSessionId) {
+        promiseManager.reject(`dictation:init:${this.currentSessionId}`, error);
+      }
       await this.cancelDictationFlow();
       await this.errorManager.showError({
         title: "Could not start dictation",
@@ -98,7 +114,15 @@ export class DictationFlowManager {
       this.state = "finishing";
       console.log("=== Finishing current dictation with transform+inject ===");
       this.dictationWindowService.stopRecording(); // Stop VAD audio processing
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      
+      // Coordinate audio stop
+      if (this.currentSessionId) {
+        promiseManager.start(`dictation:audio:stop:${this.currentSessionId}`);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        promiseManager.resolve(`dictation:audio:stop:${this.currentSessionId}`);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
 
       if (!this.hasSegmentsToProcess()) {
         const criteria =
@@ -168,16 +192,28 @@ export class DictationFlowManager {
       }
 
       // The window should hide after a brief moment to show the "complete" checkmark.
-      // This is one place a small, deliberate delay is acceptable for UX.
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      this.dictationWindowService.hideWindow();
+      // Coordinate window hide
+      if (this.currentSessionId) {
+        promiseManager.start(`dictation:window:hide:${this.currentSessionId}`);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        this.dictationWindowService.hideWindow();
+        promiseManager.resolve(`dictation:window:hide:${this.currentSessionId}`);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        this.dictationWindowService.hideWindow();
+      }
 
       // Final cleanup
+      promiseManager.start(`dictation:cleanup:${this.currentSessionId}`);
       await this.transcriptionPluginManager.stopTranscription();
       this.segmentManager.clearAllSegments();
       this.dictationWindowService.clearTranscription();
       this.updateTrayIcon("idle");
       this.state = "idle";
+      if (this.currentSessionId) {
+        promiseManager.resolve(`dictation:cleanup:${this.currentSessionId}`);
+        this.currentSessionId = null;
+      }
       console.log("=== Dictation completed and cleaned up successfully ===");
     } catch (error) {
       console.error("Failed to finish current dictation:", error);
@@ -236,6 +272,10 @@ export class DictationFlowManager {
     this.state = "idle";
     this.updateTrayIcon("idle");
 
+    if (this.currentSessionId) {
+      promiseManager.cancel(`dictation:init:${this.currentSessionId}`);
+    }
+
     if (wasRecording) {
       await this.transcriptionPluginManager.stopTranscription();
     }
@@ -243,6 +283,12 @@ export class DictationFlowManager {
     this.dictationWindowService.hideWindow();
     this.segmentManager.clearAllSegments();
     this.dictationWindowService.setStatus("idle");
+
+    if (this.currentSessionId) {
+      promiseManager.start(`dictation:cleanup:${this.currentSessionId}`);
+      promiseManager.resolve(`dictation:cleanup:${this.currentSessionId}`);
+      this.currentSessionId = null;
+    }
 
     console.log("=== Dictation flow cancelled and cleaned up ===");
   }

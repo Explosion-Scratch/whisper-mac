@@ -4,6 +4,7 @@ import { DictationWindowService } from "../services/DictationWindowService";
 import { SettingsService } from "../services/SettingsService";
 import { TrayService } from "../services/TrayService";
 import { WindowManager } from "./WindowManager";
+import { promiseManager } from "./PromiseManager";
 
 export class CleanupManager {
   private transcriptionPluginManager: TranscriptionPluginManager;
@@ -33,47 +34,66 @@ export class CleanupManager {
 
   async cleanup(): Promise<void> {
     console.log("=== Starting app cleanup ===");
+    
+    const cleanupId = `app:cleanup:${Date.now()}`;
+    promiseManager.start(cleanupId);
 
     const cleanupTimeout = setTimeout(() => {
       console.log("Cleanup timeout reached, forcing app quit...");
+      promiseManager.reject(cleanupId, new Error("Cleanup timeout"));
       process.exit(0);
     }, 10000); // Increased timeout to 10 seconds
 
     try {
-      // Step 1: Stop any ongoing transcription immediately
-      console.log("Step 1: Stopping transcription...");
-      await this.stopTranscription();
-
-      // Step 2: Unregister global shortcuts
-      console.log("Step 2: Unregistering shortcuts...");
-      this.unregisterShortcuts();
-
-      // Step 3: Clear timeouts and intervals
-      console.log("Step 3: Clearing timeouts...");
-      this.clearTimeouts();
-
-      // Step 4: Cleanup services (remove event listeners, etc.)
-      console.log("Step 4: Cleaning up services...");
-      this.cleanupServices();
-
-      // Step 5: Close all windows gracefully
-      console.log("Step 5: Closing windows...");
-      this.closeWindows();
-
-      // Step 6: Wait a moment for graceful shutdown
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Step 7: Force close any remaining windows
-      console.log("Step 7: Force closing remaining windows...");
-      this.forceCloseRemainingWindows();
-
-      // Step 8: Final cleanup
-      console.log("Step 8: Final cleanup...");
-      await this.finalCleanup();
+      // Coordinate cleanup steps
+      await promiseManager.sequence([
+        async () => {
+          console.log("Step 1: Stopping transcription...");
+          await this.stopTranscription();
+          return { step: "transcription", success: true };
+        },
+        async () => {
+          console.log("Step 2: Unregistering shortcuts...");
+          this.unregisterShortcuts();
+          return { step: "shortcuts", success: true };
+        },
+        async () => {
+          console.log("Step 3: Clearing timeouts...");
+          this.clearTimeouts();
+          return { step: "timeouts", success: true };
+        },
+        async () => {
+          console.log("Step 4: Cleaning up services...");
+          this.cleanupServices();
+          return { step: "services", success: true };
+        },
+        async () => {
+          console.log("Step 5: Closing windows...");
+          this.closeWindows();
+          return { step: "windows", success: true };
+        },
+        async () => {
+          console.log("Step 6: Waiting for graceful shutdown...");
+          await new Promise(resolve => setTimeout(resolve, 500));
+          return { step: "graceful-wait", success: true };
+        },
+        async () => {
+          console.log("Step 7: Force closing remaining windows...");
+          this.forceCloseRemainingWindows();
+          return { step: "force-close", success: true };
+        },
+        async () => {
+          console.log("Step 8: Final cleanup...");
+          await this.finalCleanup();
+          return { step: "final", success: true };
+        }
+      ]);
 
       console.log("=== App cleanup completed successfully ===");
+      promiseManager.resolve(cleanupId);
     } catch (error) {
       console.error("Error during cleanup:", error);
+      promiseManager.reject(cleanupId, error);
       // Continue with cleanup even if there are errors
     } finally {
       clearTimeout(cleanupTimeout);
