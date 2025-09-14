@@ -299,12 +299,20 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     icon: "shield",
     fields: [],
   },
+  
   {
     id: "advanced",
     title: "Advanced",
     description: "Advanced configuration options",
     icon: "slider",
     fields: [
+      {
+        key: "launchAtLogin",
+        type: "boolean",
+        label: "Launch at Login",
+        description: "Start WhisperMac automatically when you log in to your Mac",
+        defaultValue: false,
+      },
       {
         key: "dataDir",
         type: "directory",
