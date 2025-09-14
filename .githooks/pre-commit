@@ -13,11 +13,24 @@ COMMIT_HASH=$(git rev-parse --short HEAD)
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 
-# Create pre-release tag
-PRE_RELEASE_TAG="v${VERSION}-${TIMESTAMP}"
+# Get commit message to check if it's a release
+# Pre-commit hooks need to get the message from the prepared commit message file
+COMMIT_MSG_FILE=".git/COMMIT_EDITMSG"
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE" 2>/dev/null || echo "")
+
+# Determine if this is a production release or pre-release
+if echo "$COMMIT_MSG" | grep -qi "release"; then
+    echo "🎯 Production release detected in commit message"
+    RELEASE_TAG="v${VERSION}"
+    IS_PRODUCTION_RELEASE=true
+else
+    echo "📦 Creating pre-release build"
+    RELEASE_TAG="v${VERSION}-${TIMESTAMP}"
+    IS_PRODUCTION_RELEASE=false
+fi
 
 echo "📦 Building for version: ${VERSION}"
-echo "🏷️  Release tag: ${PRE_RELEASE_TAG}"
+echo "🏷️  Release tag: ${RELEASE_TAG}"
 
 # Clean previous builds
 echo "🧹 Cleaning previous builds..."
@@ -83,10 +96,37 @@ echo "📡 Repository: $REPO"
 
 # Create release
 echo "🚀 Creating GitHub release..."
-RELEASE_NOTES="Release build for commit ${COMMIT_HASH} on branch ${BRANCH}
+
+if [ "$IS_PRODUCTION_RELEASE" = true ]; then
+    RELEASE_NOTES="WhisperMac ${VERSION} Production Release
 
 ## Changes
-- Automated release build
+- Production release build
+- Built for macOS (ARM64 and x64)
+- Commit: ${COMMIT_HASH}
+- Branch: ${BRANCH}
+
+## Installation
+1. Download the zip file for your architecture (ARM64 for Apple Silicon, x64 for Intel)
+2. Extract the .app file
+3. Move to Applications folder
+4. Right-click and select 'Open' (first time only)"
+    
+    # Create production release
+    gh release create "$RELEASE_TAG" \
+        "$ARM64_ZIP" \
+        "$X64_ZIP" \
+        --title "WhisperMac ${VERSION}" \
+        --notes "$RELEASE_NOTES" \
+        --draft=false \
+        --latest
+        
+    echo "🎉 Production release created successfully!"
+else
+    RELEASE_NOTES="Release build for commit ${COMMIT_HASH} on branch ${BRANCH}
+
+## Changes
+- Automated pre-release build
 - Built for macOS (ARM64 and x64)
 - Commit: ${COMMIT_HASH}
 - Timestamp: ${TIMESTAMP}
@@ -97,16 +137,19 @@ RELEASE_NOTES="Release build for commit ${COMMIT_HASH} on branch ${BRANCH}
 3. Move to Applications folder
 4. Right-click and select 'Open' (first time only)"
 
-# Create the release with both zip files
-gh release create "$PRE_RELEASE_TAG" \
-    "$ARM64_ZIP" \
-    "$X64_ZIP" \
-    --title "WhisperMac ${VERSION} (${COMMIT_HASH})" \
-    --notes "$RELEASE_NOTES" \
-    --draft=false
+    # Create pre-release
+    gh release create "$RELEASE_TAG" \
+        "$ARM64_ZIP" \
+        "$X64_ZIP" \
+        --title "WhisperMac ${VERSION} (${COMMIT_HASH})" \
+        --notes "$RELEASE_NOTES" \
+        --draft=false \
+        --prerelease
+        
+    echo "✅ Pre-release created successfully!"
+fi
 
-echo "✅ Release created successfully!"
-echo "🔗 Release URL: https://github.com/$REPO/releases/tag/$PRE_RELEASE_TAG"
+echo "🔗 Release URL: https://github.com/$REPO/releases/tag/$RELEASE_TAG"
 echo "📦 ARM64 zip: $ARM64_ZIP"
 echo "📦 x64 zip: $X64_ZIP"
 

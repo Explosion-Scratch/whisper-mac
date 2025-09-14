@@ -10,6 +10,7 @@ import { UnifiedModelDownloadService } from "./UnifiedModelDownloadService";
 import { PermissionsManager } from "./PermissionsManager";
 import { TextInjectionService } from "./TextInjectionService";
 import { MicrophonePermissionService } from "./MicrophonePermissionService";
+import { LoginItemService } from "./LoginItemService";
 
 export class SettingsService {
   private settingsWindow: BrowserWindow | null = null;
@@ -21,10 +22,12 @@ export class SettingsService {
   private unifiedModelDownloadService: UnifiedModelDownloadService | null =
     null;
   private permissionsManager: PermissionsManager | null = null;
+  private loginItemService: LoginItemService;
 
   constructor(config: AppConfig) {
     this.config = config;
     this.settingsManager = new SettingsManager(config);
+    this.loginItemService = LoginItemService.getInstance();
     this.setupIpcHandlers();
 
     // Load existing settings on startup
@@ -118,9 +121,15 @@ export class SettingsService {
       "settings:save",
       async (_event, settings: Record<string, any>) => {
         try {
+          const oldSettings = this.settingsManager.getAll();
           this.settingsManager.setAll(settings);
           this.settingsManager.saveSettings();
           this.settingsManager.applyToConfig();
+
+          // Handle launch at login setting change
+          if (oldSettings.launchAtLogin !== settings.launchAtLogin) {
+            await this.loginItemService.setLaunchAtLogin(settings.launchAtLogin);
+          }
 
           // Reset permission caches when settings change to avoid restart requirement
           if (this.permissionsManager) {
@@ -229,6 +238,11 @@ export class SettingsService {
     // Close settings window
     ipcMain.handle("settings:closeWindow", () => {
       this.closeSettingsWindow();
+    });
+
+    // Get launch at login status
+    ipcMain.handle("settings:getLaunchAtLoginStatus", () => {
+      return this.loginItemService.getCurrentSettings();
     });
 
     // AI key validation and models listing

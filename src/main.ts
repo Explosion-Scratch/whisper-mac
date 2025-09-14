@@ -18,6 +18,7 @@ import { SettingsManager } from "./config/SettingsManager";
 import { SegmentManager } from "./services/SegmentManager";
 import { UnifiedModelDownloadService } from "./services/UnifiedModelDownloadService";
 import { TrayService } from "./services/TrayService";
+import { LoginItemService } from "./services/LoginItemService";
 import { DefaultActionsConfig } from "./types/ActionTypes";
 
 import {
@@ -229,6 +230,9 @@ class WhisperMacApp {
     await app.whenReady();
     console.log("App is ready");
 
+    // Initialize launch at login setting
+    await this.initializeLaunchAtLogin();
+
     this.createTrayService();
     if (this.trayService) {
       this.appStateManager.setTrayService(this.trayService);
@@ -282,6 +286,26 @@ class WhisperMacApp {
       this.trayInteractionManager.handleTrayClick();
     } else {
       this.toggleRecording();
+    }
+  }
+
+  private async initializeLaunchAtLogin(): Promise<void> {
+    try {
+      const loginItemService = LoginItemService.getInstance();
+      const currentSettings = this.settingsManager.getAll();
+      
+      // Apply the saved launch at login setting
+      if (currentSettings.launchAtLogin !== undefined) {
+        await loginItemService.setLaunchAtLogin(currentSettings.launchAtLogin);
+        console.log(`Launch at login initialized to: ${currentSettings.launchAtLogin}`);
+      }
+
+      // Log if we were launched at login
+      if (loginItemService.wasOpenedAtLogin()) {
+        console.log("App was launched at login");
+      }
+    } catch (error) {
+      console.error("Failed to initialize launch at login:", error);
     }
   }
 

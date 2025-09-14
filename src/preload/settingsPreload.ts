@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   resetAllSettings: () => ipcRenderer.invoke("settings:resetAll"),
   resetSettingsSection: (sectionId: string) =>
     ipcRenderer.invoke("settings:resetSection", sectionId),
+  getLaunchAtLoginStatus: () => ipcRenderer.invoke("settings:getLaunchAtLoginStatus"),
 
   // Import/Export
   importSettings: (filePath: string) =>
