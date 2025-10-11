@@ -21,6 +21,8 @@ import {
   PluginUIFunctions,
 } from "./TranscriptionPlugin";
 
+const FAKE_UNAVAIL = false; // Set to true to simulate YAP unavailability for testing
+
 /**
  * YAP transcription plugin using YAP CLI
  */
@@ -75,6 +77,7 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   async isAvailable(): Promise<boolean> {
+    if (FAKE_UNAVAIL){return Promise.resolve(false);}
     try {
       // Check if YAP binary exists and is executable
       return new Promise((resolve) => {
@@ -114,6 +117,7 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
     onProgress?: (progress: any) => void,
     onLog?: (line: string) => void,
   ): Promise<boolean> {
+    if (FAKE_UNAVAIL){return Promise.resolve(false);}
     onLog?.("YAP plugin doesn't require model downloads");
     onProgress?.({
       status: "complete",

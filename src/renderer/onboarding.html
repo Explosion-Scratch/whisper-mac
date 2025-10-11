@@ -204,6 +204,24 @@
         font-size: 12px;
         color: var(--muted);
       }
+      .error-banner {
+        width: 100%;
+        margin-top: 8px;
+        padding: 6px 10px;
+        border-radius: 6px;
+        border: 1px solid rgba(220, 53, 69, 0.18);
+        background: rgba(220, 53, 69, 0.09);
+        color: #b02a37;
+        text-align: left;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .error-banner strong {
+        display: block;
+        margin-bottom: 2px;
+        font-size: 12.5px;
+        font-weight: 600;
+      }
       .progress {
         height: 6px;
         background: #f2f2f2;
@@ -714,6 +732,10 @@
                 ></div>
               </div>
               <div id="progressText" class="hint micro">{{ progressText }}</div>
+              <div v-if="completionError" class="error-banner">
+                <strong>Selected plugin can't be activated</strong>
+                <div>{{ completionError }}</div>
+              </div>
               <div class="logs" v-show="logs.length">
                 <div class="logs-line" v-for="(line, i) in logs" :key="i">
                   {{ line }}
@@ -784,9 +806,14 @@
           const logs = ref([]);
           const setupStarted = ref(false);
           const setupDone = ref(false);
+          const completionError = ref("");
 
           const nextLabel = computed(() =>
-            idx.value === 5 ? "Finish" : "Next",
+            idx.value === 5
+              ? completionError.value
+                ? "Plugin unavailable – back to plugins"
+                : "Finish"
+              : "Next",
           );
 
           const canProceed = computed(() => {
@@ -806,7 +833,7 @@
             }
             // On setup step (idx === 5), check if setup is done
             if (idx.value === 5) {
-              return setupDone.value;
+              return completionError.value ? true : setupDone.value;
             }
             // All other steps can proceed
             return true;
@@ -814,6 +841,24 @@
 
           const availablePlugins = ref([]);
           const currentPluginOptions = ref([]);
+
+          const getSelectedPluginDisplayName = () => {
+            const active = availablePlugins.value.find(
+              (plugin) => plugin.name === pluginSelect.value,
+            );
+            return active?.displayName || pluginSelect.value;
+          };
+
+          const resetSetupState = (options = { preserveLogs: false }) => {
+            setupStarted.value = false;
+            setupDone.value = false;
+            progressText.value = "Idle";
+            progressPercent.value = 0;
+            if (!options.preserveLogs) {
+              logs.value = [];
+            }
+            completionError.value = "";
+          };
 
           const init = async () => {
             const initState = await window.onboardingAPI.getInitialState();
@@ -875,6 +920,7 @@
           const onPluginChange = () => {
             try {
               updateCurrentPluginOptions();
+              resetSetupState();
             } catch (error) {
               console.error("Error updating plugin options:", error);
               currentPluginOptions.value = [];
@@ -895,6 +941,9 @@
           const prev = () => {
             if (setupStarted.value) return;
             if (idx.value > 0) idx.value -= 1;
+            if (idx.value < 5) {
+              completionError.value = "";
+            }
           };
 
           const next = async () => {
@@ -942,6 +991,11 @@
             }
 
             if (idx.value === 5 && !setupDone.value) return;
+            if (idx.value === 5 && completionError.value) {
+              resetSetupState();
+              idx.value = 3;
+              return;
+            }
             if (idx.value === 3) {
               const currentOptions =
                 selectedOptions.value[pluginSelect.value] || {};
@@ -984,7 +1038,25 @@
             if (idx.value < 5) {
               idx.value += 1;
             } else {
-              await window.onboardingAPI.complete();
+              try {
+                const result = await window.onboardingAPI.complete();
+                if (!result?.success) {
+                  const pluginLabel = getSelectedPluginDisplayName();
+                  const detail = result?.error
+                    ? `${pluginLabel}: ${result.error}`
+                    : `${pluginLabel} can't be activated right now.`;
+                  completionError.value = detail;
+                  return;
+                }
+              } catch (error) {
+                const pluginLabel = getSelectedPluginDisplayName();
+                const message =
+                  error?.message ||
+                  error?.toString?.() ||
+                  "The selected plugin could not be activated.";
+                completionError.value = `${pluginLabel}: ${message}`;
+                return;
+              }
             }
           };
 
@@ -1122,6 +1194,8 @@
           const runSetup = async () => {
             progressText.value = "Starting...";
             setupStarted.value = true;
+            setupDone.value = false;
+            completionError.value = "";
             await window.onboardingAPI.runSetup();
           };
 
@@ -1172,6 +1246,15 @@
               }
               if (p.status === "complete") {
                 setupDone.value = true;
+                setupStarted.value = false;
+              }
+              if (p.status === "error") {
+                setupStarted.value = false;
+                setupDone.value = false;
+                const pluginLabel = getSelectedPluginDisplayName();
+                completionError.value = p.message
+                  ? `${pluginLabel}: ${p.message}`
+                  : `${pluginLabel}: Setup failed`;
               }
             });
             window.onboardingAPI.onLog((payload) => {
@@ -1210,6 +1293,7 @@
             logs,
             setupStarted,
             setupDone,
+            completionError,
             nextLabel,
             canProceed,
             prev,
@@ -1224,6 +1308,7 @@
             openSettings,
             saveKey,
             runSetup,
+            resetSetupState,
           };
         },
       }).mount("#app");
