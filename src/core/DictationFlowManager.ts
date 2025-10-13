@@ -107,12 +107,19 @@ export class DictationFlowManager {
     await this.cancelDictationFlow();
   }
 
-  async finishCurrentDictation(): Promise<void> {
+  async finishCurrentDictation(options: { skipTransformation?: boolean } = {}): Promise<void> {
     if (this.state !== "recording") return;
 
     try {
       this.state = "finishing";
-      console.log("=== Finishing current dictation with transform+inject ===");
+      const criteria =
+        this.transcriptionPluginManager.getActivePluginActivationCriteria();
+      const skipTransformation =
+        !!criteria?.skipTransformation || !!options.skipTransformation;
+
+      console.log(
+        `=== Finishing current dictation with ${skipTransformation ? "raw injection" : "transform+inject"} ===`,
+      );
       this.dictationWindowService.stopRecording(); // Stop VAD audio processing
       
       // Coordinate audio stop
@@ -147,8 +154,6 @@ export class DictationFlowManager {
       this.dictationWindowService.setStatus("transcribing");
       this.segmentManager.setAccumulatingMode(false);
 
-      const criteria =
-        this.transcriptionPluginManager.getActivePluginActivationCriteria();
       console.log("Criteria:", criteria);
 
       if (criteria?.runOnAll) {
@@ -172,7 +177,7 @@ export class DictationFlowManager {
       this.dictationWindowService.setStatus("transforming");
       const transformResult =
         await this.segmentManager.transformAndInjectAllSegmentsInternal({
-          skipTransformation: !!criteria?.skipTransformation,
+          skipTransformation,
           onInjecting: () => this.dictationWindowService.setStatus("injecting"),
         });
 
@@ -227,7 +232,7 @@ export class DictationFlowManager {
     }
   }
 
-  async flushSegmentsWhileContinuing(): Promise<void> {
+  async flushSegmentsWhileContinuing(options: { skipTransformation?: boolean } = {}): Promise<void> {
     try {
       console.log("=== Flushing segments while continuing recording ===");
 
@@ -237,7 +242,14 @@ export class DictationFlowManager {
       const hadInProgress =
         this.segmentManager.getInProgressTranscribedSegments().length > 0;
 
-      const result = await this.segmentManager.transformAndInjectAllSegments();
+      const skipTransformation = !!options.skipTransformation;
+      if (skipTransformation) {
+        console.log("[DictationFlowManager] Skipping transformation during flush");
+      }
+
+      const result = await this.segmentManager.transformAndInjectAllSegmentsInternal({
+        skipTransformation,
+      });
 
       if (result.success) {
         console.log(

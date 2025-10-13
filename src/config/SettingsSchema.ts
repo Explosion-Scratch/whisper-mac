@@ -259,6 +259,14 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         defaultValue: "Control+D",
       },
       {
+        key: "hotkeys.pasteRawDictation",
+        type: "hotkey",
+        label: "Paste Raw Dictation",
+        description:
+          "Keyboard shortcut to finish dictation and paste transcription without AI transformation",
+        defaultValue: "Control+Shift+D",
+      },
+      {
         key: "hotkeys.cancelDictation",
         type: "hotkey",
         label: "Cancel Dictation",

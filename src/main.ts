@@ -329,6 +329,7 @@ class WhisperMacApp {
 
     const actions: ShortcutActions = {
       onToggleRecording: () => this.handleShortcutPress(),
+      onFinishDictationRaw: () => this.handleShortcutPress({ skipTransformation: true }),
       onCancelDictation: () => this.shortcutManager.cancelDictation(),
       onInjectLastResult: () => this.shortcutManager.injectLastResult(),
       onCyclePlugin: () => this.shortcutManager.cycleToNextPlugin(),
@@ -357,16 +358,16 @@ class WhisperMacApp {
     this.initializationManager.initializeAfterOnboarding();
   }
 
-  private handleShortcutPress(): void {
+  private handleShortcutPress(options?: { skipTransformation?: boolean }): void {
     if (!this.appStateManager.isIdle()) {
       this.trayInteractionManager.setPendingToggle(true);
       console.log("App not idle yet; deferring toggle until ready");
       return;
     }
-    this.toggleRecording();
+    this.toggleRecording(options);
   }
 
-  private async toggleRecording(): Promise<void> {
+  private async toggleRecording(options: { skipTransformation?: boolean } = {}): Promise<void> {
     console.log("=== Toggle dictation called ===");
     console.log(
       "Current recording state:",
@@ -390,12 +391,16 @@ class WhisperMacApp {
         console.log(
           "Always-show-window enabled: flushing segments and continuing recording",
         );
-        await this.dictationFlowManager.flushSegmentsWhileContinuing();
+        await this.dictationFlowManager.flushSegmentsWhileContinuing({
+          skipTransformation: options.skipTransformation,
+        });
         return;
       }
 
       console.log("Finishing current dictation (waiting for completion)...");
-      await this.dictationFlowManager.finishCurrentDictation();
+      await this.dictationFlowManager.finishCurrentDictation({
+        skipTransformation: options.skipTransformation,
+      });
     } else {
       console.log("Starting dictation...");
       await this.dictationFlowManager.startDictation();
