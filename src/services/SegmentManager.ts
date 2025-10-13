@@ -248,9 +248,9 @@ export class SegmentManager extends EventEmitter {
           options.onInjecting?.();
           await this.textInjectionService.insertText(originalText);
           console.log(
-            `[SegmentManager] Direct-injected text (skip reason: ${options?.skipTransformation ? "plugin" : "action"
-            }): "${originalText}"`,
+            `[SegmentManager] Direct-injected text without transformation: "${originalText}"`,
           );
+          this.emit("transformed", { transformedText: originalText });
         }
 
         this.clearAllSegments();

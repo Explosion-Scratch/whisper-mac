@@ -5,6 +5,7 @@ import { SettingsManager } from "../config/SettingsManager";
 
 export interface ShortcutActions {
   onToggleRecording: () => void;
+  onFinishDictationRaw: () => void;
   onCancelDictation: () => void;
   onInjectLastResult: () => void;
   onCyclePlugin: () => void;
@@ -62,6 +63,11 @@ export class ShortcutManager {
         key: hotkeys.startStopDictation || "Control+D",
         handler: actions.onToggleRecording,
         description: "Start/Stop Dictation",
+      },
+      {
+        key: hotkeys.pasteRawDictation || "Control+Shift+D",
+        handler: actions.onFinishDictationRaw,
+        description: "Paste Raw Dictation",
       },
       {
         key: hotkeys.cancelDictation,
