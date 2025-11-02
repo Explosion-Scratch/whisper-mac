@@ -63,7 +63,10 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.whisperBinaryPath = this.resolveWhisperBinaryPath(); // Keep for backward compatibility
     // Don't set modelPath here - wait for options to be applied
     this.resolvedBinaryPath = this.getBinaryPath(true); // Resolve once and store
-    this.setActivationCriteria({ runOnAll: false, skipTransformation: false });
+    
+    // Default to processing segments individually, will be updated when options are set
+    const defaultRunOnAll = false;
+    this.setActivationCriteria({ runOnAll: defaultRunOnAll, skipTransformation: false });
 
     // Load Core ML setting from options with fallback to old config
     this.useCoreML = false; // Will be set properly when options are loaded
@@ -963,6 +966,15 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         default: readPrompt("whisper"),
         category: "advanced",
       },
+      {
+        key: "runOnAll",
+        type: "boolean",
+        label: "Process All Audio Together",
+        description:
+          "When enabled, processes all audio segments together for better context. When disabled, processes each segment individually.",
+        default: false,
+        category: "advanced",
+      },
     ];
 
     // Add Apple Metal option only on Apple Silicon
@@ -1015,6 +1027,13 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       errors.push("Prompt must be a string");
     }
 
+    if (
+      options.runOnAll !== undefined &&
+      typeof options.runOnAll !== "boolean"
+    ) {
+      errors.push("Process all audio together must be true or false");
+    }
+
     return { valid: errors.length === 0, errors };
   }
 
@@ -1026,6 +1045,18 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       this.useCoreML =
         this.options.useCoreML !== undefined ? this.options.useCoreML : false;
       this.resolvedBinaryPath = this.getBinaryPath(true);
+
+      // Update activation criteria based on runOnAll option
+      const runOnAll =
+        this.options.runOnAll !== undefined
+          ? this.options.runOnAll
+          : this.getSchema()
+              .find((opt) => opt.key === "runOnAll")
+              ?.default ?? false;
+      this.setActivationCriteria({
+        runOnAll,
+        skipTransformation: false,
+      });
 
       // Get model from stored options (unified plugin system), fallback to default
       const modelName =
@@ -1043,7 +1074,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       // Update the model path with the correct model
       this.modelPath = modelPath;
       this.setError(null);
-      console.log(`Whisper.cpp plugin activated with model: ${modelName}`);
+      console.log(`Whisper.cpp plugin activated with model: ${modelName}, runOnAll: ${runOnAll}`);
 
       // Start warmup loop and run initial warmup
       this.startWarmupLoop();
@@ -1267,7 +1298,21 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   ): Promise<void> {
     // Store previous model for change detection
     const previousModel = this.options.model;
+    const previousRunOnAll = this.options.runOnAll;
     this.setOptions(options);
+
+    // Handle runOnAll setting changes
+    if (options.runOnAll !== undefined && options.runOnAll !== previousRunOnAll) {
+      const runOnAll = options.runOnAll;
+      this.setActivationCriteria({
+        runOnAll,
+        skipTransformation: false,
+      });
+      console.log(`Whisper.cpp plugin runOnAll updated to: ${runOnAll}`);
+      
+      // The plugin manager needs to be notified to update buffering state
+      // This happens automatically when the plugin manager checks getActivationCriteria
+    }
 
     // Handle Core ML setting changes
     if (
