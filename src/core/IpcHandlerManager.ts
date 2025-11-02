@@ -53,6 +53,7 @@ export class IpcHandlerManager {
     ipcMain.removeAllListeners("close-dictation-window");
     ipcMain.removeAllListeners("download-model");
     ipcMain.removeHandler("dictation:getSelectedMicrophone");
+    ipcMain.removeHandler("dictation:setSelectedMicrophone");
 
     // Remove all plugin handlers
     ipcMain.removeHandler("plugin:switch");
@@ -103,6 +104,13 @@ export class IpcHandlerManager {
     // Get selected microphone from settings
     ipcMain.handle("dictation:getSelectedMicrophone", async () => {
       return this.settingsManager.get("selectedMicrophone", "default");
+    });
+
+    // Set selected microphone in settings
+    ipcMain.handle("dictation:setSelectedMicrophone", async (_event, deviceId: string) => {
+      this.settingsManager.set("selectedMicrophone", deviceId);
+      this.settingsManager.saveSettings();
+      return { success: true };
     });
   }
 

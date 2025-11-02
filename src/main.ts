@@ -224,6 +224,16 @@ class WhisperMacApp {
         }
       },
     );
+
+    // Track last raw result for hotkey injection
+    this.segmentManager.on(
+      "raw",
+      (result: { rawText: string }) => {
+        if (result.rawText) {
+          this.shortcutManager.setLastRawResult(result.rawText);
+        }
+      },
+    );
   }
 
   async initialize(): Promise<void> {
@@ -332,6 +342,7 @@ class WhisperMacApp {
       onFinishDictationRaw: () => this.handleShortcutPress({ skipTransformation: true }),
       onCancelDictation: () => this.shortcutManager.cancelDictation(),
       onInjectLastResult: () => this.shortcutManager.injectLastResult(),
+      onInjectRawLastResult: () => this.shortcutManager.injectRawLastResult(),
       onCyclePlugin: () => this.shortcutManager.cycleToNextPlugin(),
       onQuitApp: () => this.shortcutManager.quitApp(),
     };
