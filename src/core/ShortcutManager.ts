@@ -8,6 +8,7 @@ export interface ShortcutActions {
   onFinishDictationRaw: () => void;
   onCancelDictation: () => void;
   onInjectLastResult: () => void;
+  onInjectRawLastResult: () => void;
   onCyclePlugin: () => void;
   onQuitApp: () => void;
 }
@@ -17,6 +18,7 @@ export class ShortcutManager {
   private transcriptionPluginManager: TranscriptionPluginManager | null = null;
   private dictationFlowManager: DictationFlowManager | null = null;
   private lastTransformedResult: string | null = null;
+  private lastRawResult: string | null = null;
   private settingsManager: SettingsManager | null = null;
 
   setTranscriptionPluginManager(manager: TranscriptionPluginManager): void {
@@ -30,6 +32,7 @@ export class ShortcutManager {
   setSettingsManager(manager: SettingsManager): void {
     this.settingsManager = manager;
     this.loadLastTransformedResult();
+    this.loadLastRawResult();
   }
 
   private loadLastTransformedResult(): void {
@@ -42,12 +45,32 @@ export class ShortcutManager {
     }
   }
 
+  private loadLastRawResult(): void {
+    if (this.settingsManager) {
+      const savedResult = this.settingsManager.get("internal.lastRawResult");
+      if (savedResult && typeof savedResult === "string") {
+        this.lastRawResult = savedResult;
+        console.log(`[ShortcutManager] Loaded last raw result from storage: "${savedResult}"`);
+      }
+    }
+  }
+
   setLastTransformedResult(result: string): void {
     this.lastTransformedResult = result;
 
     // Persist the result for future app sessions
     if (this.settingsManager) {
       this.settingsManager.set("internal.lastTransformedResult", result);
+      this.settingsManager.saveSettings();
+    }
+  }
+
+  setLastRawResult(result: string): void {
+    this.lastRawResult = result;
+
+    // Persist the result for future app sessions
+    if (this.settingsManager) {
+      this.settingsManager.set("internal.lastRawResult", result);
       this.settingsManager.saveSettings();
     }
   }
@@ -78,6 +101,11 @@ export class ShortcutManager {
         key: hotkeys.injectLastResult,
         handler: actions.onInjectLastResult,
         description: "Inject Last Result",
+      },
+      {
+        key: hotkeys.injectRawLastResult,
+        handler: actions.onInjectRawLastResult,
+        description: "Inject Raw Last Result",
       },
       {
         key: hotkeys.cyclePlugin,
@@ -188,6 +216,37 @@ export class ShortcutManager {
       console.log(`Injected last result: "${this.lastTransformedResult}"`);
     } catch (error) {
       console.error("Failed to inject last result:", error);
+    }
+  }
+
+  async injectRawLastResult(): Promise<void> {
+    if (!this.lastRawResult) {
+      console.log("No last raw result available to inject");
+
+      // Show a notification to the user
+      try {
+        const { NotificationService } = await import("../services/NotificationService");
+        const notificationService = new NotificationService();
+        await notificationService.sendNotification({
+          title: "No Raw Last Result",
+          message: "No previous raw transcription result available to inject. Try dictating some text first.",
+        });
+      } catch (error) {
+        console.error("Failed to show notification:", error);
+      }
+      return;
+    }
+
+    try {
+      // Import the TextInjectionService and inject the last raw result
+      const { TextInjectionService } = await import(
+        "../services/TextInjectionService"
+      );
+      const injectionService = new TextInjectionService();
+      await injectionService.insertText(this.lastRawResult);
+      console.log(`Injected last raw result: "${this.lastRawResult}"`);
+    } catch (error) {
+      console.error("Failed to inject last raw result:", error);
     }
   }
 

@@ -297,6 +297,14 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         description: "Keyboard shortcut to quit WhisperMac",
         defaultValue: "",
       },
+      {
+        key: "hotkeys.injectRawLastResult",
+        type: "hotkey",
+        label: "Inject Raw Last Result",
+        description:
+          "Keyboard shortcut to inject the last raw transcription result (without AI transformation) into active app",
+        defaultValue: "",
+      },
     ],
   },
 

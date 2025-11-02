@@ -489,7 +489,7 @@
     <script src="./vue.js"></script>
     <script src="./audio-visualizer.js"></script>
     <script>
-      const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
+      const { createApp, ref, computed, onMounted, onUnmounted, nextTick, watch } = Vue;
 
       createApp({
         setup() {
@@ -587,6 +587,7 @@
           let sourceNode = null;
           let rmsArray = null;
           let allowFinalFlush = false;
+          let deviceChangeTimeout = null;
 
           const scrollToEnd = () => {
             if (textScrollContainer.value) {
@@ -664,6 +665,19 @@
               
               // Get selected microphone from settings
               const selectedMicrophone = await window.electronAPI.getSelectedMicrophone() || "default";
+              
+              // Validate device availability if not using default
+              if (selectedMicrophone !== "default") {
+                const isAvailable = await checkDeviceAvailability(selectedMicrophone);
+                if (!isAvailable) {
+                  console.log(
+                    `Selected device ${selectedMicrophone} is not available, resetting to default`
+                  );
+                  await window.electronAPI.setSelectedMicrophone("default");
+                  // Recursively call with default to avoid code duplication
+                  return await initializeVAD();
+                }
+              }
               
               // Build audio constraints with selected microphone
               const audioConstraints = {
@@ -815,6 +829,71 @@
             }
           };
 
+          const cleanupVAD = async () => {
+            if (vadInstance.value) {
+              try {
+                await vadInstance.value.pause();
+              } catch (e) {
+                console.error("Error pausing VAD:", e);
+              }
+              vadInstance.value = null;
+            }
+            cleanupMediaStream();
+            isVadInitialized.value = false;
+          };
+
+          const checkDeviceAvailability = async (deviceId) => {
+            if (deviceId === "default") {
+              return true;
+            }
+            try {
+              const devices = await navigator.mediaDevices.enumerateDevices();
+              return devices.some(
+                (device) =>
+                  device.kind === "audioinput" && device.deviceId === deviceId
+              );
+            } catch (error) {
+              console.error("Error checking device availability:", error);
+              return false;
+            }
+          };
+
+          const handleDeviceChange = async () => {
+            if (deviceChangeTimeout) {
+              clearTimeout(deviceChangeTimeout);
+            }
+            deviceChangeTimeout = setTimeout(async () => {
+              try {
+                const selectedMicrophone =
+                  (await window.electronAPI.getSelectedMicrophone()) || "default";
+
+                if (selectedMicrophone === "default") {
+                  return;
+                }
+
+                const isAvailable = await checkDeviceAvailability(
+                  selectedMicrophone
+                );
+
+                if (!isAvailable) {
+                  console.log(
+                    `Selected device ${selectedMicrophone} is no longer available, resetting to default`
+                  );
+                  await window.electronAPI.setSelectedMicrophone("default");
+                  const wasInitialized = isVadInitialized.value;
+                  const wasRecording = isRecording.value;
+                  await cleanupVAD();
+                  await initializeVAD();
+                  if (wasInitialized && wasRecording) {
+                    await startRecording();
+                  }
+                }
+              } catch (error) {
+                console.error("Error handling device change:", error);
+              }
+            }, 500);
+          };
+
           // IPC event handlers
           const initializeDictation = (data) => {
             selectedText.value = data.selectedText || "";
@@ -887,7 +966,19 @@
               playEndSound();
               cleanupMediaStream();
             });
+            
+            // Listen for device changes
+            navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+            
             await initializeVAD();
+          });
+
+          onUnmounted(() => {
+            if (deviceChangeTimeout) {
+              clearTimeout(deviceChangeTimeout);
+            }
+            navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+            cleanupVAD();
           });
 
           function setupVisualizer() {

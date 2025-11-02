@@ -250,6 +250,8 @@ export class SegmentManager extends EventEmitter {
           console.log(
             `[SegmentManager] Direct-injected text without transformation: "${originalText}"`,
           );
+          // Emit both raw and transformed events (they're the same in this case)
+          this.emit("raw", { rawText: originalText });
           this.emit("transformed", { transformedText: originalText });
         }
 
@@ -261,6 +263,12 @@ export class SegmentManager extends EventEmitter {
           success: true,
         };
       }
+
+      // Get the original text before transformation for raw result tracking
+      const originalText = segmentsToProcess
+        .map((segment) => segment.text.trim())
+        .filter((text) => text.length > 0)
+        .join(" ");
 
       // Transform all segments
       const transformResult =
@@ -287,7 +295,10 @@ export class SegmentManager extends EventEmitter {
         await this.textInjectionService.insertText(transformedText);
         console.log(`[SegmentManager] Injected text: "${transformedText}"`);
 
-        // Emit transformed event for hotkey last result tracking
+        // Emit raw and transformed events for hotkey last result tracking
+        if (originalText) {
+          this.emit("raw", { rawText: originalText });
+        }
         this.emit("transformed", { transformedText });
       }
 
@@ -341,6 +352,10 @@ export class SegmentManager extends EventEmitter {
       );
       onInjecting?.();
       await this.textInjectionService.insertText(originalText);
+
+      // Emit both raw and transformed events (they're the same in fallback case)
+      this.emit("raw", { rawText: originalText });
+      this.emit("transformed", { transformedText: originalText });
     }
 
     // Clear all segments after fallback injection
