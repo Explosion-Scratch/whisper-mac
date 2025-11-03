@@ -4,7 +4,7 @@ import { SelectedTextResult } from "./SelectedTextService";
 import { AiValidationService } from "./AiValidationService";
 import { SecureStorageService } from "./SecureStorageService";
 import { SelectedTextService } from "./SelectedTextService";
-import { readFileSync } from "fs";
+import { NonAiTransformationRule } from "../types/TransformationRuleTypes";
 
 export interface AiTransformationConfig {
   enabled: boolean;
@@ -396,12 +396,7 @@ export class TransformationService {
       }
     }
 
-    const extractedCode = TransformationService.extractCode(transformedText);
-    if (extractedCode) {
-      return extractedCode;
-    }
-    // Perform quote removal only after attempting code extraction
-    return TransformationService.removeQuotes(transformedText).trim();
+    return this.finalizeText(transformedText, { mode: "transcription" });
   }
 
   /**
@@ -511,5 +506,120 @@ export class TransformationService {
     transformed = await TransformationService.removeChanged(transformed);
     console.log("AI transformed text:", transformed);
     return transformed;
+  }
+
+  private getNonAiRulesForMode(
+    mode: "transcription" | "action",
+  ): NonAiTransformationRule[] {
+    const config = this.config.getNonAiTransformations();
+    const rules = Array.isArray(config?.rules) ? config.rules : [];
+    const applicable = rules.filter((rule) =>
+      mode === "action"
+        ? rule.enabledForActions
+        : rule.enabledForTranscription,
+    );
+
+    return applicable.sort((a, b) => {
+      const aOrder = a.order ?? 0;
+      const bOrder = b.order ?? 0;
+      if (aOrder === bOrder) {
+        return 0;
+      }
+      return aOrder - bOrder;
+    });
+  }
+
+  private buildRegex(pattern: string, flags?: string): RegExp | null {
+    try {
+      return new RegExp(pattern, flags);
+    } catch (error) {
+      console.warn("Invalid regular expression:", { pattern, flags, error });
+      return null;
+    }
+  }
+
+  applyNonAiTransformations(
+    text: string,
+    options: { mode?: "transcription" | "action" } = {},
+  ): string {
+    const mode = options.mode ?? "transcription";
+    let output = (text ?? "").trim();
+
+    if (!output) {
+      return output;
+    }
+
+    const rules = this.getNonAiRulesForMode(mode);
+    if (!rules.length) {
+      return output;
+    }
+
+    for (const rule of rules) {
+      if (!rule.replacePattern) {
+        continue;
+      }
+
+      const matchRegex = this.buildRegex(
+        rule.matchPattern || ".*",
+        rule.matchFlags || "",
+      );
+      if (!matchRegex) {
+        continue;
+      }
+
+      if (!matchRegex.test(output)) {
+        continue;
+      }
+
+      const replaceRegex = this.buildRegex(
+        rule.replacePattern,
+        rule.replaceFlags || "g",
+      );
+      if (!replaceRegex) {
+        continue;
+      }
+
+      const replacementMode = rule.replacementMode || "literal";
+      if (replacementMode === "lowercase") {
+        output = output.replace(replaceRegex, (match) => match.toLowerCase());
+      } else if (replacementMode === "uppercase") {
+        output = output.replace(replaceRegex, (match) => match.toUpperCase());
+      } else {
+        const replacement =
+          rule.replacement !== undefined ? rule.replacement : "";
+        try {
+          output = output.replace(replaceRegex, replacement);
+        } catch (error) {
+          console.warn(
+            "Failed to apply non-AI transformation replacement:",
+            {
+              ruleId: rule.id,
+              error,
+            },
+          );
+        }
+      }
+
+      output = output.trim();
+
+      if (!output) {
+        break;
+      }
+    }
+
+    return output.trim();
+  }
+
+  finalizeText(
+    text: string,
+    options: { mode?: "transcription" | "action" } = {},
+  ): string {
+    const transformed = this.applyNonAiTransformations(text, options);
+    const extractedCode = TransformationService.extractCode(transformed);
+    if (extractedCode) {
+      return extractedCode;
+    }
+
+    return TransformationService.removeQuotes(transformed).trim();
   }
 }

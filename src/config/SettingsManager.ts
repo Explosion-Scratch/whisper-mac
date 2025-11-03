@@ -15,6 +15,7 @@ import {
   DictationWindowPosition,
 } from "./AppConfig";
 import { DefaultActionsConfig } from "../types/ActionTypes";
+import { getDefaultNonAiTransformationsConfig } from "./DefaultTransformations";
 import {
   getDefaultSettings,
   validateSettings,
@@ -360,7 +361,14 @@ export class SettingsManager extends EventEmitter {
     );
 
     // Text processing
-    this.config.transformTrim = this.get("transformTrim", true);
+    const nonAiTransformations = this.get(
+      "nonAiTransformations",
+      getDefaultNonAiTransformationsConfig(),
+    );
+    const normalizedTransformations = nonAiTransformations
+      ? JSON.parse(JSON.stringify(nonAiTransformations))
+      : getDefaultNonAiTransformationsConfig();
+    this.config.setNonAiTransformations(normalizedTransformations);
 
     // AI settings
     const aiConfig: AiTransformationConfig = {
@@ -454,7 +462,10 @@ export class SettingsManager extends EventEmitter {
     );
 
     // Text processing
-    this.set("transformTrim", this.config.transformTrim);
+    this.set(
+      "nonAiTransformations",
+      JSON.parse(JSON.stringify(this.config.getNonAiTransformations())),
+    );
 
     // AI settings
     this.set("ai.enabled", this.config.ai.enabled);

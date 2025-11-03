@@ -37,9 +37,10 @@
     "@ricky0123/vad-web": "^0.0.22",
     "copy-paste": "^2.2.0",
     "electron-log": "^5.4.3",
+    "iohook": "^0.9.3",
     "keytar": "^7.9.0",
-    "uuid": "^9.0.0",
-    "node-addon-api": "^7.1.0"
+    "node-addon-api": "^7.1.0",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "sharp": "^0.34.3",
@@ -124,5 +125,20 @@
         }
       ]
     }
-  }
+  },
+  "iohook": {
+  "targets": [
+    "node-72",
+    "electron-85"
+  ],
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ],
+  "arches": [
+    "x64",
+    "ia32"
+  ]
+}
 }

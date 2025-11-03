@@ -239,7 +239,15 @@ export class TranscriptionPluginManager extends EventEmitter {
 
   /** Override buffering behaviour for the next transcription session */
   setBufferingOverrideForNextSession(enabled: boolean | null): void {
-    this.bufferingOverride = typeof enabled === "boolean" ? enabled : null;
+    const nextValue = typeof enabled === "boolean" ? enabled : null;
+    if (this.bufferingOverride !== nextValue) {
+      console.log(
+        `[TranscriptionPluginManager] Buffering override set to: ${
+          nextValue === null ? "null" : String(nextValue)
+        }`,
+      );
+    }
+    this.bufferingOverride = nextValue;
   }
 
   /** Check if the next session is forced into buffering mode */
@@ -280,13 +288,22 @@ export class TranscriptionPluginManager extends EventEmitter {
     try {
       const criteria = this.activePlugin.getActivationCriteria?.() || {};
       if (this.bufferingOverride !== null) {
+        console.log(
+          `[TranscriptionPluginManager] Applying buffering override: ${this.bufferingOverride}`,
+        );
         this.bufferingEnabled = this.bufferingOverride;
         this.bufferingOverride = null;
       } else {
         this.bufferingEnabled = !!criteria.runOnAll;
+        console.log(
+          `[TranscriptionPluginManager] Using plugin's runOnAll criteria: ${this.bufferingEnabled}`,
+        );
       }
     } catch {
       if (this.bufferingOverride !== null) {
+        console.log(
+          `[TranscriptionPluginManager] Applying buffering override (in catch): ${this.bufferingOverride}`,
+        );
         this.bufferingEnabled = this.bufferingOverride;
         this.bufferingOverride = null;
       }
@@ -306,6 +323,14 @@ export class TranscriptionPluginManager extends EventEmitter {
       `Stopping transcription with plugin: ${this.activePlugin.displayName}`,
     );
     await this.activePlugin.stopTranscription();
+    
+    // Clear any lingering buffering override
+    if (this.bufferingOverride !== null) {
+      console.log(
+        `[TranscriptionPluginManager] Clearing lingering buffering override on stop`,
+      );
+      this.bufferingOverride = null;
+    }
   }
 
   /** Expose activation criteria of active plugin */

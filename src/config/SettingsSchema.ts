@@ -2,6 +2,7 @@ import { resolve } from "path";
 import { readPrompt } from "../helpers/getPrompt";
 import { app } from "electron";
 import { getDefaultActionsConfig } from "./DefaultActions";
+import { getDefaultNonAiTransformationsConfig } from "./DefaultTransformations";
 import { readFileSync } from "fs";
 
 export interface SettingsField {
@@ -15,6 +16,7 @@ export interface SettingsField {
   | "slider"
   | "directory"
   | "actions-editor"
+  | "transformations-editor"
   | "rules-editor"
   | "hotkey";
   label: string;
@@ -122,12 +124,12 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     icon: "document-text",
     fields: [
       {
-        key: "transformTrim",
-        type: "boolean",
-        label: "Trim Whitespace",
+        key: "nonAiTransformations",
+        type: "transformations-editor",
+        label: "Non-AI Transformations",
         description:
-          "Remove leading and trailing whitespace from transcribed text",
-        defaultValue: true,
+          "Configure lightweight regex replacements that always run before AI outputs and during push-to-talk or action flows.",
+        defaultValue: getDefaultNonAiTransformationsConfig(),
       },
     ],
   },
@@ -264,7 +266,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         label: "Push to Talk",
         description:
           "Hold to capture audio, release to transcribe and inject without AI transformation",
-        defaultValue: "Control+Space",
+        defaultValue: "",
       },
       {
         key: "hotkeys.pasteRawDictation",
