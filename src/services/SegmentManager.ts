@@ -102,41 +102,6 @@ export class SegmentManager extends EventEmitter {
       `[SegmentManager] Attempting to add segment: "${trimmedText}" (completed: ${completed})`,
     );
 
-    // Check for actions in completed segments before processing
-    if (completed && this.configurableActionsService) {
-      const actionMatch =
-        this.configurableActionsService.detectAction(trimmedText);
-      if (actionMatch) {
-        console.log(
-          `[SegmentManager] Action detected: "${actionMatch.actionId
-          }" with argument: "${actionMatch.extractedArgument || "none"}"`,
-        );
-
-        // Store action information for potential transformation skipping
-        const actions = this.configurableActionsService.getActions();
-        const action = actions.find((a) => a.id === actionMatch.actionId);
-        this.lastExecutedAction = {
-          actionId: actionMatch.actionId,
-          skipsTransformation: action?.skipsTransformation,
-        };
-
-        // Emit action detected event
-        this.emit("action-detected", actionMatch);
-
-        // Return a segment but mark it as action-triggered
-        return {
-          id: uuidv4(),
-          type: "transcribed",
-          text: trimmedText,
-          completed,
-          start,
-          end,
-          confidence,
-          timestamp: Date.now(),
-        };
-      }
-    }
-
     // One-shot ignore for the next completed segment after a flush
     if (completed && this.ignoreNextCompleted) {
       console.log(
@@ -160,16 +125,6 @@ export class SegmentManager extends EventEmitter {
       this.segments = this.segments.filter(
         (s) => s.type === "transcribed" && s.completed,
       );
-      this.segments.push({
-        id: uuidv4(),
-        type: "transcribed",
-        text: trimmedText,
-        completed,
-        start,
-        end,
-        confidence,
-        timestamp: Date.now(),
-      });
     }
 
     // If it's a new in-progress segment, clear out all other old ones first.
@@ -199,6 +154,29 @@ export class SegmentManager extends EventEmitter {
     console.log(
       `[SegmentManager] Added transcribed segment: "${trimmedText}" (completed: ${completed})`,
     );
+
+    // Check for actions in completed segments after storing, so transformations operate on the right segment
+    if (completed && this.configurableActionsService) {
+      const actionMatch =
+        this.configurableActionsService.detectAction(trimmedText);
+      if (actionMatch) {
+        console.log(
+          `[SegmentManager] Action detected: "${actionMatch.actionId
+          }" with argument: "${actionMatch.extractedArgument || "none"}"`,
+        );
+
+        // Store action information for potential transformation skipping
+        const actions = this.configurableActionsService.getActions();
+        const action = actions.find((a) => a.id === actionMatch.actionId);
+        this.lastExecutedAction = {
+          actionId: actionMatch.actionId,
+          skipsTransformation: action?.skipsTransformation,
+        };
+
+        // Emit action detected event now that the segment is persisted
+        this.emit("action-detected", actionMatch);
+      }
+    }
     return segment;
   }
 
@@ -487,9 +465,9 @@ export class SegmentManager extends EventEmitter {
   }
 
   /**
-   * Apply lowercase transformation to the first word of the last segment
+   * Apply lowercase transformation to the first character of the last segment
    */
-  lowercaseFirstWordOfLastSegment(): boolean {
+  lowercaseFirstCharOfLastSegment(): boolean {
     if (this.segments.length === 0) {
       return false;
     }
@@ -501,20 +479,87 @@ export class SegmentManager extends EventEmitter {
       return false;
     }
 
-    // Make first letter lowercase
+    // Make first character lowercase
     const transformedText =
       originalText.charAt(0).toLowerCase() + originalText.slice(1);
     lastSegment.text = transformedText;
 
     console.log(
-      `[SegmentManager] Lowercased first word: "${originalText}" -> "${transformedText}"`,
+      `[SegmentManager] Lowercased first character: "${originalText}" -> "${transformedText}"`,
     );
-    this.emit("segment-first-word-lowercased", {
+    this.emit("segment-first-char-lowercased", {
       segment: lastSegment,
       originalText,
     });
 
     return true;
+  }
+
+  /**
+   * Apply uppercase transformation to the first character of the last segment
+   */
+  uppercaseFirstCharOfLastSegment(): boolean {
+    if (this.segments.length === 0) {
+      return false;
+    }
+
+    const lastSegment = this.segments[this.segments.length - 1];
+    const originalText = lastSegment.text;
+
+    if (!originalText) {
+      return false;
+    }
+
+    // Make first character uppercase
+    const transformedText =
+      originalText.charAt(0).toUpperCase() + originalText.slice(1);
+    lastSegment.text = transformedText;
+
+    console.log(
+      `[SegmentManager] Uppercased first character: "${originalText}" -> "${transformedText}"`,
+    );
+    this.emit("segment-first-char-uppercased", {
+      segment: lastSegment,
+      originalText,
+    });
+
+    return true;
+  }
+
+  /**
+   * Apply capitalization to the first word of the last segment
+   */
+  capitalizeFirstWordOfLastSegment(): boolean {
+    if (this.segments.length === 0) {
+      return false;
+    }
+
+    const lastSegment = this.segments[this.segments.length - 1];
+    const originalText = lastSegment.text;
+
+    if (!originalText) {
+      return false;
+    }
+
+    // Capitalize first word
+    const words = originalText.split(" ");
+    if (words.length > 0 && words[0].length > 0) {
+      words[0] = words[0].charAt(0).toUpperCase() + words[0].slice(1);
+      const transformedText = words.join(" ");
+      lastSegment.text = transformedText;
+
+      console.log(
+        `[SegmentManager] Capitalized first word: "${originalText}" -> "${transformedText}"`,
+      );
+      this.emit("segment-first-word-capitalized", {
+        segment: lastSegment,
+        originalText,
+      });
+
+      return true;
+    }
+
+    return false;
   }
 
   /**

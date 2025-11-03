@@ -2902,8 +2902,17 @@
                                       <option value="deleteLastN">
                                         Delete Last N
                                       </option>
-                                      <option value="conditionalTransform">
-                                        Conditional Transform
+                                      <option value="lowercaseFirstChar">
+                                        Lowercase First Char
+                                      </option>
+                                      <option value="uppercaseFirstChar">
+                                        Uppercase First Char
+                                      </option>
+                                      <option value="capitalizeFirstWord">
+                                        Capitalize First Word
+                                      </option>
+                                      <option value="removePattern">
+                                        Remove Pattern
                                       </option>
                                     </select>
                                   </div>
@@ -2931,7 +2940,31 @@
                                       v-model.number="handler.config.count"
                                     />
                                   </div>
+                                  <div
+                                    v-if="handler.config.action === 'removePattern'"
+                                    class="config-field"
+                                  >
+                                    <label>Pattern to Remove</label
+                                    ><input
+                                      type="text"
+                                      class="form-control"
+                                      placeholder="\\.\\.\\."
+                                      v-model="handler.config.pattern"
+                                    />
+                                  </div>
                                 </template>
+                              </div>
+                              <div class="config-field" style="margin-top: 10px; border-top: 1px solid #e0e0e0; padding-top: 10px;">
+                                <label style="display: flex; align-items: center; gap: 8px; font-weight: 500;">
+                                  <input
+                                    type="checkbox"
+                                    v-model="handler.applyToNextSegment"
+                                  />
+                                  Apply to Next Segment
+                                  <span style="font-size: 0.85em; color: #666; font-weight: normal;">
+                                    (Queue this handler for the next segment instead of current)
+                                  </span>
+                                </label>
                               </div>
                             </div>
                           </div>

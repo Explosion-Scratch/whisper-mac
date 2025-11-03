@@ -236,9 +236,9 @@ export class PushToTalkManager {
       return;
     }
     const modifierMasks = this.hotkeyMatcher.combos.map((c) => this.modifiersToMask(c));
-    const primaryMask = modifierMasks[0] ?? 0;
+    const modifierArgument = modifierMasks.length <= 1 ? (modifierMasks[0] ?? 0) : modifierMasks;
 
-    macInput.registerPushToTalkHotkey(keyCode, primaryMask, (evt: { type: "down" | "up" }) => {
+    macInput.registerPushToTalkHotkey(keyCode, modifierArgument, (evt: { type: "down" | "up" }) => {
       if (evt?.type === "down") {
         if (this.hotkeyPressed) return;
         this.hotkeyPressed = true;

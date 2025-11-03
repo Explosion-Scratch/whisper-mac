@@ -261,17 +261,32 @@ static CFMachPortRef g_eventTap = nullptr;
 static CFRunLoopSourceRef g_runLoopSource = nullptr;
 static CFRunLoopRef g_runLoop = nullptr;
 static CGKeyCode g_targetKeyCode = (CGKeyCode)0;
-static NSEventModifierFlags g_targetModifiers = 0;
+static std::vector<NSEventModifierFlags> g_allowedModifierMasks;
 static Napi::ThreadSafeFunction g_hotkeyCallback;
 
-static bool modifiersMatch(CGEventRef event, NSEventModifierFlags target) {
-  NSEventModifierFlags flags = (NSEventModifierFlags)CGEventGetFlags(event);
+static NSEventModifierFlags stripIrrelevantModifiers(NSEventModifierFlags flags) {
   const NSEventModifierFlags onlyRelevant = (NSEventModifierFlags)(
       NSEventModifierFlagCommand |
       NSEventModifierFlagControl |
       NSEventModifierFlagOption |
       NSEventModifierFlagShift);
-  return (flags & onlyRelevant) == (target & onlyRelevant);
+  return (NSEventModifierFlags)(flags & onlyRelevant);
+}
+
+static bool modifiersMatch(CGEventRef event) {
+  const NSEventModifierFlags flags = stripIrrelevantModifiers(
+      (NSEventModifierFlags)CGEventGetFlags(event));
+
+  if (g_allowedModifierMasks.empty()) {
+    return flags == 0;
+  }
+
+  for (const NSEventModifierFlags mask : g_allowedModifierMasks) {
+    if (flags == stripIrrelevantModifiers(mask)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *refcon) {
@@ -282,7 +297,7 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
 
   CGKeyCode key = (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
   if (key != g_targetKeyCode) return event;
-  if (!modifiersMatch(event, g_targetModifiers)) return event;
+  if (!modifiersMatch(event)) return event;
 
   // Notify JS and consume this event to prevent it from being typed
   if (g_hotkeyCallback) {
@@ -300,8 +315,8 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
 
 Napi::Value RegisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
-  if (info.Length() < 3 || !info[0].IsNumber() || !info[1].IsNumber() || !info[2].IsFunction()) {
-    Napi::TypeError::New(env, "Expected (keyCode:number, modifiers:number, callback:function)")
+  if (info.Length() < 3 || !info[0].IsNumber() || (!info[1].IsNumber() && !info[1].IsArray() && !info[1].IsUndefined() && !info[1].IsNull()) || !info[2].IsFunction()) {
+    Napi::TypeError::New(env, "Expected (keyCode:number, modifiers:number|number[], callback:function)")
         .ThrowAsJavaScriptException();
     return env.Undefined();
   }
@@ -320,7 +335,43 @@ Napi::Value RegisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
   }
 
   g_targetKeyCode = (CGKeyCode)info[0].As<Napi::Number>().Uint32Value();
-  g_targetModifiers = (NSEventModifierFlags)info[1].As<Napi::Number>().Uint32Value();
+  g_allowedModifierMasks.clear();
+
+  auto parseModifierMask = [](uint32_t value) {
+    return stripIrrelevantModifiers((NSEventModifierFlags)value);
+  };
+
+  if (info[1].IsArray()) {
+    Napi::Array maskArray = info[1].As<Napi::Array>();
+    const uint32_t length = maskArray.Length();
+    for (uint32_t i = 0; i < length; ++i) {
+      Napi::Value entry = maskArray.Get(i);
+      if (!entry.IsNumber()) {
+        Napi::TypeError::New(env, "Expected modifiers to be a number or array of numbers")
+            .ThrowAsJavaScriptException();
+        return env.Undefined();
+      }
+      const NSEventModifierFlags mask = parseModifierMask(entry.As<Napi::Number>().Uint32Value());
+      if (std::find(g_allowedModifierMasks.begin(), g_allowedModifierMasks.end(), mask) ==
+          g_allowedModifierMasks.end()) {
+        g_allowedModifierMasks.push_back(mask);
+      }
+    }
+  } else if (info[1].IsNumber()) {
+    const NSEventModifierFlags mask = parseModifierMask(
+        info[1].As<Napi::Number>().Uint32Value());
+    g_allowedModifierMasks.push_back(mask);
+  } else if (info[1].IsUndefined() || info[1].IsNull()) {
+    g_allowedModifierMasks.push_back((NSEventModifierFlags)0);
+  } else {
+    Napi::TypeError::New(env, "Expected modifiers to be a number or array of numbers")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  if (g_allowedModifierMasks.empty()) {
+    g_allowedModifierMasks.push_back((NSEventModifierFlags)0);
+  }
 
   Napi::Function cb = info[2].As<Napi::Function>();
   g_hotkeyCallback = Napi::ThreadSafeFunction::New(env, cb, "ptt_hotkey_cb", 0, 1);
@@ -333,6 +384,7 @@ Napi::Value RegisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
                                 nullptr);
   if (!g_eventTap) {
     g_hotkeyCallback.Release();
+    g_allowedModifierMasks.clear();
     Napi::Error::New(env, "Failed to create event tap").ThrowAsJavaScriptException();
     return env.Undefined();
   }
@@ -341,6 +393,7 @@ Napi::Value RegisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
   if (!g_runLoopSource) {
     CFMachPortInvalidate(g_eventTap); CFRelease(g_eventTap); g_eventTap = nullptr;
     g_hotkeyCallback.Release();
+    g_allowedModifierMasks.clear();
     Napi::Error::New(env, "Failed to create run loop source").ThrowAsJavaScriptException();
     return env.Undefined();
   }
@@ -373,6 +426,7 @@ Napi::Value UnregisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
   if (g_hotkeyCallback) {
     g_hotkeyCallback.Release();
   }
+  g_allowedModifierMasks.clear();
   return env.Undefined();
 }
 

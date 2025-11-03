@@ -27,6 +27,7 @@ export interface ActionHandlerConfig {
     | "segmentAction";
   config: HandlerConfig;
   order: number;
+  applyToNextSegment?: boolean; // If true, queue this handler for next segment
 }
 
 export type HandlerConfig =
@@ -62,23 +63,21 @@ export interface ExecuteShellConfig {
 }
 
 export interface SegmentActionConfig {
-  action: "clear" | "undo" | "replace" | "deleteLastN" | "conditionalTransform";
+  action:
+    | "clear"
+    | "undo"
+    | "replace"
+    | "deleteLastN"
+    | "lowercaseFirstChar"
+    | "uppercaseFirstChar"
+    | "capitalizeFirstWord"
+    | "removePattern";
   // For 'replace' action
   replacementText?: string; // Can use {match}, {argument}, etc.
   // For 'deleteLastN' action
   count?: number;
-  // For conditional transforms
-  condition?: {
-    type: "endsWith" | "startsWith" | "contains" | "regex";
-    value: string;
-  };
-  // Action to perform if condition is met
-  conditionalAction?: {
-    onCurrentSegment?: "removePattern" | "replace";
-    onNextSegment?: "lowercase" | "uppercase" | "capitalize";
-    removePattern?: string; // Pattern to remove (e.g., "..." for ellipses)
-    replaceWith?: string;
-  };
+  // For 'removePattern' action
+  pattern?: string; // Pattern to remove (e.g., "..." for ellipses)
 }
 
 export interface ActionMatch {
@@ -87,6 +86,13 @@ export interface ActionMatch {
   originalText: string;
   extractedArgument?: string;
   handlers: ActionHandlerConfig[];
+}
+
+export interface ActionResult {
+  success: boolean;
+  shouldEndTranscription?: boolean;
+  queuedHandlers?: ActionHandlerConfig[];
+  error?: string;
 }
 
 export interface DefaultActionsConfig {
