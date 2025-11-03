@@ -244,21 +244,31 @@ export class SegmentManager extends EventEmitter {
           .filter((text) => text.length > 0)
           .join(" ");
 
-        if (originalText) {
+        const isActionSkip = Boolean(
+          this.lastExecutedAction?.skipsTransformation,
+        );
+        const mode = isActionSkip ? "action" : "transcription";
+        const finalText = originalText
+          ? this.transformationService.finalizeText(originalText, { mode })
+          : originalText;
+
+        if (finalText) {
           options.onInjecting?.();
-          await this.textInjectionService.insertText(originalText);
+          await this.textInjectionService.insertText(finalText);
           console.log(
-            `[SegmentManager] Direct-injected text without transformation: "${originalText}"`,
+            `[SegmentManager] Direct-injected text without AI transformation (${mode} mode): "${finalText}"`,
           );
           // Emit both raw and transformed events (they're the same in this case)
-          this.emit("raw", { rawText: originalText });
-          this.emit("transformed", { transformedText: originalText });
+          if (originalText) {
+            this.emit("raw", { rawText: originalText });
+          }
+          this.emit("transformed", { transformedText: finalText });
         }
 
         this.clearAllSegments();
         this.lastExecutedAction = null; // Reset after use
         return {
-          transformedText: originalText,
+          transformedText: finalText,
           segmentsProcessed: segmentsToProcess.length,
           success: true,
         };
@@ -346,23 +356,30 @@ export class SegmentManager extends EventEmitter {
       .filter((text) => text.length > 0)
       .join(" ");
 
-    if (originalText) {
+    const finalText = originalText
+      ? this.transformationService.finalizeText(originalText, {
+          mode: "transcription",
+        })
+      : originalText;
+
+    if (finalText) {
       console.log(
-        `[SegmentManager] Falling back to injecting original text: "${originalText}"`,
+        `[SegmentManager] Falling back to injecting text after non-AI transforms: "${finalText}"`,
       );
       onInjecting?.();
-      await this.textInjectionService.insertText(originalText);
+      await this.textInjectionService.insertText(finalText);
 
-      // Emit both raw and transformed events (they're the same in fallback case)
-      this.emit("raw", { rawText: originalText });
-      this.emit("transformed", { transformedText: originalText });
+      if (originalText) {
+        this.emit("raw", { rawText: originalText });
+      }
+      this.emit("transformed", { transformedText: finalText });
     }
 
     // Clear all segments after fallback injection
     this.clearAllSegments();
 
     return {
-      transformedText: originalText,
+      transformedText: finalText,
       segmentsProcessed: segmentsToProcess.length,
       success: true,
       error,

@@ -479,6 +479,7 @@
 
       .slider {
         flex: 1;
+        appearance: none;
         -webkit-appearance: none;
         height: 4px;
         border-radius: 2px;
@@ -1198,6 +1199,35 @@
         font-size: var(--font-size-lg);
         font-weight: var(--font-weight-semibold);
         color: var(--color-text-primary);
+      }
+
+      .transformation-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--spacing-md);
+        flex-wrap: wrap;
+      }
+
+      .transformation-enabled-toggles {
+        display: flex;
+        gap: var(--spacing-md);
+        align-items: center;
+      }
+
+      .transformation-enabled-toggles .checkbox-label {
+        margin: 0;
+        font-weight: var(--font-weight-medium);
+      }
+
+      .transformation-description {
+        margin-bottom: 0;
+      }
+
+      .transformation-hint {
+        margin-top: var(--spacing-md);
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
       }
 
       .action-description {
@@ -2905,6 +2935,215 @@
                               </div>
                             </div>
                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Non-AI Transformations Editor -->
+                <div
+                  v-if="field.type === 'transformations-editor' && settings.nonAiTransformations"
+                >
+                  <div
+                    class="actions-editor-container transformations-editor-container"
+                  >
+                    <div class="actions-editor-toolbar transformations-editor-toolbar">
+                      <button
+                        @click="addTransformationRule"
+                        type="button"
+                        class="btn btn-primary btn-sm"
+                      >
+                        <i class="ph-duotone ph-plus"></i> Add Rule
+                      </button>
+                      <button
+                        @click="resetTransformationsToDefaults"
+                        type="button"
+                        class="btn btn-default btn-sm"
+                      >
+                        <i class="ph-duotone ph-arrow-clockwise"></i> Reset to
+                        Defaults
+                      </button>
+                    </div>
+                    <div class="actions-list transformations-list">
+                      <div
+                        v-if="!settings.nonAiTransformations?.rules?.length"
+                        class="empty-actions-state empty-transformations-state"
+                      >
+                        <i class="ph-duotone ph-funnel-simple"></i>
+                        <p>No non-AI transformations configured</p>
+                        <p class="empty-subtitle">
+                          Add regex-based cleanup rules that run before AI output
+                        </p>
+                      </div>
+                      <div
+                        v-for="(rule, index) in settings.nonAiTransformations?.rules || []"
+                        :key="rule.id"
+                        class="action-card transformation-card"
+                      >
+                        <div
+                          class="action-card-header transformation-card-header"
+                          @click.self="toggleTransformationCard(rule.id)"
+                        >
+                          <div class="action-info transformation-info">
+                            <div class="transformation-header-row">
+                              <h4 class="action-name transformation-name">
+                                {{ rule.name || 'Untitled Rule' }}
+                              </h4>
+                              <div class="transformation-enabled-toggles">
+                                <label class="checkbox-label">
+                                  <input
+                                    type="checkbox"
+                                    v-model="rule.enabledForTranscription"
+                                  />
+                                  Transcription
+                                </label>
+                                <label class="checkbox-label">
+                                  <input
+                                    type="checkbox"
+                                    v-model="rule.enabledForActions"
+                                  />
+                                  Actions
+                                </label>
+                              </div>
+                            </div>
+                            <p class="action-description transformation-description">
+                              {{ rule.description || 'Runs when the pattern matches.' }}
+                            </p>
+                          </div>
+                          <div class="action-controls transformation-controls">
+                            <button
+                              type="button"
+                              class="btn btn-icn-only"
+                              @click="moveTransformationRule(index, -1)"
+                              :disabled="index === 0"
+                              title="Move up"
+                            >
+                              <i class="ph-duotone ph-caret-up"></i>
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-icn-only"
+                              @click="moveTransformationRule(index, 1)"
+                              :disabled="index === (settings.nonAiTransformations?.rules?.length || 0) - 1"
+                              title="Move down"
+                            >
+                              <i class="ph-duotone ph-caret-down"></i>
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-icn-only"
+                              @click="toggleTransformationCard(rule.id)"
+                              title="View rule details"
+                            >
+                              <i class="ph-duotone ph-info"></i>
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-icn-only btn-negative"
+                              @click="deleteTransformationRule(index)"
+                              title="Delete rule"
+                            >
+                              <i class="ph-duotone ph-trash"></i>
+                            </button>
+                          </div>
+                        </div>
+                        <div
+                          class="action-card-body transformation-card-body"
+                          :class="{ collapsed: !expandedTransformations[rule.id] }"
+                        >
+                          <div class="action-form-group">
+                            <label>Rule Name</label>
+                            <input
+                              type="text"
+                              class="form-control"
+                              v-model="rule.name"
+                            />
+                          </div>
+                          <div class="action-form-group">
+                            <label>Description</label>
+                            <input
+                              type="text"
+                              class="form-control"
+                              v-model="rule.description"
+                              placeholder="Briefly describe when this runs"
+                            />
+                          </div>
+                          <div class="action-form-group action-form-row">
+                            <div class="action-form-col">
+                              <label>Match Pattern</label>
+                              <input
+                                type="text"
+                                class="form-control"
+                                placeholder="e.g. ^.{0,50}$"
+                                v-model="rule.matchPattern"
+                              />
+                            </div>
+                            <div class="action-form-col">
+                              <label>Match Flags</label>
+                              <input
+                                type="text"
+                                class="form-control"
+                                placeholder="gimuy"
+                                maxlength="6"
+                                v-model="rule.matchFlags"
+                              />
+                            </div>
+                          </div>
+                          <div class="action-form-group action-form-row">
+                            <div class="action-form-col">
+                              <label>Replace Pattern</label>
+                              <input
+                                type="text"
+                                class="form-control"
+                                placeholder="e.g. [\\.!?]+$"
+                                v-model="rule.replacePattern"
+                              />
+                            </div>
+                            <div class="action-form-col">
+                              <label>Replace Flags</label>
+                              <input
+                                type="text"
+                                class="form-control"
+                                placeholder="gimuy"
+                                maxlength="6"
+                                v-model="rule.replaceFlags"
+                              />
+                            </div>
+                          </div>
+                          <div class="action-form-group action-form-row">
+                            <div class="action-form-col">
+                              <label>Replacement</label>
+                              <input
+                                type="text"
+                                class="form-control"
+                                :disabled="rule.replacementMode !== 'literal'"
+                                placeholder="Leave blank to remove"
+                                v-model="rule.replacement"
+                              />
+                            </div>
+                            <div class="action-form-col">
+                              <label>Replacement Mode</label>
+                              <select
+                                class="form-control"
+                                v-model="rule.replacementMode"
+                              >
+                                <option value="literal">Literal</option>
+                                <option value="lowercase">
+                                  Lowercase match
+                                </option>
+                                <option value="uppercase">
+                                  Uppercase match
+                                </option>
+                              </select>
+                            </div>
+                          </div>
+                          <p class="transformation-hint">
+                            The match pattern decides when the rule runs. When it
+                            matches, the replace pattern executes against the current
+                            text. Set replacement mode to lowercase/uppercase to adjust
+                            the matched text dynamically.
+                          </p>
                         </div>
                       </div>
                     </div>

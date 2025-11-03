@@ -3,6 +3,11 @@ import { homedir } from "os";
 import { readPrompt } from "../helpers/getPrompt";
 import { app } from "electron";
 import { readFileSync } from "fs";
+import {
+  NonAiTransformationConfig,
+  NonAiTransformationRule,
+} from "../types/TransformationRuleTypes";
+import { getDefaultNonAiTransformationsConfig } from "./DefaultTransformations";
 
 export type DictationWindowPosition = "active-app-corner" | "screen-corner";
 
@@ -34,14 +39,14 @@ export class AppConfig {
   dictationWindowHeight: number;
   showDictationWindowAlways: boolean;
 
-  // Text transformation configuration
-  transformTrim: boolean;
-
   // AI transformation configuration
   ai: AiTransformationConfig;
 
   // Rules configuration
   rules: Rule[];
+
+  // Non-AI transformation configuration
+  nonAiTransformations: NonAiTransformationConfig;
 
   // Plugin configuration storage (no deprecated keys)
   private pluginConfig: Record<string, any> = {};
@@ -61,9 +66,6 @@ export class AppConfig {
     this.dictationWindowHeight = 50;
     this.showDictationWindowAlways = false;
 
-    // Text transformation defaults
-    this.transformTrim = true;
-
     // AI transformation defaults
     this.ai = {
       enabled: true,
@@ -79,6 +81,9 @@ export class AppConfig {
 
     // Rules defaults
     this.rules = this.loadDefaultRules();
+
+    // Non-AI transformation defaults
+    this.nonAiTransformations = getDefaultNonAiTransformationsConfig();
   }
 
   setModelPath(path: string): void {
@@ -154,5 +159,52 @@ export class AppConfig {
    */
   setRules(rules: Rule[]): void {
     this.rules = [...rules];
+  }
+
+  getNonAiTransformations(): NonAiTransformationConfig {
+    const rules = this.nonAiTransformations?.rules || [];
+    return {
+      rules: rules.map((rule, index) => ({
+        ...rule,
+        order: rule.order ?? index + 1,
+      })),
+    };
+  }
+
+  setNonAiTransformations(config: NonAiTransformationConfig): void {
+    if (!config || !Array.isArray(config.rules)) {
+      this.nonAiTransformations = { rules: [] };
+      return;
+    }
+
+    this.nonAiTransformations = {
+      rules: config.rules.map((rule, index) => this.normalizeNonAiRule(rule, index)),
+    };
+  }
+
+  private normalizeNonAiRule(
+    rule: NonAiTransformationRule,
+    index: number,
+  ): NonAiTransformationRule {
+    const sanitizedFlags = (flags?: string) =>
+      (flags || "")
+        .split("")
+        .filter((char, pos, arr) => arr.indexOf(char) === pos)
+        .join("")
+        .replace(/[^gimsuy]/g, "");
+
+    return {
+      ...rule,
+      order: rule.order ?? index + 1,
+      matchPattern: rule.matchPattern || ".*",
+      matchFlags: sanitizedFlags(rule.matchFlags),
+      replacePattern: rule.replacePattern || "",
+      replaceFlags: sanitizedFlags(rule.replaceFlags) || "g",
+      replacement:
+        rule.replacement !== undefined ? rule.replacement : "",
+      replacementMode: rule.replacementMode || "literal",
+      enabledForTranscription: Boolean(rule.enabledForTranscription),
+      enabledForActions: Boolean(rule.enabledForActions),
+    };
   }
 }
