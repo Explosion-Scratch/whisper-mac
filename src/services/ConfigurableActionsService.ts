@@ -8,12 +8,14 @@ import {
   ActionHandlerConfig,
   HandlerConfig,
   SegmentActionConfig,
+  ActionResult,
 } from "../types/ActionTypes";
 
 export class ConfigurableActionsService extends EventEmitter {
   private actions: ActionHandler[] = [];
   private installedApps: Set<string> = new Set();
-  private segmentManager: any = null; // Will be set by main app
+  private segmentManager: any = null;
+  private queuedHandlers: ActionHandlerConfig[] = [];
 
   constructor() {
     super();
@@ -22,6 +24,15 @@ export class ConfigurableActionsService extends EventEmitter {
 
   setSegmentManager(segmentManager: any): void {
     this.segmentManager = segmentManager;
+
+    // Listen to segment-added events to process queued handlers
+    if (segmentManager) {
+      segmentManager.on("segment-added", (segment: any) => {
+        if (segment.completed && this.queuedHandlers.length > 0) {
+          this.processQueuedHandlers(segment);
+        }
+      });
+    }
   }
 
   private async initializeInstalledApps(): Promise<void> {
@@ -85,10 +96,28 @@ export class ConfigurableActionsService extends EventEmitter {
 
     for (const handler of match.handlers) {
       try {
-        const success = await this.executeHandler(handler, match);
-        if (success) {
+        // Check if this handler should be queued for next segment
+        if (handler.applyToNextSegment) {
+          this.queuedHandlers.push(handler);
+          console.log(
+            `[ConfigurableActions] Queued handler ${handler.id} for next segment`,
+          );
+          continue;
+        }
+
+        const result = await this.runHandler(handler, match);
+        
+        // Queue any handlers returned by the action
+        if (result.queuedHandlers && result.queuedHandlers.length > 0) {
+          this.queuedHandlers.push(...result.queuedHandlers);
+          console.log(
+            `[ConfigurableActions] Queued ${result.queuedHandlers.length} handler(s) for next segment`,
+          );
+        }
+
+        if (result.success) {
           this.emit("action-executed", match);
-          return;
+          // Don't return here - continue processing all handlers
         }
       } catch (error) {
         console.warn(
@@ -98,39 +127,51 @@ export class ConfigurableActionsService extends EventEmitter {
         continue;
       }
     }
-
-    console.error(
-      `[ConfigurableActions] All handlers failed for action: ${match.actionId}`,
-    );
-    this.emit("action-error", {
-      match,
-      error: new Error("All handlers failed"),
-    });
   }
 
-  private async executeHandler(
+  /**
+   * Run a handler and return the result
+   */
+  private async runHandler(
     handler: ActionHandlerConfig,
     match: ActionMatch,
-  ): Promise<boolean> {
+  ): Promise<ActionResult> {
     const config = this.interpolateConfig(handler.config, match);
+
+    let success = false;
+    const queuedHandlers: ActionHandlerConfig[] = [];
 
     switch (handler.type) {
       case "openUrl":
-        return this.executeOpenUrl(config);
+        success = await this.executeOpenUrl(config);
+        break;
       case "openApplication":
-        return this.executeOpenApplication(config);
+        success = await this.executeOpenApplication(config);
+        break;
       case "quitApplication":
-        return this.executeQuitApplication(config);
+        success = await this.executeQuitApplication(config);
+        break;
       case "executeShell":
-        return this.executeShell(config);
+        success = await this.executeShell(config);
+        break;
       case "segmentAction":
-        return this.executeSegmentAction(config as SegmentActionConfig, match);
+        const segmentResult = await this.executeSegmentAction(
+          config as SegmentActionConfig,
+          match,
+        );
+        success = segmentResult.success;
+        if (segmentResult.queuedHandlers) {
+          queuedHandlers.push(...segmentResult.queuedHandlers);
+        }
+        break;
       default:
         console.warn(
           `[ConfigurableActions] Unknown handler type: ${handler.type}`,
         );
-        return false;
+        return { success: false };
     }
+
+    return { success, queuedHandlers };
   }
 
   private async executeOpenUrl(config: any): Promise<boolean> {
@@ -274,12 +315,12 @@ export class ConfigurableActionsService extends EventEmitter {
   private async executeSegmentAction(
     config: SegmentActionConfig,
     match: ActionMatch,
-  ): Promise<boolean> {
+  ): Promise<ActionResult> {
     if (!this.segmentManager) {
       console.error(
         "[ConfigurableActions] SegmentManager not available for segment action",
       );
-      return false;
+      return { success: false };
     }
 
     try {
@@ -290,19 +331,18 @@ export class ConfigurableActionsService extends EventEmitter {
       switch (config.action) {
         case "clear":
           this.segmentManager.clearAllSegments();
-          return true;
+          return { success: true };
 
         case "undo":
-          return this.segmentManager.deleteLastSegment();
+          return { success: this.segmentManager.deleteLastSegment() };
 
-        case "replace":
+        case "replace": {
           if (!config.replacementText) {
             console.warn(
               "[ConfigurableActions] No replacement text provided for replace action",
             );
-            return false;
+            return { success: false };
           }
-          // Handle case where {argument} is empty (for shell action without args)
           let finalText = config.replacementText;
           if (
             finalText.includes("{argument}") &&
@@ -312,124 +352,44 @@ export class ConfigurableActionsService extends EventEmitter {
               .replace(" {argument}", "")
               .replace("{argument}", "");
           }
-          return this.segmentManager.replaceLastSegmentContent(finalText);
+          return { success: this.segmentManager.replaceLastSegmentContent(finalText) };
+        }
 
-        case "deleteLastN":
+        case "deleteLastN": {
           const count = config.count || 1;
           const deletedCount = this.segmentManager.deleteLastNSegments(count);
-          return deletedCount > 0;
+          return { success: deletedCount > 0 };
+        }
 
-        case "conditionalTransform":
-          return this.executeConditionalTransform(config, match);
+        case "lowercaseFirstChar":
+          return { success: this.lowercaseFirstChar() };
+
+        case "uppercaseFirstChar":
+          return { success: this.uppercaseFirstChar() };
+
+        case "capitalizeFirstWord":
+          return { success: this.capitalizeFirstWord() };
+
+        case "removePattern": {
+          if (!config.pattern) {
+            console.warn("[ConfigurableActions] No pattern provided");
+            return { success: false };
+          }
+          return { success: this.removePattern(config.pattern) };
+        }
 
         default:
           console.warn(
             `[ConfigurableActions] Unknown segment action: ${config.action}`,
           );
-          return false;
+          return { success: false };
       }
     } catch (error) {
       console.error(
         "[ConfigurableActions] Failed to execute segment action:",
         error,
       );
-      return false;
-    }
-  }
-
-  private async executeConditionalTransform(
-    config: SegmentActionConfig,
-    match: ActionMatch,
-  ): Promise<boolean> {
-    if (!config.condition || !config.conditionalAction) {
-      console.warn(
-        "[ConfigurableActions] Conditional transform missing condition or action",
-      );
-      return false;
-    }
-
-    const lastSegment = this.segmentManager.getLastSegment();
-    if (!lastSegment) {
-      console.log(
-        "[ConfigurableActions] No segments available for conditional transform",
-      );
-      return false;
-    }
-
-    // Check condition
-    const conditionMet = this.checkCondition(
-      lastSegment.text,
-      config.condition,
-    );
-    if (!conditionMet) {
-      console.log(
-        "[ConfigurableActions] Condition not met for conditional transform",
-      );
-      return false;
-    }
-
-    console.log(
-      "[ConfigurableActions] Condition met, applying transformations",
-    );
-
-    // Apply current segment transformations
-    if (
-      config.conditionalAction.onCurrentSegment === "removePattern" &&
-      config.conditionalAction.removePattern
-    ) {
-      const pattern = config.conditionalAction.removePattern;
-      const newText = lastSegment.text
-        .replace(
-          new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "+$"),
-          "",
-        )
-        .trim();
-      this.segmentManager.replaceLastSegmentContent(newText);
-    } else if (
-      config.conditionalAction.onCurrentSegment === "replace" &&
-      config.conditionalAction.replaceWith
-    ) {
-      this.segmentManager.replaceLastSegmentContent(
-        config.conditionalAction.replaceWith,
-      );
-    }
-
-    // Store action for next segment if specified
-    if (config.conditionalAction.onNextSegment) {
-      // We'll need to queue this action somehow for the next segment
-      // For now, apply it immediately to the last segment as a demo
-      if (config.conditionalAction.onNextSegment === "lowercase") {
-        this.segmentManager.lowercaseFirstWordOfLastSegment();
-      }
-    }
-
-    return true;
-  }
-
-  private checkCondition(
-    text: string,
-    condition: { type: string; value: string },
-  ): boolean {
-    switch (condition.type) {
-      case "endsWith":
-        return text.endsWith(condition.value);
-      case "startsWith":
-        return text.startsWith(condition.value);
-      case "contains":
-        return text.includes(condition.value);
-      case "regex":
-        try {
-          const regex = new RegExp(condition.value);
-          return regex.test(text);
-        } catch (error) {
-          console.error(
-            "[ConfigurableActions] Invalid regex in condition:",
-            error,
-          );
-          return false;
-        }
-      default:
-        return false;
+      return { success: false };
     }
   }
 
@@ -523,5 +483,127 @@ export class ConfigurableActionsService extends EventEmitter {
 
   getActions(): ActionHandler[] {
     return [...this.actions].sort((a, b) => (a.order || 0) - (b.order || 0));
+  }
+
+  /**
+   * Process queued handlers on a new segment
+   */
+  private async processQueuedHandlers(segment: any): Promise<void> {
+    if (this.queuedHandlers.length === 0) {
+      return;
+    }
+
+    console.log(
+      `[ConfigurableActions] Processing ${this.queuedHandlers.length} queued handler(s) on new segment`,
+    );
+
+    const handlersToProcess = [...this.queuedHandlers];
+    this.queuedHandlers = [];
+
+    for (const handler of handlersToProcess) {
+      try {
+        // Create a mock match for interpolation
+        const mockMatch: ActionMatch = {
+          actionId: "queued-action",
+          matchedPattern: {
+            id: "queued",
+            type: "exact",
+            pattern: "",
+            caseSensitive: false,
+          },
+          originalText: segment.text,
+          extractedArgument: "",
+          handlers: [handler],
+        };
+
+        await this.runHandler(handler, mockMatch);
+      } catch (error) {
+        console.error(
+          `[ConfigurableActions] Failed to process queued handler:`,
+          error,
+        );
+      }
+    }
+  }
+
+  /**
+   * Simple segment manipulation methods
+   */
+  private lowercaseFirstChar(): boolean {
+    const lastSegment = this.segmentManager?.getLastSegment();
+    if (!lastSegment || !lastSegment.text) return false;
+
+    const newText =
+      lastSegment.text.charAt(0).toLowerCase() + lastSegment.text.slice(1);
+    lastSegment.text = newText;
+    console.log(`[ConfigurableActions] Lowercased first char: "${newText}"`);
+    return true;
+  }
+
+  private uppercaseFirstChar(): boolean {
+    const lastSegment = this.segmentManager?.getLastSegment();
+    if (!lastSegment || !lastSegment.text) return false;
+
+    const newText =
+      lastSegment.text.charAt(0).toUpperCase() + lastSegment.text.slice(1);
+    lastSegment.text = newText;
+    console.log(`[ConfigurableActions] Uppercased first char: "${newText}"`);
+    return true;
+  }
+
+  private capitalizeFirstWord(): boolean {
+    const lastSegment = this.segmentManager?.getLastSegment();
+    if (!lastSegment || !lastSegment.text) return false;
+
+    const words = lastSegment.text.split(" ");
+    if (words.length > 0) {
+      words[0] = words[0].charAt(0).toUpperCase() + words[0].slice(1);
+      const newText = words.join(" ");
+      lastSegment.text = newText;
+      console.log(`[ConfigurableActions] Capitalized first word: "${newText}"`);
+      return true;
+    }
+    return false;
+  }
+
+  private removePattern(pattern: string): boolean {
+    const lastSegment = this.segmentManager?.getLastSegment();
+    if (!lastSegment || !lastSegment.text) return false;
+
+    const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const newText = lastSegment.text
+      .replace(new RegExp(escapedPattern + "+$"), "")
+      .trim();
+
+    if (newText.length === 0) {
+      console.warn(
+        "[ConfigurableActions] Pattern removal produced empty text",
+      );
+      return false;
+    }
+
+    lastSegment.text = newText;
+    console.log(
+      `[ConfigurableActions] Removed pattern "${pattern}": "${newText}"`,
+    );
+    return true;
+  }
+
+  /**
+   * Clear queued handlers
+   */
+  clearQueuedHandlers(): void {
+    const count = this.queuedHandlers.length;
+    this.queuedHandlers = [];
+    if (count > 0) {
+      console.log(`[ConfigurableActions] Cleared ${count} queued handler(s)`);
+    }
+  }
+
+  /**
+   * Get queued handlers count
+   */
+  getQueuedHandlersCount(): number {
+    return this.queuedHandlers.length;
   }
 }

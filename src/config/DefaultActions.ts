@@ -248,21 +248,22 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     ],
     handlers: [
       {
-        id: "ellipses-conditional-transform",
+        id: "remove-ellipses",
         type: "segmentAction",
         config: {
-          action: "conditionalTransform",
-          condition: {
-            type: "endsWith",
-            value: "...",
-          },
-          conditionalAction: {
-            onCurrentSegment: "removePattern",
-            removePattern: "\\.\\.\\.",
-            onNextSegment: "lowercase",
-          },
+          action: "removePattern",
+          pattern: "\\.\\.\\.",
         },
         order: 1,
+      },
+      {
+        id: "lowercase-next",
+        type: "segmentAction",
+        config: {
+          action: "lowercaseFirstChar",
+        },
+        order: 2,
+        applyToNextSegment: true,
       },
     ],
   },

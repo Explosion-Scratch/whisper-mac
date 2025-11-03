@@ -38,7 +38,7 @@ export type MacInputBinding = {
   };
   registerPushToTalkHotkey?: (
     keyCode: number,
-    modifiers: number,
+    modifiers: number | number[],
     callback: (evt: { type: "down" | "up" }) => void,
   ) => void;
   unregisterPushToTalkHotkey?: () => void;
