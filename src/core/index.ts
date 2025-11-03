@@ -7,6 +7,7 @@ export { DictationFlowManager } from "./DictationFlowManager";
 export { IpcHandlerManager } from "./IpcHandlerManager";
 export { InitializationManager } from "./InitializationManager";
 export { TrayInteractionManager } from "./TrayInteractionManager";
+export { PushToTalkManager } from "./PushToTalkManager";
 
 export type { SetupStatus } from "./AppStateManager";
 export type { ShortcutActions } from "./ShortcutManager";

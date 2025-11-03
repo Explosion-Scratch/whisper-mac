@@ -61,6 +61,8 @@ export class InitializationManager {
   }
 
   private async handleFirstRun(): Promise<void> {
+    // Setup IPC handlers before opening any windows so they're available when windows load
+    this.ipcHandlerManager.setupIpcHandlers();
     this.ipcHandlerManager.setupOnboardingIpc();
     this.windowManager.openOnboardingWindow();
     this.appStateManager.setSetupStatus("preparing-app");
@@ -71,6 +73,9 @@ export class InitializationManager {
 
   private async handleRegularInitialization(): Promise<void> {
     console.log("Starting parallel initialization tasks...");
+
+    // Setup IPC handlers first before preloading any windows
+    this.ipcHandlerManager.setupIpcHandlers();
 
     const initTasks = [
       this.checkAccessibilityPermissions(),

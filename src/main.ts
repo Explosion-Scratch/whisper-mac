@@ -32,6 +32,7 @@ import {
   IpcHandlerManager,
   InitializationManager,
   TrayInteractionManager,
+  PushToTalkManager,
 } from "./core";
 
 class WhisperMacApp {
@@ -59,6 +60,7 @@ class WhisperMacApp {
   private ipcHandlerManager!: IpcHandlerManager;
   private initializationManager!: InitializationManager;
   private trayInteractionManager!: TrayInteractionManager;
+  private pushToTalkManager: PushToTalkManager | null = null;
 
   private readonly trayIconIdleRelPath = "../assets/icon-template.png";
   private readonly trayIconRecordingRelPath = "../assets/icon-recording.png";
@@ -147,6 +149,12 @@ class WhisperMacApp {
       this.ipcHandlerManager,
       () => this.onInitializationComplete(),
       () => this.handleOnboardingComplete(),
+    );
+
+    this.pushToTalkManager = new PushToTalkManager(
+      this.dictationFlowManager,
+      this.transcriptionPluginManager,
+      this.settingsManager,
     );
   }
 
@@ -288,6 +296,7 @@ class WhisperMacApp {
     );
     this.dictationFlowManager.setTrayService(this.trayService);
     this.shortcutManager.setDictationFlowManager(this.dictationFlowManager);
+    this.cleanupManager.setPushToTalkManager(this.pushToTalkManager);
   }
 
   private handleTrayClick(): void {
@@ -325,6 +334,7 @@ class WhisperMacApp {
     this.trayInteractionManager.hideDockAfterOnboarding();
     this.setupErrorManagerCallback();
     this.checkPermissionsOnLaunch();
+    this.pushToTalkManager?.initialize();
   }
 
   private setupErrorManagerCallback(): void {

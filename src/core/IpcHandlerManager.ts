@@ -12,6 +12,8 @@ import { PermissionsManager } from "../services/PermissionsManager";
 import { promiseManager } from "./PromiseManager";
 
 export class IpcHandlerManager {
+  private handlersSetup = false;
+
   constructor(
     private transcriptionPluginManager: TranscriptionPluginManager,
     private unifiedModelDownloadService: UnifiedModelDownloadService,
@@ -30,10 +32,15 @@ export class IpcHandlerManager {
   ) { }
 
   setupIpcHandlers(): void {
+    if (this.handlersSetup) {
+      console.log("IPC Handlers already set up, skipping");
+      return;
+    }
     this.setupDictationHandlers();
     this.setupModelDownloadHandlers();
     this.setupPluginHandlers();
     this.setupPromiseManagerHandlers();
+    this.handlersSetup = true;
     console.log("IPC Handlers set up");
   }
 
@@ -76,6 +83,9 @@ export class IpcHandlerManager {
     ipcMain.removeHandler("onboarding:runSetup");
 
     // Settings handlers are cleaned up by SettingsService
+
+    // Reset the flag so handlers can be set up again if needed
+    this.handlersSetup = false;
 
     console.log("=== IPC handlers cleaned up ===");
   }
