@@ -5,6 +5,7 @@ import { SettingsService } from "../services/SettingsService";
 import { TrayService } from "../services/TrayService";
 import { WindowManager } from "./WindowManager";
 import { promiseManager } from "./PromiseManager";
+import { PushToTalkManager } from "./PushToTalkManager";
 
 export class CleanupManager {
   private transcriptionPluginManager: TranscriptionPluginManager;
@@ -13,6 +14,7 @@ export class CleanupManager {
   private trayService: TrayService | null;
   private windowManager: WindowManager;
   private finishingTimeout: NodeJS.Timeout | null = null;
+  private pushToTalkManager: PushToTalkManager | null = null;
 
   constructor(
     transcriptionPluginManager: TranscriptionPluginManager,
@@ -26,6 +28,10 @@ export class CleanupManager {
     this.settingsService = settingsService;
     this.trayService = trayService;
     this.windowManager = windowManager;
+  }
+
+  setPushToTalkManager(manager: PushToTalkManager | null): void {
+    this.pushToTalkManager = manager;
   }
 
   setFinishingTimeout(timeout: NodeJS.Timeout | null): void {
@@ -53,37 +59,42 @@ export class CleanupManager {
           return { step: "transcription", success: true };
         },
         async () => {
-          console.log("Step 2: Unregistering shortcuts...");
+          console.log("Step 2: Disabling push-to-talk hotkey...");
+          this.disposePushToTalkHotkey();
+          return { step: "push-to-talk", success: true };
+        },
+        async () => {
+          console.log("Step 3: Unregistering shortcuts...");
           this.unregisterShortcuts();
           return { step: "shortcuts", success: true };
         },
         async () => {
-          console.log("Step 3: Clearing timeouts...");
+          console.log("Step 4: Clearing timeouts...");
           this.clearTimeouts();
           return { step: "timeouts", success: true };
         },
         async () => {
-          console.log("Step 4: Cleaning up services...");
+          console.log("Step 5: Cleaning up services...");
           this.cleanupServices();
           return { step: "services", success: true };
         },
         async () => {
-          console.log("Step 5: Closing windows...");
+          console.log("Step 6: Closing windows...");
           this.closeWindows();
           return { step: "windows", success: true };
         },
         async () => {
-          console.log("Step 6: Waiting for graceful shutdown...");
+          console.log("Step 7: Waiting for graceful shutdown...");
           await new Promise(resolve => setTimeout(resolve, 500));
           return { step: "graceful-wait", success: true };
         },
         async () => {
-          console.log("Step 7: Force closing remaining windows...");
+          console.log("Step 8: Force closing remaining windows...");
           this.forceCloseRemainingWindows();
           return { step: "force-close", success: true };
         },
         async () => {
-          console.log("Step 8: Final cleanup...");
+          console.log("Step 9: Final cleanup...");
           await this.finalCleanup();
           return { step: "final", success: true };
         }
@@ -103,6 +114,14 @@ export class CleanupManager {
   private unregisterShortcuts(): void {
     globalShortcut.unregisterAll();
     console.log("Global shortcuts unregistered");
+  }
+
+  private disposePushToTalkHotkey(): void {
+    if (this.pushToTalkManager) {
+      this.pushToTalkManager.dispose();
+      this.pushToTalkManager = null;
+      console.log("Push-to-talk hotkey unregistered");
+    }
   }
 
   private async stopTranscription(): Promise<void> {

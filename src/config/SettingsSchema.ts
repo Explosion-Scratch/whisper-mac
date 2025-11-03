@@ -259,6 +259,14 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         defaultValue: "Control+D",
       },
       {
+        key: "hotkeys.pushToTalk",
+        type: "hotkey",
+        label: "Push to Talk",
+        description:
+          "Hold to capture audio, release to transcribe and inject without AI transformation",
+        defaultValue: "Control+Space",
+      },
+      {
         key: "hotkeys.pasteRawDictation",
         type: "hotkey",
         label: "Paste Raw Dictation",

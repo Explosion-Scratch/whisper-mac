@@ -16,6 +16,7 @@ export class TranscriptionPluginManager extends EventEmitter {
   private activePlugin: BaseTranscriptionPlugin | null = null;
   private config: AppConfig;
   private bufferingEnabled: boolean = false;
+  private bufferingOverride: boolean | null = null;
   private bufferedAudioChunks: Float32Array[] = [];
 
   constructor(config: AppConfig) {
@@ -218,6 +219,7 @@ export class TranscriptionPluginManager extends EventEmitter {
         const criteria = plugin.getActivationCriteria?.() || {};
         this.bufferingEnabled = !!criteria.runOnAll;
         this.bufferedAudioChunks = [];
+        this.bufferingOverride = null;
       } catch { }
 
       this.emit("active-plugin-changed", plugin);
@@ -233,6 +235,21 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   getActivePlugin(): BaseTranscriptionPlugin | null {
     return this.activePlugin;
+  }
+
+  /** Override buffering behaviour for the next transcription session */
+  setBufferingOverrideForNextSession(enabled: boolean | null): void {
+    this.bufferingOverride = typeof enabled === "boolean" ? enabled : null;
+  }
+
+  /** Check if the next session is forced into buffering mode */
+  willBufferNextSession(): boolean {
+    return this.bufferingOverride === true;
+  }
+
+  /** Determine if the active plugin is currently buffering audio */
+  isBufferingEnabledForActivePlugin(): boolean {
+    return this.bufferingEnabled;
   }
 
   /**
@@ -262,9 +279,19 @@ export class TranscriptionPluginManager extends EventEmitter {
     // Reset buffering at start
     try {
       const criteria = this.activePlugin.getActivationCriteria?.() || {};
-      this.bufferingEnabled = !!criteria.runOnAll;
-      this.bufferedAudioChunks = [];
-    } catch { }
+      if (this.bufferingOverride !== null) {
+        this.bufferingEnabled = this.bufferingOverride;
+        this.bufferingOverride = null;
+      } else {
+        this.bufferingEnabled = !!criteria.runOnAll;
+      }
+    } catch {
+      if (this.bufferingOverride !== null) {
+        this.bufferingEnabled = this.bufferingOverride;
+        this.bufferingOverride = null;
+      }
+    }
+    this.bufferedAudioChunks = [];
   }
 
   /**

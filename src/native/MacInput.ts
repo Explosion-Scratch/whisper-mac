@@ -36,6 +36,12 @@ export type MacInputBinding = {
     hasSelection: boolean;
     originalClipboard: string;
   };
+  registerPushToTalkHotkey?: (
+    accelerator: string,
+    onPress: () => void,
+    onRelease: () => void,
+  ) => boolean;
+  unregisterPushToTalkHotkey?: () => boolean;
 };
 
 export const macInput: MacInputBinding = nativeBinding as MacInputBinding;

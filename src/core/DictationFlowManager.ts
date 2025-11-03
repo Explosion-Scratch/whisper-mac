@@ -63,9 +63,10 @@ export class DictationFlowManager {
       const windowStartTime = Date.now();
       const criteria =
         this.transcriptionPluginManager.getActivePluginActivationCriteria();
-      await this.dictationWindowService.showDictationWindow(
-        criteria?.runOnAll || false,
-      );
+      const runOnAllSession =
+        !!criteria?.runOnAll ||
+        this.transcriptionPluginManager.willBufferNextSession();
+      await this.dictationWindowService.showDictationWindow(runOnAllSession);
       const windowEndTime = Date.now();
       console.log(`Window display: ${windowEndTime - windowStartTime}ms`);
       promiseManager.resolve(`dictation:window:show:${this.currentSessionId}`);
@@ -114,8 +115,10 @@ export class DictationFlowManager {
       this.state = "finishing";
       const criteria =
         this.transcriptionPluginManager.getActivePluginActivationCriteria();
+      const bufferingEnabled =
+        this.transcriptionPluginManager.isBufferingEnabledForActivePlugin();
       const skipTransformation =
-        !!criteria?.skipTransformation || !!options.skipTransformation;
+        !!options.skipTransformation || !!criteria?.skipTransformation;
 
       console.log(
         `=== Finishing current dictation with ${skipTransformation ? "raw injection" : "transform+inject"} ===`,
@@ -132,11 +135,9 @@ export class DictationFlowManager {
       }
 
       if (!this.hasSegmentsToProcess()) {
-        const criteria =
-          this.transcriptionPluginManager.getActivePluginActivationCriteria();
         if (
           !(
-            criteria?.runOnAll &&
+            bufferingEnabled &&
             this.transcriptionPluginManager.hasBufferedAudio()
           )
         ) {
@@ -156,7 +157,7 @@ export class DictationFlowManager {
 
       console.log("Criteria:", criteria);
 
-      if (criteria?.runOnAll) {
+      if (bufferingEnabled) {
         console.log(
           "=== Active plugin runOnAll enabled: finalizing buffered audio ===",
         );
