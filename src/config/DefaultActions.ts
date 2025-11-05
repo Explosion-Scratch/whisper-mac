@@ -8,7 +8,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     enabled: true,
     order: 1,
     closesTranscription: true,
-    skipsTransformation: true,
+    skipsAllTransforms: true,
     matchPatterns: [
       {
         id: "open-pattern-1",
@@ -54,7 +54,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     enabled: true,
     order: 2,
     closesTranscription: true,
-    skipsTransformation: true,
+    skipsAllTransforms: true,
     matchPatterns: [
       {
         id: "search-pattern-1",
@@ -82,7 +82,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     enabled: true,
     order: 3,
     closesTranscription: true,
-    skipsTransformation: true,
+    skipsAllTransforms: true,
     matchPatterns: [
       {
         id: "quit-pattern-1",
@@ -112,7 +112,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     enabled: true,
     order: 4,
     closesTranscription: true,
-    skipsTransformation: true,
+    skipsAllTransforms: true,
     matchPatterns: [
       {
         id: "launch-pattern-1",
@@ -268,13 +268,41 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     ],
   },
   {
+    id: "no-punctuation-lowercase-next-action",
+    name: "Lowercase Next After No Punctuation",
+    description: "When a segment doesn't end with punctuation, lowercase the first character of the next segment",
+    enabled: true,
+    order: 9,
+    closesTranscription: false,
+    skipsTransformation: false,
+    matchPatterns: [
+      {
+        id: "no-punctuation-pattern",
+        type: "regex",
+        pattern: ".*[^\\.\\!?;:,\\-]$",
+        caseSensitive: false,
+      },
+    ],
+    handlers: [
+      {
+        id: "lowercase-next-segment",
+        type: "segmentAction",
+        config: {
+          action: "lowercaseFirstChar",
+        },
+        order: 1,
+        applyToNextSegment: true,
+      },
+    ],
+  },
+  {
     id: "close-action",
     name: "Close",
     description: "Close the current application or window",
     enabled: true,
     order: 12,
     closesTranscription: true,
-    skipsTransformation: true,
+    skipsAllTransforms: true,
     matchPatterns: [
       {
         id: "close-pattern-1",
@@ -292,6 +320,141 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
             'osascript -e \'tell application "System Events" to keystroke "w" using command down\'',
         },
         order: 1,
+      },
+    ],
+  },
+  
+  // --- TEXT TRANSFORMATION ACTIONS ---
+  // These run automatically on text matching patterns
+  {
+    id: "trim-punctuation-action",
+    name: "Auto-Trim Punctuation",
+    description: "Automatically remove trailing punctuation from short phrases (≤ 50 characters)",
+    enabled: true,
+    order: 20,
+    closesTranscription: false,
+    skipsTransformation: false,
+    applyToAllSegments: true,
+    timingMode: "after_ai",
+    matchPatterns: [
+      {
+        id: "short-phrase-pattern",
+        type: "regex",
+        pattern: "^.{0,50}[\\.!?]+$",
+        caseSensitive: false,
+      },
+    ],
+    handlers: [
+      {
+        id: "trim-punctuation-handler",
+        type: "transformText",
+        config: {
+          matchPattern: "^.{0,50}$",
+          matchFlags: "",
+          replacePattern: "[\\.!?]+$",
+          replaceFlags: "g",
+          replacement: "",
+          replacementMode: "literal",
+          maxLength: 50,
+        },
+        order: 1,
+        applyToNextSegment: false,
+      },
+    ],
+  },
+  {
+    id: "lowercase-short-response-action",
+    name: "Auto-Lowercase Short",
+    description: "Automatically lowercase the first letter for very short responses (≤ 20 characters)",
+    enabled: true,
+    order: 21,
+    closesTranscription: false,
+    skipsTransformation: false,
+    applyToAllSegments: true,
+    timingMode: "after_ai",
+    matchPatterns: [
+      {
+        id: "short-response-pattern",
+        type: "regex",
+        pattern: "^[A-Z].{0,19}$",
+        caseSensitive: false,
+      },
+    ],
+    handlers: [
+      {
+        id: "lowercase-first-handler",
+        type: "transformText",
+        config: {
+          matchPattern: "^.{0,20}$",
+          matchFlags: "",
+          replacePattern: "^[\\p{Lu}]",
+          replaceFlags: "u",
+          replacementMode: "lowercase",
+          maxLength: 20,
+        },
+        order: 1,
+        applyToNextSegment: false,
+      },
+    ],
+  },
+  {
+    id: "clean-urls-action",
+    name: "Auto-Clean URLs",
+    description: "Clean up URL dictation by removing spaces and fixing common patterns",
+    enabled: false,
+    order: 22,
+    closesTranscription: false,
+    skipsTransformation: false,
+    matchPatterns: [
+      {
+        id: "url-pattern",
+        type: "regex",
+        pattern: "(https?|www\\.)",
+        caseSensitive: false,
+      },
+    ],
+    handlers: [
+      {
+        id: "clean-url-handler",
+        type: "transformText",
+        config: {
+          replacePattern: "\\s+(?=[\\w\\.\\-/])",
+          replaceFlags: "g",
+          replacement: "",
+          replacementMode: "literal",
+        },
+        order: 1,
+        applyToNextSegment: false,
+      },
+    ],
+  },
+  {
+    id: "capitalize-sentences-action",
+    name: "Auto-Capitalize Sentences",
+    description: "Ensure sentences start with capital letters",
+    enabled: false,
+    order: 23,
+    closesTranscription: false,
+    skipsTransformation: false,
+    matchPatterns: [
+      {
+        id: "sentence-pattern",
+        type: "regex",
+        pattern: "[\\.!?]\\s+[a-z]",
+        caseSensitive: false,
+      },
+    ],
+    handlers: [
+      {
+        id: "capitalize-sentence-handler",
+        type: "transformText",
+        config: {
+          replacePattern: "([\\.!?]\\s+)([a-z])",
+          replaceFlags: "g",
+          replacementMode: "uppercase",
+        },
+        order: 1,
+        applyToNextSegment: false,
       },
     ],
   },

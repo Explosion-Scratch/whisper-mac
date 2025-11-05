@@ -15,12 +15,12 @@ import {
   DictationWindowPosition,
 } from "./AppConfig";
 import { DefaultActionsConfig } from "../types/ActionTypes";
-import { getDefaultNonAiTransformationsConfig } from "./DefaultTransformations";
 import {
   getDefaultSettings,
   validateSettings,
   SETTINGS_SCHEMA,
 } from "./SettingsSchema";
+import { NonAiTransformationConfig } from "../types/TransformationRuleTypes";
 
 export class SettingsManager extends EventEmitter {
   private settingsPath: string;
@@ -363,11 +363,11 @@ export class SettingsManager extends EventEmitter {
     // Text processing
     const nonAiTransformations = this.get(
       "nonAiTransformations",
-      getDefaultNonAiTransformationsConfig(),
+      this.getDefaultNonAiTransformationsConfig(),
     );
     const normalizedTransformations = nonAiTransformations
       ? JSON.parse(JSON.stringify(nonAiTransformations))
-      : getDefaultNonAiTransformationsConfig();
+      : this.getDefaultNonAiTransformationsConfig();
     this.config.setNonAiTransformations(normalizedTransformations);
 
     // AI settings
@@ -665,8 +665,47 @@ export class SettingsManager extends EventEmitter {
       const items = readdirSync(dirPath);
       return items.length === 0;
     } catch (error) {
-      console.error(`Error checking if directory is empty: ${error}`);
+      console.error(`Error checking if directory is empty:`, error);
       return false;
     }
+  }
+
+  /**
+   * Get default non-AI transformation configuration
+   * Note: Non-AI transformations are now primarily handled by the unified actions system
+   */
+  private getDefaultNonAiTransformationsConfig(): NonAiTransformationConfig {
+    return {
+      rules: [
+        {
+          id: "remove_ellipses",
+          name: "Remove Ellipses",
+          description: "Replace three or more periods with a single period",
+          enabledForTranscription: true,
+          enabledForActions: false,
+          matchPattern: "\\.{3,}",
+          matchFlags: "g",
+          replacePattern: "\\.{3,}",
+          replaceFlags: "g",
+          replacement: ".",
+          replacementMode: "literal",
+          order: 1,
+        },
+        {
+          id: "fix_spacing",
+          name: "Fix Spacing",
+          description: "Clean up extra whitespace around punctuation",
+          enabledForTranscription: true,
+          enabledForActions: false,
+          matchPattern: "\\s*([.,!?;:])\\s*",
+          matchFlags: "g",
+          replacePattern: "$1 ",
+          replaceFlags: "g",
+          replacement: "",
+          replacementMode: "literal",
+          order: 2,
+        },
+      ],
+    };
   }
 }

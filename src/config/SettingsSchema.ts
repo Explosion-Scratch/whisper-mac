@@ -2,7 +2,6 @@ import { resolve } from "path";
 import { readPrompt } from "../helpers/getPrompt";
 import { app } from "electron";
 import { getDefaultActionsConfig } from "./DefaultActions";
-import { getDefaultNonAiTransformationsConfig } from "./DefaultTransformations";
 import { readFileSync } from "fs";
 
 export interface SettingsField {
@@ -16,7 +15,6 @@ export interface SettingsField {
   | "slider"
   | "directory"
   | "actions-editor"
-  | "transformations-editor"
   | "rules-editor"
   | "hotkey";
   label: string;
@@ -114,22 +112,6 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         label: "Always Show Window",
         description: "Keep dictation window visible even when not recording",
         defaultValue: false,
-      },
-    ],
-  },
-  {
-    id: "text",
-    title: "Text Processing",
-    description: "Settings for text transformation and handling",
-    icon: "document-text",
-    fields: [
-      {
-        key: "nonAiTransformations",
-        type: "transformations-editor",
-        label: "Non-AI Transformations",
-        description:
-          "Configure lightweight regex replacements that always run before AI outputs and during push-to-talk or action flows.",
-        defaultValue: getDefaultNonAiTransformationsConfig(),
       },
     ],
   },
@@ -232,16 +214,16 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
   },
   {
     id: "actions",
-    title: "Actions",
-    description: "Configure voice-activated actions and commands",
+    title: "Actions & Transformations",
+    description: "Configure all voice commands, text transformations, and automated actions",
     icon: "flow-arrow",
     fields: [
       {
         key: "actions",
         type: "actions-editor",
-        label: "Voice Actions",
+        label: "Unified Actions",
         description:
-          "Configure actions that can be triggered by voice commands during dictation",
+          "Configure voice commands, text transformations, and segment actions in one unified system. Actions can be triggered immediately or queued for the next segment.",
         defaultValue: getDefaultActionsConfig(),
       },
     ],

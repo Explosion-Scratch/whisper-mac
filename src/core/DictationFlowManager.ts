@@ -113,10 +113,11 @@ export class DictationFlowManager {
 
     try {
       this.state = "finishing";
-      const criteria =
+const criteria =
         this.transcriptionPluginManager.getActivePluginActivationCriteria();
       const bufferingEnabled =
         this.transcriptionPluginManager.isBufferingEnabledForActivePlugin();
+      const skipAllTransforms = !!criteria?.skipAllTransforms;
       const skipTransformation =
         !!options.skipTransformation || !!criteria?.skipTransformation;
 
@@ -172,13 +173,14 @@ export class DictationFlowManager {
       const waitSucceeded = await this.waitForCompletedSegments(8000);
       console.log("Wait for completed segments:", waitSucceeded);
 
-      console.log(
+console.log(
         "=== Transforming and injecting all accumulated segments ===",
       );
       this.dictationWindowService.setStatus("transforming");
       const transformResult =
         await this.segmentManager.transformAndInjectAllSegmentsInternal({
-          skipTransformation,
+          skipTransformation: skipAllTransforms || skipTransformation,
+          skipAllTransforms: skipAllTransforms,
           onInjecting: () => this.dictationWindowService.setStatus("injecting"),
         });
 

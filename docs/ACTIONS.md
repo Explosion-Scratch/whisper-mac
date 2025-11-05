@@ -1,502 +1,565 @@
-# Actions Handler System
+# WhisperMac Unified Actions System
 
-The Actions Handler System allows you to trigger specific actions by speaking certain keywords followed by arguments during dictation.
+## Overview
 
-## How It Works
+The WhisperMac actions system provides a unified framework for handling all types of actions - from voice commands to text transformations. This document describes the architecture, configuration, and usage of the unified actions system.
 
-When you're dictating, the system continuously monitors your transcribed text for action patterns. If an action is detected, it immediately:
+## Architecture
 
-1. Executes the corresponding action handlers in order
-2. **Conditionally** stops dictation and audio recording (based on action type)
-3. **Conditionally** skips AI transformation (based on action type)
-4. Hides the dictation window (only if transcription is stopped)
+### Core Concepts
 
-## Action Behavior Types
+1. **Actions**: High-level commands or transformations that can be triggered by voice or applied to text
+2. **Handlers**: The actual operations that execute when an action is triggered
+3. **Queued Actions**: Handlers that are stored and applied to the next segment instead of executing immediately
+4. **Variable Interpolation**: Dynamic replacement of placeholders in handler configurations
 
-Actions can be configured with two key behavioral properties:
+### Unified Action Structure
 
-- **Closes Transcription**: When enabled, the action stops listening and closes the dictation window immediately after execution
-- **Skips Transformation**: When enabled, the action bypasses AI transformation and injects the original transcribed text
+Every action in the system follows the same structure:
 
-### One-off Actions (Close Transcription + Skip Transformation)
-
-These actions perform immediate tasks and end the dictation session:
-
-- `open` - Opens applications, URLs, or files
-- `search` - Performs web searches
-- `quit` - Quits applications
-- `launch/start` - Launches applications
-- `close` - Closes current window/application
-
-### Continuous Actions (Continue Transcription)
-
-These actions modify the current dictation and allow you to continue speaking:
-
-- `shell` - Transforms to "Write a shell command to..."
-- `clear` - Clears all segments
-- `undo` - Removes last segment
-- Text replacement actions
-- Segment transformations (lowercase, uppercase, etc.)
-
-## Handler Types
-
-Each action contains one or more handlers that execute in order. Handlers can:
-
-1. **Execute immediately** on the current segment
-2. **Queue for next segment** by setting `applyToNextSegment: true`
-
-### Available Handler Types
-
-#### 1. `openUrl`
-Opens URLs in the default browser.
-
-**Config:**
-```json
-{
-  "urlTemplate": "https://example.com/{argument}",
-  "openInBackground": false
+```typescript
+interface Action {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  patterns: string[];          // Regex patterns to match voice commands
+  handlers: ActionHandlerConfig[]; // Operations to execute
+  skipsTransformation?: boolean;   // Skip AI transformation when triggered
+  skipsAllTransforms?: boolean;    // Skip all transformations (AI + default actions)
 }
 ```
 
-#### 2. `openApplication`
-Launches applications by name.
+### Handler Types
 
-**Config:**
-```json
-{
-  "applicationName": "{argument}"
+All handlers use the same `ActionHandlerConfig` interface:
+
+```typescript
+interface ActionHandlerConfig {
+  type: HandlerType;
+  config?: any;                // Type-specific configuration
+  applyToNextSegment?: boolean; // Queue for next segment
+  skipsTransformation?: boolean; // Skip AI transformation for this handler
+  skipsAllTransforms?: boolean;  // Skip all transformations for this handler
 }
 ```
 
-#### 3. `quitApplication`
-Quits running applications.
+#### Available Handler Types
 
-**Config:**
-```json
-{
-  "applicationName": "{argument}",
-  "forceQuit": false
+1. **openUrl** - Opens a URL in the default browser
+   ```typescript
+   config: { url: string }
+   ```
+
+2. **openApplication** - Launches an application
+   ```typescript
+   config: { appName: string }
+   ```
+
+3. **quitApplication** - Quits a running application
+   ```typescript
+   config: { appName: string }
+   ```
+
+4. **executeShell** - Executes a shell command
+   ```typescript
+   config: { command: string }
+   ```
+
+5. **segmentAction** - Performs operations on segments
+   ```typescript
+   config: {
+     action: "delete" | "deleteAll" | "ellipses" | 
+             "lowercaseFirst" | "uppercaseFirst" | 
+             "capitalizeFirst" | "lowercase"
+   }
+   ```
+
+6. **transformText** - Applies regex-based text transformations
+   ```typescript
+   config: {
+     matchPattern?: string;      // Regex pattern to match
+     matchFlags?: string;        // Regex flags (e.g., "gi")
+     replacePattern: string;     // Replacement pattern
+     replacement?: string;       // Direct replacement text
+     replacementMode?: "literal" | "lowercase" | "uppercase";
+     maxLength?: number;         // Max length constraint
+     minLength?: number;         // Min length constraint
+   }
+   ```
+
+## Transformation Skipping Options
+
+### skipTransformation
+When `skipsTransformation: true` is set on an action or handler:
+- Only skips AI-powered transformations (Gemini, etc.)
+- Default text transformation actions (punctuation trimming, case changes) still execute
+- Useful for performance-critical actions like "open" or "search"
+
+### skipAllTransforms
+When `skipsAllTransforms: true` is set on an action or handler:
+- Skips ALL transformations (both AI and default text transformations)
+- No processing is applied to the text
+- Useful for plugin-based actions that handle their own transformation logic
+
+### Plugin Integration
+
+Plugins can specify transformation skipping through their activation criteria:
+
+```typescript
+interface PluginActivationCriteria {
+  pluginId: string;
+  activationPatterns: string[];
+  skipTransformation?: boolean;  // Skip AI transformations only
+  skipAllTransforms?: boolean;    // Skip all transformations
 }
 ```
 
-#### 4. `executeShell`
-Runs shell commands.
+## Default Actions and Transformations
 
-**Config:**
-```json
+### System Actions (skipAllTransforms)
+Actions like "open", "search", "quit", "launch", and "close" are configured to skip all transformations for optimal performance:
+
+```typescript
 {
-  "command": "osascript -e 'tell application \"System Events\" to keystroke \"w\" using command down'",
-  "runInBackground": false
+  id: "open",
+  name: "Open Application",
+  handlers: [{
+    type: "openApplication",
+    config: { appName: "{argument}" },
+    skipsAllTransforms: true  // Skip all transformations for speed
+  }]
 }
 ```
 
-#### 5. `segmentAction`
-Manipulates transcript segments.
+### Text Transformation Actions (Default Behavior)
+Text processing actions like punctuation trimming and case conversion maintain normal transformation behavior:
 
-**Available Actions:**
-- `clear` - Clear all segments
-- `undo` - Delete last segment
-- `replace` - Replace segment content
-- `deleteLastN` - Delete N segments
-- `lowercaseFirstChar` - Lowercase first character
-- `uppercaseFirstChar` - Uppercase first character
-- `capitalizeFirstWord` - Capitalize first word
-- `removePattern` - Remove pattern from segment
-
-## Queued Actions (Next Segment)
-
-Handlers can be queued to apply to the **next** segment by setting `applyToNextSegment: true`. This allows actions to span multiple segments naturally.
-
-### Example: Ellipses Transform
-
-When you say "I was thinking...", the system:
-1. Removes the "..." from the current segment
-2. Queues a lowercase action for the next segment
-3. When you say "About the weather", it becomes "about the weather"
-
-**Action Configuration:**
-```json
+```typescript
 {
-  "id": "ellipses-transform-action",
-  "name": "Transform Ellipses",
-  "handlers": [
-    {
-      "id": "remove-ellipses",
-      "type": "segmentAction",
-      "config": {
-        "action": "removePattern",
-        "pattern": "\\.\\.\\."
-      },
-      "order": 1
+  id: "trim_punctuation",
+  name: "Trim Trailing Punctuation",
+  handlers: [{
+    type: "transformText",
+    config: {
+      matchPattern: "[.!?]+$",
+      replacement: ""
     },
-    {
-      "id": "lowercase-next",
-      "type": "segmentAction",
-      "config": {
-        "action": "lowercaseFirstChar"
-      },
-      "order": 2,
-      "applyToNextSegment": true
-    }
-  ]
+    skipsTransformation: false,  // Allow AI transformations
+    skipsAllTransforms: false    // Allow all default transformations
+  }]
 }
 ```
+
+## Push-to-Talk Mode Behavior
+
+### Overview
+Push-to-talk mode has special behavior to balance speed and text quality:
+
+- **AI Transformations**: Skipped for immediate response
+- **Default Text Transformations**: Executed for basic text cleanup
+- **Voice Commands**: Still processed normally
+
+### Configuration
+Push-to-talk uses `skipTransformation: true` when processing segments, which:
+- Allows immediate text output without AI processing delays
+- Maintains default text transformation actions for basic cleanup
+- Ensures commands like "This is short." become "this is short"
+
+### Example Transformation
+When dictating "This is short." with push-to-talk:
+1. Raw transcript: "This is short."
+2. Default actions execute:
+   - Trim trailing period
+   - Convert to lowercase
+3. Final output: "this is short"
+4. No AI transformation occurs (faster response)
+
+## Queued Actions
+
+Any handler can be queued for the next segment by setting `applyToNextSegment: true`. This allows actions to affect future transcription segments.
 
 ### How Queued Actions Work
 
-1. **Queue Storage**: Handlers marked with `applyToNextSegment: true` are stored in a queue
-2. **Event-Driven**: When a new completed segment is added, queued handlers are processed
-3. **Automatic Processing**: All queued handlers execute in order on the new segment
-4. **Auto-Clearing**: Queue is cleared after processing
+1. When an action with `applyToNextSegment: true` is triggered, the handler is stored in a queue
+2. When a new segment is added, all queued handlers are executed on that segment
+3. The queue is cleared after processing
 
-### Voice Flow Example
+### Example: Ellipses Action
 
-```
-You say: "I was thinking..."
-Result:  "I was thinking"
-         [Queue: lowercaseFirstChar handler]
+The ellipses action demonstrates queued handlers:
 
-You say: "About the weather"
-Result:  "about the weather"
-         [Queue cleared]
-```
-
-## Built-in Actions
-
-### `open [target]`
-
-Opens an application, file, URL, or searches the web.
-
-**Behavior:**
-
-1. If the target is a URL (starts with http://, https://, or www.), opens it in the default browser
-2. If the target matches an installed application name, opens that application
-3. Otherwise, performs a Google search for the target and opens the first result
-
-**Examples:**
-
-- "open safari" - Opens Safari browser
-- "open calculator" - Opens Calculator app
-- "open google.com" - Opens Google in your default browser
-- "open weather app" - Searches for "weather app" and opens the first result
-
-### `search [query]`
-
-Performs a web search for the specified query.
-
-**Examples:**
-
-- "search how to make coffee" - Searches Google for coffee making instructions
-- "search weather in New York" - Searches for weather information
-
-### `quit [application]`
-
-Quits a specific application.
-
-**Examples:**
-
-- "quit Cursor" - Quits the Cursor application
-- "quit Safari" - Quits the Safari browser
-
-### `close`
-
-Closes the current application window using Cmd+W.
-
-**Examples:**
-
-- "close" - Closes the current window or tab
-
-### `shell [task]` or `shell`
-
-Transforms the segment into a prompt for shell command generation.
-
-**Examples:**
-
-- "shell list files" → "Write a shell command to list files"
-- "shell" → "Write a shell command to"
-
-### `clear`
-
-Clears all transcribed segments.
-
-**Examples:**
-
-- "clear" - Removes all segments
-
-### `undo`
-
-Deletes the last two segments (the previous segment and the "undo" command itself).
-
-**Examples:**
-
-- "undo" - Removes the last segment
-
-## Creating Custom Actions
-
-### Basic Action Structure
-
-```json
+```javascript
 {
-  "id": "unique-action-id",
-  "name": "Action Name",
-  "description": "What the action does",
-  "enabled": true,
-  "order": 10,
-  "closesTranscription": false,
-  "skipsTransformation": false,
-  "matchPatterns": [
+  id: "ellipses",
+  name: "Ellipses",
+  description: "Remove trailing ellipses and lowercase next segment",
+  patterns: ["ellipses"],
+  handlers: [
     {
-      "id": "pattern-1",
-      "type": "startsWith",
-      "pattern": "keyword ",
-      "caseSensitive": false
-    }
-  ],
-  "handlers": [
-    {
-      "id": "handler-1",
-      "type": "segmentAction",
-      "config": {
-        "action": "replace",
-        "replacementText": "Replaced text with {argument}"
-      },
-      "order": 1
-    }
-  ]
-}
-```
-
-### Match Pattern Types
-
-- **`exact`**: Exact match
-- **`startsWith`**: Starts with pattern
-- **`endsWith`**: Ends with pattern
-- **`regex`**: Regular expression match
-
-### Example: Comma Continuation
-
-Continue a sentence after a comma without capitalizing:
-
-```json
-{
-  "id": "comma-continuation",
-  "name": "Comma Continuation",
-  "description": "Insert comma and lowercase next segment",
-  "enabled": true,
-  "order": 15,
-  "closesTranscription": false,
-  "skipsTransformation": false,
-  "matchPatterns": [
-    {
-      "id": "comma-pattern",
-      "type": "regex",
-      "pattern": ".*\\s+comma\\.?$",
-      "caseSensitive": false
-    }
-  ],
-  "handlers": [
-    {
-      "id": "remove-word-comma",
-      "type": "segmentAction",
-      "config": {
-        "action": "removePattern",
-        "pattern": "\\s+comma\\.?"
-      },
-      "order": 1
+      type: "segmentAction",
+      config: { action: "ellipses" }
     },
     {
-      "id": "lowercase-next",
-      "type": "segmentAction",
-      "config": {
-        "action": "lowercaseFirstChar"
-      },
-      "order": 2,
-      "applyToNextSegment": true
+      type: "segmentAction",
+      config: { action: "lowercaseFirst" },
+      applyToNextSegment: true  // Queue for next segment
     }
   ]
 }
 ```
 
-**Voice Flow:**
-```
-Say: "I went to the store comma"
-Result: "I went to the store,"
-        [Queue: lowercaseFirstChar]
-
-Say: "Bought some milk"
-Result: "bought some milk"
-```
-
-### Example: New Paragraph
-
-Start a new paragraph with proper capitalization:
-
-```json
-{
-  "id": "new-paragraph",
-  "name": "New Paragraph",
-  "description": "Insert paragraph break and capitalize next",
-  "enabled": true,
-  "order": 19,
-  "closesTranscription": false,
-  "skipsTransformation": false,
-  "matchPatterns": [
-    {
-      "id": "new-para-pattern",
-      "type": "regex",
-      "pattern": ".*new\\s+paragraph\\.?$",
-      "caseSensitive": false
-    }
-  ],
-  "handlers": [
-    {
-      "id": "remove-command",
-      "type": "segmentAction",
-      "config": {
-        "action": "removePattern",
-        "pattern": "\\s*new\\s+paragraph\\.?"
-      },
-      "order": 1
-    },
-    {
-      "id": "capitalize-next",
-      "type": "segmentAction",
-      "config": {
-        "action": "capitalizeFirstWord"
-      },
-      "order": 2,
-      "applyToNextSegment": true
-    }
-  ]
-}
-```
+When triggered:
+1. Immediately removes ellipses from the current segment
+2. Queues lowercase transformation for the next segment
 
 ## Variable Interpolation
 
-Handlers support variable interpolation in config values:
+Handlers support dynamic variable replacement:
 
-- `{match}` - The full matched text
-- `{argument}` - The extracted argument from the pattern
-- `{pattern}` - The pattern that matched
+- `{match}` - The full matched text from the pattern
+- `{argument}` - Extracted argument from the voice command
+- `{pattern}` - The specific pattern that matched
 
-**Example:**
+### Example with Variables
+
+```javascript
+{
+  id: "search_web",
+  name: "Search Web",
+  patterns: ["search for (.+)", "google (.+)"],
+  handlers: [{
+    type: "openUrl",
+    config: {
+      url: "https://google.com/search?q={argument}"
+    }
+  }]
+}
+```
+
+## Text Transformations as Actions
+
+Text transformations are now unified as actions with the `transformText` handler type. This provides consistent behavior and configuration.
+
+### Simple Replacement
+
+```javascript
+{
+  id: "lowercase_short",
+  name: "Lowercase Short Responses",
+  description: "Lowercase single words under 5 characters",
+  patterns: [],  // No voice trigger
+  handlers: [{
+    type: "transformText",
+    config: {
+      matchPattern: "^.{1,4}$",
+      replacementMode: "lowercase"
+    }
+  }]
+}
+```
+
+### Regex-Based Transformation
+
+```javascript
+{
+  id: "fix_spacing",
+  name: "Fix Spacing",
+  patterns: [],
+  handlers: [{
+    type: "transformText",
+    config: {
+      matchPattern: "\\s+",
+      matchFlags: "g",
+      replacement: " "
+    }
+  }]
+}
+```
+
+## UI Integration
+
+The settings interface provides a unified editor for all actions:
+
+### Action Editor Features
+
+1. **Name & Description**: Edit display name and description
+2. **Enable/Disable**: Toggle individual actions
+3. **Pattern Editor**: Add/remove voice command patterns with regex support
+4. **Handler Editor**: Configure multiple handlers per action
+5. **Handler Type Selection**: Choose from all available handler types
+6. **Configuration Editor**: Type-specific configuration fields
+7. **Queue Option**: Toggle `applyToNextSegment` for any handler
+8. **Skip Options**: Control transformation skipping behavior
+9. **Test Interface**: Preview how actions will behave
+
+### UI Components
+
+```html
+<!-- Action List -->
+<div class="actions-list">
+  <!-- Each action shows name, status, pattern count -->
+</div>
+
+<!-- Action Editor -->
+<div class="action-editor">
+  <!-- Basic Info -->
+  <input type="text" class="action-name" />
+  <textarea class="action-description"></textarea>
+  
+  <!-- Patterns -->
+  <div class="patterns-editor">
+    <!-- Add/remove regex patterns -->
+  </div>
+  
+  <!-- Handlers -->
+  <div class="handlers-editor">
+    <!-- Configure multiple handlers -->
+    <select class="handler-type">
+      <option value="openUrl">Open URL</option>
+      <option value="transformText">Transform Text</option>
+      <!-- ... -->
+    </select>
+    
+    <!-- Dynamic config based on type -->
+    <div class="handler-config">
+      <!-- Type-specific fields -->
+    </div>
+    
+    <!-- Queue option -->
+    <label>
+      <input type="checkbox" class="apply-to-next" />
+      Apply to next segment
+    </label>
+    
+    <!-- Skip options -->
+    <label>
+      <input type="checkbox" class="skip-transformation" />
+      Skip AI transformation
+    </label>
+    
+    <label>
+      <input type="checkbox" class="skip-all-transforms" />
+      Skip all transformations
+    </label>
+  </div>
+</div>
+```
+
+## Categories of Actions
+
+### 1. Command Actions
+Execute operations like opening apps or URLs:
+- Voice-triggered
+- Immediate execution
+- Skip all transformations for speed
+- Can include queued follow-ups
+
+### 2. Transform Actions  
+Modify transcribed text:
+- Pattern-based matching
+- Regex transformations
+- Normal transformation behavior
+- Can be applied immediately or queued
+
+### 3. System Actions
+Built-in actions for common operations:
+- Pre-configured with optimal skip settings
+- Performance-optimized
+- Covers common voice commands
+
+## Configuration Storage
+
+All actions are stored in the settings under a single `actions` array:
+
 ```json
 {
-  "type": "openUrl",
-  "config": {
-    "urlTemplate": "https://www.google.com/search?q={argument}"
-  }
+  "actions": [
+    {
+      "id": "unique_id",
+      "name": "Action Name",
+      "description": "What this action does",
+      "enabled": true,
+      "patterns": ["voice pattern 1", "pattern 2"],
+      "handlers": [
+        {
+          "type": "openUrl",
+          "config": {
+            "url": "https://example.com"
+          },
+          "skipsAllTransforms": true
+        },
+        {
+          "type": "transformText",
+          "config": {
+            "matchPattern": "test",
+            "replacement": "TEST"
+          },
+          "applyToNextSegment": true
+        }
+      ]
+    }
+  ]
 }
 ```
 
-## Action Detection Rules
+## Migration from Legacy System
 
-- **Case Insensitive**: Actions work regardless of capitalization (unless `caseSensitive: true`)
-- **Whitespace Handling**: Leading and trailing whitespace is automatically stripped
-- **Pattern Matching**: Actions can use exact, startsWith, endsWith, or regex patterns
-- **Real-time Processing**: Actions are detected as soon as a completed segment is processed
-- **Handler Ordering**: Handlers execute in order based on the `order` property
+The system automatically migrates old configurations:
 
-## Technical Details
-
-### Integration Points
-
-The Actions Handler is integrated at two key points:
-
-1. **Segment Manager**: Checks for actions when new transcribed segments are added
-2. **ConfigurableActionsService**: Executes handlers and manages queued handlers
-
-### Event Flow
-
-1. Audio is captured and transcribed
-2. Transcribed segments are added to the Segment Manager
-3. Segment Manager checks for action patterns in completed segments
-4. If an action is detected, handlers are executed
-5. Handlers with `applyToNextSegment: true` are queued
-6. When next segment arrives, queued handlers are processed
-
-### Application Discovery
-
-The system automatically discovers installed applications on startup by scanning the `/Applications` directory.
-
-### Handler Processing
-
-Each handler returns an `ActionResult`:
-
-```typescript
-interface ActionResult {
-  success: boolean;
-  shouldEndTranscription?: boolean;
-  queuedHandlers?: ActionHandlerConfig[];
-  error?: string;
-}
-```
-
-This allows handlers to:
-- Indicate success/failure
-- Queue additional handlers for next segment
-- Report errors
+1. **Old Voice Commands** → New actions with appropriate handlers
+2. **Old Text Transformations** → New actions with `transformText` handlers
+3. **Separate Configs** → Unified actions array
 
 ## Best Practices
 
-1. **Start Simple**: Begin with basic segment actions
-2. **Test Thoroughly**: Test with various speech patterns
-3. **Use Queued Actions**: Leverage `applyToNextSegment` for natural flow
-4. **Order Matters**: Set handler `order` appropriately
-5. **Clear State**: Queue is automatically cleared after processing
-6. **Log Everything**: Check console logs for debugging
+### Creating Effective Actions
 
-## Debugging
+1. **Use Descriptive Names**: Make actions easy to identify
+2. **Clear Patterns**: Use specific regex patterns to avoid false triggers
+3. **Combine Handlers**: Leverage multiple handlers for complex workflows
+4. **Queue Wisely**: Use `applyToNextSegment` for natural language flow
+5. **Skip Appropriately**: Use skip flags to optimize performance
 
-### Logging
+### Performance Considerations
 
-The system provides comprehensive logging:
+1. **Pattern Complexity**: Keep regex patterns efficient
+2. **Handler Order**: Place most likely handlers first
+3. **Transformation Chains**: Minimize redundant transformations
+4. **Skip Wisely**: Use skip flags for speed-critical actions
+5. **Push-to-Talk Optimization**: Default text transformations work in push-to-talk mode
 
+### Testing Actions
+
+1. **Test Patterns**: Verify voice commands match correctly
+2. **Preview Transformations**: Check text modifications before saving
+3. **Queue Behavior**: Test multi-segment workflows
+4. **Skip Behavior**: Verify transformation skipping works as expected
+5. **Push-to-Talk Testing**: Test with both short and long phrases
+
+## Examples
+
+### Open Documentation
+```javascript
+{
+  id: "open_docs",
+  name: "Open Documentation",
+  patterns: ["open docs", "show documentation"],
+  handlers: [{
+    type: "openUrl",
+    config: { url: "https://docs.whisper-mac.com" },
+    skipsAllTransforms: true
+  }]
+}
 ```
-[ConfigurableActions] Executing action: ellipses-transform-action
-[ConfigurableActions] Queued handler lowercase-next for next segment
-[ConfigurableActions] Processing 1 queued handler(s) on new segment
-[ConfigurableActions] Lowercased first char: "about the weather"
+
+### Smart Punctuation
+```javascript
+{
+  id: "smart_punctuation",
+  name: "Smart Punctuation",
+  patterns: [],
+  handlers: [
+    {
+      type: "transformText",
+      config: {
+        matchPattern: "\\?{2,}",
+        matchFlags: "g",
+        replacement: "?"
+      }
+    },
+    {
+      type: "transformText",
+      config: {
+        matchPattern: "!{2,}",
+        matchFlags: "g",
+        replacement: "!"
+      }
+    }
+  ]
+}
 ```
 
-### Inspection
+### Complex Workflow
+```javascript
+{
+  id: "create_note",
+  name: "Create Note",
+  patterns: ["create note (.+)", "new note (.+)"],
+  handlers: [
+    {
+      type: "openApplication",
+      config: { appName: "Notes" },
+      skipsAllTransforms: true
+    },
+    {
+      type: "executeShell",
+      config: { command: "echo '{argument}' | pbcopy" }
+    },
+    {
+      type: "transformText",
+      config: {
+        matchPattern: "^",
+        replacement: "Note: "
+      },
+      applyToNextSegment: true
+    }
+  ]
+}
+```
 
-Check queued handlers programmatically:
+## Technical Implementation
+
+### ConfigurableActionsService
+
+The core service handles:
+- Action detection in transcribed text
+- Handler execution with variable interpolation  
+- Queue management for deferred handlers
+- Transformation skipping logic
+- Event emission for UI updates
+
+### Key Methods
 
 ```typescript
-const count = actionsService.getQueuedHandlersCount();
-console.log(`Handlers in queue: ${count}`);
+// Detect action in text
+detectAction(text: string): ActionMatch | null
+
+// Execute handlers for an action
+async executeAction(action: Action, options?: ExecuteOptions)
+
+// Execute specific handler type
+async executeHandler(handler: ActionHandlerConfig, options?: ExecuteOptions)
+
+// Process queued handlers on new segment
+private async processQueuedHandlers(segment: Segment)
+
+// Check transformation skipping flags
+private shouldSkipTransformation(options?: ExecutionOptions): boolean
+private shouldSkipAllTransforms(options?: ExecutionOptions): boolean
 ```
 
-### Common Issues
+### Event System
 
-**Actions Not Triggering**
-- Verify pattern matching is correct
-- Check action is enabled
-- Review action order/priority
+The service emits events for UI synchronization:
+- `action-detected`: When voice command matches
+- `handler-executed`: After handler completion
+- `handler-queued`: When handler is queued
+- `queue-processed`: After processing queued handlers
+- `transformation-skipped`: When skip flags prevent transformations
 
-**Wrong Transformation**
-- Verify correct handler type
-- Check handler order
-- Review `applyToNextSegment` flag
+## Summary
 
-**Queue Not Processing**
-- Ensure segment is marked as completed
-- Check event listeners are active
-- Verify SegmentManager is connected
+The unified actions system provides:
+- **Consistency**: All actions use the same interface
+- **Flexibility**: Mix command and transform handlers
+- **Power**: Queue handlers for complex workflows
+- **Performance**: Skip transformations when appropriate
+- **Simplicity**: One configuration, one UI
 
-## Future Enhancements
+The enhanced skip flags provide granular control over transformation behavior:
+- `skipsTransformation`: Skip AI transformations only
+- `skipsAllTransforms`: Skip all transformations (AI + default)
+- Push-to-talk mode optimization for speed while maintaining text quality
 
-Potential improvements:
-
-- Custom handler types
-- Parameterized queued actions
-- Multi-segment queue (apply to next N segments)
-- Conditional queue (only if conditions met)
-- Action chaining
-- UI for managing actions in settings
-
-## Conclusion
-
-The Actions Handler System provides a powerful, flexible way to create voice commands that enhance your dictation workflow. By using handlers with `applyToNextSegment`, you can create natural, context-aware commands that span multiple segments.
-
+This architecture enables sophisticated voice-driven workflows while maintaining a clean, understandable configuration that users can easily customize through the settings interface.

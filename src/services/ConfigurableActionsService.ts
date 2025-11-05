@@ -8,8 +8,10 @@ import {
   ActionHandlerConfig,
   HandlerConfig,
   SegmentActionConfig,
+  TransformTextConfig,
   ActionResult,
 } from "../types/ActionTypes";
+import { TranscribedSegment } from "../types/SegmentTypes";
 
 export class ConfigurableActionsService extends EventEmitter {
   private actions: ActionHandler[] = [];
@@ -162,6 +164,16 @@ export class ConfigurableActionsService extends EventEmitter {
         success = segmentResult.success;
         if (segmentResult.queuedHandlers) {
           queuedHandlers.push(...segmentResult.queuedHandlers);
+        }
+        break;
+      case "transformText":
+        const transformResult = await this.executeTransformText(
+          config as TransformTextConfig,
+          match,
+        );
+        success = transformResult.success;
+        if (transformResult.queuedHandlers) {
+          queuedHandlers.push(...transformResult.queuedHandlers);
         }
         break;
       default:
@@ -393,6 +405,93 @@ export class ConfigurableActionsService extends EventEmitter {
     }
   }
 
+  /**
+   * Execute text transformation action
+   */
+  private async executeTransformText(
+    config: TransformTextConfig,
+    match: ActionMatch,
+  ): Promise<ActionResult> {
+    if (!this.segmentManager) {
+      console.error(
+        "[ConfigurableActions] SegmentManager not available for transform action",
+      );
+      return { success: false };
+    }
+
+    try {
+      const lastSegment = this.segmentManager.getLastSegment();
+      if (!lastSegment || !lastSegment.text) {
+        console.warn("[ConfigurableActions] No segment text to transform");
+        return { success: false };
+      }
+
+      let text = lastSegment.text;
+
+      // Check length conditions if specified
+      if (config.maxLength && text.length > config.maxLength) {
+        console.log(
+          `[ConfigurableActions] Text too long for transform (${text.length} > ${config.maxLength})`,
+        );
+        return { success: false };
+      }
+
+      if (config.minLength && text.length < config.minLength) {
+        console.log(
+          `[ConfigurableActions] Text too short for transform (${text.length} < ${config.minLength})`,
+        );
+        return { success: false };
+      }
+
+      // Check match pattern if specified
+      if (config.matchPattern) {
+        const matchRegex = new RegExp(config.matchPattern, config.matchFlags || "");
+        if (!matchRegex.test(text)) {
+          console.log(
+            `[ConfigurableActions] Text doesn't match pattern: ${config.matchPattern}`,
+          );
+          return { success: false };
+        }
+      }
+
+      // Apply the replacement
+      const replaceRegex = new RegExp(
+        config.replacePattern,
+        config.replaceFlags || "g"
+      );
+
+      let replacedText: string;
+      if (config.replacementMode === "lowercase") {
+        replacedText = text.replace(replaceRegex, (match: string) => match.toLowerCase());
+      } else if (config.replacementMode === "uppercase") {
+        replacedText = text.replace(replaceRegex, (match: string) => match.toUpperCase());
+      } else {
+        // Literal replacement (default)
+        replacedText = text.replace(replaceRegex, config.replacement || "");
+      }
+
+      // Update the segment with transformed text
+      lastSegment.text = replacedText;
+
+      console.log(
+        `[ConfigurableActions] Transformed text: "${text}" -> "${replacedText}"`,
+      );
+      this.emit("segment-transformed", {
+        segment: lastSegment,
+        originalText: text,
+        transformedText: replacedText,
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error(
+        "[ConfigurableActions] Failed to transform text:",
+        error,
+      );
+      return { success: false };
+    }
+  }
+
   private interpolateConfig(config: HandlerConfig, match: ActionMatch): any {
     const interpolated = JSON.parse(JSON.stringify(config));
     const replacements = {
@@ -570,9 +669,20 @@ export class ConfigurableActionsService extends EventEmitter {
     const lastSegment = this.segmentManager?.getLastSegment();
     if (!lastSegment || !lastSegment.text) return false;
 
-    const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // For patterns that should match literal dots (like ellipses),
+    // we need to handle them specially since we want to match "..." not "\.\.\."
+    let regexPattern: string;
+    if (pattern === "\\.\\.\\.") {
+      // Special case for ellipses - match actual dots, not escaped dots
+      regexPattern = "\\.{3,}$";
+    } else {
+      // Escape special regex characters for other patterns
+      const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      regexPattern = escapedPattern + "+$";
+    }
+
     const newText = lastSegment.text
-      .replace(new RegExp(escapedPattern + "+$"), "")
+      .replace(new RegExp(regexPattern), "")
       .trim();
 
     if (newText.length === 0) {
@@ -605,5 +715,140 @@ export class ConfigurableActionsService extends EventEmitter {
    */
   getQueuedHandlersCount(): number {
     return this.queuedHandlers.length;
+  }
+
+  /**
+   * Execute all-segments actions before AI transformation
+   */
+  async executeAllSegmentsActionsBeforeAI(segments: TranscribedSegment[]): Promise<void> {
+    await this.executeGlobalActionsOnSegments(segments, "before_ai");
+  }
+
+  /**
+   * Execute all-segments actions after AI transformation
+   */
+  async executeAllSegmentsActionsAfterAI(segments: TranscribedSegment[]): Promise<void> {
+    await this.executeGlobalActionsOnSegments(segments, "after_ai");
+  }
+
+  /**
+   * Execute global actions on segments based on timing mode
+   */
+  private async executeGlobalActionsOnSegments(
+    segments: TranscribedSegment[],
+    timingMode: "before_ai" | "after_ai"
+  ): Promise<void> {
+    const globalActions = this.actions.filter(
+      (action) => action.applyToAllSegments && action.timingMode === timingMode
+    );
+
+    if (globalActions.length === 0) {
+      return;
+    }
+
+    console.log(
+      `[ConfigurableActions] Found ${globalActions.length} ${timingMode} global actions to execute on ${segments.length} segments`
+    );
+
+    // For each global action, test if it matches and apply it to each segment
+    for (const action of globalActions) {
+      for (const pattern of action.matchPatterns) {
+        // Test pattern against each segment
+        for (const segment of segments) {
+          const match = this.testPattern(segment.text.trim(), pattern);
+          if (match) {
+            console.log(
+              `[ConfigurableActions] Executing ${timingMode} global action: ${action.id} on segment: "${segment.text}"`
+            );
+
+            // Create action match and execute handlers
+            const actionMatch: ActionMatch = {
+              actionId: action.id,
+              matchedPattern: pattern,
+              originalText: segment.text,
+              extractedArgument: match.argument,
+              handlers: action.handlers.sort((a, b) => a.order - b.order),
+            };
+
+            // Execute each handler
+            for (const handler of actionMatch.handlers) {
+              if (handler.type === "transformText") {
+                await this.executeTransformTextOnSegment(handler, segment, actionMatch);
+              }
+            }
+            break; // Only match first pattern that succeeds
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Execute transformText handler on a single segment
+   */
+  private async executeTransformTextOnSegment(
+    handler: ActionHandlerConfig,
+    segment: TranscribedSegment,
+    match: ActionMatch
+  ): Promise<void> {
+    const config = this.interpolateConfig(handler.config, match);
+    let text = segment.text;
+
+    // Check length conditions if specified
+    if (config.maxLength && text.length > config.maxLength) {
+      console.log(
+        `[ConfigurableActions] Text too long for transform (${text.length} > ${config.maxLength})`
+      );
+      return;
+    }
+
+    if (config.minLength && text.length < config.minLength) {
+      console.log(
+        `[ConfigurableActions] Text too short for transform (${text.length} < ${config.minLength})`
+      );
+      return;
+    }
+
+    // Check match pattern if specified
+    if (config.matchPattern) {
+      const matchRegex = new RegExp(config.matchPattern, config.matchFlags || "");
+      if (!matchRegex.test(text)) {
+        console.log(
+          `[ConfigurableActions] Text doesn't match pattern: ${config.matchPattern}`
+        );
+        return;
+      }
+    }
+
+    // Apply the replacement
+    const replaceRegex = new RegExp(
+      config.replacePattern,
+      config.replaceFlags || "g"
+    );
+
+    let replacedText: string;
+    if (config.replacementMode === "lowercase") {
+      replacedText = text.replace(replaceRegex, (match: string) => match.toLowerCase());
+    } else if (config.replacementMode === "uppercase") {
+      replacedText = text.replace(replaceRegex, (match: string) => match.toUpperCase());
+    } else {
+      // Literal replacement (default)
+      replacedText = text.replace(replaceRegex, config.replacement || "");
+    }
+
+    // Update the segment with transformed text
+    if (replacedText !== text) {
+      const originalText = segment.text;
+      segment.text = replacedText;
+
+      console.log(
+        `[ConfigurableActions] Transformed segment text: "${originalText}" -> "${replacedText}"`
+      );
+      this.emit("segment-transformed", {
+        segment,
+        originalText,
+        transformedText: replacedText,
+      });
+    }
   }
 }
