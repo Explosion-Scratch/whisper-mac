@@ -7,7 +7,6 @@ import {
   NonAiTransformationConfig,
   NonAiTransformationRule,
 } from "../types/TransformationRuleTypes";
-import { getDefaultNonAiTransformationsConfig } from "./DefaultTransformations";
 
 export type DictationWindowPosition = "active-app-corner" | "screen-corner";
 
@@ -83,7 +82,7 @@ export class AppConfig {
     this.rules = this.loadDefaultRules();
 
     // Non-AI transformation defaults
-    this.nonAiTransformations = getDefaultNonAiTransformationsConfig();
+    this.nonAiTransformations = this.getDefaultNonAiTransformationsConfig();
   }
 
   setModelPath(path: string): void {
@@ -205,6 +204,45 @@ export class AppConfig {
       replacementMode: rule.replacementMode || "literal",
       enabledForTranscription: Boolean(rule.enabledForTranscription),
       enabledForActions: Boolean(rule.enabledForActions),
+    };
+  }
+
+  /**
+   * Get default non-AI transformation configuration
+   * Note: Non-AI transformations are now primarily handled by the unified actions system
+   */
+  private getDefaultNonAiTransformationsConfig(): NonAiTransformationConfig {
+    return {
+      rules: [
+        {
+          id: "remove_ellipses",
+          name: "Remove Ellipses",
+          description: "Replace three or more periods with a single period",
+          enabledForTranscription: true,
+          enabledForActions: false,
+          matchPattern: "\\.{3,}",
+          matchFlags: "g",
+          replacePattern: "\\.{3,}",
+          replaceFlags: "g",
+          replacement: ".",
+          replacementMode: "literal",
+          order: 1,
+        },
+        {
+          id: "fix_spacing",
+          name: "Fix Spacing",
+          description: "Clean up extra whitespace around punctuation",
+          enabledForTranscription: true,
+          enabledForActions: false,
+          matchPattern: "\\s*([.,!?;:])\\s*",
+          matchFlags: "g",
+          replacePattern: "$1 ",
+          replaceFlags: "g",
+          replacement: "",
+          replacementMode: "literal",
+          order: 2,
+        },
+      ],
     };
   }
 }

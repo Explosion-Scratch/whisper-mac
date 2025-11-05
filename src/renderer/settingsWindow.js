@@ -43,7 +43,6 @@ document.addEventListener("DOMContentLoaded", () => {
         pluginDataInfo: [],
         pluginDataItems: {},
         expandedActions: {},
-  expandedTransformations: {},
         expandedRules: {},
         expandedDataPlugins: {},
         aiModelsState: { loading: false, loadedForBaseUrl: null, models: [] },
@@ -1240,6 +1239,9 @@ document.addEventListener("DOMContentLoaded", () => {
           order:
             (this.settings.actions.actions[actionIndex].handlers.length || 0) +
             1,
+          applyToNextSegment: false,
+          applyToAllSegments: false,
+          timingMode: "before_ai"
         });
       },
 
@@ -1252,106 +1254,54 @@ document.addEventListener("DOMContentLoaded", () => {
 
       updateHandlerType(handler) {
         // Reset config based on new type
-        handler.config = {};
-      },
-
-      // --- NON-AI TRANSFORMATIONS EDITOR METHODS ---
-      ensureTransformationConfig() {
-        if (!this.settings.nonAiTransformations) {
-          this.settings.nonAiTransformations = { rules: [] };
-        } else if (!Array.isArray(this.settings.nonAiTransformations.rules)) {
-          this.settings.nonAiTransformations.rules = [];
+        switch (handler.type) {
+          case "openUrl":
+            handler.config = {
+              urlTemplate: "https://",
+              openInBackground: false
+            };
+            break;
+          case "openApplication":
+            handler.config = {
+              applicationName: "{argument}"
+            };
+            break;
+          case "quitApplication":
+            handler.config = {
+              applicationName: "{argument}",
+              forceQuit: false
+            };
+            break;
+          case "executeShell":
+            handler.config = {
+              command: "",
+              timeout: 10000
+            };
+            break;
+          case "segmentAction":
+            handler.config = {
+              action: "replace",
+              replacementText: "{argument}"
+            };
+            break;
+          case "transformText":
+            handler.config = {
+              matchPattern: "",
+              matchFlags: "",
+              replacePattern: "",
+              replaceFlags: "g",
+              replacement: "",
+              replacementMode: "literal"
+            };
+            break;
+          default:
+            handler.config = {};
         }
-      },
-
-      addTransformationRule() {
-        this.ensureTransformationConfig();
-
-        const rules = this.settings.nonAiTransformations.rules;
-        const newRule = {
-          id: `transformation_${Date.now()}`,
-          name: "New Transformation",
-          description: "",
-          enabledForTranscription: true,
-          enabledForActions: false,
-          matchPattern: ".*",
-          matchFlags: "",
-          replacePattern: "",
-          replaceFlags: "g",
-          replacement: "",
-          replacementMode: "literal",
-          order: (rules.length || 0) + 1,
-        };
-
-        rules.push(newRule);
-        this.$nextTick(() => {
-          this.expandedTransformations[newRule.id] = true;
-        });
-      },
-
-      deleteTransformationRule(index) {
-        this.ensureTransformationConfig();
-        if (!this.settings.nonAiTransformations.rules[index]) {
-          return;
-        }
-
-        if (confirm("Delete this transformation rule?")) {
-          const [removed] = this.settings.nonAiTransformations.rules.splice(
-            index,
-            1,
-          );
-          if (removed?.id) {
-            delete this.expandedTransformations[removed.id];
-          }
-          this.reindexTransformationOrders();
-        }
-      },
-
-      moveTransformationRule(index, direction) {
-        this.ensureTransformationConfig();
-        const rules = this.settings.nonAiTransformations.rules;
-        const newIndex = index + direction;
-
-        if (newIndex >= 0 && newIndex < rules.length) {
-          [rules[index], rules[newIndex]] = [rules[newIndex], rules[index]];
-          this.reindexTransformationOrders();
-        }
-      },
-
-      toggleTransformationCard(ruleId) {
-        this.expandedTransformations[ruleId] = !this.expandedTransformations[ruleId];
-      },
-
-      resetTransformationsToDefaults() {
-        if (!confirm("Reset non-AI transformations to defaults?")) {
-          return;
-        }
-
-        const textSection = this.schema.find((section) => section.id === "text");
-        const field = textSection?.fields.find(
-          (f) => f.key === "nonAiTransformations",
-        );
-
-        if (field) {
-          this.settings.nonAiTransformations = JSON.parse(
-            JSON.stringify(field.defaultValue),
-          );
-          this.expandedTransformations = {};
-          this.reindexTransformationOrders();
-          this.showStatus(
-            "Non-AI transformations have been reset to default.",
-            "success",
-          );
-        }
-      },
-
-      reindexTransformationOrders() {
-        const rules = this.settings.nonAiTransformations?.rules;
-        if (Array.isArray(rules)) {
-          rules.forEach((rule, idx) => {
-            rule.order = idx + 1;
-          });
-        }
+        
+        // Set default values for new action handler properties
+        handler.applyToNextSegment = false;
+        handler.applyToAllSegments = false;
+        handler.timingMode = "before_ai";
       },
 
       // --- RULES EDITOR METHODS ---

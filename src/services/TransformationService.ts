@@ -4,7 +4,6 @@ import { SelectedTextResult } from "./SelectedTextService";
 import { AiValidationService } from "./AiValidationService";
 import { SecureStorageService } from "./SecureStorageService";
 import { SelectedTextService } from "./SelectedTextService";
-import { NonAiTransformationRule } from "../types/TransformationRuleTypes";
 
 export interface AiTransformationConfig {
   enabled: boolean;
@@ -396,7 +395,12 @@ export class TransformationService {
       }
     }
 
-    return this.finalizeText(transformedText, { mode: "transcription" });
+    // The finalization is simplified since non-AI transformations are now handled by actions
+    const extractedCode = TransformationService.extractCode(transformedText);
+    if (extractedCode) {
+      return extractedCode;
+    }
+    return TransformationService.removeQuotes(transformedText).trim();
   }
 
   /**
@@ -508,118 +512,15 @@ export class TransformationService {
     return transformed;
   }
 
-  private getNonAiRulesForMode(
-    mode: "transcription" | "action",
-  ): NonAiTransformationRule[] {
-    const config = this.config.getNonAiTransformations();
-    const rules = Array.isArray(config?.rules) ? config.rules : [];
-    const applicable = rules.filter((rule) =>
-      mode === "action"
-        ? rule.enabledForActions
-        : rule.enabledForTranscription,
-    );
-
-    return applicable.sort((a, b) => {
-      const aOrder = a.order ?? 0;
-      const bOrder = b.order ?? 0;
-      if (aOrder === bOrder) {
-        return 0;
-      }
-      return aOrder - bOrder;
-    });
-  }
-
-  private buildRegex(pattern: string, flags?: string): RegExp | null {
-    try {
-      return new RegExp(pattern, flags);
-    } catch (error) {
-      console.warn("Invalid regular expression:", { pattern, flags, error });
-      return null;
-    }
-  }
-
-  applyNonAiTransformations(
-    text: string,
-    options: { mode?: "transcription" | "action" } = {},
-  ): string {
-    const mode = options.mode ?? "transcription";
-    let output = (text ?? "").trim();
-
-    if (!output) {
-      return output;
-    }
-
-    const rules = this.getNonAiRulesForMode(mode);
-    if (!rules.length) {
-      return output;
-    }
-
-    for (const rule of rules) {
-      if (!rule.replacePattern) {
-        continue;
-      }
-
-      const matchRegex = this.buildRegex(
-        rule.matchPattern || ".*",
-        rule.matchFlags || "",
-      );
-      if (!matchRegex) {
-        continue;
-      }
-
-      if (!matchRegex.test(output)) {
-        continue;
-      }
-
-      const replaceRegex = this.buildRegex(
-        rule.replacePattern,
-        rule.replaceFlags || "g",
-      );
-      if (!replaceRegex) {
-        continue;
-      }
-
-      const replacementMode = rule.replacementMode || "literal";
-      if (replacementMode === "lowercase") {
-        output = output.replace(replaceRegex, (match) => match.toLowerCase());
-      } else if (replacementMode === "uppercase") {
-        output = output.replace(replaceRegex, (match) => match.toUpperCase());
-      } else {
-        const replacement =
-          rule.replacement !== undefined ? rule.replacement : "";
-        try {
-          output = output.replace(replaceRegex, replacement);
-        } catch (error) {
-          console.warn(
-            "Failed to apply non-AI transformation replacement:",
-            {
-              ruleId: rule.id,
-              error,
-            },
-          );
-        }
-      }
-
-      output = output.trim();
-
-      if (!output) {
-        break;
-      }
-    }
-
-    return output.trim();
-  }
-
-  finalizeText(
-    text: string,
-    options: { mode?: "transcription" | "action" } = {},
-  ): string {
-    const transformed = this.applyNonAiTransformations(text, options);
-    const extractedCode = TransformationService.extractCode(transformed);
+  /**
+   * Simple finalization for text - extract code blocks if present, otherwise remove quotes
+   * Note: Non-AI transformations are now handled by the unified actions system
+   */
+  finalizeText(text: string): string {
+    const extractedCode = TransformationService.extractCode(text);
     if (extractedCode) {
       return extractedCode;
     }
-
-    return TransformationService.removeQuotes(transformed).trim();
+    return TransformationService.removeQuotes(text).trim();
   }
 }

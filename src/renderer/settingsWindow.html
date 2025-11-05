@@ -2769,6 +2769,9 @@
                                   <option value="segmentAction">
                                     Segment Action
                                   </option>
+                                  <option value="transformText">
+                                    Transform Text
+                                  </option>
                                 </select>
                                 <input
                                   type="number"
@@ -2953,6 +2956,98 @@
                                     />
                                   </div>
                                 </template>
+                                <template
+                                  v-if="handler.type === 'transformText'"
+                                >
+                                  <div class="config-field">
+                                    <label>Match Pattern (Optional)</label>
+                                    <input
+                                      type="text"
+                                      class="form-control"
+                                      placeholder="Regex to match text (e.g. ^.{0,50}$)"
+                                      v-model="handler.config.matchPattern"
+                                    />
+                                    <span class="field-help">Leave blank to apply to all text</span>
+                                  </div>
+                                  <div class="action-form-row">
+                                    <div class="action-form-col">
+                                      <label>Match Flags</label>
+                                      <input
+                                        type="text"
+                                        class="form-control"
+                                        placeholder="gimuy"
+                                        maxlength="6"
+                                        v-model="handler.config.matchFlags"
+                                      />
+                                    </div>
+                                    <div class="action-form-col">
+                                      <label>Max Length</label>
+                                      <input
+                                        type="number"
+                                        class="form-control"
+                                        placeholder="Optional"
+                                        v-model.number="handler.config.maxLength"
+                                      />
+                                    </div>
+                                    <div class="action-form-col">
+                                      <label>Min Length</label>
+                                      <input
+                                        type="number"
+                                        class="form-control"
+                                        placeholder="Optional"
+                                        v-model.number="handler.config.minLength"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div class="config-field">
+                                    <label>Replace Pattern</label>
+                                    <input
+                                      type="text"
+                                      class="form-control"
+                                      placeholder="Pattern to find and replace (e.g. [\\.!?]+$)"
+                                      v-model="handler.config.replacePattern"
+                                    />
+                                  </div>
+                                  <div class="action-form-row">
+                                    <div class="action-form-col">
+                                      <label>Replace Flags</label>
+                                      <input
+                                        type="text"
+                                        class="form-control"
+                                        placeholder="gimuy"
+                                        maxlength="6"
+                                        v-model="handler.config.replaceFlags"
+                                      />
+                                    </div>
+                                    <div class="action-form-col">
+                                      <label>Replacement Mode</label>
+                                      <select
+                                        class="form-control"
+                                        v-model="handler.config.replacementMode"
+                                      >
+                                        <option value="literal">Literal Text</option>
+                                        <option value="lowercase">
+                                          Lowercase Match
+                                        </option>
+                                        <option value="uppercase">
+                                          Uppercase Match
+                                        </option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                  <div
+                                    class="config-field"
+                                    v-if="handler.config.replacementMode === 'literal'"
+                                  >
+                                    <label>Replacement Text</label>
+                                    <input
+                                      type="text"
+                                      class="form-control"
+                                      placeholder="Text to replace with (leave blank to remove)"
+                                      v-model="handler.config.replacement"
+                                    />
+                                  </div>
+                                </template>
                               </div>
                               <div class="config-field" style="margin-top: 10px; border-top: 1px solid #e0e0e0; padding-top: 10px;">
                                 <label style="display: flex; align-items: center; gap: 8px; font-weight: 500;">
@@ -2966,217 +3061,28 @@
                                   </span>
                                 </label>
                               </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Non-AI Transformations Editor -->
-                <div
-                  v-if="field.type === 'transformations-editor' && settings.nonAiTransformations"
-                >
-                  <div
-                    class="actions-editor-container transformations-editor-container"
-                  >
-                    <div class="actions-editor-toolbar transformations-editor-toolbar">
-                      <button
-                        @click="addTransformationRule"
-                        type="button"
-                        class="btn btn-primary btn-sm"
-                      >
-                        <i class="ph-duotone ph-plus"></i> Add Rule
-                      </button>
-                      <button
-                        @click="resetTransformationsToDefaults"
-                        type="button"
-                        class="btn btn-default btn-sm"
-                      >
-                        <i class="ph-duotone ph-arrow-clockwise"></i> Reset to
-                        Defaults
-                      </button>
-                    </div>
-                    <div class="actions-list transformations-list">
-                      <div
-                        v-if="!settings.nonAiTransformations?.rules?.length"
-                        class="empty-actions-state empty-transformations-state"
-                      >
-                        <i class="ph-duotone ph-funnel-simple"></i>
-                        <p>No non-AI transformations configured</p>
-                        <p class="empty-subtitle">
-                          Add regex-based cleanup rules that run before AI output
-                        </p>
-                      </div>
-                      <div
-                        v-for="(rule, index) in settings.nonAiTransformations?.rules || []"
-                        :key="rule.id"
-                        class="action-card transformation-card"
-                      >
-                        <div
-                          class="action-card-header transformation-card-header"
-                          @click.self="toggleTransformationCard(rule.id)"
-                        >
-                          <div class="action-info transformation-info">
-                            <div class="transformation-header-row">
-                              <h4 class="action-name transformation-name">
-                                {{ rule.name || 'Untitled Rule' }}
-                              </h4>
-                              <div class="transformation-enabled-toggles">
-                                <label class="checkbox-label">
+                              <div class="config-field">
+                                <label style="display: flex; align-items: center; gap: 8px; font-weight: 500;">
                                   <input
                                     type="checkbox"
-                                    v-model="rule.enabledForTranscription"
+                                    v-model="handler.applyToAllSegments"
                                   />
-                                  Transcription
-                                </label>
-                                <label class="checkbox-label">
-                                  <input
-                                    type="checkbox"
-                                    v-model="rule.enabledForActions"
-                                  />
-                                  Actions
+                                  Apply to All Segments
+                                  <span style="font-size: 0.85em; color: #666; font-weight: normal;">
+                                    (Run this handler on all segments after transcription completes)
+                                  </span>
                                 </label>
                               </div>
-                            </div>
-                            <p class="action-description transformation-description">
-                              {{ rule.description || 'Runs when the pattern matches.' }}
-                            </p>
-                          </div>
-                          <div class="action-controls transformation-controls">
-                            <button
-                              type="button"
-                              class="btn btn-icn-only"
-                              @click="moveTransformationRule(index, -1)"
-                              :disabled="index === 0"
-                              title="Move up"
-                            >
-                              <i class="ph-duotone ph-caret-up"></i>
-                            </button>
-                            <button
-                              type="button"
-                              class="btn btn-icn-only"
-                              @click="moveTransformationRule(index, 1)"
-                              :disabled="index === (settings.nonAiTransformations?.rules?.length || 0) - 1"
-                              title="Move down"
-                            >
-                              <i class="ph-duotone ph-caret-down"></i>
-                            </button>
-                            <button
-                              type="button"
-                              class="btn btn-icn-only"
-                              @click="toggleTransformationCard(rule.id)"
-                              title="View rule details"
-                            >
-                              <i class="ph-duotone ph-info"></i>
-                            </button>
-                            <button
-                              type="button"
-                              class="btn btn-icn-only btn-negative"
-                              @click="deleteTransformationRule(index)"
-                              title="Delete rule"
-                            >
-                              <i class="ph-duotone ph-trash"></i>
-                            </button>
-                          </div>
-                        </div>
-                        <div
-                          class="action-card-body transformation-card-body"
-                          :class="{ collapsed: !expandedTransformations[rule.id] }"
-                        >
-                          <div class="action-form-group">
-                            <label>Rule Name</label>
-                            <input
-                              type="text"
-                              class="form-control"
-                              v-model="rule.name"
-                            />
-                          </div>
-                          <div class="action-form-group">
-                            <label>Description</label>
-                            <input
-                              type="text"
-                              class="form-control"
-                              v-model="rule.description"
-                              placeholder="Briefly describe when this runs"
-                            />
-                          </div>
-                          <div class="action-form-group action-form-row">
-                            <div class="action-form-col">
-                              <label>Match Pattern</label>
-                              <input
-                                type="text"
-                                class="form-control"
-                                placeholder="e.g. ^.{0,50}$"
-                                v-model="rule.matchPattern"
-                              />
-                            </div>
-                            <div class="action-form-col">
-                              <label>Match Flags</label>
-                              <input
-                                type="text"
-                                class="form-control"
-                                placeholder="gimuy"
-                                maxlength="6"
-                                v-model="rule.matchFlags"
-                              />
+                              <div class="config-field" v-if="handler.applyToAllSegments">
+                                <label>When to Apply</label>
+                                <select class="form-control" v-model="handler.timingMode">
+                                  <option value="before_ai">Before AI Transformation (Default)</option>
+                                  <option value="after_ai">After AI Transformation</option>
+                                </select>
+                                <span class="field-help">before_ai runs even when AI transformation is disabled</span>
+                              </div>
                             </div>
                           </div>
-                          <div class="action-form-group action-form-row">
-                            <div class="action-form-col">
-                              <label>Replace Pattern</label>
-                              <input
-                                type="text"
-                                class="form-control"
-                                placeholder="e.g. [\\.!?]+$"
-                                v-model="rule.replacePattern"
-                              />
-                            </div>
-                            <div class="action-form-col">
-                              <label>Replace Flags</label>
-                              <input
-                                type="text"
-                                class="form-control"
-                                placeholder="gimuy"
-                                maxlength="6"
-                                v-model="rule.replaceFlags"
-                              />
-                            </div>
-                          </div>
-                          <div class="action-form-group action-form-row">
-                            <div class="action-form-col">
-                              <label>Replacement</label>
-                              <input
-                                type="text"
-                                class="form-control"
-                                :disabled="rule.replacementMode !== 'literal'"
-                                placeholder="Leave blank to remove"
-                                v-model="rule.replacement"
-                              />
-                            </div>
-                            <div class="action-form-col">
-                              <label>Replacement Mode</label>
-                              <select
-                                class="form-control"
-                                v-model="rule.replacementMode"
-                              >
-                                <option value="literal">Literal</option>
-                                <option value="lowercase">
-                                  Lowercase match
-                                </option>
-                                <option value="uppercase">
-                                  Uppercase match
-                                </option>
-                              </select>
-                            </div>
-                          </div>
-                          <p class="transformation-hint">
-                            The match pattern decides when the rule runs. When it
-                            matches, the replace pattern executes against the current
-                            text. Set replacement mode to lowercase/uppercase to adjust
-                            the matched text dynamically.
-                          </p>
                         </div>
                       </div>
                     </div>

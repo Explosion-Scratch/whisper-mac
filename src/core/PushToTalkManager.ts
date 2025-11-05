@@ -516,35 +516,37 @@ export class PushToTalkManager {
       });
   }
 
-  private async finalizePushToTalkSession(): Promise<void> {
-    try {
-      if (this.dictationFlowManager.isRecording()) {
-        await this.dictationFlowManager.finishCurrentDictation({
-          skipTransformation: true,
-        });
-      } else if (this.dictationFlowManager.isFinishing()) {
-        console.log(
-          "[PushToTalkManager] Push-to-talk release detected during finishing state",
-        );
-      } else {
-        await this.dictationFlowManager.cancelDictationFlow();
-      }
-    } catch (error) {
-      console.error(
-        "[PushToTalkManager] Failed to finalize push-to-talk session:",
-        error,
+private async finalizePushToTalkSession(): Promise<void> {
+  try {
+    if (this.dictationFlowManager.isRecording()) {
+      // For push-to-talk, we want to skip AI transformations for speed/privacy
+      // but still allow default text transformation actions to run
+      await this.dictationFlowManager.finishCurrentDictation({
+        skipTransformation: true,
+      });
+    } else if (this.dictationFlowManager.isFinishing()) {
+      console.log(
+        "[PushToTalkManager] Push-to-talk release detected during finishing state",
       );
-      try {
-        await this.dictationFlowManager.cancelDictationFlow();
-      } catch (cancelError) {
-        console.error(
-          "[PushToTalkManager] Push-to-talk cancellation failed:",
-          cancelError,
-        );
-      }
-    } finally {
-      this.isSessionActive = false;
-      this.finalizeScheduled = false;
+    } else {
+      await this.dictationFlowManager.cancelDictationFlow();
     }
+  } catch (error) {
+    console.error(
+      "[PushToTalkManager] Failed to finalize push-to-talk session:",
+      error,
+    );
+    try {
+      await this.dictationFlowManager.cancelDictationFlow();
+    } catch (cancelError) {
+      console.error(
+        "[PushToTalkManager] Push-to-talk cancellation failed:",
+        cancelError,
+      );
+    }
+  } finally {
+    this.isSessionActive = false;
+    this.finalizeScheduled = false;
   }
+}
 }

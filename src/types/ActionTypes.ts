@@ -6,6 +6,9 @@ export interface ActionHandler {
   order: number;
   closesTranscription?: boolean; // Whether this action should stop listening after execution
   skipsTransformation?: boolean; // Whether this action should skip AI transformation
+  skipsAllTransforms?: boolean; // Whether this action should skip all transformations (AI + default actions)
+  applyToAllSegments?: boolean; // Whether this action should run on all segments after transcription is complete
+  timingMode?: "before_ai" | "after_ai"; // When to run the action relative to AI transformation (default: before_ai)
   matchPatterns: MatchPattern[];
   handlers: ActionHandlerConfig[];
 }
@@ -24,7 +27,8 @@ export interface ActionHandlerConfig {
     | "openApplication"
     | "quitApplication"
     | "executeShell"
-    | "segmentAction";
+    | "segmentAction"
+    | "transformText";
   config: HandlerConfig;
   order: number;
   applyToNextSegment?: boolean; // If true, queue this handler for next segment
@@ -35,7 +39,8 @@ export type HandlerConfig =
   | OpenApplicationConfig
   | QuitApplicationConfig
   | ExecuteShellConfig
-  | SegmentActionConfig;
+  | SegmentActionConfig
+  | TransformTextConfig;
 
 export interface OpenUrlConfig {
   urlTemplate: string; // Can use {match}, {argument}, etc.
@@ -78,6 +83,22 @@ export interface SegmentActionConfig {
   count?: number;
   // For 'removePattern' action
   pattern?: string; // Pattern to remove (e.g., "..." for ellipses)
+}
+
+export interface TransformTextConfig {
+  // Match conditions
+  matchPattern?: string; // Regex pattern to match text
+  matchFlags?: string; // Regex flags for match pattern
+  
+  // Replace operation
+  replacePattern: string; // Pattern to find and replace
+  replaceFlags?: string; // Regex flags for replace
+  replacement?: string; // Replacement text (if mode is literal)
+  replacementMode?: "literal" | "lowercase" | "uppercase";
+  
+  // Conditions
+  maxLength?: number; // Only apply if text is shorter than this
+  minLength?: number; // Only apply if text is longer than this
 }
 
 export interface ActionMatch {

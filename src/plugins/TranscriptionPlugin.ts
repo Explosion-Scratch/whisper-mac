@@ -36,6 +36,7 @@ export interface PluginSchemaItem {
 export interface PluginActivationCriteria {
   runOnAll?: boolean;
   skipTransformation?: boolean;
+  skipAllTransforms?: boolean;
 }
 
 export interface PluginState {

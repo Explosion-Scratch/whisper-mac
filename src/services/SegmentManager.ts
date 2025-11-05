@@ -23,6 +23,7 @@ export class SegmentManager extends EventEmitter {
   private lastExecutedAction: {
     actionId: string;
     skipsTransformation?: boolean;
+    skipsAllTransforms?: boolean;
   } | null = null;
 
   constructor(
@@ -171,6 +172,7 @@ export class SegmentManager extends EventEmitter {
         this.lastExecutedAction = {
           actionId: actionMatch.actionId,
           skipsTransformation: action?.skipsTransformation,
+          skipsAllTransforms: action?.skipsAllTransforms,
         };
 
         // Emit action detected event now that the segment is persisted
@@ -190,128 +192,184 @@ export class SegmentManager extends EventEmitter {
     });
   }
 
-  async transformAndInjectAllSegmentsInternal(options: {
-    skipTransformation?: boolean;
-    onInjecting?: () => void;
-  }): Promise<FlushResult> {
-    console.log("[SegmentManager] Transform and inject all segments");
+async transformAndInjectAllSegmentsInternal(options: {
+skipTransformation?: boolean;
+skipAllTransforms?: boolean;
+onInjecting?: () => void;
+}): Promise<FlushResult> {
+  console.log("[SegmentManager] Transform and inject all segments");
 
-    const segmentsToProcess = this.segments.filter(
-      (s) => s.type === "transcribed" && (s as TranscribedSegment).completed,
-    ) as TranscribedSegment[];
+  const segmentsToProcess = this.segments.filter(
+    (s) => s.type === "transcribed" && (s as TranscribedSegment).completed,
+  ) as TranscribedSegment[];
 
-    if (segmentsToProcess.length === 0) {
-      console.log("[SegmentManager] No segments to transform and inject");
-      return { transformedText: "", segmentsProcessed: 0, success: true };
-    }
+  if (segmentsToProcess.length === 0) {
+    console.log("[SegmentManager] No segments to transform and inject");
+    return { transformedText: "", segmentsProcessed: 0, success: true };
+  }
 
-    console.log(
-      `[SegmentManager] Transforming and injecting ${segmentsToProcess.length} segments`,
-    );
+  console.log(
+    `[SegmentManager] Transforming and injecting ${segmentsToProcess.length} segments`,
+  );
 
-    try {
-      // Check if transformation should be skipped due to plugin criteria or last executed action
-      const shouldSkipTransformation =
-        options?.skipTransformation ||
-        this.lastExecutedAction?.skipsTransformation;
+  try {
+    // Check if all transformations should be skipped due to plugin criteria or action
+    const shouldSkipAllTransforms =
+      options?.skipAllTransforms || this.lastExecutedAction?.skipsAllTransforms;
 
-      if (shouldSkipTransformation) {
-        // Bypass transformation and inject original text combined
-        const originalText = segmentsToProcess
-          .map((segment) => segment.text.trim())
-          .filter((text) => text.length > 0)
-          .join(" ");
+    // Check if AI transformation should be skipped due to plugin criteria or action
+    const shouldSkipTransformation =
+      options?.skipTransformation ||
+      this.lastExecutedAction?.skipsTransformation;
 
-        const isActionSkip = Boolean(
-          this.lastExecutedAction?.skipsTransformation,
-        );
-        const mode = isActionSkip ? "action" : "transcription";
-        const finalText = originalText
-          ? this.transformationService.finalizeText(originalText, { mode })
-          : originalText;
-
-        if (finalText) {
-          options.onInjecting?.();
-          await this.textInjectionService.insertText(finalText);
-          console.log(
-            `[SegmentManager] Direct-injected text without AI transformation (${mode} mode): "${finalText}"`,
-          );
-          // Emit both raw and transformed events (they're the same in this case)
-          if (originalText) {
-            this.emit("raw", { rawText: originalText });
-          }
-          this.emit("transformed", { transformedText: finalText });
-        }
-
-        this.clearAllSegments();
-        this.lastExecutedAction = null; // Reset after use
-        return {
-          transformedText: finalText,
-          segmentsProcessed: segmentsToProcess.length,
-          success: true,
-        };
-      }
-
-      // Get the original text before transformation for raw result tracking
+    if (shouldSkipAllTransforms) {
+      // Bypass ALL transformations and inject original text combined
       const originalText = segmentsToProcess
         .map((segment) => segment.text.trim())
         .filter((text) => text.length > 0)
         .join(" ");
 
-      // Transform all segments
-      const transformResult =
-        await this.transformationService.transformSegments(
-          segmentsToProcess,
-          await this.selectedTextService.getSelectedText(),
-        );
-
-      if (!transformResult.success) {
-        console.error(
-          "[SegmentManager] Transformation failed:",
-          transformResult.error,
-        );
-        return await this.handleTransformationFallback(
-          segmentsToProcess,
-          transformResult.error || "Transformation failed",
-          options.onInjecting,
-        );
-      }
-
-      const transformedText = transformResult.transformedText;
-      if (transformedText) {
+      if (originalText) {
         options.onInjecting?.();
-        await this.textInjectionService.insertText(transformedText);
-        console.log(`[SegmentManager] Injected text: "${transformedText}"`);
-
-        // Emit raw and transformed events for hotkey last result tracking
-        if (originalText) {
-          this.emit("raw", { rawText: originalText });
-        }
-        this.emit("transformed", { transformedText });
+        await this.textInjectionService.insertText(originalText);
+        console.log(
+          `[SegmentManager] Direct-injected text without any transformations (action skip): "${originalText}"`,
+        );
+        // Emit both raw and transformed events (they're the same in this case)
+        this.emit("raw", { rawText: originalText });
+        this.emit("transformed", { transformedText: originalText });
       }
 
-      // Clear all segments after successful transform+inject
       this.clearAllSegments();
       this.lastExecutedAction = null; // Reset after use
-
-      console.log(
-        `[SegmentManager] Transform and inject completed successfully`,
-      );
-
       return {
-        transformedText,
-        segmentsProcessed: transformResult.segmentsProcessed,
+        transformedText: originalText,
+        segmentsProcessed: segmentsToProcess.length,
         success: true,
       };
-    } catch (error) {
-      console.error("[SegmentManager] Transform and inject failed:", error);
+    }
+
+    if (shouldSkipTransformation) {
+      // Apply default text transformation actions but skip AI transformation
+      
+      // Execute before_ai global actions even when AI is disabled
+      if (this.configurableActionsService) {
+        await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+      }
+
+      // Get the current text from segments (which may have been modified by actions)
+      const currentText = segmentsToProcess
+        .map((segment) => segment.text.trim())
+        .filter((text) => text.length > 0)
+        .join(" ");
+
+      // Apply basic finalization
+      const finalText = currentText
+        ? this.transformationService.finalizeText(currentText)
+        : currentText;
+
+      if (finalText) {
+        options.onInjecting?.();
+        await this.textInjectionService.insertText(finalText);
+        const skipReason = this.lastExecutedAction?.skipsTransformation
+          ? "action skip"
+          : "transcription skip";
+        console.log(
+          `[SegmentManager] Direct-injected text without AI transformation (${skipReason}): "${finalText}"`,
+        );
+        // Emit both raw and transformed events
+        this.emit("raw", { rawText: currentText });
+        this.emit("transformed", { transformedText: finalText });
+      }
+
+      this.clearAllSegments();
+      this.lastExecutedAction = null; // Reset after use
+      return {
+        transformedText: finalText,
+        segmentsProcessed: segmentsToProcess.length,
+        success: true,
+      };
+    }
+
+    // Execute before_ai global actions
+    if (this.configurableActionsService) {
+      await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+    }
+
+    // Get the original text before transformation for raw result tracking
+    const originalText = segmentsToProcess
+      .map((segment) => segment.text.trim())
+      .filter((text) => text.length > 0)
+      .join(" ");
+
+    // Transform all segments
+    const transformResult =
+      await this.transformationService.transformSegments(
+        segmentsToProcess,
+        await this.selectedTextService.getSelectedText(),
+      );
+
+    // Execute after_ai global actions if transformation was successful
+    if (transformResult.success && transformResult.transformedText && this.configurableActionsService) {
+      // Apply the after_ai actions to the transformed segments
+      await this.configurableActionsService.executeAllSegmentsActionsAfterAI(segmentsToProcess);
+      
+      // Get the final text after after_ai actions
+      const finalTransformedText = segmentsToProcess
+        .map((segment) => segment.text.trim())
+        .filter((text) => text.length > 0)
+        .join(" ");
+      
+      transformResult.transformedText = finalTransformedText;
+    }
+
+    if (!transformResult.success) {
+      console.error(
+        "[SegmentManager] Transformation failed:",
+        transformResult.error,
+      );
       return await this.handleTransformationFallback(
         segmentsToProcess,
-        error instanceof Error ? error.message : "Unknown error",
+        transformResult.error || "Transformation failed",
         options.onInjecting,
       );
     }
+
+    const transformedText = transformResult.transformedText;
+    if (transformedText) {
+      options.onInjecting?.();
+      await this.textInjectionService.insertText(transformedText);
+      console.log(`[SegmentManager] Injected text: "${transformedText}"`);
+
+      // Emit raw and transformed events for hotkey last result tracking
+      if (originalText) {
+        this.emit("raw", { rawText: originalText });
+      }
+      this.emit("transformed", { transformedText });
+    }
+
+    // Clear all segments after successful transform+inject
+    this.clearAllSegments();
+    this.lastExecutedAction = null; // Reset after use
+
+    console.log(
+      `[SegmentManager] Transform and inject completed successfully`,
+    );
+
+    return {
+      transformedText,
+      segmentsProcessed: transformResult.segmentsProcessed,
+      success: true,
+    };
+  } catch (error) {
+    console.error("[SegmentManager] Transform and inject failed:", error);
+    return await this.handleTransformationFallback(
+      segmentsToProcess,
+      error instanceof Error ? error.message : "Unknown error",
+      options.onInjecting,
+    );
   }
+}
 
   /** Inject raw text directly, bypassing transformation */
   async injectDirectText(text: string): Promise<void> {
@@ -329,15 +387,19 @@ export class SegmentManager extends EventEmitter {
     error: string,
     onInjecting?: () => void,
   ): Promise<FlushResult> {
+    // Execute before_ai global actions on fallback
+    if (this.configurableActionsService) {
+      await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+    }
+
     const originalText = segmentsToProcess
       .map((segment) => segment.text.trim())
       .filter((text) => text.length > 0)
       .join(" ");
 
+    // Just do basic finalization since transformations are now actions
     const finalText = originalText
-      ? this.transformationService.finalizeText(originalText, {
-          mode: "transcription",
-        })
+      ? this.transformationService.finalizeText(originalText)
       : originalText;
 
     if (finalText) {
