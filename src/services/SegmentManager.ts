@@ -311,16 +311,26 @@ onInjecting?: () => void;
 
     // Execute after_ai global actions if transformation was successful
     if (transformResult.success && transformResult.transformedText && this.configurableActionsService) {
-      // Apply the after_ai actions to the transformed segments
-      await this.configurableActionsService.executeAllSegmentsActionsAfterAI(segmentsToProcess);
+      // Create a temporary segment with the AI-transformed text to apply after_ai actions
+      const transformedSegment: TranscribedSegment = {
+        id: uuidv4(),
+        type: "transcribed",
+        text: transformResult.transformedText,
+        completed: true,
+        timestamp: Date.now(),
+      };
       
-      // Get the final text after after_ai actions
-      const finalTransformedText = segmentsToProcess
-        .map((segment) => segment.text.trim())
-        .filter((text) => text.length > 0)
-        .join(" ");
+      console.log(`[SegmentManager] DEBUG: Before after_ai actions, segments contain: [${segmentsToProcess.map(s => `'${s.text}'`).join(', ')}]`);
       
-      transformResult.transformedText = finalTransformedText;
+      // Apply after_ai actions to the transformed text
+      await this.configurableActionsService.executeAllSegmentsActionsAfterAI([transformedSegment]);
+      
+      console.log(`[SegmentManager] DEBUG: After after_ai actions, segments contain: [${segmentsToProcess.map(s => `'${s.text}'`).join(', ')}]`);
+      
+      // Use the transformed segment's text as the final result
+      transformResult.transformedText = transformedSegment.text;
+      
+      console.log(`[SegmentManager] DEBUG: About to inject text: "${transformResult.transformedText}" (original: "${originalText}")`);
     }
 
     if (!transformResult.success) {
