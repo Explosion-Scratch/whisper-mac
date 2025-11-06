@@ -196,8 +196,7 @@ export class ConfigurableActionsService extends EventEmitter {
         // Do nothing
       }
       // Through this magic "H.T.P.S., colon/slash, github.com/explosion-scratch." -> https://github.com/explosion-scratch.
-      let url = config.urlTemplate.trim();
-      url = url.replace(/[,\.\s]+$/i, "");
+      let url = this._removeTrailingPunctuation(config.urlTemplate || "");
       url = url.replace(/^[,\.\s]+/i, "");
       url = url.replace(/\W*(?:colon|:|cologne)\W*/gi, ":");
       url = url.replace(/\W*(?:slash)\W*/gi, "/");
@@ -236,7 +235,7 @@ export class ConfigurableActionsService extends EventEmitter {
 
   private async executeOpenApplication(config: any): Promise<boolean> {
     try {
-      const appName = config.applicationName?.toLowerCase();
+      const appName = this._removeTrailingPunctuation(config.applicationName || "").toLowerCase();
       if (!appName) {
         return false;
       }
@@ -580,6 +579,13 @@ export class ConfigurableActionsService extends EventEmitter {
     return text.trim().replace(/[^\w\s.]/g, "");
   }
 
+  /**
+   * Remove trailing punctuation from text (commonly needed for voice recognition)
+   */
+  private _removeTrailingPunctuation(text: string): string {
+    return text.trim().replace(/[,\.\s]+$/i, "");
+  }
+
   getActions(): ActionHandler[] {
     return [...this.actions].sort((a, b) => (a.order || 0) - (b.order || 0));
   }
@@ -750,34 +756,63 @@ export class ConfigurableActionsService extends EventEmitter {
       `[ConfigurableActions] Found ${globalActions.length} ${timingMode} global actions to execute on ${segments.length} segments`
     );
 
-    // For each global action, test if it matches and apply it to each segment
+    // Create a virtual segment with combined text from all segments
+    const combinedText = segments
+      .map((s) => s.text.trim())
+      .filter((text) => text.length > 0)
+      .join(" ");
+
+    const virtualSegment: TranscribedSegment = {
+      id: "virtual-combined-segment",
+      type: "transcribed",
+      text: combinedText,
+      completed: true,
+      timestamp: Date.now(),
+    };
+
+    console.log(
+      `[ConfigurableActions] Created virtual segment with combined text: "${combinedText}"`
+    );
+
+    // For each global action, test if it matches the combined text and apply transformation
     for (const action of globalActions) {
       for (const pattern of action.matchPatterns) {
-        // Test pattern against each segment
-        for (const segment of segments) {
-          const match = this.testPattern(segment.text.trim(), pattern);
-          if (match) {
-            console.log(
-              `[ConfigurableActions] Executing ${timingMode} global action: ${action.id} on segment: "${segment.text}"`
-            );
+        // Test pattern against the combined text
+        const match = this.testPattern(virtualSegment.text.trim(), pattern);
+        if (match) {
+          console.log(
+            `[ConfigurableActions] Executing ${timingMode} global action: ${action.id} on combined text: "${virtualSegment.text}"`
+          );
 
-            // Create action match and execute handlers
-            const actionMatch: ActionMatch = {
-              actionId: action.id,
-              matchedPattern: pattern,
-              originalText: segment.text,
-              extractedArgument: match.argument,
-              handlers: action.handlers.sort((a, b) => a.order - b.order),
-            };
+          // Create action match and execute handlers
+          const actionMatch: ActionMatch = {
+            actionId: action.id,
+            matchedPattern: pattern,
+            originalText: virtualSegment.text,
+            extractedArgument: match.argument,
+            handlers: action.handlers.sort((a, b) => a.order - b.order),
+          };
 
-            // Execute each handler
-            for (const handler of actionMatch.handlers) {
-              if (handler.type === "transformText") {
-                await this.executeTransformTextOnSegment(handler, segment, actionMatch);
-              }
+          // Execute each handler on the virtual segment
+          for (const handler of actionMatch.handlers) {
+            if (handler.type === "transformText") {
+              await this.executeTransformTextOnSegment(handler, virtualSegment, actionMatch);
             }
-            break; // Only match first pattern that succeeds
           }
+
+          // Update all original segments with the transformed combined text
+          // Put all transformed text in the first segment and clear the others
+          if (segments.length > 0 && virtualSegment.text !== combinedText) {
+            segments[0].text = virtualSegment.text;
+            for (let i = 1; i < segments.length; i++) {
+              segments[i].text = "";
+            }
+            console.log(
+              `[ConfigurableActions] Updated segments with transformed text: "${virtualSegment.text}"`
+            );
+          }
+
+          break; // Only match first pattern that succeeds
         }
       }
     }

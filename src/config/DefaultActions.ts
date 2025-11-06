@@ -323,6 +323,93 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
       },
     ],
   },
+  {
+    id: "punctuation-word-replace-action",
+    name: "Replace Punctuation Words",
+    description:
+      "Replace whole-word punctuation names with their symbol counterparts",
+    enabled: true,
+    order: 19,
+    closesTranscription: false,
+    skipsTransformation: false,
+    matchPatterns: [
+      {
+        id: "punctuation-words-pattern",
+        type: "regex",
+        pattern:
+          "^(period|question mark|exclamation mark|semicolon|semi colon|colon|hyphen|dash)$",
+        caseSensitive: false,
+      },
+    ],
+    handlers: [
+      {
+        id: "replace-period-word",
+        type: "transformText",
+        config: {
+          replacePattern: "^period$",
+          replaceFlags: "i",
+          replacement: ".",
+          replacementMode: "literal",
+        },
+        order: 1,
+      },
+      {
+        id: "replace-question-mark-word",
+        type: "transformText",
+        config: {
+          replacePattern: "^question mark$",
+          replaceFlags: "i",
+          replacement: "?",
+          replacementMode: "literal",
+        },
+        order: 2,
+      },
+      {
+        id: "replace-exclamation-mark-word",
+        type: "transformText",
+        config: {
+          replacePattern: "^exclamation mark$",
+          replaceFlags: "i",
+          replacement: "!",
+          replacementMode: "literal",
+        },
+        order: 3,
+      },
+      {
+        id: "replace-semicolon-word",
+        type: "transformText",
+        config: {
+          replacePattern: "^(semicolon|semi colon)$",
+          replaceFlags: "i",
+          replacement: ";",
+          replacementMode: "literal",
+        },
+        order: 4,
+      },
+      {
+        id: "replace-colon-word",
+        type: "transformText",
+        config: {
+          replacePattern: "^colon$",
+          replaceFlags: "i",
+          replacement: ":",
+          replacementMode: "literal",
+        },
+        order: 5,
+      },
+      {
+        id: "replace-hyphen-word",
+        type: "transformText",
+        config: {
+          replacePattern: "^(hyphen|dash)$",
+          replaceFlags: "i",
+          replacement: "-",
+          replacementMode: "literal",
+        },
+        order: 6,
+      },
+    ],
+  },
   
   // --- TEXT TRANSFORMATION ACTIONS ---
   // These run automatically on text matching patterns

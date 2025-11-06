@@ -263,6 +263,9 @@ static CFRunLoopRef g_runLoop = nullptr;
 static CGKeyCode g_targetKeyCode = (CGKeyCode)0;
 static std::vector<NSEventModifierFlags> g_allowedModifierMasks;
 static Napi::ThreadSafeFunction g_hotkeyCallback;
+static std::atomic<bool> g_keyIsPressed(false);
+static std::atomic<NSEventModifierFlags> g_expectedModifiers(0);
+static std::atomic<bool> g_waitingForKeyUp(false);
 
 static NSEventModifierFlags stripIrrelevantModifiers(NSEventModifierFlags flags) {
   const NSEventModifierFlags onlyRelevant = (NSEventModifierFlags)(
@@ -289,15 +292,73 @@ static bool modifiersMatch(CGEventRef event) {
   return false;
 }
 
+static void triggerRelease() {
+  if (!g_keyIsPressed.load() && !g_waitingForKeyUp.load()) return;
+  g_keyIsPressed.store(false);
+  g_expectedModifiers.store(0);
+  g_waitingForKeyUp.store(true);
+  if (g_hotkeyCallback) {
+    bool isDown = false;
+    napi_status s = g_hotkeyCallback.BlockingCall(new bool(isDown), [](Napi::Env env, Napi::Function cb, bool *isDownPtr) {
+      Napi::Object evt = Napi::Object::New(env);
+      evt.Set("type", *isDownPtr ? Napi::String::New(env, "down") : Napi::String::New(env, "up"));
+      cb.Call({ evt });
+      delete isDownPtr;
+    });
+    (void)s;
+  }
+}
+
 static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *refcon) {
   (void)proxy;
   (void)refcon;
   if (!g_hotkeyActive.load()) return event;
+
+  // Monitor modifier flag changes when combo is active
+  if (type == kCGEventFlagsChanged && g_keyIsPressed.load()) {
+    NSEventModifierFlags currentFlags = stripIrrelevantModifiers(
+      (NSEventModifierFlags)CGEventGetFlags(event));
+    NSEventModifierFlags expectedFlags = g_expectedModifiers.load();
+    
+    // If modifiers no longer match expected, trigger release
+    if (currentFlags != expectedFlags) {
+      triggerRelease();
+      return nullptr; // Consume the modifier change event
+    }
+    return event;
+  }
+
   if (type != kCGEventKeyDown && type != kCGEventKeyUp) return event;
 
   CGKeyCode key = (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+  
+  // If combo is active or we're waiting for keyup, consume the main key to prevent typing
+  if ((g_keyIsPressed.load() || g_waitingForKeyUp.load()) && key == g_targetKeyCode) {
+    if (type == kCGEventKeyUp) {
+      g_waitingForKeyUp.store(false);
+      if (g_keyIsPressed.load()) {
+        triggerRelease();
+      }
+    }
+    // Consume both keydown and keyup when combo is active to prevent typing
+    return nullptr;
+  }
+
   if (key != g_targetKeyCode) return event;
-  if (!modifiersMatch(event)) return event;
+
+  // For keydown: require modifier match
+  if (type == kCGEventKeyDown) {
+    if (!modifiersMatch(event)) return event;
+    NSEventModifierFlags currentFlags = stripIrrelevantModifiers(
+      (NSEventModifierFlags)CGEventGetFlags(event));
+    g_expectedModifiers.store(currentFlags);
+    g_keyIsPressed.store(true);
+    g_waitingForKeyUp.store(false);
+  } else { // kCGEventKeyUp
+    if (!g_keyIsPressed.load()) return event;
+    triggerRelease();
+    return nullptr;
+  }
 
   // Notify JS and consume this event to prevent it from being typed
   if (g_hotkeyCallback) {
@@ -329,6 +390,9 @@ Napi::Value RegisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
     if (g_runLoopSource) { CFRelease(g_runLoopSource); g_runLoopSource = nullptr; }
     if (g_eventTap) { CFMachPortInvalidate(g_eventTap); CFRelease(g_eventTap); g_eventTap = nullptr; }
     g_hotkeyActive.store(false);
+    g_keyIsPressed.store(false);
+    g_expectedModifiers.store(0);
+    g_waitingForKeyUp.store(false);
     if (g_hotkeyCallback) {
       g_hotkeyCallback.Release();
     }
@@ -336,6 +400,9 @@ Napi::Value RegisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
 
   g_targetKeyCode = (CGKeyCode)info[0].As<Napi::Number>().Uint32Value();
   g_allowedModifierMasks.clear();
+  g_keyIsPressed.store(false);
+  g_expectedModifiers.store(0);
+  g_waitingForKeyUp.store(false);
 
   auto parseModifierMask = [](uint32_t value) {
     return stripIrrelevantModifiers((NSEventModifierFlags)value);
@@ -379,7 +446,7 @@ Napi::Value RegisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
   g_eventTap = CGEventTapCreate(kCGSessionEventTap,
                                 kCGHeadInsertEventTap,
                                 kCGEventTapOptionDefault,
-                                CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventKeyUp),
+                                CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventKeyUp) | CGEventMaskBit(kCGEventFlagsChanged),
                                 eventTapCallback,
                                 nullptr);
   if (!g_eventTap) {
@@ -427,6 +494,9 @@ Napi::Value UnregisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
     g_hotkeyCallback.Release();
   }
   g_allowedModifierMasks.clear();
+  g_keyIsPressed.store(false);
+  g_expectedModifiers.store(0);
+  g_waitingForKeyUp.store(false);
   return env.Undefined();
 }
 
