@@ -6,6 +6,7 @@ import {
   TranscribedSegment,
   FlushResult,
 } from "../types/SegmentTypes";
+import { ActionHandler } from "../types/ActionTypes";
 import { TransformationService } from "./TransformationService";
 import { TextInjectionService } from "./TextInjectionService";
 import { SelectedTextResult, SelectedTextService } from "./SelectedTextService";
@@ -21,7 +22,7 @@ export class SegmentManager extends EventEmitter {
   private isAccumulatingMode: boolean = false; // New: track if we're in accumulate-only mode
   private ignoreNextCompleted: boolean = false;
   private lastExecutedAction: {
-    actionId: string;
+    actionIds: string[];
     skipsTransformation?: boolean;
     skipsAllTransforms?: boolean;
   } | null = null;
@@ -158,25 +159,35 @@ export class SegmentManager extends EventEmitter {
 
     // Check for actions in completed segments after storing, so transformations operate on the right segment
     if (completed && this.configurableActionsService) {
-      const actionMatch =
-        this.configurableActionsService.detectAction(trimmedText);
-      if (actionMatch) {
-        console.log(
-          `[SegmentManager] Action detected: "${actionMatch.actionId
-          }" with argument: "${actionMatch.extractedArgument || "none"}"`,
-        );
+      const actionMatches =
+        this.configurableActionsService.detectActions(trimmedText);
+      if (actionMatches.length > 0) {
+        for (const actionMatch of actionMatches) {
+          console.log(
+            `[SegmentManager] Action detected: "${actionMatch.actionId}" with argument: "${actionMatch.extractedArgument || "none"}"`,
+          );
+        }
 
-        // Store action information for potential transformation skipping
         const actions = this.configurableActionsService.getActions();
-        const action = actions.find((a) => a.id === actionMatch.actionId);
-        this.lastExecutedAction = {
-          actionId: actionMatch.actionId,
-          skipsTransformation: action?.skipsTransformation,
-          skipsAllTransforms: action?.skipsAllTransforms,
-        };
+        const matchedActions = actionMatches
+          .map((match) => actions.find((action) => action.id === match.actionId))
+          .filter((action): action is ActionHandler => Boolean(action));
 
-        // Emit action detected event now that the segment is persisted
-        this.emit("action-detected", actionMatch);
+        if (matchedActions.length > 0) {
+          this.lastExecutedAction = {
+            actionIds: matchedActions.map((action) => action.id),
+            skipsTransformation: matchedActions.some(
+              (action) => action.skipsTransformation,
+            ),
+            skipsAllTransforms: matchedActions.some(
+              (action) => action.skipsAllTransforms,
+            ),
+          };
+        } else {
+          this.lastExecutedAction = null;
+        }
+
+        this.emit("actions-detected", actionMatches);
       }
     }
     return segment;

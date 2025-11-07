@@ -198,22 +198,16 @@ export class SettingsManager extends EventEmitter {
 
   saveSettings(): void {
     try {
-      // Ensure directory exists
-      const dir = join(this.settingsPath, "..");
+      const path = require("path");
+      const dir = path.dirname(this.settingsPath);
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
       }
-
-      // Ensure plugin settings are in flattened format before saving
       const settingsToSave = this.ensureFlattenedPluginSettings(this.settings);
-
-      // Validate settings before saving
       const errors = validateSettings(settingsToSave);
       if (Object.keys(errors).length > 0) {
         console.error("Settings validation errors:", errors);
-        // Still save, but log errors
       }
-
       writeFileSync(this.settingsPath, JSON.stringify(settingsToSave, null, 2));
       console.log("Settings saved to:", this.settingsPath);
     } catch (error) {

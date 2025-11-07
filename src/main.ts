@@ -180,17 +180,20 @@ class WhisperMacApp {
   }
 
   private setupEventListeners(): void {
-    this.segmentManager.on("action-detected", async (actionMatch) => {
-      console.log(
-        `[Main] Action detected via segment manager: "${actionMatch.actionId
-        }" with argument: "${actionMatch.extractedArgument || "none"}"`,
-      );
+    this.segmentManager.on("actions-detected", async (actionMatches) => {
+      if (!this.configurableActionsService) {
+        return;
+      }
 
-      if (this.configurableActionsService) {
+      const actions = this.configurableActionsService.getActions();
+
+      for (const actionMatch of actionMatches) {
+        console.log(
+          `[Main] Action detected via segment manager: "${actionMatch.actionId}" with argument: "${actionMatch.extractedArgument || "none"}"`,
+        );
+
         await this.configurableActionsService.executeAction(actionMatch);
 
-        // Find the action to check if it should close transcription
-        const actions = this.configurableActionsService.getActions();
         const action = actions.find((a) => a.id === actionMatch.actionId);
 
         if (action?.closesTranscription) {
@@ -198,12 +201,12 @@ class WhisperMacApp {
             `[Main] Action ${action.id} closes transcription, stopping dictation`,
           );
           await this.dictationFlowManager.stopDictation();
-        } else {
-          console.log(
-            `[Main] Action ${action?.id || actionMatch.actionId
-            } continues transcription`,
-          );
+          break;
         }
+
+        console.log(
+          `[Main] Action ${action?.id || actionMatch.actionId} continues transcription`,
+        );
       }
     });
 
