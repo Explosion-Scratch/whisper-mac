@@ -500,6 +500,118 @@ Napi::Value UnregisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
   return env.Undefined();
 }
 
+Napi::Value GetKeyCode(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "Expected key name string")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  
+  std::string keyName = info[0].As<Napi::String>().Utf8Value();
+  std::transform(keyName.begin(), keyName.end(), keyName.begin(), ::toupper);
+  
+  CGKeyCode keyCode = 0;
+  
+  if (keyName.length() == 1) {
+    char c = keyName[0];
+    if (c >= 'A' && c <= 'Z') {
+      const CGKeyCode letterCodes[] = {
+        kVK_ANSI_A, kVK_ANSI_B, kVK_ANSI_C, kVK_ANSI_D, kVK_ANSI_E, kVK_ANSI_F,
+        kVK_ANSI_G, kVK_ANSI_H, kVK_ANSI_I, kVK_ANSI_J, kVK_ANSI_K, kVK_ANSI_L,
+        kVK_ANSI_M, kVK_ANSI_N, kVK_ANSI_O, kVK_ANSI_P, kVK_ANSI_Q, kVK_ANSI_R,
+        kVK_ANSI_S, kVK_ANSI_T, kVK_ANSI_U, kVK_ANSI_V, kVK_ANSI_W, kVK_ANSI_X,
+        kVK_ANSI_Y, kVK_ANSI_Z
+      };
+      keyCode = letterCodes[c - 'A'];
+    } else if (c >= '0' && c <= '9') {
+      const CGKeyCode digitCodes[] = {
+        kVK_ANSI_0, kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4,
+        kVK_ANSI_5, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9
+      };
+      keyCode = digitCodes[c - '0'];
+    } else {
+      switch (c) {
+        case ' ': keyCode = kVK_Space; break;
+        case '\t': keyCode = kVK_Tab; break;
+        case '\r': case '\n': keyCode = kVK_Return; break;
+        case '-': keyCode = kVK_ANSI_Minus; break;
+        case '=': keyCode = kVK_ANSI_Equal; break;
+        case '[': keyCode = kVK_ANSI_LeftBracket; break;
+        case ']': keyCode = kVK_ANSI_RightBracket; break;
+        case '\\': keyCode = kVK_ANSI_Backslash; break;
+        case ';': keyCode = kVK_ANSI_Semicolon; break;
+        case '\'': case '"': keyCode = kVK_ANSI_Quote; break;
+        case ',': keyCode = kVK_ANSI_Comma; break;
+        case '.': keyCode = kVK_ANSI_Period; break;
+        case '/': keyCode = kVK_ANSI_Slash; break;
+        case '`': keyCode = kVK_ANSI_Grave; break;
+        default: return env.Null();
+      }
+    }
+  } else {
+    if (keyName == "SPACE" || keyName == "SPACEBAR") {
+      keyCode = kVK_Space;
+    } else if (keyName == "TAB") {
+      keyCode = kVK_Tab;
+    } else if (keyName == "RETURN" || keyName == "ENTER") {
+      keyCode = kVK_Return;
+    } else if (keyName == "ESCAPE" || keyName == "ESC") {
+      keyCode = kVK_Escape;
+    } else if (keyName == "BACKSPACE") {
+      keyCode = kVK_Delete;
+    } else if (keyName == "DELETE" || keyName == "FORWARDDELETE") {
+      keyCode = kVK_ForwardDelete;
+    } else if (keyName == "HOME") {
+      keyCode = kVK_Home;
+    } else if (keyName == "END") {
+      keyCode = kVK_End;
+    } else if (keyName == "PAGEUP") {
+      keyCode = kVK_PageUp;
+    } else if (keyName == "PAGEDOWN") {
+      keyCode = kVK_PageDown;
+    } else if (keyName == "UP") {
+      keyCode = kVK_UpArrow;
+    } else if (keyName == "DOWN") {
+      keyCode = kVK_DownArrow;
+    } else if (keyName == "LEFT") {
+      keyCode = kVK_LeftArrow;
+    } else if (keyName == "RIGHT") {
+      keyCode = kVK_RightArrow;
+    } else if (keyName == "CAPSLOCK") {
+      keyCode = kVK_CapsLock;
+    } else if (keyName.length() > 1 && keyName[0] == 'F') {
+      try {
+        int fn = std::stoi(keyName.substr(1));
+        if (fn >= 1 && fn <= 20) {
+          const CGKeyCode fKeys[] = {
+            kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6, kVK_F7, kVK_F8,
+            kVK_F9, kVK_F10, kVK_F11, kVK_F12, kVK_F13, kVK_F14, kVK_F15, kVK_F16,
+            kVK_F17, kVK_F18, kVK_F19, kVK_F20
+          };
+          keyCode = fKeys[fn - 1];
+        }
+      } catch (...) {
+        return env.Null();
+      }
+    } else {
+      return env.Null();
+    }
+  }
+  
+  return Napi::Number::New(env, (uint32_t)keyCode);
+}
+
+Napi::Value GetModifierFlags(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("shift", Napi::Number::New(env, (uint32_t)NSEventModifierFlagShift));
+  result.Set("control", Napi::Number::New(env, (uint32_t)NSEventModifierFlagControl));
+  result.Set("option", Napi::Number::New(env, (uint32_t)NSEventModifierFlagOption));
+  result.Set("command", Napi::Number::New(env, (uint32_t)NSEventModifierFlagCommand));
+  return result;
+}
+
 }  // namespace
 
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
@@ -521,6 +633,10 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
               Napi::Function::New(env, RegisterPushToTalkHotkey));
   exports.Set(Napi::String::New(env, "unregisterPushToTalkHotkey"),
               Napi::Function::New(env, UnregisterPushToTalkHotkey));
+  exports.Set(Napi::String::New(env, "getKeyCode"),
+              Napi::Function::New(env, GetKeyCode));
+  exports.Set(Napi::String::New(env, "getModifierFlags"),
+              Napi::Function::New(env, GetModifierFlags));
   return exports;
 }
 
