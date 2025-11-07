@@ -1188,13 +1188,10 @@ export class SettingsService {
   cleanup(): void {
     console.log("=== Cleaning up SettingsService ===");
 
-    // Remove all event listeners from this service
-    this.removeAllListeners();
+    this.clearWindowVisibilityCallbacks();
 
-    // Clean up IPC handlers
     const { ipcMain } = require("electron");
 
-    // Remove all settings handlers
     ipcMain.removeHandler("settings:getSchema");
     ipcMain.removeHandler("settings:get");
     ipcMain.removeHandler("settings:save");
@@ -1211,34 +1208,28 @@ export class SettingsService {
     ipcMain.removeHandler("settings:clearAllPluginData");
     ipcMain.removeHandler("settings:clearAllPluginDataWithFallback");
 
-    // Remove all dialog handlers
     ipcMain.removeHandler("dialog:showOpenDialog");
     ipcMain.removeHandler("dialog:showSaveDialog");
     ipcMain.removeHandler("dialog:showDirectoryDialog");
 
-    // Remove all AI handlers
     ipcMain.removeHandler("ai:validateKeyAndListModels");
     ipcMain.removeHandler("ai:validateConfiguration");
 
-    // Remove all plugin switching handlers
     ipcMain.removeHandler("settings:switchPlugin");
     ipcMain.removeHandler("settings:testPluginActivation");
 
-    // Remove all plugin management handlers
     ipcMain.removeHandler("plugins:getOptions");
     ipcMain.removeHandler("plugins:getActive");
     ipcMain.removeHandler("plugins:updateActiveOptions");
     ipcMain.removeHandler("plugins:deleteInactive");
     ipcMain.removeHandler("settings:getPluginDataInfo");
 
-    // Remove all plugin schema and options handlers
     ipcMain.removeHandler("settings:getPluginSchemas");
     ipcMain.removeHandler("settings:getPluginSchema");
     ipcMain.removeHandler("settings:setPluginOptions");
     ipcMain.removeHandler("settings:getPluginOptions");
     ipcMain.removeHandler("settings:verifyPluginOptions");
 
-    // Remove all data management handlers
     ipcMain.removeHandler("plugins:listData");
     ipcMain.removeHandler("plugins:deleteDataItem");
     ipcMain.removeHandler("plugins:deleteAllData");
@@ -1246,19 +1237,32 @@ export class SettingsService {
     ipcMain.removeHandler("plugins:clearSecureData");
     ipcMain.removeHandler("plugins:exportSecureData");
 
-    // Remove app information handlers
     ipcMain.removeHandler("app:getVersion");
     ipcMain.removeHandler("app:getPackageInfo");
     ipcMain.removeHandler("app:openExternalUrl");
 
+    ipcMain.removeHandler("permissions:getAll");
+    ipcMain.removeHandler("permissions:checkAccessibility");
+    ipcMain.removeHandler("permissions:checkMicrophone");
+    ipcMain.removeHandler("permissions:resetCaches");
+    ipcMain.removeHandler("permissions:openSystemPreferences");
+    ipcMain.removeHandler("permissions:getAllQuiet");
+    ipcMain.removeHandler("permissions:checkAccessibilityQuiet");
+    ipcMain.removeHandler("permissions:checkMicrophoneQuiet");
+    ipcMain.removeHandler("permissions:openAccessibilitySettings");
+    ipcMain.removeHandler("permissions:openMicrophoneSettings");
+
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
-      console.log("Destroying settings window...");
       this.settingsWindow.destroy();
     }
 
     this.settingsWindow = null;
 
     console.log("=== SettingsService cleanup completed ===");
+  }
+
+  private clearWindowVisibilityCallbacks(): void {
+    this.windowVisibilityCallbacks.clear();
   }
 
   private loadSettings(): void {

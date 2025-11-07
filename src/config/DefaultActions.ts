@@ -337,7 +337,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         id: "punctuation-words-pattern",
         type: "regex",
         pattern:
-          "^(period|question mark|exclamation mark|semicolon|semi colon|colon|hyphen|dash)[.\?\!;]?$",
+          "^(period|question mark|exclamation mark|semicolon|semi colon|colon|hyphen|dash)(?:[.\?\!;])?$",
         caseSensitive: false,
       },
     ],
@@ -346,7 +346,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         id: "replace-period-word",
         type: "transformText",
         config: {
-          replacePattern: "^period$",
+          replacePattern: "^(?:period)(?:[.\?\!;])?$",
           replaceFlags: "i",
           replacement: ".",
           replacementMode: "literal",
@@ -357,7 +357,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         id: "replace-question-mark-word",
         type: "transformText",
         config: {
-          replacePattern: "^question mark$",
+          replacePattern: "^(?:question mark)(?:[.\?\!;])?$",
           replaceFlags: "i",
           replacement: "?",
           replacementMode: "literal",
@@ -368,7 +368,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         id: "replace-exclamation-mark-word",
         type: "transformText",
         config: {
-          replacePattern: "^exclamation mark$",
+          replacePattern: "^(?:exclamation mark)(?:[.\?\!;])?$",
           replaceFlags: "i",
           replacement: "!",
           replacementMode: "literal",
@@ -379,7 +379,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         id: "replace-semicolon-word",
         type: "transformText",
         config: {
-          replacePattern: "^(semicolon|semi colon)$",
+          replacePattern: "^(?:semicolon|semi colon)(?:[.\?\!;])?$",
           replaceFlags: "i",
           replacement: ";",
           replacementMode: "literal",
@@ -390,7 +390,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         id: "replace-colon-word",
         type: "transformText",
         config: {
-          replacePattern: "^colon$",
+          replacePattern: "^(?:colon)(?:[.\?\!;])?$",
           replaceFlags: "i",
           replacement: ":",
           replacementMode: "literal",
@@ -401,7 +401,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         id: "replace-hyphen-word",
         type: "transformText",
         config: {
-          replacePattern: "^(hyphen|dash)$",
+          replacePattern: "^(?:hyphen|dash)(?:[.\?\!;])?$",
           replaceFlags: "i",
           replacement: "-",
           replacementMode: "literal",

@@ -70,25 +70,32 @@ export class ConfigurableActionsService extends EventEmitter {
     );
   }
 
-  detectAction(text: string): ActionMatch | null {
+  detectActions(text: string): ActionMatch[] {
     const normalizedText = this.normalizeText(text);
+    const matches: ActionMatch[] = [];
 
     for (const action of this.actions) {
       for (const pattern of action.matchPatterns) {
         const match = this.testPattern(normalizedText, pattern);
         if (match) {
-          return {
+          matches.push({
             actionId: action.id,
             matchedPattern: pattern,
             originalText: text,
             extractedArgument: match.argument,
             handlers: action.handlers.sort((a, b) => a.order - b.order),
-          };
+          });
+          break;
         }
       }
     }
 
-    return null;
+    return matches;
+  }
+
+  detectAction(text: string): ActionMatch | null {
+    const matches = this.detectActions(text);
+    return matches.length > 0 ? matches[0] : null;
   }
 
   async executeAction(match: ActionMatch): Promise<void> {
@@ -887,3 +894,4 @@ export class ConfigurableActionsService extends EventEmitter {
     }
   }
 }
+
