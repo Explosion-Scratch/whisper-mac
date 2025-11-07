@@ -337,7 +337,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         id: "punctuation-words-pattern",
         type: "regex",
         pattern:
-          "^(period|question mark|exclamation mark|semicolon|semi colon|colon|hyphen|dash)$",
+          "^(period|question mark|exclamation mark|semicolon|semi colon|colon|hyphen|dash)[.\?\!;]?$",
         caseSensitive: false,
       },
     ],

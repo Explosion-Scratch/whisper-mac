@@ -42,6 +42,13 @@ export type MacInputBinding = {
     callback: (evt: { type: "down" | "up" }) => void,
   ) => void;
   unregisterPushToTalkHotkey?: () => void;
+  getKeyCode?: (keyName: string) => number | null;
+  getModifierFlags?: () => {
+    shift: number;
+    control: number;
+    option: number;
+    command: number;
+  };
 };
 
 export const macInput: MacInputBinding = nativeBinding as MacInputBinding;

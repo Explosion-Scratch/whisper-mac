@@ -16,148 +16,6 @@ interface HotkeyMatcher {
   source: string;
 }
 
-type KeycodeMap = Record<string, number>;
-
-
-
-const LETTER_KEYCODES: KeycodeMap = {
-  A: 30,
-  B: 48,
-  C: 46,
-  D: 32,
-  E: 18,
-  F: 33,
-  G: 34,
-  H: 35,
-  I: 23,
-  J: 36,
-  K: 37,
-  L: 38,
-  M: 50,
-  N: 49,
-  O: 24,
-  P: 25,
-  Q: 16,
-  R: 19,
-  S: 31,
-  T: 20,
-  U: 22,
-  V: 47,
-  W: 17,
-  X: 45,
-  Y: 21,
-  Z: 44,
-};
-
-const DIGIT_KEYCODES: KeycodeMap = {
-  "0": 11,
-  "1": 2,
-  "2": 3,
-  "3": 4,
-  "4": 5,
-  "5": 6,
-  "6": 7,
-  "7": 8,
-  "8": 9,
-  "9": 10,
-};
-
-const SPECIAL_KEYCODES: KeycodeMap = {
-  SPACE: 57,
-  SPACEBAR: 57,
-  RETURN: 28,
-  ENTER: 28,
-  ESCAPE: 1,
-  ESC: 1,
-  TAB: 15,
-  BACKSPACE: 14,
-  DELETE: 57427,
-  FORWARDDELETE: 57427,
-  INSERT: 57426,
-  HOME: 57415,
-  END: 57423,
-  PAGEUP: 57417,
-  PAGEDOWN: 57425,
-  UP: 57416,
-  DOWN: 57424,
-  LEFT: 57419,
-  RIGHT: 57421,
-  CAPSLOCK: 58,
-  MINUS: 12,
-  DASH: 12,
-  HYPHEN: 12,
-  EQUAL: 13,
-  PLUS: 13,
-  BACKQUOTE: 41,
-  BACKTICK: 41,
-  GRAVE: 41,
-  BACKSLASH: 43,
-  SLASH: 53,
-  QUESTION: 53,
-  SEMICOLON: 39,
-  COLON: 39,
-  QUOTE: 40,
-  APOSTROPHE: 40,
-  DOUBLEQUOTE: 40,
-  COMMA: 51,
-  PERIOD: 52,
-  DOT: 52,
-  BRACKETLEFT: 26,
-  LBRACKET: 26,
-  BRACKETRIGHT: 27,
-  RBRACKET: 27,
-  PIPE: 43,
-  TILDE: 41,
-};
-
-const CHARACTER_KEYCODES: KeycodeMap = {
-  " ": 57,
-  "-": 12,
-  "_": 12,
-  "=": 13,
-  "+": 13,
-  "`": 41,
-  "~": 41,
-  "\\": 43,
-  "|": 43,
-  "/": 53,
-  "?": 53,
-  ".": 52,
-  ">": 52,
-  ",": 51,
-  "<": 51,
-  ";": 39,
-  ":": 39,
-  "'": 40,
-  "\"": 40,
-  "[": 26,
-  "{": 26,
-  "]": 27,
-  "}": 27,
-};
-
-const FUNCTION_KEYCODES: KeycodeMap = (() => {
-  const map: KeycodeMap = {};
-  for (let i = 1; i <= 10; i++) {
-    map[`F${i}`] = 58 + i;
-  }
-  map.F11 = 87;
-  map.F12 = 88;
-  map.F13 = 100;
-  map.F14 = 101;
-  map.F15 = 102;
-  map.F16 = 103;
-  map.F17 = 104;
-  map.F18 = 105;
-  map.F19 = 106;
-  map.F20 = 107;
-  map.F21 = 108;
-  map.F22 = 109;
-  map.F23 = 110;
-  map.F24 = 111;
-  return map;
-})();
-
 const dedupeModifierCombos = (combos: ModifierCombo[]): ModifierCombo[] => {
   const seen = new Set<string>();
   const result: ModifierCombo[] = [];
@@ -169,10 +27,6 @@ const dedupeModifierCombos = (combos: ModifierCombo[]): ModifierCombo[] => {
     }
   }
   return result;
-};
-
-const normalizeKeyToken = (token: string): string => {
-  return token.trim().replace(/\s+/g, "").replace(/[-_]/g, "").toUpperCase();
 };
 
 export class PushToTalkManager {
@@ -238,15 +92,29 @@ export class PushToTalkManager {
     const modifierMasks = this.hotkeyMatcher.combos.map((c) => this.modifiersToMask(c));
     const modifierArgument = modifierMasks.length <= 1 ? (modifierMasks[0] ?? 0) : modifierMasks;
 
+    console.log(`[PushToTalkManager] Registering hotkey: keyCode=${keyCode}, modifierMasks=${JSON.stringify(modifierMasks)}, modifierArgument=${Array.isArray(modifierArgument) ? JSON.stringify(modifierArgument) : modifierArgument}`);
+
     macInput.registerPushToTalkHotkey(keyCode, modifierArgument, (evt: { type: "down" | "up" }) => {
+      console.log(`[PushToTalkManager] Native callback received: type=${evt?.type}, currentState={hotkeyPressed=${this.hotkeyPressed}, isSessionActive=${this.isSessionActive}, finalizeScheduled=${this.finalizeScheduled}}`);
+      
       if (evt?.type === "down") {
-        if (this.hotkeyPressed) return;
+        if (this.hotkeyPressed) {
+          console.log(`[PushToTalkManager] Ignoring duplicate down event (hotkeyPressed already true)`);
+          return;
+        }
+        console.log(`[PushToTalkManager] Processing hotkey down event`);
         this.hotkeyPressed = true;
         this.handleHotkeyPress();
       } else if (evt?.type === "up") {
-        if (!this.hotkeyPressed) return;
+        if (!this.hotkeyPressed) {
+          console.log(`[PushToTalkManager] Ignoring up event (hotkeyPressed is false, state={isSessionActive=${this.isSessionActive}, finalizeScheduled=${this.finalizeScheduled}})`);
+          return;
+        }
+        console.log(`[PushToTalkManager] Processing hotkey up event`);
         this.hotkeyPressed = false;
         this.handleHotkeyRelease();
+      } else {
+        console.warn(`[PushToTalkManager] Unknown event type: ${evt?.type}`);
       }
     });
     this.registeredWithMacInput = true;
@@ -293,6 +161,8 @@ export class PushToTalkManager {
       this.unregisterFromMacInput();
       return;
     }
+
+    console.log(`[PushToTalkManager] Parsed hotkey "${normalized}": combos=${JSON.stringify(matcher.combos)}`);
 
     this.hotkeyMatcher = matcher;
     this.hotkeyPressed = false;
@@ -369,58 +239,29 @@ export class PushToTalkManager {
     }
 
     const primaryKeyToken = nonModifierTokens[nonModifierTokens.length - 1];
-    const keycode = this.lookupKeycode(primaryKeyToken);
-    if (keycode == null) {
-      console.warn(
-        `[PushToTalkManager] Unable to resolve key code for "${primaryKeyToken}"`,
-      );
-      return null;
-    }
 
     return {
-      keycode,
+      keycode: 0,
       combos: dedupeModifierCombos(combos),
       source: hotkey,
     };
   }
 
-  private lookupKeycode(token: string): number | null {
-    if (!token) return null;
-
-    const direct = CHARACTER_KEYCODES[token];
-    if (typeof direct === "number") {
-      return direct;
-    }
-
-    const normalized = normalizeKeyToken(token);
-    if (!normalized) {
-      return null;
-    }
-
-    if (LETTER_KEYCODES[normalized]) {
-      return LETTER_KEYCODES[normalized];
-    }
-
-    if (DIGIT_KEYCODES[normalized]) {
-      return DIGIT_KEYCODES[normalized];
-    }
-
-    if (SPECIAL_KEYCODES[normalized]) {
-      return SPECIAL_KEYCODES[normalized];
-    }
-
-    if (FUNCTION_KEYCODES[normalized]) {
-      return FUNCTION_KEYCODES[normalized];
-    }
-
-    return null;
-  }
-
   private modifiersToMask(combo: ModifierCombo): number {
-    const SHIFT = 1 << 17; // NSEventModifierFlagShift
-    const CTRL = 1 << 18;  // NSEventModifierFlagControl
-    const ALT = 1 << 19;   // NSEventModifierFlagOption
-    const CMD = 1 << 20;   // NSEventModifierFlagCommand
+    if (macInput?.getModifierFlags) {
+      const flags = macInput.getModifierFlags();
+      let mask = 0;
+      if (combo.shift) mask |= flags.shift;
+      if (combo.ctrl) mask |= flags.control;
+      if (combo.alt) mask |= flags.option;
+      if (combo.meta) mask |= flags.command;
+      return mask;
+    }
+    
+    const SHIFT = 1 << 17;
+    const CTRL = 1 << 18;
+    const ALT = 1 << 19;
+    const CMD = 1 << 20;
     let mask = 0;
     if (combo.shift) mask |= SHIFT;
     if (combo.ctrl) mask |= CTRL;
@@ -430,32 +271,17 @@ export class PushToTalkManager {
   }
 
   private lookupMacKeycode(hotkeySource: string): number | null {
+    if (!macInput?.getKeyCode) {
+      console.warn("[PushToTalkManager] Native getKeyCode function not available");
+      return null;
+    }
+
     const tokens = hotkeySource.split("+");
-    const last = tokens[tokens.length - 1]?.trim().toUpperCase();
+    const last = tokens[tokens.length - 1]?.trim().toLowerCase();
     if (!last) return null;
-    // Letters A-Z
-    if (/^[A-Z]$/.test(last)) {
-      const map: Record<string, number> = {
-        A: 0, S: 1, D: 2, F: 3, H: 4, G: 5, Z: 6, X: 7, C: 8, V: 9,
-        B: 11, Q: 12, W: 13, E: 14, R: 15, Y: 16, T: 17, "1": 18, "2": 19, "3": 20,
-        "4": 21, "6": 22, "5": 23, "=": 24, "9": 25, "7": 26, "-": 27, "8": 28, "0": 29,
-        "]": 30, O: 31, U: 32, "[": 33, I: 34, P: 35, RETURN: 36, L: 37, J: 38, '"': 39,
-        K: 40, ';': 41, '\\': 42, ",": 43, "/": 44, N: 45, M: 46, ".": 47,
-      };
-      return map[last] ?? null;
-    }
-    // Digits and simple specials
-    const simpleMap: Record<string, number> = {
-      "0": 29, "1": 18, "2": 19, "3": 20, "4": 21, "5": 23, "6": 22, "7": 26, "8": 28, "9": 25,
-      SPACE: 49, SPACEBAR: 49, TAB: 48, ESC: 53, ESCAPE: 53,
-    };
-    if (last in simpleMap) return simpleMap[last];
-    if (/^F([1-9]|1[0-9]|2[0-4])$/.test(last)) {
-      const n = parseInt(last.slice(1), 10);
-      const base: Record<number, number> = { 1: 122, 2: 120, 3: 99, 4: 118, 5: 96, 6: 97, 7: 98, 8: 100, 9: 101, 10: 109, 11: 103, 12: 111, 13: 105, 14: 107, 15: 113, 16: 106, 17: 64, 18: 79, 19: 80, 20: 90, 21: 0, 22: 0, 23: 0, 24: 0 };
-      return base[n] || null;
-    }
-    return null;
+
+    const keyCode = macInput.getKeyCode(last);
+    return keyCode ?? null;
   }
 
   private handleHotkeyPress(): void {
