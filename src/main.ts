@@ -429,7 +429,9 @@ class WhisperMacApp {
   }
 
   public handleDockClick(): void {
-    this.trayInteractionManager.handleDockClick();
+    if (this.trayInteractionManager) {
+      this.trayInteractionManager.handleDockClick();
+    }
   }
 
   async cleanup(): Promise<void> {
@@ -481,35 +483,33 @@ class WhisperMacApp {
   }
 
   private async checkPermissionsOnLaunchDelayed(): Promise<void> {
-    // Type-safe access to permissions manager
-    if (!this.settingsService || typeof (this.settingsService as any).permissionsManager === 'undefined') {
-      console.log("Permissions manager not available, skipping launch check");
-      return;
-    }
+    try {
+      const permissionsManager = this.settingsService.getPermissionsManager();
+      const permissions = await permissionsManager.getAllPermissionsQuiet();
+      const missingPermissions: string[] = [];
 
-    const permissionsManager = (this.settingsService as any).permissionsManager;
-    const permissions = await permissionsManager.getAllPermissionsQuiet();
-    const missingPermissions: string[] = [];
+      if (!permissions.accessibility.granted) {
+        missingPermissions.push("Accessibility");
+      }
 
-    if (!permissions.accessibility.granted) {
-      missingPermissions.push("Accessibility");
-    }
-
-    // For microphone permissions, if status is "not-determined", try to request them properly
-    if (!permissions.microphone.granted) {
-      try {
-        const microphoneStatus = await permissionsManager.ensureMicrophonePermissions();
-        if (!microphoneStatus.granted) {
+      if (!permissions.microphone.granted) {
+        try {
+          const microphoneStatus =
+            await permissionsManager.ensureMicrophonePermissions();
+          if (!microphoneStatus.granted) {
+            missingPermissions.push("Microphone");
+          }
+        } catch (error) {
+          console.error("Error ensuring microphone permissions:", error);
           missingPermissions.push("Microphone");
         }
-      } catch (error) {
-        console.error("Error ensuring microphone permissions:", error);
-        missingPermissions.push("Microphone");
       }
-    }
 
-    if (missingPermissions.length > 0) {
-      await this.showPermissionsAlert(missingPermissions);
+      if (missingPermissions.length > 0) {
+        await this.showPermissionsAlert(missingPermissions);
+      }
+    } catch (error) {
+      console.error("Failed to check permissions on launch (delayed):", error);
     }
   }
 
