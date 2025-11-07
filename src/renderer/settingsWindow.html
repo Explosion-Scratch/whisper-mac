@@ -1121,7 +1121,10 @@
         border: 1px solid var(--color-border-primary);
         border-radius: var(--radius-lg);
         background: var(--color-bg-secondary);
-        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 200px);
+        min-height: 400px;
       }
 
       .actions-editor-toolbar {
@@ -1131,11 +1134,13 @@
         display: flex;
         gap: var(--spacing-sm);
         align-items: center;
+        flex-shrink: 0;
       }
 
       .actions-list {
-        max-height: 600px;
+        flex: 1;
         overflow-y: auto;
+        min-height: 0;
       }
 
       .empty-actions-state {
@@ -1258,7 +1263,9 @@
 
       .action-card-body:not(.collapsed) {
         padding: var(--spacing-md);
-        max-height: 1000px;
+        max-height: 70vh;
+        overflow-y: auto;
+        overflow-x: hidden;
       }
 
       .action-form-group {
@@ -1403,9 +1410,390 @@
         text-align: center;
       }
 
+      /* Action Badges */
+      .action-badges {
+        display: flex;
+        gap: var(--spacing-xs);
+        margin-left: var(--spacing-sm);
+      }
+
+      .action-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        padding: 2px 6px;
+        background: rgba(0, 122, 255, 0.08);
+        border-radius: var(--radius-sm);
+        font-size: var(--font-size-xs);
+        color: var(--color-text-secondary);
+        font-weight: var(--font-weight-medium);
+        transition: all var(--transition-fast);
+      }
+
+      .action-badge i {
+        font-size: 10px;
+      }
+
+      .action-badge:hover {
+        background: rgba(0, 122, 255, 0.12);
+      }
+
+      .btn-compact {
+        padding: 4px 6px;
+        min-width: 28px;
+        height: 28px;
+        font-size: var(--font-size-sm);
+      }
+
+      .btn-compact i {
+        font-size: 14px;
+      }
+
+      /* Pattern Pills */
+      .patterns-pills-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm) 0;
+      }
+
+      .pattern-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        padding: 6px 10px;
+        background: var(--color-bg-secondary);
+        border: 1px solid var(--color-border-primary);
+        border-radius: var(--radius-md);
+        font-size: var(--font-size-sm);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        position: relative;
+      }
+
+      .pattern-pill:hover {
+        border-color: var(--color-primary);
+        background: rgba(0, 122, 255, 0.04);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .pattern-pill.editing {
+        border-color: var(--color-primary);
+        background: rgba(0, 122, 255, 0.08);
+      }
+
+      .pattern-pill.case-sensitive {
+        border-style: dashed;
+      }
+
+      .pill-badge {
+        padding: 2px 6px;
+        background: rgba(0, 0, 0, 0.06);
+        border-radius: var(--radius-sm);
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-semibold);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .pill-badge.badge-startsWith {
+        background: rgba(52, 199, 89, 0.12);
+        color: #34c759;
+      }
+
+      .pill-badge.badge-endsWith {
+        background: rgba(255, 149, 0, 0.12);
+        color: #ff9500;
+      }
+
+      .pill-badge.badge-exact {
+        background: rgba(0, 122, 255, 0.12);
+        color: #007aff;
+      }
+
+      .pill-badge.badge-regex {
+        background: rgba(175, 82, 222, 0.12);
+        color: #af52de;
+      }
+
+      .pill-text {
+        color: var(--color-text-primary);
+        font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+        font-size: var(--font-size-sm);
+      }
+
+      .pill-delete {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        margin-left: var(--spacing-xs);
+        background: rgba(255, 59, 48, 0.1);
+        border: none;
+        border-radius: 50%;
+        color: var(--color-error);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+      }
+
+      .pill-delete i {
+        font-size: 12px;
+      }
+
+      .pattern-pill:hover .pill-delete,
+      .handler-pill:hover .pill-delete {
+        display: flex;
+      }
+
+      .pill-delete:hover {
+        background: var(--color-error);
+        color: white;
+      }
+
+      /* Inline Edit Form */
+      .inline-edit-form {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm);
+        background: rgba(0, 122, 255, 0.04);
+        border: 1px solid var(--color-primary);
+        border-radius: var(--radius-md);
+        margin-top: var(--spacing-sm);
+      }
+
+      .pattern-edit-form {
+        flex-wrap: wrap;
+      }
+
+      .pattern-edit-form .form-control-sm {
+        height: 32px;
+        padding: 4px 8px;
+        font-size: var(--font-size-sm);
+      }
+
+      .pattern-edit-form select.form-control-sm {
+        flex-shrink: 0;
+        min-width: 120px;
+      }
+
+      .pattern-edit-form input.form-control-sm {
+        flex: 1;
+        min-width: 150px;
+      }
+
+      .pattern-edit-form .checkbox-label-inline {
+        flex-shrink: 0;
+      }
+
+      .pattern-edit-form .btn {
+        flex-shrink: 0;
+      }
+
+      .checkbox-label-inline {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin: 0;
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+        white-space: nowrap;
+        cursor: pointer;
+      }
+
+      /* Handler Pills */
+      .handlers-pills-container {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm) 0;
+      }
+
+      .handler-pill-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+      }
+
+      .handler-pill {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        padding: 8px 12px;
+        background: var(--color-bg-secondary);
+        border: 1px solid var(--color-border-primary);
+        border-radius: var(--radius-md);
+        font-size: var(--font-size-sm);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+      }
+
+      .handler-pill:hover {
+        border-color: var(--color-primary);
+        background: rgba(0, 122, 255, 0.04);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .handler-pill.expanded {
+        border-color: var(--color-primary);
+        background: rgba(0, 122, 255, 0.06);
+      }
+
+      .handler-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: var(--radius-sm);
+        background: rgba(0, 0, 0, 0.04);
+        color: var(--color-text-secondary);
+      }
+
+      .handler-icon.icon-openUrl {
+        background: rgba(0, 122, 255, 0.12);
+        color: #007aff;
+      }
+
+      .handler-icon.icon-openApplication {
+        background: rgba(52, 199, 89, 0.12);
+        color: #34c759;
+      }
+
+      .handler-icon.icon-quitApplication {
+        background: rgba(255, 59, 48, 0.12);
+        color: #ff3b30;
+      }
+
+      .handler-icon.icon-executeShell {
+        background: rgba(255, 149, 0, 0.12);
+        color: #ff9500;
+      }
+
+      .handler-icon.icon-segmentAction {
+        background: rgba(175, 82, 222, 0.12);
+        color: #af52de;
+      }
+
+      .handler-icon.icon-transformText {
+        background: rgba(255, 45, 85, 0.12);
+        color: #ff2d55;
+      }
+
+      .handler-type {
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-primary);
+      }
+
+      .handler-arrow {
+        color: var(--color-text-tertiary);
+        font-weight: var(--font-weight-normal);
+      }
+
+      .handler-summary {
+        flex: 1;
+        color: var(--color-text-secondary);
+        font-size: var(--font-size-sm);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* Handler Config Panel */
+      .handler-config-panel {
+        padding: var(--spacing-md);
+        background: rgba(0, 0, 0, 0.02);
+        border: 1px solid var(--color-border-primary);
+        border-radius: var(--radius-md);
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+      }
+
+      .handler-type-selector {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-xs);
+        padding-bottom: var(--spacing-md);
+        border-bottom: 1px solid var(--color-border-primary);
+      }
+
+      .handler-type-selector label {
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-primary);
+      }
+
+      /* Config Sections */
+      .config-section {
+        border: 1px solid var(--color-border-primary);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        background: var(--color-bg-primary);
+        transition: all var(--transition-fast);
+      }
+
+      .config-section:hover {
+        border-color: var(--color-border-secondary);
+      }
+
+      .config-section-header {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm) var(--spacing-md);
+        background: rgba(0, 0, 0, 0.02);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        user-select: none;
+      }
+
+      .config-section-header:hover {
+        background: rgba(0, 122, 255, 0.04);
+      }
+
+      .config-section-header i:first-child {
+        font-size: 16px;
+        color: var(--color-text-secondary);
+      }
+
+      .config-section-header span {
+        flex: 1;
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-primary);
+      }
+
+      .collapse-icon {
+        font-size: 14px;
+        color: var(--color-text-tertiary);
+        transition: transform var(--transition-fast);
+      }
+
+      .collapse-icon.collapsed {
+        transform: rotate(-90deg);
+      }
+
+      .config-section-body {
+        padding: var(--spacing-md);
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+      }
+
+      .config-section-body .config-field:last-child {
+        margin-bottom: 0;
+      }
+
       /* Rules Editor Styles */
       .rules-editor-container {
-        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 200px);
+        min-height: 400px;
       }
 
       .rules-editor-toolbar {
@@ -1413,11 +1801,13 @@
         display: flex;
         gap: var(--spacing-sm);
         align-items: center;
+        flex-shrink: 0;
       }
 
       .rules-list {
-        max-height: 600px;
+        flex: 1;
         overflow-y: auto;
+        min-height: 0;
       }
 
       .empty-rules-state {
@@ -1528,7 +1918,9 @@
 
       .rule-card-body:not(.collapsed) {
         padding: var(--spacing-md);
-        max-height: 1000px;
+        max-height: 70vh;
+        overflow-y: auto;
+        overflow-x: hidden;
       }
 
       .rule-form-group {
@@ -2584,14 +2976,23 @@
                           class="action-card-header"
                           @click.self="toggleActionCard(action.id)"
                         >
-                          <div class="action-info">
+                          <div class="action-info" @click="toggleActionCard(action.id)">
                             <div class="action-toggle">
                               <input
                                 type="checkbox"
                                 class="action-enabled-checkbox checkbox"
                                 v-model="action.enabled"
+                                @click.stop
                               />
                               <h4 class="action-name">{{ action.name }}</h4>
+                              <div class="action-badges">
+                                <span class="action-badge" :title="`${(action.matchPatterns || []).length} pattern(s)`">
+                                  <i class="ph ph-hash"></i>{{ (action.matchPatterns || []).length }}
+                                </span>
+                                <span class="action-badge" :title="`${(action.handlers || []).length} handler(s)`">
+                                  <i class="ph ph-lightning"></i>{{ (action.handlers || []).length }}
+                                </span>
+                              </div>
                             </div>
                             <p class="action-description">
                               {{ action.description }}
@@ -2600,37 +3001,29 @@
                           <div class="action-controls">
                             <button
                               type="button"
-                              class="btn btn-icn-only"
+                              class="btn btn-icn-only btn-compact"
                               @click="moveAction(index, -1)"
                               :disabled="index === 0"
                               title="Move up"
                             >
-                              <i class="ph-duotone ph-caret-up"></i>
+                              <i class="ph ph-caret-up"></i>
                             </button>
                             <button
                               type="button"
-                              class="btn btn-icn-only"
+                              class="btn btn-icn-only btn-compact"
                               @click="moveAction(index, 1)"
                               :disabled="index === (settings.actions?.actions?.length || 0) - 1"
                               title="Move down"
                             >
-                              <i class="ph-duotone ph-caret-down"></i>
+                              <i class="ph ph-caret-down"></i>
                             </button>
                             <button
                               type="button"
-                              class="btn btn-icn-only"
-                              @click="toggleActionCard(action.id)"
-                              title="View action details"
-                            >
-                              <i class="ph-duotone ph-info"></i>
-                            </button>
-                            <button
-                              type="button"
-                              class="btn btn-icn-only btn-negative"
+                              class="btn btn-icn-only btn-compact btn-negative"
                               @click="deleteAction(index)"
                               title="Delete action"
                             >
-                              <i class="ph-duotone ph-trash"></i>
+                              <i class="ph ph-trash"></i>
                             </button>
                           </div>
                         </div>
@@ -2654,33 +3047,33 @@
                               v-model="action.description"
                             />
                           </div>
-                          <div class="action-form-group action-form-row">
-                            <div class="action-form-col">
-                              <label>Order</label
-                              ><input
-                                type="number"
-                                class="form-control"
-                                v-model.number="action.order"
-                                min="1"
-                              />
+                          <div class="config-section">
+                            <div class="config-section-header" @click="toggleConfigSection(action.id, 'options')">
+                              <i class="ph ph-gear-six"></i>
+                              <span>Action Options</span>
+                              <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(action.id, 'options') }"></i>
                             </div>
-                            <div class="action-form-col">
-                              <label class="checkbox-label"
-                                ><input
-                                  type="checkbox"
-                                  v-model="action.closesTranscription"
-                                />
-                                Closes Transcription</label
-                              >
-                            </div>
-                            <div class="action-form-col">
-                              <label class="checkbox-label"
-                                ><input
-                                  type="checkbox"
-                                  v-model="action.skipsTransformation"
-                                />
-                                Skips Transformation</label
-                              >
+                            <div class="config-section-body" v-show="isConfigSectionExpanded(action.id, 'options')">
+                              <div class="action-form-row">
+                                <div class="action-form-col">
+                                  <label class="checkbox-label"
+                                    ><input
+                                      type="checkbox"
+                                      v-model="action.closesTranscription"
+                                    />
+                                    Closes Transcription</label
+                                  >
+                                </div>
+                                <div class="action-form-col">
+                                  <label class="checkbox-label"
+                                    ><input
+                                      type="checkbox"
+                                      v-model="action.skipsTransformation"
+                                    />
+                                    Skips Transformation</label
+                                  >
+                                </div>
+                              </div>
                             </div>
                           </div>
                           <div class="section-header-small">
@@ -2690,48 +3083,69 @@
                               class="btn btn-sm"
                               @click="addNewPattern(index)"
                             >
-                              <i class="ph-duotone ph-plus"></i> Add Pattern
+                              <i class="ph ph-plus"></i> Add
                             </button>
                           </div>
-                          <div class="patterns-list">
-                            <div
+                          <div class="patterns-pills-container">
+                            <template
                               v-for="(pattern, pIndex) in action.matchPatterns || []"
-                              :key="pattern.id"
-                              class="pattern-item"
+                              :key="`pattern-${index}-${pIndex}`"
                             >
-                              <div class="pattern-controls">
-                                <select
-                                  class="form-control"
-                                  v-model="pattern.type"
-                                >
-                                  <option value="startsWith">
-                                    Starts with
-                                  </option>
-                                  <option value="endsWith">Ends with</option>
-                                  <option value="exact">Exact match</option>
-                                  <option value="regex">Regex</option>
-                                </select>
-                                <input
-                                  type="text"
-                                  class="form-control"
-                                  placeholder="Pattern text..."
-                                  v-model="pattern.pattern"
-                                />
-                                <label class="case-sensitive-label"
-                                  ><input
-                                    type="checkbox"
-                                    v-model="pattern.caseSensitive"
-                                  />
-                                  Case sensitive</label
-                                >
-                                <button
-                                  type="button"
-                                  class="btn btn-icn-only btn-negative"
-                                  @click="deletePattern(index, pIndex)"
-                                >
-                                  <i class="ph-duotone ph-x"></i>
-                                </button>
+                              <div
+                                v-if="pattern"
+                                class="pattern-pill"
+                                :class="{ editing: isPatternEditing(index, pIndex), 'case-sensitive': pattern && pattern.caseSensitive }"
+                                @click="editPattern(index, pIndex)"
+                              >
+                              <span class="pill-badge" :class="pattern.type ? `badge-${pattern.type}` : ''">
+                                {{ getPatternTypeBadge(pattern.type || 'startsWith') }}
+                              </span>
+                              <span class="pill-text">{{ pattern.pattern || 'empty' }}</span>
+                              <button
+                                type="button"
+                                class="pill-delete"
+                                @click.stop="deletePattern(index, pIndex)"
+                                title="Delete pattern"
+                              >
+                                <i class="ph ph-x"></i>
+                              </button>
                               </div>
+                            </template>
+                            <div
+                              v-if="editingPattern && editingPattern.actionIndex === index && editingPattern.patternIndex !== undefined && settings.actions?.actions?.[index]?.matchPatterns?.[editingPattern.patternIndex]"
+                              class="inline-edit-form pattern-edit-form"
+                            >
+                              <select
+                                class="form-control form-control-sm"
+                                v-model="settings.actions.actions[index].matchPatterns[editingPattern.patternIndex].type"
+                              >
+                                <option value="startsWith">Starts with</option>
+                                <option value="endsWith">Ends with</option>
+                                <option value="exact">Exact</option>
+                                <option value="regex">Regex</option>
+                              </select>
+                              <input
+                                type="text"
+                                class="form-control form-control-sm"
+                                placeholder="Pattern text..."
+                                v-model="settings.actions.actions[index].matchPatterns[editingPattern.patternIndex].pattern"
+                                @keydown.enter="closePatternEdit"
+                                @keydown.esc="closePatternEdit"
+                              />
+                              <label class="checkbox-label-inline">
+                                <input
+                                  type="checkbox"
+                                  v-model="settings.actions.actions[index].matchPatterns[editingPattern.patternIndex].caseSensitive"
+                                />
+                                Aa
+                              </label>
+                              <button
+                                type="button"
+                                class="btn btn-sm btn-primary"
+                                @click="closePatternEdit"
+                              >
+                                <i class="ph ph-check"></i>
+                              </button>
                             </div>
                           </div>
                           <div class="section-header-small">
@@ -2741,347 +3155,432 @@
                               class="btn btn-sm"
                               @click="addNewHandler(index)"
                             >
-                              <i class="ph-duotone ph-plus"></i> Add Handler
+                              <i class="ph ph-plus"></i> Add
                             </button>
                           </div>
-                          <div class="handlers-list">
-                            <div
+                          <div class="handlers-pills-container">
+                            <template
                               v-for="(handler, hIndex) in action.handlers || []"
-                              :key="handler.id"
-                              class="handler-item"
+                              :key="`handler-${index}-${hIndex}`"
                             >
-                              <div class="handler-header">
-                                <select
-                                  class="form-control"
-                                  v-model="handler.type"
-                                  @change="updateHandlerType(handler)"
-                                >
-                                  <option value="openUrl">Open URL</option>
-                                  <option value="openApplication">
-                                    Open Application
-                                  </option>
-                                  <option value="quitApplication">
-                                    Quit Application
-                                  </option>
-                                  <option value="executeShell">
-                                    Execute Shell
-                                  </option>
-                                  <option value="segmentAction">
-                                    Segment Action
-                                  </option>
-                                  <option value="transformText">
-                                    Transform Text
-                                  </option>
-                                </select>
-                                <input
-                                  type="number"
-                                  class="form-control handler-order-input"
-                                  v-model.number="handler.order"
-                                  min="1"
-                                  title="Execution order"
-                                />
+                              <div
+                                v-if="handler"
+                                class="handler-pill-wrapper"
+                              >
+                              <div 
+                                class="handler-pill"
+                                :class="{ expanded: isHandlerExpanded(index, hIndex) }"
+                                @click="toggleHandler(index, hIndex)"
+                              >
+                                <span class="handler-icon" :class="handler.type ? `icon-${handler.type}` : ''">
+                                  <i :class="getHandlerIcon(handler.type || '')"></i>
+                                </span>
+                                <span class="handler-type">{{ getHandlerTypeName(handler.type || '') }}</span>
+                                <span class="handler-arrow">→</span>
+                                <span class="handler-summary">{{ getHandlerSummary(handler) }}</span>
                                 <button
                                   type="button"
-                                  class="btn btn-icn-only btn-negative"
-                                  @click="deleteHandler(index, hIndex)"
+                                  class="pill-delete"
+                                  @click.stop="deleteHandler(index, hIndex)"
+                                  title="Delete handler"
                                 >
-                                  <i class="ph-duotone ph-x"></i>
+                                  <i class="ph ph-x"></i>
                                 </button>
                               </div>
-                              <div class="handler-config">
-                                <template v-if="handler.type === 'openUrl'">
-                                  <div class="config-field">
-                                    <label>URL Template</label
-                                    ><input
-                                      type="text"
-                                      class="form-control"
-                                      placeholder="{argument}"
-                                      v-model="handler.config.urlTemplate"
-                                    />
-                                  </div>
-                                  <div class="config-field">
-                                    <label
-                                      ><input
-                                        type="checkbox"
-                                        v-model="handler.config.openInBackground"
-                                      />
-                                      Open in background</label
-                                    >
-                                  </div>
-                                </template>
-                                <template
-                                  v-if="handler.type === 'openApplication'"
-                                >
-                                  <div class="config-field">
-                                    <label>Application Name</label
-                                    ><input
-                                      type="text"
-                                      class="form-control"
-                                      placeholder="{argument}"
-                                      v-model="handler.config.applicationName"
-                                    />
-                                  </div>
-                                  <div class="config-field">
-                                    <label
-                                      ><input
-                                        type="checkbox"
-                                        v-model="handler.config.waitForExit"
-                                      />
-                                      Wait for exit</label
-                                    >
-                                  </div>
-                                </template>
-                                <template
-                                  v-if="handler.type === 'quitApplication'"
-                                >
-                                  <div class="config-field">
-                                    <label>Application Name</label
-                                    ><input
-                                      type="text"
-                                      class="form-control"
-                                      placeholder="{argument}"
-                                      v-model="handler.config.applicationName"
-                                    />
-                                  </div>
-                                  <div class="config-field">
-                                    <label
-                                      ><input
-                                        type="checkbox"
-                                        v-model="handler.config.forceQuit"
-                                      />
-                                      Force quit</label
-                                    >
-                                  </div>
-                                </template>
-                                <template
-                                  v-if="handler.type === 'executeShell'"
-                                >
-                                  <div class="config-field">
-                                    <label>Command</label
-                                    ><textarea
-                                      class="form-control"
-                                      rows="3"
-                                      v-model="handler.config.command"
-                                    ></textarea>
-                                  </div>
-                                  <div class="config-field">
-                                    <label>Working Directory</label
-                                    ><input
-                                      type="text"
-                                      class="form-control"
-                                      v-model="handler.config.workingDirectory"
-                                    />
-                                  </div>
-                                  <div class="config-field">
-                                    <label>Timeout (ms)</label
-                                    ><input
-                                      type="number"
-                                      class="form-control"
-                                      v-model.number="handler.config.timeout"
-                                    />
-                                  </div>
-                                  <div class="config-field">
-                                    <label
-                                      ><input
-                                        type="checkbox"
-                                        v-model="handler.config.runInBackground"
-                                      />
-                                      Run in background</label
-                                    >
-                                  </div>
-                                </template>
-                                <template
-                                  v-if="handler.type === 'segmentAction'"
-                                >
-                                  <div class="config-field">
-                                    <label>Action</label>
-                                    <select
-                                      class="form-control"
-                                      v-model="handler.config.action"
-                                    >
-                                      <option value="clear">Clear All</option>
-                                      <option value="undo">Undo Last</option>
-                                      <option value="replace">Replace</option>
-                                      <option value="deleteLastN">
-                                        Delete Last N
-                                      </option>
-                                      <option value="lowercaseFirstChar">
-                                        Lowercase First Char
-                                      </option>
-                                      <option value="uppercaseFirstChar">
-                                        Uppercase First Char
-                                      </option>
-                                      <option value="capitalizeFirstWord">
-                                        Capitalize First Word
-                                      </option>
-                                      <option value="removePattern">
-                                        Remove Pattern
-                                      </option>
-                                    </select>
-                                  </div>
-                                  <div
-                                    v-if="handler.config.action === 'replace'"
-                                    class="config-field"
+                              <div class="handler-config-panel" v-show="isHandlerExpanded(index, hIndex) && handler.type">
+                                <div class="handler-type-selector">
+                                  <label>Handler Type</label>
+                                  <select
+                                    class="form-control"
+                                    v-model="handler.type"
+                                    @change="updateHandlerType(handler)"
                                   >
-                                    <label>Replacement Text</label
-                                    ><input
-                                      type="text"
-                                      class="form-control"
-                                      placeholder="{argument}"
-                                      v-model="handler.config.replacementText"
-                                    />
+                                    <option value="openUrl">Open URL</option>
+                                    <option value="openApplication">Open Application</option>
+                                    <option value="quitApplication">Quit Application</option>
+                                    <option value="executeShell">Execute Shell</option>
+                                    <option value="segmentAction">Segment Action</option>
+                                    <option value="transformText">Transform Text</option>
+                                  </select>
+                                </div>
+                                <template v-if="handler.type === 'openUrl' && handler.config">
+                                  <div class="config-section">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'basic')">
+                                      <i class="ph ph-gear"></i>
+                                      <span>Basic</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'basic') }"></i>
+                                    </div>
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'basic')">
+                                      <div class="config-field">
+                                        <label>URL Template</label>
+                                        <input
+                                          type="text"
+                                          class="form-control"
+                                          placeholder="{argument}"
+                                          v-model="handler.config.urlTemplate"
+                                        />
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div
-                                    v-if="handler.config.action === 'deleteLastN'"
-                                    class="config-field"
-                                  >
-                                    <label>Count</label
-                                    ><input
-                                      type="number"
-                                      class="form-control"
-                                      min="1"
-                                      v-model.number="handler.config.count"
-                                    />
-                                  </div>
-                                  <div
-                                    v-if="handler.config.action === 'removePattern'"
-                                    class="config-field"
-                                  >
-                                    <label>Pattern to Remove</label
-                                    ><input
-                                      type="text"
-                                      class="form-control"
-                                      placeholder="\\.\\.\\."
-                                      v-model="handler.config.pattern"
-                                    />
+                                  <div class="config-section">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'options')">
+                                      <i class="ph ph-sliders"></i>
+                                      <span>Options</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'options') }"></i>
+                                    </div>
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'options')">
+                                      <div class="config-field">
+                                        <label class="checkbox-label">
+                                          <input
+                                            type="checkbox"
+                                            v-model="handler.config.openInBackground"
+                                          />
+                                          Open in background
+                                        </label>
+                                      </div>
+                                    </div>
                                   </div>
                                 </template>
-                                <template
-                                  v-if="handler.type === 'transformText'"
-                                >
-                                  <div class="config-field">
-                                    <label>Match Pattern (Optional)</label>
-                                    <input
-                                      type="text"
-                                      class="form-control"
-                                      placeholder="Regex to match text (e.g. ^.{0,50}$)"
-                                      v-model="handler.config.matchPattern"
-                                    />
-                                    <span class="field-help">Leave blank to apply to all text</span>
-                                  </div>
-                                  <div class="action-form-row">
-                                    <div class="action-form-col">
-                                      <label>Match Flags</label>
-                                      <input
-                                        type="text"
-                                        class="form-control"
-                                        placeholder="gimuy"
-                                        maxlength="6"
-                                        v-model="handler.config.matchFlags"
-                                      />
+                                <template v-if="handler.type === 'openApplication' && handler.config">
+                                  <div class="config-section">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'basic')">
+                                      <i class="ph ph-gear"></i>
+                                      <span>Basic</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'basic') }"></i>
                                     </div>
-                                    <div class="action-form-col">
-                                      <label>Max Length</label>
-                                      <input
-                                        type="number"
-                                        class="form-control"
-                                        placeholder="Optional"
-                                        v-model.number="handler.config.maxLength"
-                                      />
-                                    </div>
-                                    <div class="action-form-col">
-                                      <label>Min Length</label>
-                                      <input
-                                        type="number"
-                                        class="form-control"
-                                        placeholder="Optional"
-                                        v-model.number="handler.config.minLength"
-                                      />
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'basic')">
+                                      <div class="config-field">
+                                        <label>Application Name</label>
+                                        <input
+                                          type="text"
+                                          class="form-control"
+                                          placeholder="{argument}"
+                                          v-model="handler.config.applicationName"
+                                        />
+                                      </div>
                                     </div>
                                   </div>
-                                  <div class="config-field">
-                                    <label>Replace Pattern</label>
-                                    <input
-                                      type="text"
-                                      class="form-control"
-                                      placeholder="Pattern to find and replace (e.g. [\\.!?]+$)"
-                                      v-model="handler.config.replacePattern"
-                                    />
-                                  </div>
-                                  <div class="action-form-row">
-                                    <div class="action-form-col">
-                                      <label>Replace Flags</label>
-                                      <input
-                                        type="text"
-                                        class="form-control"
-                                        placeholder="gimuy"
-                                        maxlength="6"
-                                        v-model="handler.config.replaceFlags"
-                                      />
+                                  <div class="config-section">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'options')">
+                                      <i class="ph ph-sliders"></i>
+                                      <span>Options</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'options') }"></i>
                                     </div>
-                                    <div class="action-form-col">
-                                      <label>Replacement Mode</label>
-                                      <select
-                                        class="form-control"
-                                        v-model="handler.config.replacementMode"
-                                      >
-                                        <option value="literal">Literal Text</option>
-                                        <option value="lowercase">
-                                          Lowercase Match
-                                        </option>
-                                        <option value="uppercase">
-                                          Uppercase Match
-                                        </option>
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'options')">
+                                      <div class="config-field">
+                                        <label class="checkbox-label">
+                                          <input
+                                            type="checkbox"
+                                            v-model="handler.config.waitForExit"
+                                          />
+                                          Wait for exit
+                                        </label>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </template>
+                                <template v-if="handler.type === 'quitApplication' && handler.config">
+                                  <div class="config-section">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'basic')">
+                                      <i class="ph ph-gear"></i>
+                                      <span>Basic</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'basic') }"></i>
+                                    </div>
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'basic')">
+                                      <div class="config-field">
+                                        <label>Application Name</label>
+                                        <input
+                                          type="text"
+                                          class="form-control"
+                                          placeholder="{argument}"
+                                          v-model="handler.config.applicationName"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div class="config-section">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'options')">
+                                      <i class="ph ph-sliders"></i>
+                                      <span>Options</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'options') }"></i>
+                                    </div>
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'options')">
+                                      <div class="config-field">
+                                        <label class="checkbox-label">
+                                          <input
+                                            type="checkbox"
+                                            v-model="handler.config.forceQuit"
+                                          />
+                                          Force quit
+                                        </label>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </template>
+                                <template v-if="handler.type === 'executeShell' && handler.config">
+                                  <div class="config-section">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'basic')">
+                                      <i class="ph ph-gear"></i>
+                                      <span>Basic</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'basic') }"></i>
+                                    </div>
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'basic')">
+                                      <div class="config-field">
+                                        <label>Command</label>
+                                        <textarea
+                                          class="form-control"
+                                          rows="3"
+                                          v-model="handler.config.command"
+                                        ></textarea>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div class="config-section">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'options')">
+                                      <i class="ph ph-sliders"></i>
+                                      <span>Options</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'options') }"></i>
+                                    </div>
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'options')">
+                                      <div class="config-field">
+                                        <label>Working Directory</label>
+                                        <input
+                                          type="text"
+                                          class="form-control"
+                                          v-model="handler.config.workingDirectory"
+                                        />
+                                      </div>
+                                      <div class="config-field">
+                                        <label>Timeout (ms)</label>
+                                        <input
+                                          type="number"
+                                          class="form-control"
+                                          v-model.number="handler.config.timeout"
+                                        />
+                                      </div>
+                                      <div class="config-field">
+                                        <label class="checkbox-label">
+                                          <input
+                                            type="checkbox"
+                                            v-model="handler.config.runInBackground"
+                                          />
+                                          Run in background
+                                        </label>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </template>
+                                <template v-if="handler.type === 'segmentAction' && handler.config">
+                                  <div class="config-section">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'basic')">
+                                      <i class="ph ph-gear"></i>
+                                      <span>Basic</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'basic') }"></i>
+                                    </div>
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'basic')">
+                                      <div class="config-field">
+                                        <label>Action</label>
+                                        <select
+                                          class="form-control"
+                                          v-model="handler.config.action"
+                                        >
+                                          <option value="clear">Clear All</option>
+                                          <option value="undo">Undo Last</option>
+                                          <option value="replace">Replace</option>
+                                          <option value="deleteLastN">Delete Last N</option>
+                                          <option value="lowercaseFirstChar">Lowercase First Char</option>
+                                          <option value="uppercaseFirstChar">Uppercase First Char</option>
+                                          <option value="capitalizeFirstWord">Capitalize First Word</option>
+                                          <option value="removePattern">Remove Pattern</option>
+                                        </select>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div class="config-section" v-if="handler.config.action === 'replace' || handler.config.action === 'deleteLastN' || handler.config.action === 'removePattern'">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'options')">
+                                      <i class="ph ph-sliders"></i>
+                                      <span>Options</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'options') }"></i>
+                                    </div>
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'options')">
+                                      <div v-if="handler.config.action === 'replace'" class="config-field">
+                                        <label>Replacement Text</label>
+                                        <input
+                                          type="text"
+                                          class="form-control"
+                                          placeholder="{argument}"
+                                          v-model="handler.config.replacementText"
+                                        />
+                                      </div>
+                                      <div v-if="handler.config.action === 'deleteLastN'" class="config-field">
+                                        <label>Count</label>
+                                        <input
+                                          type="number"
+                                          class="form-control"
+                                          min="1"
+                                          v-model.number="handler.config.count"
+                                        />
+                                      </div>
+                                      <div v-if="handler.config.action === 'removePattern'" class="config-field">
+                                        <label>Pattern to Remove</label>
+                                        <input
+                                          type="text"
+                                          class="form-control"
+                                          placeholder="\\.\\.\\."
+                                          v-model="handler.config.pattern"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </template>
+                                <template v-if="handler.type === 'transformText' && handler.config">
+                                  <div class="config-section">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'basic')">
+                                      <i class="ph ph-gear"></i>
+                                      <span>Basic</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'basic') }"></i>
+                                    </div>
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'basic')">
+                                      <div class="config-field">
+                                        <label>Replace Pattern</label>
+                                        <input
+                                          type="text"
+                                          class="form-control"
+                                          placeholder="Pattern to find and replace (e.g. [\\.!?]+$)"
+                                          v-model="handler.config.replacePattern"
+                                        />
+                                      </div>
+                                      <div class="config-field">
+                                        <label>Replace Flags</label>
+                                        <input
+                                          type="text"
+                                          class="form-control"
+                                          placeholder="gimuy"
+                                          maxlength="6"
+                                          v-model="handler.config.replaceFlags"
+                                        />
+                                      </div>
+                                      <div class="config-field" v-if="handler.config.replacementMode === 'literal' || !handler.config.replacementMode">
+                                        <label>Replacement Text</label>
+                                        <input
+                                          type="text"
+                                          class="form-control"
+                                          placeholder="Text to replace with (leave blank to remove)"
+                                          v-model="handler.config.replacement"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div class="config-section">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'match')">
+                                      <i class="ph ph-magnifying-glass"></i>
+                                      <span>Match Conditions</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'match') }"></i>
+                                    </div>
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'match')">
+                                      <div class="config-field">
+                                        <label>Match Pattern (Optional)</label>
+                                        <input
+                                          type="text"
+                                          class="form-control"
+                                          placeholder="Regex to match text (e.g. ^.{0,50}$)"
+                                          v-model="handler.config.matchPattern"
+                                        />
+                                        <span class="field-help">Leave blank to apply to all text</span>
+                                      </div>
+                                      <div class="action-form-row">
+                                        <div class="action-form-col">
+                                          <label>Match Flags</label>
+                                          <input
+                                            type="text"
+                                            class="form-control"
+                                            placeholder="gimuy"
+                                            maxlength="6"
+                                            v-model="handler.config.matchFlags"
+                                          />
+                                        </div>
+                                        <div class="action-form-col">
+                                          <label>Max Length</label>
+                                          <input
+                                            type="number"
+                                            class="form-control"
+                                            placeholder="Optional"
+                                            v-model.number="handler.config.maxLength"
+                                          />
+                                        </div>
+                                        <div class="action-form-col">
+                                          <label>Min Length</label>
+                                          <input
+                                            type="number"
+                                            class="form-control"
+                                            placeholder="Optional"
+                                            v-model.number="handler.config.minLength"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div class="config-section">
+                                    <div class="config-section-header" @click="toggleConfigSection(handler.id, 'advanced')">
+                                      <i class="ph ph-faders"></i>
+                                      <span>Advanced</span>
+                                      <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'advanced') }"></i>
+                                    </div>
+                                    <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'advanced')">
+                                      <div class="config-field">
+                                        <label>Replacement Mode</label>
+                                        <select
+                                          class="form-control"
+                                          v-model="handler.config.replacementMode"
+                                        >
+                                          <option value="literal">Literal Text</option>
+                                          <option value="lowercase">Lowercase Match</option>
+                                          <option value="uppercase">Uppercase Match</option>
+                                        </select>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </template>
+                                <div class="config-section">
+                                  <div class="config-section-header" @click="toggleConfigSection(handler.id, 'timing')">
+                                    <i class="ph ph-clock"></i>
+                                    <span>Timing & Queue</span>
+                                    <i class="ph ph-caret-down collapse-icon" :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'timing') }"></i>
+                                  </div>
+                                  <div class="config-section-body" v-show="isConfigSectionExpanded(handler.id, 'timing')">
+                                    <div class="config-field">
+                                      <label class="checkbox-label">
+                                        <input
+                                          type="checkbox"
+                                          v-model="handler.applyToNextSegment"
+                                        />
+                                        Apply to Next Segment
+                                      </label>
+                                      <span class="field-help">Queue this handler for the next segment instead of current</span>
+                                    </div>
+                                    <div class="config-field">
+                                      <label class="checkbox-label">
+                                        <input
+                                          type="checkbox"
+                                          v-model="handler.applyToAllSegments"
+                                        />
+                                        Apply to All Segments
+                                      </label>
+                                      <span class="field-help">Run this handler on all segments after transcription completes</span>
+                                    </div>
+                                    <div class="config-field" v-if="handler.applyToAllSegments">
+                                      <label>When to Apply</label>
+                                      <select class="form-control" v-model="handler.timingMode">
+                                        <option value="before_ai">Before AI Transformation (Default)</option>
+                                        <option value="after_ai">After AI Transformation</option>
                                       </select>
+                                      <span class="field-help">before_ai runs even when AI transformation is disabled</span>
                                     </div>
                                   </div>
-                                  <div
-                                    class="config-field"
-                                    v-if="handler.config.replacementMode === 'literal'"
-                                  >
-                                    <label>Replacement Text</label>
-                                    <input
-                                      type="text"
-                                      class="form-control"
-                                      placeholder="Text to replace with (leave blank to remove)"
-                                      v-model="handler.config.replacement"
-                                    />
-                                  </div>
-                                </template>
+                                </div>
                               </div>
-                              <div class="config-field" style="margin-top: 10px; border-top: 1px solid #e0e0e0; padding-top: 10px;">
-                                <label style="display: flex; align-items: center; gap: 8px; font-weight: 500;">
-                                  <input
-                                    type="checkbox"
-                                    v-model="handler.applyToNextSegment"
-                                  />
-                                  Apply to Next Segment
-                                  <span style="font-size: 0.85em; color: #666; font-weight: normal;">
-                                    (Queue this handler for the next segment instead of current)
-                                  </span>
-                                </label>
                               </div>
-                              <div class="config-field">
-                                <label style="display: flex; align-items: center; gap: 8px; font-weight: 500;">
-                                  <input
-                                    type="checkbox"
-                                    v-model="handler.applyToAllSegments"
-                                  />
-                                  Apply to All Segments
-                                  <span style="font-size: 0.85em; color: #666; font-weight: normal;">
-                                    (Run this handler on all segments after transcription completes)
-                                  </span>
-                                </label>
-                              </div>
-                              <div class="config-field" v-if="handler.applyToAllSegments">
-                                <label>When to Apply</label>
-                                <select class="form-control" v-model="handler.timingMode">
-                                  <option value="before_ai">Before AI Transformation (Default)</option>
-                                  <option value="after_ai">After AI Transformation</option>
-                                </select>
-                                <span class="field-help">before_ai runs even when AI transformation is disabled</span>
-                              </div>
-                            </div>
+                            </template>
                           </div>
                         </div>
                       </div>
