@@ -485,37 +485,6 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     ],
   },
   {
-    id: "clean-urls-action",
-    name: "Auto-Clean URLs",
-    description: "Clean up URL dictation by removing spaces and fixing common patterns",
-    enabled: false,
-    order: 22,
-    closesTranscription: false,
-    skipsTransformation: false,
-    matchPatterns: [
-      {
-        id: "url-pattern",
-        type: "regex",
-        pattern: "(https?|www\\.)",
-        caseSensitive: false,
-      },
-    ],
-    handlers: [
-      {
-        id: "clean-url-handler",
-        type: "transformText",
-        config: {
-          replacePattern: "\\s+(?=[\\w\\.\\-/])",
-          replaceFlags: "g",
-          replacement: "",
-          replacementMode: "literal",
-        },
-        order: 1,
-        applyToNextSegment: false,
-      },
-    ],
-  },
-  {
     id: "capitalize-sentences-action",
     name: "Auto-Capitalize Sentences",
     description: "Ensure sentences start with capital letters",
@@ -525,9 +494,15 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     skipsTransformation: false,
     matchPatterns: [
       {
-        id: "sentence-pattern",
+        id: "sentence-pattern-within",
         type: "regex",
         pattern: "[\\.!?]\\s+[a-z]",
+        caseSensitive: false,
+      },
+      {
+        id: "sentence-pattern-end",
+        type: "regex",
+        pattern: ".*[\\.!?]$",
         caseSensitive: false,
       },
     ],
@@ -542,6 +517,15 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         },
         order: 1,
         applyToNextSegment: false,
+      },
+      {
+        id: "capitalize-next-segment-handler",
+        type: "segmentAction",
+        config: {
+          action: "uppercaseFirstChar",
+        },
+        order: 2,
+        applyToNextSegment: true,
       },
     ],
   },

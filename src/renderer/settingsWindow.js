@@ -45,6 +45,9 @@ document.addEventListener("DOMContentLoaded", () => {
         expandedActions: {},
         expandedRules: {},
         expandedDataPlugins: {},
+        editingPattern: null,
+        expandedHandlers: {},
+        configSections: {},
         aiModelsState: { loading: false, loadedForBaseUrl: null, models: [] },
         status: { visible: false, message: "", type: "success" },
         progress: { visible: false, message: "", percent: 0 },
@@ -1234,8 +1237,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         this.settings.actions.actions[actionIndex].handlers.push({
           id: "handler_" + Date.now(),
-          type: "replace",
-          config: {},
+          type: "openUrl",
+          config: {
+            urlTemplate: "https://",
+            openInBackground: false
+          },
           order:
             (this.settings.actions.actions[actionIndex].handlers.length || 0) +
             1,
@@ -1253,6 +1259,13 @@ document.addEventListener("DOMContentLoaded", () => {
       },
 
       updateHandlerType(handler) {
+        if (!handler) return;
+        
+        // Ensure config exists
+        if (!handler.config) {
+          handler.config = {};
+        }
+        
         // Reset config based on new type
         switch (handler.type) {
           case "openUrl":
@@ -1302,6 +1315,111 @@ document.addEventListener("DOMContentLoaded", () => {
         handler.applyToNextSegment = false;
         handler.applyToAllSegments = false;
         handler.timingMode = "before_ai";
+      },
+
+      toggleConfigSection(itemId, sectionName) {
+        const key = `${itemId}_${sectionName}`;
+        if (!this.configSections[key]) {
+          this.configSections[key] = true;
+        } else {
+          this.configSections[key] = !this.configSections[key];
+        }
+      },
+
+      isConfigSectionExpanded(itemId, sectionName) {
+        const key = `${itemId}_${sectionName}`;
+        return this.configSections[key] !== false;
+      },
+
+      editPattern(actionIndex, patternIndex) {
+        if (this.editingPattern && 
+            this.editingPattern.actionIndex === actionIndex && 
+            this.editingPattern.patternIndex === patternIndex) {
+          this.editingPattern = null;
+        } else {
+          this.editingPattern = { actionIndex, patternIndex };
+        }
+      },
+
+      closePatternEdit() {
+        this.editingPattern = null;
+      },
+
+      isPatternEditing(actionIndex, patternIndex) {
+        return this.editingPattern && 
+               this.editingPattern.actionIndex === actionIndex && 
+               this.editingPattern.patternIndex === patternIndex;
+      },
+
+      getPatternTypeBadge(type) {
+        if (!type) return 'START';
+        const badges = {
+          startsWith: 'START',
+          endsWith: 'END',
+          exact: 'EXACT',
+          regex: 'REGEX'
+        };
+        return badges[type] || type.toUpperCase();
+      },
+
+      toggleHandler(actionIndex, handlerIndex) {
+        const key = `${actionIndex}_${handlerIndex}`;
+        this.expandedHandlers[key] = !this.expandedHandlers[key];
+      },
+
+      isHandlerExpanded(actionIndex, handlerIndex) {
+        const key = `${actionIndex}_${handlerIndex}`;
+        return this.expandedHandlers[key] || false;
+      },
+
+      getHandlerIcon(type) {
+        if (!type) return 'ph ph-gear';
+        const icons = {
+          openUrl: 'ph ph-link',
+          openApplication: 'ph ph-app-window',
+          quitApplication: 'ph ph-x-circle',
+          executeShell: 'ph ph-terminal',
+          segmentAction: 'ph ph-stack',
+          transformText: 'ph ph-text-aa'
+        };
+        return icons[type] || 'ph ph-gear';
+      },
+
+      getHandlerTypeName(type) {
+        if (!type) return 'Unknown';
+        const names = {
+          openUrl: 'Open URL',
+          openApplication: 'Open App',
+          quitApplication: 'Quit App',
+          executeShell: 'Shell',
+          segmentAction: 'Segment',
+          transformText: 'Transform'
+        };
+        return names[type] || type;
+      },
+
+      getHandlerSummary(handler) {
+        if (!handler || !handler.type) return 'Configure...';
+        if (!handler.config) return 'No config set';
+        
+        switch (handler.type) {
+          case 'openUrl':
+            return handler.config.urlTemplate || 'No URL set';
+          case 'openApplication':
+            return handler.config.applicationName || 'No app set';
+          case 'quitApplication':
+            return handler.config.applicationName || 'No app set';
+          case 'executeShell':
+            const cmd = handler.config.command || '';
+            return cmd.length > 50 ? cmd.substring(0, 50) + '...' : cmd || 'No command set';
+          case 'segmentAction':
+            return handler.config.action || 'No action set';
+          case 'transformText':
+            const pattern = handler.config.replacePattern || '';
+            return pattern ? `Replace: ${pattern}` : 'No pattern set';
+          default:
+            return 'Configure...';
+        }
       },
 
       // --- RULES EDITOR METHODS ---

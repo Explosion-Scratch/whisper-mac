@@ -264,10 +264,8 @@ static CGKeyCode g_targetKeyCode = (CGKeyCode)0;
 static std::vector<NSEventModifierFlags> g_allowedModifierMasks;
 static Napi::ThreadSafeFunction g_hotkeyCallback;
 static std::atomic<bool> g_keyIsPressed(false);
-static std::atomic<bool> g_mainKeyPhysicallyDown(false);
 static std::atomic<NSEventModifierFlags> g_expectedModifiers(0);
 static std::atomic<bool> g_waitingForKeyUp(false);
-static std::atomic<bool> g_comboActivated(false);
 
 static NSEventModifierFlags stripIrrelevantModifiers(NSEventModifierFlags flags) {
   const NSEventModifierFlags onlyRelevant = (NSEventModifierFlags)(
@@ -278,41 +276,27 @@ static NSEventModifierFlags stripIrrelevantModifiers(NSEventModifierFlags flags)
   return (NSEventModifierFlags)(flags & onlyRelevant);
 }
 
-static bool modifiersMatch(NSEventModifierFlags flags) {
-  const NSEventModifierFlags stripped = stripIrrelevantModifiers(flags);
+static bool modifiersMatch(CGEventRef event) {
+  const NSEventModifierFlags flags = stripIrrelevantModifiers(
+      (NSEventModifierFlags)CGEventGetFlags(event));
 
   if (g_allowedModifierMasks.empty()) {
-    return stripped == 0;
+    return flags == 0;
   }
 
   for (const NSEventModifierFlags mask : g_allowedModifierMasks) {
-    if (stripped == stripIrrelevantModifiers(mask)) {
+    if (flags == stripIrrelevantModifiers(mask)) {
       return true;
     }
   }
   return false;
 }
 
-static void triggerPress() {
-  if (g_comboActivated.load()) return;
-  g_comboActivated.store(true);
-  if (g_hotkeyCallback) {
-    bool isDown = true;
-    napi_status s = g_hotkeyCallback.BlockingCall(new bool(isDown), [](Napi::Env env, Napi::Function cb, bool *isDownPtr) {
-      Napi::Object evt = Napi::Object::New(env);
-      evt.Set("type", *isDownPtr ? Napi::String::New(env, "down") : Napi::String::New(env, "up"));
-      cb.Call({ evt });
-      delete isDownPtr;
-    });
-    (void)s;
-  }
-}
-
 static void triggerRelease() {
-  if (!g_comboActivated.load()) return;
-  g_comboActivated.store(false);
+  if (!g_keyIsPressed.load() && !g_waitingForKeyUp.load()) return;
   g_keyIsPressed.store(false);
   g_expectedModifiers.store(0);
+  g_waitingForKeyUp.store(true);
   if (g_hotkeyCallback) {
     bool isDown = false;
     napi_status s = g_hotkeyCallback.BlockingCall(new bool(isDown), [](Napi::Env env, Napi::Function cb, bool *isDownPtr) {
@@ -325,35 +309,21 @@ static void triggerRelease() {
   }
 }
 
-static void checkAndActivateCombo(NSEventModifierFlags currentFlags) {
-  if (!g_mainKeyPhysicallyDown.load()) return;
-  if (g_comboActivated.load()) return;
-  
-  if (modifiersMatch(currentFlags)) {
-    g_expectedModifiers.store(stripIrrelevantModifiers(currentFlags));
-    g_keyIsPressed.store(true);
-    triggerPress();
-  }
-}
-
 static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *refcon) {
   (void)proxy;
   (void)refcon;
   if (!g_hotkeyActive.load()) return event;
 
-  NSEventModifierFlags currentFlags = (NSEventModifierFlags)CGEventGetFlags(event);
-  
-  if (type == kCGEventFlagsChanged) {
-    if (g_mainKeyPhysicallyDown.load()) {
-      checkAndActivateCombo(currentFlags);
-      
-      if (g_comboActivated.load()) {
-        NSEventModifierFlags expectedFlags = g_expectedModifiers.load();
-        NSEventModifierFlags strippedCurrent = stripIrrelevantModifiers(currentFlags);
-        if (strippedCurrent != expectedFlags) {
-          triggerRelease();
-        }
-      }
+  // Monitor modifier flag changes when combo is active
+  if (type == kCGEventFlagsChanged && g_keyIsPressed.load()) {
+    NSEventModifierFlags currentFlags = stripIrrelevantModifiers(
+      (NSEventModifierFlags)CGEventGetFlags(event));
+    NSEventModifierFlags expectedFlags = g_expectedModifiers.load();
+    
+    // If modifiers no longer match expected, trigger release
+    if (currentFlags != expectedFlags) {
+      triggerRelease();
+      return nullptr; // Consume the modifier change event
     }
     return event;
   }
@@ -362,23 +332,46 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
 
   CGKeyCode key = (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
   
-  if (key != g_targetKeyCode) return event;
-
-  if (type == kCGEventKeyDown) {
-    if (g_mainKeyPhysicallyDown.load()) {
-      return nullptr;
+  // If combo is active or we're waiting for keyup, consume the main key to prevent typing
+  if ((g_keyIsPressed.load() || g_waitingForKeyUp.load()) && key == g_targetKeyCode) {
+    if (type == kCGEventKeyUp) {
+      g_waitingForKeyUp.store(false);
+      if (g_keyIsPressed.load()) {
+        triggerRelease();
+      }
     }
-    
-    g_mainKeyPhysicallyDown.store(true);
-    checkAndActivateCombo(currentFlags);
-    return nullptr;
-  } else {
-    g_mainKeyPhysicallyDown.store(false);
-    if (g_comboActivated.load()) {
-      triggerRelease();
-    }
+    // Consume both keydown and keyup when combo is active to prevent typing
     return nullptr;
   }
+
+  if (key != g_targetKeyCode) return event;
+
+  // For keydown: require modifier match
+  if (type == kCGEventKeyDown) {
+    if (!modifiersMatch(event)) return event;
+    NSEventModifierFlags currentFlags = stripIrrelevantModifiers(
+      (NSEventModifierFlags)CGEventGetFlags(event));
+    g_expectedModifiers.store(currentFlags);
+    g_keyIsPressed.store(true);
+    g_waitingForKeyUp.store(false);
+  } else { // kCGEventKeyUp
+    if (!g_keyIsPressed.load()) return event;
+    triggerRelease();
+    return nullptr;
+  }
+
+  // Notify JS and consume this event to prevent it from being typed
+  if (g_hotkeyCallback) {
+    bool isDown = (type == kCGEventKeyDown);
+    napi_status s = g_hotkeyCallback.BlockingCall(new bool(isDown), [](Napi::Env env, Napi::Function cb, bool *isDownPtr) {
+      Napi::Object evt = Napi::Object::New(env);
+      evt.Set("type", *isDownPtr ? Napi::String::New(env, "down") : Napi::String::New(env, "up"));
+      cb.Call({ evt });
+      delete isDownPtr;
+    });
+    (void)s;
+  }
+  return nullptr; // Consume the event to prevent it from being typed
 }
 
 Napi::Value RegisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
@@ -408,10 +401,8 @@ Napi::Value RegisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
   g_targetKeyCode = (CGKeyCode)info[0].As<Napi::Number>().Uint32Value();
   g_allowedModifierMasks.clear();
   g_keyIsPressed.store(false);
-  g_mainKeyPhysicallyDown.store(false);
   g_expectedModifiers.store(0);
   g_waitingForKeyUp.store(false);
-  g_comboActivated.store(false);
 
   auto parseModifierMask = [](uint32_t value) {
     return stripIrrelevantModifiers((NSEventModifierFlags)value);
@@ -504,10 +495,8 @@ Napi::Value UnregisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
   }
   g_allowedModifierMasks.clear();
   g_keyIsPressed.store(false);
-  g_mainKeyPhysicallyDown.store(false);
   g_expectedModifiers.store(0);
   g_waitingForKeyUp.store(false);
-  g_comboActivated.store(false);
   return env.Undefined();
 }
 
