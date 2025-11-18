@@ -71,6 +71,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("play-end-sound", callback);
   },
 
+  onWindowHidden: (callback: () => void) => {
+    ipcRenderer.on("window-hidden", callback);
+  },
+
   onError: (callback: (payload: any) => void) => {
     ipcRenderer.on("error:data", (_e, payload) => callback(payload));
   },
@@ -132,6 +136,7 @@ declare global {
       minimizeWindow: () => void;
       logMessage: (message: string) => void;
       onPlayEndSound: (callback: () => void) => void;
+      onWindowHidden: (callback: () => void) => void;
       sendAudioSegment: (audioData: Float32Array) => void;
       getSelectedMicrophone: () => Promise<string>;
       setSelectedMicrophone: (deviceId: string) => Promise<{ success: boolean }>;

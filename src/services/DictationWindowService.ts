@@ -137,6 +137,10 @@ export class DictationWindowService extends EventEmitter {
       console.log("Close event details:", event);
     });
 
+    this.dictationWindow.on("hide", () => {
+      this.dictationWindow?.webContents.send("window-hidden");
+    });
+
     this.dictationWindow.webContents.on(
       "ipc-message",
       (event, channel, ...args) => {

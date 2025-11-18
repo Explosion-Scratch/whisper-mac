@@ -822,11 +822,15 @@
             if (vadInstance.value) await vadInstance.value.pause();
           };
 
-          const cleanupMediaStream = () => {
+          const stopMediaStream = () => {
             if (mediaStream.value) {
               mediaStream.value.getTracks().forEach((track) => track.stop());
               mediaStream.value = null;
             }
+          };
+
+          const cleanupMediaStream = () => {
+            stopMediaStream();
           };
 
           const cleanupVAD = async () => {
@@ -908,6 +912,9 @@
             isRecording.value = true;
             allowFinalFlush = false;
             resetTranscription();
+            if (!mediaStream.value || !isVadInitialized.value) {
+              await initializeVAD();
+            }
             await enableVADStream();
             await startVAD();
             nextTick(setupVisualizer);
@@ -921,6 +928,7 @@
               allowFinalFlush = false;
               await disableVADStream();
               teardownVisualizer();
+              stopMediaStream();
             }, 320);
           };
 
@@ -945,10 +953,15 @@
           watch([displaySegments], () => nextTick(scrollToEnd));
 
           onMounted(async () => {
-            window.electronAPI.onAnimateIn(() => {
+            window.electronAPI.onAnimateIn(async () => {
               document.body.classList.add("visible");
               playStartSound();
-              enableVADStream();
+              if (isRecording.value) {
+                if (!mediaStream.value || !isVadInitialized.value) {
+                  await initializeVAD();
+                }
+                await enableVADStream();
+              }
             });
             window.electronAPI.onInitializeDictation(initializeDictation);
             window.electronAPI.onStartRecording(startRecording);
@@ -959,18 +972,25 @@
             window.electronAPI.onSetStatus(
               (status) => (currentStatus.value = status),
             );
-            window.electronAPI.onPlayEndSound(playEndSound);
-            setupVisualizer();
+          window.electronAPI.onPlayEndSound(playEndSound);
+          window.electronAPI.onWindowHidden(() => {
+            stopMediaStream();
+          });
+          setupVisualizer();
             document.addEventListener("dragstart", (e) => e.preventDefault());
-            window.addEventListener("beforeunload", () => {
-              playEndSound();
-              cleanupMediaStream();
-            });
+          window.addEventListener("beforeunload", () => {
+            playEndSound();
+            cleanupMediaStream();
+          });
+          
+          document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+              stopMediaStream();
+            }
+          });
             
             // Listen for device changes
             navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
-            
-            await initializeVAD();
           });
 
           onUnmounted(() => {
