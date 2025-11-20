@@ -361,16 +361,8 @@ export class ConfigurableActionsService extends EventEmitter {
             );
             return { success: false };
           }
-          let finalText = config.replacementText;
-          if (
-            finalText.includes("{argument}") &&
-            (!match.extractedArgument || match.extractedArgument.trim() === "")
-          ) {
-            finalText = finalText
-              .replace(" {argument}", "")
-              .replace("{argument}", "");
-          }
-          return { success: this.segmentManager.replaceLastSegmentContent(finalText) };
+          // config.replacementText is already interpolated
+          return { success: this.segmentManager.replaceLastSegmentContent(config.replacementText) };
         }
 
         case "deleteLastN": {
@@ -698,13 +690,8 @@ export class ConfigurableActionsService extends EventEmitter {
       .replace(new RegExp(regexPattern), "")
       .trim();
 
-    if (newText.length === 0) {
-      console.warn(
-        "[ConfigurableActions] Pattern removal produced empty text",
-      );
-      return false;
-    }
-
+    // Pattern removal might produce empty text, but we keep the segment
+    // so subsequent actions can still operate or it can serve as a spacer
     lastSegment.text = newText;
     console.log(
       `[ConfigurableActions] Removed pattern "${pattern}": "${newText}"`,
@@ -894,4 +881,3 @@ export class ConfigurableActionsService extends EventEmitter {
     }
   }
 }
-

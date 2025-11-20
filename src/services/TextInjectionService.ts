@@ -46,6 +46,7 @@ export class TextInjectionService {
         return;
       }
 
+      // Fallback if native addon method missing (rare case)
       if (macInput && typeof macInput.pasteCommandV === "function") {
         console.log(
           "insertText: Using macInput.pasteCommandV with injectTextInProcess",
@@ -70,9 +71,16 @@ export class TextInjectionService {
     try {
       const copied = await this.copyToClipboard(text);
       if (!copied) throw new Error("Failed to copy to clipboard");
+      
+      // Small delay to ensure clipboard is updated
       await this.delay(200);
+      
       const current = await this.readClipboard();
-      if (current !== text) throw new Error("Clipboard verification failed");
+      // Basic verification
+      if (current !== text) {
+          console.warn("Clipboard content verification failed, attempting paste anyway");
+      }
+      
       macInput.pasteCommandV?.();
       await this.delay(300);
     } finally {
@@ -90,6 +98,9 @@ export class TextInjectionService {
         }
       }
     } catch { }
+    
+    // Fallback to Electron clipboard
+    clipboard.writeText(text);
     await this.notificationService.sendClipboardNotification();
   }
 

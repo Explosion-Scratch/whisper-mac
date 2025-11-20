@@ -173,6 +173,11 @@ func copySelectionWithCmdCPreserveClipboard() -> String? {
     } ?? []
     vprint("Saved \(originalItems.count) pasteboard items for restore (best-effort). changeCount=\(originalChangeCount)")
 
+    // Clear the pasteboard so we don't accidentally read old content if Cmd-C fails
+    // clearContents() increments the changeCount, so we must capture the count AFTER clearing.
+    pasteboard.clearContents()
+    let clearChangeCount = pasteboard.changeCount
+    
     // Post synthetic Cmd-C. This requires accessibility/assistive access (we already checked).
     guard let src = CGEventSource(stateID: .combinedSessionState) else {
         vprint("Could not create CGEventSource.")
@@ -196,11 +201,20 @@ func copySelectionWithCmdCPreserveClipboard() -> String? {
     var changed = false
     repeat {
         usleep(30_000) // 30ms
-        if pasteboard.changeCount != originalChangeCount { changed = true; break }
+        if pasteboard.changeCount != clearChangeCount { changed = true; break }
     } while Date().timeIntervalSince(start) < 0.3
 
     if !changed {
         vprint("Pasteboard did not change after Cmd-C; assuming no selection.")
+        // Restore original items before returning
+        pasteboard.clearContents()
+        var restoredItems: [NSPasteboardItem] = []
+        for dict in originalItems {
+            let item = NSPasteboardItem()
+            for (type, data) in dict { item.setData(data, forType: type) }
+            restoredItems.append(item)
+        }
+        pasteboard.writeObjects(restoredItems)
         return nil
     }
 

@@ -38,12 +38,13 @@ export class MicrophonePermissionService {
 
   /**
    * Show instructions for enabling microphone permissions
+   * @deprecated UI handling moved to main process
    */
   async showMicrophoneInstructions(): Promise<void> {
     console.log(
-      "=== MicrophonePermissionService.showMicrophoneInstructions ===",
+      "=== MicrophonePermissionService.showMicrophoneInstructions (DEPRECATED) ===",
     );
-
+    
     const script = `
       display dialog "WhisperMac needs microphone permissions to capture your voice for transcription.
 
@@ -72,14 +73,11 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
       });
     } catch (error) {
       console.error("Failed to show microphone instructions:", error);
-      throw new Error(
-        "MICROPHONE PERMISSIONS REQUIRED - CHECK SYSTEM PREFERENCES",
-      );
     }
   }
 
   /**
-   * Check if microphone permissions are enabled and show instructions if not
+   * Check if microphone permissions are enabled and request them if possible
    */
   async ensureMicrophonePermissions(): Promise<boolean> {
     console.log(
@@ -107,25 +105,19 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
           console.log("Microphone access status after request:", newStatus);
           this.microphoneEnabled = newStatus === 'granted';
 
-          if (!this.microphoneEnabled) {
-            await this.showMicrophoneInstructions();
-          }
-
           return this.microphoneEnabled;
         } catch (error) {
           console.error("Error requesting microphone access:", error);
-          await this.showMicrophoneInstructions();
           return false;
         }
       } else {
         // Status is 'denied', 'restricted', or 'unknown'
-        console.log("Microphone permissions not enabled, showing instructions...");
-        await this.showMicrophoneInstructions();
+        console.log("Microphone permissions not enabled");
+        // Don't show instructions automatically - caller will handle UI via native dialog
         return false;
       }
     } catch (error) {
       console.error("Error in ensureMicrophonePermissions:", error);
-      await this.showMicrophoneInstructions();
       return false;
     }
   }
