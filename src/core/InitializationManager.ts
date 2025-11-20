@@ -86,10 +86,22 @@ export class InitializationManager {
     await Promise.allSettled(initTasks);
 
     this.setupPluginErrorHandling();
-    this.onInitializationComplete();
-    this.appStateManager.setSetupStatus("idle");
-
-    console.log("Initialization completed");
+    
+    try {
+      this.onInitializationComplete();
+    } catch (error) {
+      console.error("Error during initialization completion:", error);
+      // Show non-blocking error but allow app to proceed
+      this.errorManager.showError({
+        title: "Initialization Warning",
+        description: error instanceof Error ? error.message : String(error),
+        actions: ["ok"]
+      });
+    } finally {
+      // Always transition to idle state so the app is usable even if some non-critical init parts failed
+      this.appStateManager.setSetupStatus("idle");
+      console.log("Initialization completed (state set to idle)");
+    }
   }
 
   private async checkAccessibilityPermissions(): Promise<void> {

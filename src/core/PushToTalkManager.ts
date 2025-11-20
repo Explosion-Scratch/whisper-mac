@@ -94,30 +94,35 @@ export class PushToTalkManager {
 
     console.log(`[PushToTalkManager] Registering hotkey: keyCode=${keyCode}, modifierMasks=${JSON.stringify(modifierMasks)}, modifierArgument=${Array.isArray(modifierArgument) ? JSON.stringify(modifierArgument) : modifierArgument}`);
 
-    macInput.registerPushToTalkHotkey(keyCode, modifierArgument, (evt: { type: "down" | "up" }) => {
-      console.log(`[PushToTalkManager] Native callback received: type=${evt?.type}, currentState={hotkeyPressed=${this.hotkeyPressed}, isSessionActive=${this.isSessionActive}, finalizeScheduled=${this.finalizeScheduled}}`);
-      
-      if (evt?.type === "down") {
-        if (this.hotkeyPressed) {
-          console.log(`[PushToTalkManager] Ignoring duplicate down event (hotkeyPressed already true)`);
-          return;
+    try {
+      macInput.registerPushToTalkHotkey(keyCode, modifierArgument, (evt: { type: "down" | "up" }) => {
+        console.log(`[PushToTalkManager] Native callback received: type=${evt?.type}, currentState={hotkeyPressed=${this.hotkeyPressed}, isSessionActive=${this.isSessionActive}, finalizeScheduled=${this.finalizeScheduled}}`);
+        
+        if (evt?.type === "down") {
+          if (this.hotkeyPressed) {
+            console.log(`[PushToTalkManager] Ignoring duplicate down event (hotkeyPressed already true)`);
+            return;
+          }
+          console.log(`[PushToTalkManager] Processing hotkey down event`);
+          this.hotkeyPressed = true;
+          this.handleHotkeyPress();
+        } else if (evt?.type === "up") {
+          if (!this.hotkeyPressed) {
+            console.log(`[PushToTalkManager] Ignoring up event (hotkeyPressed is false, state={isSessionActive=${this.isSessionActive}, finalizeScheduled=${this.finalizeScheduled}})`);
+            return;
+          }
+          console.log(`[PushToTalkManager] Processing hotkey up event`);
+          this.hotkeyPressed = false;
+          this.handleHotkeyRelease();
+        } else {
+          console.warn(`[PushToTalkManager] Unknown event type: ${evt?.type}`);
         }
-        console.log(`[PushToTalkManager] Processing hotkey down event`);
-        this.hotkeyPressed = true;
-        this.handleHotkeyPress();
-      } else if (evt?.type === "up") {
-        if (!this.hotkeyPressed) {
-          console.log(`[PushToTalkManager] Ignoring up event (hotkeyPressed is false, state={isSessionActive=${this.isSessionActive}, finalizeScheduled=${this.finalizeScheduled}})`);
-          return;
-        }
-        console.log(`[PushToTalkManager] Processing hotkey up event`);
-        this.hotkeyPressed = false;
-        this.handleHotkeyRelease();
-      } else {
-        console.warn(`[PushToTalkManager] Unknown event type: ${evt?.type}`);
-      }
-    });
-    this.registeredWithMacInput = true;
+      });
+      this.registeredWithMacInput = true;
+    } catch (error) {
+      console.warn("[PushToTalkManager] Failed to register native hotkey. This usually happens if Accessibility permissions are missing.", error);
+      this.registeredWithMacInput = false;
+    }
   }
 
   private unregisterFromMacInput(): void {
@@ -342,37 +347,37 @@ export class PushToTalkManager {
       });
   }
 
-private async finalizePushToTalkSession(): Promise<void> {
-  try {
-    if (this.dictationFlowManager.isRecording()) {
-      // For push-to-talk, we want to skip AI transformations for speed/privacy
-      // but still allow default text transformation actions to run
-      await this.dictationFlowManager.finishCurrentDictation({
-        skipTransformation: true,
-      });
-    } else if (this.dictationFlowManager.isFinishing()) {
-      console.log(
-        "[PushToTalkManager] Push-to-talk release detected during finishing state",
-      );
-    } else {
-      await this.dictationFlowManager.cancelDictationFlow();
-    }
-  } catch (error) {
-    console.error(
-      "[PushToTalkManager] Failed to finalize push-to-talk session:",
-      error,
-    );
+  private async finalizePushToTalkSession(): Promise<void> {
     try {
-      await this.dictationFlowManager.cancelDictationFlow();
-    } catch (cancelError) {
+      if (this.dictationFlowManager.isRecording()) {
+        // For push-to-talk, we want to skip AI transformations for speed/privacy
+        // but still allow default text transformation actions to run
+        await this.dictationFlowManager.finishCurrentDictation({
+          skipTransformation: true,
+        });
+      } else if (this.dictationFlowManager.isFinishing()) {
+        console.log(
+          "[PushToTalkManager] Push-to-talk release detected during finishing state",
+        );
+      } else {
+        await this.dictationFlowManager.cancelDictationFlow();
+      }
+    } catch (error) {
       console.error(
-        "[PushToTalkManager] Push-to-talk cancellation failed:",
-        cancelError,
+        "[PushToTalkManager] Failed to finalize push-to-talk session:",
+        error,
       );
+      try {
+        await this.dictationFlowManager.cancelDictationFlow();
+      } catch (cancelError) {
+        console.error(
+          "[PushToTalkManager] Push-to-talk cancellation failed:",
+          cancelError,
+        );
+      }
+    } finally {
+      this.isSessionActive = false;
+      this.finalizeScheduled = false;
     }
-  } finally {
-    this.isSessionActive = false;
-    this.finalizeScheduled = false;
   }
-}
 }

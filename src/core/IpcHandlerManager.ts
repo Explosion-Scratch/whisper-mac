@@ -415,9 +415,8 @@ export class IpcHandlerManager {
         payload: { pluginName: string; options?: Record<string, any> },
       ) => {
         const { pluginName, options = {} } = payload;
-        this.config.set("transcriptionPlugin", pluginName);
-
-        // Store in settings manager for persistence
+        
+        // Use SettingsManager to persist and apply config consistently
         const sm = this.settingsService.getSettingsManager();
         sm.set("transcriptionPlugin", pluginName);
         Object.keys(options).forEach((key) => {
@@ -425,8 +424,9 @@ export class IpcHandlerManager {
           sm.set(settingKey, options[key]);
         });
         sm.saveSettings();
+        sm.applyToConfig();
 
-        // Store in unified plugin config system
+        // Also update the plugin instance directly to be safe, though applyToConfig should handle it
         const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
         if (plugin) {
           const currentOptions = plugin.getOptions();
@@ -471,9 +471,10 @@ export class IpcHandlerManager {
         }
       }
 
-      this.settingsService.getSettingsManager().set("ai.enabled", enabled);
-      this.settingsService.getSettingsManager().saveSettings();
-      this.config.ai.enabled = enabled;
+      const sm = this.settingsService.getSettingsManager();
+      sm.set("ai.enabled", enabled);
+      sm.saveSettings();
+      sm.applyToConfig();
     });
 
     ipcMain.handle(
@@ -496,11 +497,11 @@ export class IpcHandlerManager {
           }
         }
 
-        this.settingsService.getSettingsManager().set("ai.baseUrl", baseUrl);
-        this.settingsService.getSettingsManager().set("ai.model", model);
-        this.settingsService.getSettingsManager().saveSettings();
-        this.config.ai.baseUrl = baseUrl;
-        this.config.ai.model = model;
+        const sm = this.settingsService.getSettingsManager();
+        sm.set("ai.baseUrl", baseUrl);
+        sm.set("ai.model", model);
+        sm.saveSettings();
+        sm.applyToConfig();
       },
     );
 
@@ -531,10 +532,10 @@ export class IpcHandlerManager {
         );
 
         // Mark onboarding complete and continue normal init
-        this.settingsService
-          .getSettingsManager()
-          .set("onboardingComplete", true);
-        this.settingsService.getSettingsManager().saveSettings();
+        const sm = this.settingsService.getSettingsManager();
+        sm.set("onboardingComplete", true);
+        sm.saveSettings();
+        sm.applyToConfig();
 
         // Reset permission caches to ensure fresh checks after onboarding
         this.permissionsManager.resetCaches();

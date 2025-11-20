@@ -8,7 +8,7 @@
     "fullclean": "rm -rf dist .crush *.log vendor release build && bun install",
     "clear:userdata": "rm -rf \"$HOME/Library/Application Support/WhisperMac\" \"$HOME/Library/Application Support/Electron\" \"$HOME/Library/Application Support/whispermac\" \"$HOME/Library/Application Support/electron\" .whispermac-data",
     "build": "tsc && node scripts/copy-assets.js && node scripts/prep-vad-assets.js",
-    "killothers": "pkill -f Electron || true && pkill -f electron || true && pkill -f whisper || true && pkill -f WhisperMac || true",
+    "killothers": "pkill -f whisper || true && pkill -f WhisperMac || true",
     "start": "bun run killothers && electron dist/main.js",
     "dev": "nodemon --exec \"bun run single-dev\" --ignore dist --ignore photon --ignore .crush",
     "single-dev": "concurrently --raw -m 1 \"rm -rf dist\"  \"bun run killothers\" \"bun run build\" \"bun run start\" --names \"cleanup, kill port, build, dev\"",
@@ -127,18 +127,18 @@
     }
   },
   "iohook": {
-  "targets": [
-    "node-72",
-    "electron-85"
-  ],
-  "platforms": [
-    "win32",
-    "darwin",
-    "linux"
-  ],
-  "arches": [
-    "x64",
-    "ia32"
-  ]
-}
+    "targets": [
+      "node-72",
+      "electron-85"
+    ],
+    "platforms": [
+      "win32",
+      "darwin",
+      "linux"
+    ],
+    "arches": [
+      "x64",
+      "ia32"
+    ]
+  }
 }

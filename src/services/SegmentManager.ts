@@ -69,16 +69,21 @@ export class SegmentManager extends EventEmitter {
     for (const segment of this.segments) {
       if (segment.type === "transcribed") {
         const transcribedSegment = segment as TranscribedSegment;
-        const key = `${transcribedSegment.start}-${transcribedSegment.end
-          }-${transcribedSegment.text.trim()}`;
-
-        if (!seen.has(key)) {
-          seen.add(key);
-          uniqueSegments.push(segment);
+        
+        // Only deduplicate if timestamps are present
+        if (transcribedSegment.start !== undefined && transcribedSegment.end !== undefined) {
+           const key = `${transcribedSegment.start}-${transcribedSegment.end}-${transcribedSegment.text.trim()}`;
+           if (!seen.has(key)) {
+             seen.add(key);
+             uniqueSegments.push(segment);
+           } else {
+             console.log(
+               `[SegmentManager] Removed duplicate segment: "${transcribedSegment.text}" (${transcribedSegment.start}-${transcribedSegment.end})`,
+             );
+           }
         } else {
-          console.log(
-            `[SegmentManager] Removed duplicate segment: "${transcribedSegment.text}" (${transcribedSegment.start}-${transcribedSegment.end})`,
-          );
+           // If no timestamps, assume distinct utterance
+           uniqueSegments.push(segment);
         }
       } else {
         // Keep non-transcribed segments as-is

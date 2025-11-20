@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, dialog } from "electron";
 import log from "electron-log/main";
 
 import {
@@ -518,17 +518,24 @@ class WhisperMacApp {
 
   private async showPermissionsAlert(missingPermissions: string[]): Promise<void> {
     const permissionList = missingPermissions.join(" and ");
-    const message = `WhisperMac needs ${permissionList} permission${missingPermissions.length > 1 ? 's' : ''} to work properly.
+    const message = `WhisperMac needs ${permissionList} permission${missingPermissions.length > 1 ? 's' : ''} to work properly.`;
+    const detail = `${permissionList} permission${missingPermissions.length > 1 ? 's are' : ' is'} required for full functionality.\n\nClick "Open Settings" to grant the necessary permissions.`;
 
-${permissionList} permission${missingPermissions.length > 1 ? 's are' : ' is'} required for full functionality.
-
-Click "Open Settings" to grant the necessary permissions.`;
-
-    await this.errorManager.showError({
-      title: "Permissions Required",
-      description: message,
-      actions: ["settings", "later"],
+    // Use native dialog instead of HTML error window to prevent double prompts
+    const { response } = await dialog.showMessageBox({
+      type: 'warning',
+      title: 'Permissions Required',
+      message: 'Permissions Required',
+      detail: detail,
+      buttons: ['Open Settings', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true
     });
+
+    if (response === 0) {
+      this.settingsService.openSettingsWindow("permissions");
+    }
   }
 }
 
