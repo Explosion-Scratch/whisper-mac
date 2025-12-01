@@ -388,7 +388,8 @@ export class ConfigurableActionsService extends EventEmitter {
   }
 
   private normalizeText(text: string): string {
-    return text.trim().replace(/[^\w\s.]/g, "");
+    // Allow word characters, whitespace, and common punctuation
+    return text.trim().replace(/[^\w\s\.\?!:;,\-]/g, "");
   }
 
   private _removeTrailingPunctuation(text: string): string {

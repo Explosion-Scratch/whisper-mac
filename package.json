@@ -39,13 +39,14 @@
     "copy-paste": "^2.2.0",
     "electron-log": "^5.4.3",
     "iohook": "^0.9.3",
+    "isomorphic-fetch": "^3.0.0",
     "keytar": "^7.9.0",
     "node-addon-api": "^7.1.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "sharp": "^0.34.3",
     "@types/copy-paste": "^2.1.0",
+    "@types/isomorphic-fetch": "^0.0.39",
     "@types/node": "^24.2.1",
     "@types/uuid": "^9.0.0",
     "@types/ws": "^8.5.0",
@@ -53,6 +54,7 @@
     "electron": "^25.0.0",
     "electron-builder": "^24.0.0",
     "nodemon": "^3.0.0",
+    "sharp": "^0.34.3",
     "typescript": "^5.0.0"
   },
   "build": {

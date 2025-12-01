@@ -581,9 +581,6 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
           action: "lowercaseFirstChar",
         },
         order: 1,
-        conditions: {
-          previousSegmentMatchPattern: "^\\w+\\.$",
-        },
       },
       {
         id: "merge-single-word",
@@ -594,9 +591,6 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
           trimPreviousPunctuation: true,
         },
         order: 2,
-        conditions: {
-          previousSegmentMatchPattern: "^\\w+\\.$",
-        },
       },
     ],
   },
@@ -663,6 +657,35 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
           trimPreviousPunctuation: true,
         },
         order: 2,
+      },
+    ],
+  },
+  {
+    id: "merge-standalone-punctuation",
+    name: "Merge Standalone Punctuation",
+    description: "Merge segments consisting only of punctuation into the previous segment",
+    enabled: true,
+    order: 17,
+    closesTranscription: false,
+    skipsTransformation: false,
+    matchPatterns: [
+      {
+        id: "standalone-punctuation",
+        type: "regex",
+        pattern: "^[\\.\\?!:;]+$",
+        caseSensitive: false,
+      },
+    ],
+    handlers: [
+      {
+        id: "merge-punctuation",
+        type: "segmentAction",
+        config: {
+          action: "mergeWithPrevious",
+          joiner: "",
+          trimPreviousPunctuation: true,
+        },
+        order: 1,
       },
     ],
   },
