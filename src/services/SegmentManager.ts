@@ -292,7 +292,21 @@ export class SegmentManager extends EventEmitter {
         if (this.configurableActionsService) {
           await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
         }
-        const currentText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+        let currentText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+
+        // Execute after_ai actions even if skipping AI (e.g. auto-trim punctuation)
+        if (this.configurableActionsService && currentText.length > 0) {
+          const tempSegment: TranscribedSegment = {
+            id: "temp-combined",
+            type: "transcribed",
+            text: currentText,
+            completed: true,
+            timestamp: Date.now(),
+          };
+          await this.configurableActionsService.executeAllSegmentsActionsAfterAI([tempSegment]);
+          currentText = tempSegment.text;
+        }
+
         const finalText = currentText ? this.transformationService.finalizeText(currentText) : currentText;
 
         if (finalText) {
@@ -310,7 +324,23 @@ export class SegmentManager extends EventEmitter {
         await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
       }
 
-      const originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+      let originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+
+      // Apply after_ai actions to the raw text as well (for injectRawLastResult)
+      if (this.configurableActionsService && originalText.length > 0) {
+        const tempSegment: TranscribedSegment = {
+          id: "temp-raw",
+          type: "transcribed",
+          text: originalText,
+          completed: true,
+          timestamp: Date.now(),
+        };
+        // We use a copy of the actions service logic or just re-run it on this temp segment
+        // Note: This might duplicate side effects if actions have them, but typically after_ai actions are pure text transforms
+        await this.configurableActionsService.executeAllSegmentsActionsAfterAI([tempSegment]);
+        originalText = tempSegment.text;
+      }
+
       const transformResult = await this.transformationService.transformSegments(
         segmentsToProcess,
         await this.selectedTextService.getSelectedText(),

@@ -1,3 +1,4 @@
+import "isomorphic-fetch";
 import { spawn } from "child_process";
 import {
     unlinkSync,
@@ -392,64 +393,66 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
         fileName: string,
         onProgress?: (percent: number) => void,
     ): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const request = https.get(url, (response) => {
-                if (response.statusCode === 302 || response.statusCode === 301) {
-                    const redirectUrl = response.headers.location;
-                    if (redirectUrl) {
-                        this.downloadFileWithProgress(
-                            redirectUrl,
-                            destPath,
-                            fileName,
-                            onProgress,
-                        )
-                            .then(resolve)
-                            .catch(reject);
-                    } else {
-                        reject(new Error("Redirect without location header"));
-                    }
-                    return;
-                }
+        console.log(`Downloading ${url} to ${destPath}...`);
 
-                if (response.statusCode !== 200) {
-                    reject(
-                        new Error(`Failed to download ${fileName}: HTTP ${response.statusCode}`),
-                    );
-                    return;
-                }
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to download ${fileName}: ${response.statusText} (${response.status})`);
+        }
 
-                const totalBytes = parseInt(
-                    response.headers["content-length"] || "0",
-                    10,
-                );
-                let downloadedBytes = 0;
-                const fileStream = createWriteStream(destPath);
+        const totalBytes = parseInt(response.headers.get("content-length") || "0", 10);
+        let downloadedBytes = 0;
+        const fileStream = createWriteStream(destPath);
 
-                response.on("data", (chunk: Buffer) => {
+        if (response.body && typeof (response.body as any).pipe === 'function') {
+            // Node-fetch v2 style (Node stream)
+            return new Promise((resolve, reject) => {
+                (response.body as any).on("data", (chunk: Buffer) => {
                     downloadedBytes += chunk.length;
-                    const percent =
-                        totalBytes > 0
-                            ? Math.round((downloadedBytes / totalBytes) * 100)
-                            : 0;
+                    const percent = totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0;
                     onProgress?.(percent);
                 });
 
-                response.pipe(fileStream);
+                (response.body as any).pipe(fileStream);
 
                 fileStream.on("finish", () => {
                     onProgress?.(100);
                     resolve();
                 });
 
-                fileStream.on("error", (error) => {
-                    reject(error);
-                });
+                fileStream.on("error", (error: any) => reject(error));
+                (response.body as any).on("error", (error: any) => reject(error));
             });
+        } else if (response.body) {
+            // Web Streams API (standard fetch)
+            const reader = response.body.getReader();
 
-            request.on("error", (error) => {
-                reject(error);
+            return new Promise(async (resolve, reject) => {
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        if (value) {
+                            downloadedBytes += value.length;
+                            const percent = totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0;
+                            onProgress?.(percent);
+                            fileStream.write(Buffer.from(value));
+                        }
+                    }
+
+                    fileStream.end();
+                    fileStream.on("finish", () => {
+                        onProgress?.(100);
+                        resolve();
+                    });
+                } catch (error) {
+                    reject(error);
+                }
             });
-        });
+        } else {
+            throw new Error("Response body is empty");
+        }
     }
 
     // Helpers
