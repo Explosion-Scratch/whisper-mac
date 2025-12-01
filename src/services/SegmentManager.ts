@@ -6,7 +6,7 @@ import {
   TranscribedSegment,
   FlushResult,
 } from "../types/SegmentTypes";
-import { ActionHandler } from "../types/ActionTypes";
+import { ActionHandler, ActionHandlerConfig, ActionMatch } from "../types/ActionTypes";
 import { TransformationService } from "./TransformationService";
 import { TextInjectionService } from "./TextInjectionService";
 import { SelectedTextResult, SelectedTextService } from "./SelectedTextService";
@@ -14,18 +14,19 @@ import { ConfigurableActionsService } from "./ConfigurableActionsService";
 
 export class SegmentManager extends EventEmitter {
   private segments: Segment[] = [];
-  private initialSelectedText: string | null = null; // Store selected text here
+  private initialSelectedText: string | null = null;
   private transformationService: TransformationService;
   private textInjectionService: TextInjectionService;
   private selectedTextService: SelectedTextService;
   private configurableActionsService: ConfigurableActionsService | null = null;
-  private isAccumulatingMode: boolean = false; // New: track if we're in accumulate-only mode
+  private isAccumulatingMode: boolean = false;
   private ignoreNextCompleted: boolean = false;
   private lastExecutedAction: {
     actionIds: string[];
     skipsTransformation?: boolean;
     skipsAllTransforms?: boolean;
   } | null = null;
+  private queuedHandlers: ActionHandlerConfig[] = [];
 
   constructor(
     transformationService: TransformationService,
@@ -49,19 +50,10 @@ export class SegmentManager extends EventEmitter {
     return this.isAccumulatingMode;
   }
 
-  /**
-   * Stores the initially selected text for the dictation session.
-   */
   setInitialSelectedText(text: string): void {
     this.initialSelectedText = text.trim();
-    console.log(
-      `[SegmentManager] Set initial selected text: "${this.initialSelectedText}"`,
-    );
   }
 
-  /**
-   * Deduplicate segments based on start, end times and trimmed text
-   */
   private deduplicateSegments(): void {
     const seen = new Set<string>();
     const uniqueSegments: Segment[] = [];
@@ -69,79 +61,63 @@ export class SegmentManager extends EventEmitter {
     for (const segment of this.segments) {
       if (segment.type === "transcribed") {
         const transcribedSegment = segment as TranscribedSegment;
-        
-        // Only deduplicate if timestamps are present
         if (transcribedSegment.start !== undefined && transcribedSegment.end !== undefined) {
-           const key = `${transcribedSegment.start}-${transcribedSegment.end}-${transcribedSegment.text.trim()}`;
-           if (!seen.has(key)) {
-             seen.add(key);
-             uniqueSegments.push(segment);
-           } else {
-             console.log(
-               `[SegmentManager] Removed duplicate segment: "${transcribedSegment.text}" (${transcribedSegment.start}-${transcribedSegment.end})`,
-             );
-           }
+          const key = `${transcribedSegment.start}-${transcribedSegment.end}-${transcribedSegment.text.trim()}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueSegments.push(segment);
+          }
         } else {
-           // If no timestamps, assume distinct utterance
-           uniqueSegments.push(segment);
+          uniqueSegments.push(segment);
         }
       } else {
-        // Keep non-transcribed segments as-is
         uniqueSegments.push(segment);
       }
     }
-
     this.segments = uniqueSegments;
   }
 
-  /**
-   * Add a transcribed segment from transcription plugins
-   */
   addTranscribedSegment(
     text: string,
     completed: boolean,
     start?: number,
     end?: number,
     confidence?: number,
-  ): TranscribedSegment {
+  ): { segment: TranscribedSegment; closesTranscription: boolean } {
     const trimmedText = text.trim();
     console.log(
       `[SegmentManager] Attempting to add segment: "${trimmedText}" (completed: ${completed})`,
     );
 
-    // One-shot ignore for the next completed segment after a flush
     if (completed && this.ignoreNextCompleted) {
-      console.log(
-        "[SegmentManager] Ignoring next completed segment post-flush",
-      );
+      console.log("[SegmentManager] Ignoring next completed segment post-flush");
       this.ignoreNextCompleted = false;
       return {
-        id: uuidv4(),
-        type: "transcribed",
-        text: trimmedText,
-        completed,
-        start,
-        end,
-        confidence,
-        timestamp: Date.now(),
+        segment: {
+          id: uuidv4(),
+          type: "transcribed",
+          text: trimmedText,
+          completed,
+          start,
+          end,
+          confidence,
+          timestamp: Date.now(),
+        },
+        closesTranscription: false,
       };
     }
 
-    // If a completed segment arrives, delete all in-progress segments.
     if (completed) {
       this.segments = this.segments.filter(
         (s) => s.type === "transcribed" && s.completed,
       );
-    }
-
-    // If it's a new in-progress segment, clear out all other old ones first.
-    if (!completed) {
+    } else {
       this.segments = this.segments.filter(
         (s) => s.type !== "transcribed" || s.completed,
       );
     }
 
-    const segment: TranscribedSegment = {
+    let segment: TranscribedSegment = {
       id: uuidv4(),
       type: "transcribed",
       text: trimmedText,
@@ -152,252 +128,235 @@ export class SegmentManager extends EventEmitter {
       timestamp: Date.now(),
     };
 
+    // Add the new segment temporarily for processing
     this.segments.push(segment);
 
-    // Deduplicate segments after adding the new one
+    // Deduplicate immediately
     this.deduplicateSegments();
 
-    this.emit("segment-added", segment);
-    console.log(
-      `[SegmentManager] Added transcribed segment: "${trimmedText}" (completed: ${completed})`,
-    );
+    // Re-find the added segment if it survived deduplication, or use the last one
+    const foundSegment = this.segments.find(s => s.id === segment.id);
+    if (foundSegment) {
+      segment = foundSegment as TranscribedSegment;
+      this.emit("segment-added", segment);
+    } else if (this.segments.length > 0) {
+      segment = this.segments[this.segments.length - 1] as TranscribedSegment;
+      // Do not emit segment-added for duplicates
+    } else {
+      // If segment was removed (e.g. duplicate), just return the original object but it won't be in list
+      return { segment, closesTranscription: false };
+    }
 
-    // Check for actions in completed segments after storing, so transformations operate on the right segment
-    if (completed && this.configurableActionsService) {
-      const actionMatches =
-        this.configurableActionsService.detectActions(trimmedText);
-      if (actionMatches.length > 0) {
-        for (const actionMatch of actionMatches) {
-          console.log(
-            `[SegmentManager] Action detected: "${actionMatch.actionId}" with argument: "${actionMatch.extractedArgument || "none"}"`,
-          );
+    // === Process Queued Handlers First ===
+    if (completed && this.queuedHandlers.length > 0 && this.configurableActionsService) {
+      console.log(`[SegmentManager] Processing ${this.queuedHandlers.length} queued handlers`);
+
+      // Work on transcribed segments only
+      let transcribedSegments = this.getTranscribedSegments();
+
+      const handlersToProcess = [...this.queuedHandlers];
+      this.queuedHandlers = [];
+
+      for (const handler of handlersToProcess) {
+        const mockMatch: ActionMatch = {
+          actionId: "queued-action",
+          matchedPattern: {
+            id: "queued",
+            type: "exact",
+            pattern: "",
+            caseSensitive: false,
+          },
+          originalText: segment.text,
+          extractedArgument: "",
+          handlers: [handler],
+        };
+
+        const result = this.configurableActionsService.runHandler(handler, mockMatch, transcribedSegments);
+
+        if (result.success) {
+          transcribedSegments = result.segments;
+          this.updateSegmentsFromTranscribed(transcribedSegments);
+
+          // Update reference to current segment for return
+          if (transcribedSegments.length > 0) {
+            segment = transcribedSegments[transcribedSegments.length - 1];
+          }
         }
 
-        const actions = this.configurableActionsService.getActions();
-        const matchedActions = actionMatches
-          .map((match) => actions.find((action) => action.id === match.actionId))
-          .filter((action): action is ActionHandler => Boolean(action));
-
-        if (matchedActions.length > 0) {
-          this.lastExecutedAction = {
-            actionIds: matchedActions.map((action) => action.id),
-            skipsTransformation: matchedActions.some(
-              (action) => action.skipsTransformation,
-            ),
-            skipsAllTransforms: matchedActions.some(
-              (action) => action.skipsAllTransforms,
-            ),
-          };
-        } else {
-          this.lastExecutedAction = null;
+        if (result.queuedHandlers) {
+          this.queuedHandlers.push(...result.queuedHandlers);
         }
-
-        this.emit("actions-detected", actionMatches);
       }
     }
-    return segment;
+
+    // === Execute Detected Actions ===
+    if (completed && this.configurableActionsService) {
+      // Detect actions on the *current state* of the text
+      const actionMatches = this.configurableActionsService.detectActions(segment.text);
+
+      if (actionMatches.length > 0) {
+        const transcribedSegments = this.getTranscribedSegments();
+
+        const result = this.configurableActionsService.executeActions(
+          transcribedSegments,
+          actionMatches,
+        );
+
+        // Update segments with modified version
+        this.updateSegmentsFromTranscribed(result.segments);
+
+        if (result.segments.length > 0) {
+          segment = result.segments[result.segments.length - 1];
+        }
+
+        // Store queued handlers for next segment
+        if (result.queuedHandlers.length > 0) {
+          this.queuedHandlers.push(...result.queuedHandlers);
+        }
+
+        this.lastExecutedAction = {
+          actionIds: actionMatches.map((m) => m.actionId),
+          skipsTransformation: result.skipsTransformation,
+          skipsAllTransforms: result.skipsAllTransforms,
+        };
+
+        // Emit event for non-segment actions
+        const hasNonSegmentHandlers = actionMatches.some(match =>
+          match.handlers.some(h =>
+            ["openUrl", "openApplication", "quitApplication", "executeShell"].includes(h.type)
+          )
+        );
+
+        if (hasNonSegmentHandlers) {
+          this.emit("actions-detected", actionMatches);
+        }
+
+        return { segment, closesTranscription: result.closesTranscription };
+      }
+    }
+
+    return { segment, closesTranscription: false };
   }
 
-  /**
-   * Transform and inject all accumulated segments regardless of completion status
-   * Used when manually triggering the transform+inject flow
-   */
+  // Helper to get only transcribed segments for action processing
+  private getTranscribedSegments(): TranscribedSegment[] {
+    return this.segments.filter(s => s.type === "transcribed") as TranscribedSegment[];
+  }
+
+  // Helper to update main segments list from modified transcribed list
+  private updateSegmentsFromTranscribed(transcribed: TranscribedSegment[]): void {
+    // Keep non-transcribed segments (like selected text placeholders if any)
+    const nonTranscribed = this.segments.filter(s => s.type !== "transcribed");
+    this.segments = [...nonTranscribed, ...transcribed];
+  }
+
+  // ... (Rest of methods: transformAndInjectAllSegments, etc.) ...
+  // Keeping existing implementations for transformation methods as they rely on other services
+  // but ConfigurableActionsService is now used purely via executeActions/runHandler
+
   async transformAndInjectAllSegments(): Promise<FlushResult> {
     return this.transformAndInjectAllSegmentsInternal({
       skipTransformation: false,
     });
   }
 
-async transformAndInjectAllSegmentsInternal(options: {
-skipTransformation?: boolean;
-skipAllTransforms?: boolean;
-onInjecting?: () => void;
-}): Promise<FlushResult> {
-  console.log("[SegmentManager] Transform and inject all segments");
+  async transformAndInjectAllSegmentsInternal(options: {
+    skipTransformation?: boolean;
+    skipAllTransforms?: boolean;
+    onInjecting?: () => void;
+  }): Promise<FlushResult> {
+    const segmentsToProcess = this.getCompletedTranscribedSegments();
 
-  const segmentsToProcess = this.segments.filter(
-    (s) => s.type === "transcribed" && (s as TranscribedSegment).completed,
-  ) as TranscribedSegment[];
-
-  if (segmentsToProcess.length === 0) {
-    console.log("[SegmentManager] No segments to transform and inject");
-    return { transformedText: "", segmentsProcessed: 0, success: true };
-  }
-
-  console.log(
-    `[SegmentManager] Transforming and injecting ${segmentsToProcess.length} segments`,
-  );
-
-  try {
-    // Check if all transformations should be skipped due to plugin criteria or action
-    const shouldSkipAllTransforms =
-      options?.skipAllTransforms || this.lastExecutedAction?.skipsAllTransforms;
-
-    // Check if AI transformation should be skipped due to plugin criteria or action
-    const shouldSkipTransformation =
-      options?.skipTransformation ||
-      this.lastExecutedAction?.skipsTransformation;
-
-    if (shouldSkipAllTransforms) {
-      // Bypass ALL transformations and inject original text combined
-      const originalText = segmentsToProcess
-        .map((segment) => segment.text.trim())
-        .filter((text) => text.length > 0)
-        .join(" ");
-
-      if (originalText) {
-        options.onInjecting?.();
-        await this.textInjectionService.insertText(originalText);
-        console.log(
-          `[SegmentManager] Direct-injected text without any transformations (action skip): "${originalText}"`,
-        );
-        // Emit both raw and transformed events (they're the same in this case)
-        this.emit("raw", { rawText: originalText });
-        this.emit("transformed", { transformedText: originalText });
-      }
-
-      this.clearAllSegments();
-      this.lastExecutedAction = null; // Reset after use
-      return {
-        transformedText: originalText,
-        segmentsProcessed: segmentsToProcess.length,
-        success: true,
-      };
+    if (segmentsToProcess.length === 0) {
+      return { transformedText: "", segmentsProcessed: 0, success: true };
     }
 
-    if (shouldSkipTransformation) {
-      // Apply default text transformation actions but skip AI transformation
-      
-      // Execute before_ai global actions even when AI is disabled
+    try {
+      const shouldSkipAllTransforms = options?.skipAllTransforms || this.lastExecutedAction?.skipsAllTransforms;
+      const shouldSkipTransformation = options?.skipTransformation || this.lastExecutedAction?.skipsTransformation;
+
+      if (shouldSkipAllTransforms) {
+        const originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+        if (originalText) {
+          options.onInjecting?.();
+          await this.textInjectionService.insertText(originalText);
+          this.emit("raw", { rawText: originalText });
+          this.emit("transformed", { transformedText: originalText });
+        }
+        this.clearAllSegments();
+        this.lastExecutedAction = null;
+        return { transformedText: originalText, segmentsProcessed: segmentsToProcess.length, success: true };
+      }
+
+      if (shouldSkipTransformation) {
+        if (this.configurableActionsService) {
+          await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+        }
+        const currentText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+        const finalText = currentText ? this.transformationService.finalizeText(currentText) : currentText;
+
+        if (finalText) {
+          options.onInjecting?.();
+          await this.textInjectionService.insertText(finalText);
+          this.emit("raw", { rawText: currentText });
+          this.emit("transformed", { transformedText: finalText });
+        }
+        this.clearAllSegments();
+        this.lastExecutedAction = null;
+        return { transformedText: finalText, segmentsProcessed: segmentsToProcess.length, success: true };
+      }
+
       if (this.configurableActionsService) {
         await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
       }
 
-      // Get the current text from segments (which may have been modified by actions)
-      const currentText = segmentsToProcess
-        .map((segment) => segment.text.trim())
-        .filter((text) => text.length > 0)
-        .join(" ");
-
-      // Apply basic finalization
-      const finalText = currentText
-        ? this.transformationService.finalizeText(currentText)
-        : currentText;
-
-      if (finalText) {
-        options.onInjecting?.();
-        await this.textInjectionService.insertText(finalText);
-        const skipReason = this.lastExecutedAction?.skipsTransformation
-          ? "action skip"
-          : "transcription skip";
-        console.log(
-          `[SegmentManager] Direct-injected text without AI transformation (${skipReason}): "${finalText}"`,
-        );
-        // Emit both raw and transformed events
-        this.emit("raw", { rawText: currentText });
-        this.emit("transformed", { transformedText: finalText });
-      }
-
-      this.clearAllSegments();
-      this.lastExecutedAction = null; // Reset after use
-      return {
-        transformedText: finalText,
-        segmentsProcessed: segmentsToProcess.length,
-        success: true,
-      };
-    }
-
-    // Execute before_ai global actions
-    if (this.configurableActionsService) {
-      await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
-    }
-
-    // Get the original text before transformation for raw result tracking
-    const originalText = segmentsToProcess
-      .map((segment) => segment.text.trim())
-      .filter((text) => text.length > 0)
-      .join(" ");
-
-    // Transform all segments
-    const transformResult =
-      await this.transformationService.transformSegments(
+      const originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+      const transformResult = await this.transformationService.transformSegments(
         segmentsToProcess,
         await this.selectedTextService.getSelectedText(),
       );
 
-    // Execute after_ai global actions if transformation was successful
-    if (transformResult.success && transformResult.transformedText && this.configurableActionsService) {
-      // Create a temporary segment with the AI-transformed text to apply after_ai actions
-      const transformedSegment: TranscribedSegment = {
-        id: uuidv4(),
-        type: "transcribed",
-        text: transformResult.transformedText,
-        completed: true,
-        timestamp: Date.now(),
-      };
-      
-      console.log(`[SegmentManager] DEBUG: Before after_ai actions, segments contain: [${segmentsToProcess.map(s => `'${s.text}'`).join(', ')}]`);
-      
-      // Apply after_ai actions to the transformed text
-      await this.configurableActionsService.executeAllSegmentsActionsAfterAI([transformedSegment]);
-      
-      console.log(`[SegmentManager] DEBUG: After after_ai actions, segments contain: [${segmentsToProcess.map(s => `'${s.text}'`).join(', ')}]`);
-      
-      // Use the transformed segment's text as the final result
-      transformResult.transformedText = transformedSegment.text;
-      
-      console.log(`[SegmentManager] DEBUG: About to inject text: "${transformResult.transformedText}" (original: "${originalText}")`);
-    }
+      if (transformResult.success && transformResult.transformedText && this.configurableActionsService) {
+        const transformedSegment: TranscribedSegment = {
+          id: uuidv4(),
+          type: "transcribed",
+          text: transformResult.transformedText,
+          completed: true,
+          timestamp: Date.now(),
+        };
+        await this.configurableActionsService.executeAllSegmentsActionsAfterAI([transformedSegment]);
+        transformResult.transformedText = transformedSegment.text;
+      }
 
-    if (!transformResult.success) {
-      console.error(
-        "[SegmentManager] Transformation failed:",
-        transformResult.error,
-      );
+      if (!transformResult.success) {
+        return await this.handleTransformationFallback(
+          segmentsToProcess,
+          transformResult.error || "Transformation failed",
+          options.onInjecting,
+        );
+      }
+
+      const transformedText = transformResult.transformedText;
+      if (transformedText) {
+        options.onInjecting?.();
+        await this.textInjectionService.insertText(transformedText);
+        if (originalText) this.emit("raw", { rawText: originalText });
+        this.emit("transformed", { transformedText });
+      }
+
+      this.clearAllSegments();
+      this.lastExecutedAction = null;
+      return { transformedText, segmentsProcessed: transformResult.segmentsProcessed, success: true };
+
+    } catch (error) {
       return await this.handleTransformationFallback(
         segmentsToProcess,
-        transformResult.error || "Transformation failed",
+        error instanceof Error ? error.message : "Unknown error",
         options.onInjecting,
       );
     }
-
-    const transformedText = transformResult.transformedText;
-    if (transformedText) {
-      options.onInjecting?.();
-      await this.textInjectionService.insertText(transformedText);
-      console.log(`[SegmentManager] Injected text: "${transformedText}"`);
-
-      // Emit raw and transformed events for hotkey last result tracking
-      if (originalText) {
-        this.emit("raw", { rawText: originalText });
-      }
-      this.emit("transformed", { transformedText });
-    }
-
-    // Clear all segments after successful transform+inject
-    this.clearAllSegments();
-    this.lastExecutedAction = null; // Reset after use
-
-    console.log(
-      `[SegmentManager] Transform and inject completed successfully`,
-    );
-
-    return {
-      transformedText,
-      segmentsProcessed: transformResult.segmentsProcessed,
-      success: true,
-    };
-  } catch (error) {
-    console.error("[SegmentManager] Transform and inject failed:", error);
-    return await this.handleTransformationFallback(
-      segmentsToProcess,
-      error instanceof Error ? error.message : "Unknown error",
-      options.onInjecting,
-    );
   }
-}
 
-  /** Inject raw text directly, bypassing transformation */
   async injectDirectText(text: string): Promise<void> {
     const trimmed = (text || "").trim();
     if (!trimmed) return;
@@ -405,348 +364,98 @@ onInjecting?: () => void;
     this.clearAllSegments();
   }
 
-  /**
-   * Handle fallback to original text when transformation fails
-   */
   private async handleTransformationFallback(
     segmentsToProcess: TranscribedSegment[],
     error: string,
     onInjecting?: () => void,
   ): Promise<FlushResult> {
-    // Execute before_ai global actions on fallback
     if (this.configurableActionsService) {
       await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
     }
-
-    const originalText = segmentsToProcess
-      .map((segment) => segment.text.trim())
-      .filter((text) => text.length > 0)
-      .join(" ");
-
-    // Just do basic finalization since transformations are now actions
-    const finalText = originalText
-      ? this.transformationService.finalizeText(originalText)
-      : originalText;
+    const originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+    const finalText = originalText ? this.transformationService.finalizeText(originalText) : originalText;
 
     if (finalText) {
-      console.log(
-        `[SegmentManager] Falling back to injecting text after non-AI transforms: "${finalText}"`,
-      );
       onInjecting?.();
       await this.textInjectionService.insertText(finalText);
-
-      if (originalText) {
-        this.emit("raw", { rawText: originalText });
-      }
+      if (originalText) this.emit("raw", { rawText: originalText });
       this.emit("transformed", { transformedText: finalText });
     }
-
-    // Clear all segments after fallback injection
     this.clearAllSegments();
-
-    return {
-      transformedText: finalText,
-      segmentsProcessed: segmentsToProcess.length,
-      success: true,
-      error,
-    };
+    return { transformedText: finalText, segmentsProcessed: segmentsToProcess.length, success: true, error };
   }
 
-  /**
-   * Clear all segments and stored selected text
-   */
   clearAllSegments(): void {
-    console.log(
-      `[SegmentManager] Clearing all ${this.segments.length} segments and selected text`,
-    );
     this.segments = [];
     this.initialSelectedText = null;
-    this.isAccumulatingMode = false; // Reset accumulating mode when clearing
+    this.isAccumulatingMode = false;
+    this.queuedHandlers = []; // Clear queued handlers too
     this.emit("segments-cleared");
   }
 
-  /**
-   * Delete only the last segment (undo functionality)
-   */
+  // Legacy segment manipulation methods mostly replaced by executeActions logic,
+  // but kept for any direct usage if needed, though executeAction should be preferred.
   deleteLastSegment(): boolean {
-    if (this.segments.length === 0) {
-      console.log("[SegmentManager] No segments to delete");
-      return false;
-    }
-
+    if (this.segments.length === 0) return false;
     const lastSegment = this.segments.pop();
-    console.log(
-      `[SegmentManager] Deleted last segment: "${lastSegment?.text}" (${lastSegment?.id})`,
-    );
     this.emit("segment-deleted", lastSegment);
     return true;
   }
 
-  /**
-   * Replace the content of the last segment
-   */
   replaceLastSegmentContent(newContent: string): boolean {
-    if (this.segments.length === 0) {
-      console.log("[SegmentManager] No segments to replace");
-      return false;
-    }
-
+    if (this.segments.length === 0) return false;
     const lastSegment = this.segments[this.segments.length - 1];
     const oldContent = lastSegment.text;
     lastSegment.text = newContent.trim();
-
-    console.log(
-      `[SegmentManager] Replaced segment content: "${oldContent}" -> "${newContent}"`,
-    );
-    this.emit("segment-content-replaced", {
-      segment: lastSegment,
-      oldContent,
-      newContent,
-    });
+    this.emit("segment-content-replaced", { segment: lastSegment, oldContent, newContent });
     return true;
   }
 
-  /**
-   * Delete the last N segments
-   */
   deleteLastNSegments(count: number): number {
-    if (count <= 0 || this.segments.length === 0) {
-      return 0;
-    }
-
+    if (count <= 0 || this.segments.length === 0) return 0;
     const actualCount = Math.min(count, this.segments.length);
     const deletedSegments = this.segments.splice(-actualCount, actualCount);
-
-    console.log(
-      `[SegmentManager] Deleted ${actualCount} segments: ${deletedSegments
-        .map((s) => `"${s.text}"`)
-        .join(", ")}`,
-    );
     this.emit("segments-deleted", deletedSegments);
     return actualCount;
   }
 
-  /**
-   * Transform last segment by removing trailing ellipses and queue action for next segment
-   */
-  transformLastSegmentEllipses(): { success: boolean; hadEllipses: boolean } {
-    if (this.segments.length === 0) {
-      return { success: false, hadEllipses: false };
-    }
-
-    const lastSegment = this.segments[this.segments.length - 1];
-    const originalText = lastSegment.text;
-    const hasEllipses = originalText.endsWith("...");
-
-    if (hasEllipses) {
-      lastSegment.text = originalText.replace(/\.\.\.+$/, "").trim();
-      console.log(
-        `[SegmentManager] Removed ellipses from segment: "${originalText}" -> "${lastSegment.text}"`,
-      );
-      this.emit("segment-ellipses-removed", {
-        segment: lastSegment,
-        originalText,
-      });
-    }
-
-    return { success: true, hadEllipses: hasEllipses };
-  }
-
-  /**
-   * Apply lowercase transformation to the first character of the last segment
-   */
-  lowercaseFirstCharOfLastSegment(): boolean {
-    if (this.segments.length === 0) {
-      return false;
-    }
-
-    const lastSegment = this.segments[this.segments.length - 1];
-    const originalText = lastSegment.text;
-
-    if (!originalText) {
-      return false;
-    }
-
-    // Make first character lowercase
-    const transformedText =
-      originalText.charAt(0).toLowerCase() + originalText.slice(1);
-    lastSegment.text = transformedText;
-
-    console.log(
-      `[SegmentManager] Lowercased first character: "${originalText}" -> "${transformedText}"`,
-    );
-    this.emit("segment-first-char-lowercased", {
-      segment: lastSegment,
-      originalText,
-    });
-
-    return true;
-  }
-
-  /**
-   * Apply uppercase transformation to the first character of the last segment
-   */
-  uppercaseFirstCharOfLastSegment(): boolean {
-    if (this.segments.length === 0) {
-      return false;
-    }
-
-    const lastSegment = this.segments[this.segments.length - 1];
-    const originalText = lastSegment.text;
-
-    if (!originalText) {
-      return false;
-    }
-
-    // Make first character uppercase
-    const transformedText =
-      originalText.charAt(0).toUpperCase() + originalText.slice(1);
-    lastSegment.text = transformedText;
-
-    console.log(
-      `[SegmentManager] Uppercased first character: "${originalText}" -> "${transformedText}"`,
-    );
-    this.emit("segment-first-char-uppercased", {
-      segment: lastSegment,
-      originalText,
-    });
-
-    return true;
-  }
-
-  /**
-   * Apply capitalization to the first word of the last segment
-   */
-  capitalizeFirstWordOfLastSegment(): boolean {
-    if (this.segments.length === 0) {
-      return false;
-    }
-
-    const lastSegment = this.segments[this.segments.length - 1];
-    const originalText = lastSegment.text;
-
-    if (!originalText) {
-      return false;
-    }
-
-    // Capitalize first word
-    const words = originalText.split(" ");
-    if (words.length > 0 && words[0].length > 0) {
-      words[0] = words[0].charAt(0).toUpperCase() + words[0].slice(1);
-      const transformedText = words.join(" ");
-      lastSegment.text = transformedText;
-
-      console.log(
-        `[SegmentManager] Capitalized first word: "${originalText}" -> "${transformedText}"`,
-      );
-      this.emit("segment-first-word-capitalized", {
-        segment: lastSegment,
-        originalText,
-      });
-
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * Get the last segment
-   */
   getLastSegment(): Segment | null {
-    return this.segments.length > 0
-      ? this.segments[this.segments.length - 1]
-      : null;
+    return this.segments.length > 0 ? this.segments[this.segments.length - 1] : null;
   }
 
-  /**
-   * Get all segments
-   */
   getAllSegments(): Segment[] {
     return [...this.segments];
   }
 
-  /**
-   * Get segments by type
-   */
-  getSegmentsByType(type: SegmentType): Segment[] {
-    return this.segments.filter((s) => s.type === type);
-  }
-
-  /**
-   * Get completed transcribed segments
-   */
   getCompletedTranscribedSegments(): TranscribedSegment[] {
-    return this.segments.filter(
-      (s) => s.type === "transcribed" && s.completed,
-    ) as TranscribedSegment[];
+    return this.segments.filter(s => s.type === "transcribed" && s.completed) as TranscribedSegment[];
   }
 
-  /**
-   * Get in-progress transcribed segments
-   */
   getInProgressTranscribedSegments(): TranscribedSegment[] {
-    return this.segments.filter(
-      (s) => s.type === "transcribed" && !s.completed,
-    ) as TranscribedSegment[];
+    return this.segments.filter(s => s.type === "transcribed" && !s.completed) as TranscribedSegment[];
   }
 
-  /**
-   * Update an existing segment (typically for in-progress segments)
-   */
   updateSegment(id: string, updates: Partial<Segment>): boolean {
     const index = this.segments.findIndex((s) => s.id === id);
-    if (index === -1) {
-      console.warn(`[SegmentManager] Segment not found for update: ${id}`);
-      return false;
-    }
-
-    const originalSegment = this.segments[index];
-    const updatedSegment = { ...originalSegment, ...updates } as Segment;
+    if (index === -1) return false;
+    const updatedSegment = { ...this.segments[index], ...updates } as Segment;
     this.segments[index] = updatedSegment;
-
     this.emit("segment-updated", updatedSegment);
-    console.log(`[SegmentManager] Updated segment: ${id}`);
-
     return true;
   }
 
-  /**
-   * Get segment statistics
-   */
-  getStats(): {
-    total: number;
-    transcribed: number;
-    completed: number;
-    inProgress: number;
-  } {
-    const transcribed = this.segments.filter(
-      (s) => s.type === "transcribed",
-    ).length;
-    const completed = this.segments.filter(
-      (s) => s.type === "transcribed" && s.completed,
-    ).length;
-    const inProgress = this.segments.filter(
-      (s) => s.type === "transcribed" && !s.completed,
-    ).length;
-
-    return {
-      total: this.segments.length,
-      transcribed,
-      completed,
-      inProgress,
-    };
+  getStats() {
+    const transcribed = this.segments.filter(s => s.type === "transcribed").length;
+    const completed = this.segments.filter(s => s.type === "transcribed" && s.completed).length;
+    const inProgress = this.segments.filter(s => s.type === "transcribed" && !s.completed).length;
+    return { total: this.segments.length, transcribed, completed, inProgress };
   }
 
-  /** Instruct manager to ignore the next completed segment delivered. */
   ignoreNextCompletedSegment(): void {
     this.ignoreNextCompleted = true;
-    console.log("[SegmentManager] Will ignore next completed segment");
   }
 
-  /** Reset the one-shot ignore flag (e.g., when starting a new session). */
   resetIgnoreNextCompleted(): void {
     this.ignoreNextCompleted = false;
-    console.log("[SegmentManager] Ignore-next-completed reset");
   }
 }

@@ -1,3 +1,5 @@
+import { TranscribedSegment } from "./SegmentTypes";
+
 export interface ActionHandler {
   id: string;
   name: string;
@@ -23,15 +25,25 @@ export interface MatchPattern {
 export interface ActionHandlerConfig {
   id: string;
   type:
-    | "openUrl"
-    | "openApplication"
-    | "quitApplication"
-    | "executeShell"
-    | "segmentAction"
-    | "transformText";
+  | "openUrl"
+  | "openApplication"
+  | "quitApplication"
+  | "executeShell"
+  | "segmentAction"
+  | "transformText";
   config: HandlerConfig;
   order: number;
   applyToNextSegment?: boolean; // If true, queue this handler for next segment
+  conditions?: ActionConditions;
+}
+
+export interface ActionConditions {
+  matchPattern?: string;
+  matchFlags?: string;
+  previousSegmentMatchPattern?: string;
+  previousSegmentMatchFlags?: string;
+  maxLength?: number;
+  minLength?: number;
 }
 
 export type HandlerConfig =
@@ -69,33 +81,37 @@ export interface ExecuteShellConfig {
 
 export interface SegmentActionConfig {
   action:
-    | "clear"
-    | "undo"
-    | "replace"
-    | "deleteLastN"
-    | "lowercaseFirstChar"
-    | "uppercaseFirstChar"
-    | "capitalizeFirstWord"
-    | "removePattern";
+  | "clear"
+  | "undo"
+  | "replace"
+  | "deleteLastN"
+  | "lowercaseFirstChar"
+  | "uppercaseFirstChar"
+  | "capitalizeFirstWord"
+  | "removePattern"
+  | "mergeWithPrevious";
   // For 'replace' action
   replacementText?: string; // Can use {match}, {argument}, etc.
   // For 'deleteLastN' action
   count?: number;
   // For 'removePattern' action
   pattern?: string; // Pattern to remove (e.g., "..." for ellipses)
+  // For 'mergeWithPrevious'
+  joiner?: string; // Default to space
+  trimPreviousPunctuation?: boolean; // Remove trailing punctuation from previous segment
 }
 
 export interface TransformTextConfig {
   // Match conditions
   matchPattern?: string; // Regex pattern to match text
   matchFlags?: string; // Regex flags for match pattern
-  
+
   // Replace operation
   replacePattern: string; // Pattern to find and replace
   replaceFlags?: string; // Regex flags for replace
   replacement?: string; // Replacement text (if mode is literal)
   replacementMode?: "literal" | "lowercase" | "uppercase";
-  
+
   // Conditions
   maxLength?: number; // Only apply if text is shorter than this
   minLength?: number; // Only apply if text is longer than this
@@ -114,6 +130,14 @@ export interface ActionResult {
   shouldEndTranscription?: boolean;
   queuedHandlers?: ActionHandlerConfig[];
   error?: string;
+}
+
+export interface SegmentActionResult {
+  segments: TranscribedSegment[];
+  closesTranscription: boolean;
+  skipsTransformation: boolean;
+  skipsAllTransforms: boolean;
+  queuedHandlers: ActionHandlerConfig[];
 }
 
 export interface DefaultActionsConfig {

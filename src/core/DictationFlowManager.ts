@@ -377,25 +377,33 @@ console.log(
 
     for (const segment of transcribedSegments) {
       if (segment.type === "transcribed") {
-        this.segmentManager.addTranscribedSegment(
+        const result = this.segmentManager.addTranscribedSegment(
           segment.text,
           segment.completed,
           segment.start,
           segment.end,
           segment.confidence,
         );
+        if (result.closesTranscription) {
+          await this.stopDictation();
+          return;
+        }
       }
     }
 
     for (const segment of inProgressSegments) {
       if (segment.type === "inprogress") {
-        this.segmentManager.addTranscribedSegment(
+        const result = this.segmentManager.addTranscribedSegment(
           segment.text,
           false,
           segment.start,
           segment.end,
           segment.confidence,
         );
+        if (result.closesTranscription) {
+          await this.stopDictation();
+          return;
+        }
       }
     }
 

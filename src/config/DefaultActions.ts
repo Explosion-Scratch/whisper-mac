@@ -410,14 +410,14 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
       },
     ],
   },
-  
+
   // --- TEXT TRANSFORMATION ACTIONS ---
   // These run automatically on text matching patterns
   {
     id: "trim-punctuation-action",
     name: "Auto-Trim Punctuation",
     description: "Automatically remove trailing punctuation from short phrases (≤ 50 characters)",
-    enabled: true,
+    enabled: false,
     order: 20,
     closesTranscription: false,
     skipsTransformation: false,
@@ -451,19 +451,21 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
   },
   {
     id: "lowercase-short-response-action",
-    name: "Auto-Lowercase Short",
-    description: "Automatically lowercase the first letter for very short responses (≤ 20 characters)",
+    name: "Smart Lowercase Short",
+    description: "Lowercase short responses (≤ 50 chars) that have no internal punctuation and don't end in ? or !",
     enabled: true,
     order: 21,
     closesTranscription: false,
     skipsTransformation: false,
     applyToAllSegments: true,
-    timingMode: "after_ai",
+    timingMode: "before_ai",
     matchPatterns: [
       {
-        id: "short-response-pattern",
+        id: "smart-lowercase-pattern",
         type: "regex",
-        pattern: "^[A-Z].{0,19}$",
+        // Matches 1-50 chars that are NOT punctuation, optionally followed by a single period.
+        // Excludes ? ! , : ; from the body and the end (except period at end).
+        pattern: "^[^\\.,\\?!:;]{1,50}\\.?$",
         caseSensitive: false,
       },
     ],
@@ -472,12 +474,9 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         id: "lowercase-first-handler",
         type: "transformText",
         config: {
-          matchPattern: "^.{0,20}$",
-          matchFlags: "",
           replacePattern: "^[\\p{Lu}]",
           replaceFlags: "u",
           replacementMode: "lowercase",
-          maxLength: 20,
         },
         order: 1,
         applyToNextSegment: false,
@@ -526,6 +525,144 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         },
         order: 2,
         applyToNextSegment: true,
+      },
+    ],
+  },
+
+  {
+    id: "fix-dictation-typo",
+    name: "Fix Dictation Typo",
+    description: "Fix common dictation typos like 'dicatation'",
+    enabled: true,
+    order: 13,
+    closesTranscription: false,
+    skipsTransformation: false,
+    matchPatterns: [
+      {
+        id: "typo-dicatation",
+        type: "regex",
+        pattern: "dicatation",
+        caseSensitive: false,
+      },
+    ],
+    handlers: [
+      {
+        id: "fix-dicatation",
+        type: "transformText",
+        config: {
+          replacePattern: "dicatation",
+          replacement: "dictation",
+        },
+        order: 1,
+      },
+    ],
+  },
+  {
+    id: "merge-single-words",
+    name: "Merge Single Word Segments",
+    description: "Merge single word segments ending in a period into the previous segment",
+    enabled: true,
+    order: 14,
+    closesTranscription: false,
+    skipsTransformation: false,
+    matchPatterns: [
+      {
+        id: "single-word-period",
+        type: "regex",
+        pattern: "^\\w+\\.$",
+        caseSensitive: false,
+      },
+    ],
+    handlers: [
+      {
+        id: "lowercase-single-word",
+        type: "segmentAction",
+        config: {
+          action: "lowercaseFirstChar",
+        },
+        order: 1,
+        conditions: {
+          previousSegmentMatchPattern: "^\\w+\\.$",
+        },
+      },
+      {
+        id: "merge-single-word",
+        type: "segmentAction",
+        config: {
+          action: "mergeWithPrevious",
+          joiner: " ",
+          trimPreviousPunctuation: true,
+        },
+        order: 2,
+        conditions: {
+          previousSegmentMatchPattern: "^\\w+\\.$",
+        },
+      },
+    ],
+  },
+  {
+    id: "fix-urls",
+    name: "Fix URLs",
+    description: "Fix common URL transcription errors",
+    enabled: true,
+    order: 15,
+    closesTranscription: false,
+    skipsTransformation: false,
+    matchPatterns: [
+      {
+        id: "url-pattern",
+        type: "regex",
+        pattern: ".*",
+        caseSensitive: false,
+      },
+    ],
+    handlers: [
+      {
+        id: "fix-https-slash",
+        type: "transformText",
+        config: {
+          replacePattern: "https/",
+          replacement: "https://",
+        },
+        order: 1,
+      },
+    ],
+  },
+  {
+    id: "fix-question-mark",
+    name: "Fix Question Mark",
+    description: "Replace 'Question mark.' with '?' and merge",
+    enabled: true,
+    order: 16,
+    closesTranscription: false,
+    skipsTransformation: false,
+    matchPatterns: [
+      {
+        id: "question-mark-phrase",
+        type: "regex",
+        pattern: "Question mark\\.?$",
+        caseSensitive: false,
+      },
+    ],
+    handlers: [
+      {
+        id: "replace-question-mark",
+        type: "transformText",
+        config: {
+          replacePattern: "Question mark\\.?$",
+          replacement: "?",
+        },
+        order: 1,
+      },
+      {
+        id: "merge-question-mark",
+        type: "segmentAction",
+        config: {
+          action: "mergeWithPrevious",
+          joiner: "",
+          trimPreviousPunctuation: true,
+        },
+        order: 2,
       },
     ],
   },
