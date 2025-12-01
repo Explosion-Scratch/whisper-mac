@@ -13,6 +13,7 @@ export { WhisperCppTranscriptionPlugin } from "./WhisperCppTranscriptionPlugin";
 export { VoskTranscriptionPlugin } from "./VoskTranscriptionPlugin";
 export { GeminiTranscriptionPlugin } from "./GeminiTranscriptionPlugin";
 export { MistralTranscriptionPlugin } from "./MistralTranscriptionPlugin";
+export { ParakeetTranscriptionPlugin } from "./ParakeetTranscriptionPlugin";
 
 import { TranscriptionPluginManager } from "./TranscriptionPluginManager";
 import { YapTranscriptionPlugin } from "./YapTranscriptionPlugin";
@@ -20,6 +21,7 @@ import { WhisperCppTranscriptionPlugin } from "./WhisperCppTranscriptionPlugin";
 import { VoskTranscriptionPlugin } from "./VoskTranscriptionPlugin";
 import { GeminiTranscriptionPlugin } from "./GeminiTranscriptionPlugin";
 import { MistralTranscriptionPlugin } from "./MistralTranscriptionPlugin";
+import { ParakeetTranscriptionPlugin } from "./ParakeetTranscriptionPlugin";
 import { AppConfig } from "../config/AppConfig";
 
 /**
@@ -49,6 +51,10 @@ export function createTranscriptionPluginManager(
   // Register Mistral plugin
   const mistralPlugin = new MistralTranscriptionPlugin(config);
   pluginManager.registerPlugin(mistralPlugin);
+
+  // Register Parakeet plugin
+  const parakeetPlugin = new ParakeetTranscriptionPlugin(config);
+  pluginManager.registerPlugin(parakeetPlugin);
 
   return pluginManager;
 }
