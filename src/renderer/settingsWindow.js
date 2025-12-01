@@ -1149,6 +1149,8 @@ document.addEventListener("DOMContentLoaded", () => {
           order: (this.settings.actions.actions.length || 0) + 1,
           closesTranscription: false,
           skipsTransformation: false,
+          applyToAllSegments: false,
+          timingMode: "before_ai",
           matchPatterns: [
             {
               id: "pattern_" + Date.now(),
@@ -1260,12 +1262,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       updateHandlerType(handler) {
         if (!handler) return;
-        
+
         // Ensure config exists
         if (!handler.config) {
           handler.config = {};
         }
-        
+
         // Reset config based on new type
         switch (handler.type) {
           case "openUrl":
@@ -1310,7 +1312,7 @@ document.addEventListener("DOMContentLoaded", () => {
           default:
             handler.config = {};
         }
-        
+
         // Set default values for new action handler properties
         handler.applyToNextSegment = false;
         handler.applyToAllSegments = false;
@@ -1332,9 +1334,9 @@ document.addEventListener("DOMContentLoaded", () => {
       },
 
       editPattern(actionIndex, patternIndex) {
-        if (this.editingPattern && 
-            this.editingPattern.actionIndex === actionIndex && 
-            this.editingPattern.patternIndex === patternIndex) {
+        if (this.editingPattern &&
+          this.editingPattern.actionIndex === actionIndex &&
+          this.editingPattern.patternIndex === patternIndex) {
           this.editingPattern = null;
         } else {
           this.editingPattern = { actionIndex, patternIndex };
@@ -1346,9 +1348,9 @@ document.addEventListener("DOMContentLoaded", () => {
       },
 
       isPatternEditing(actionIndex, patternIndex) {
-        return this.editingPattern && 
-               this.editingPattern.actionIndex === actionIndex && 
-               this.editingPattern.patternIndex === patternIndex;
+        return this.editingPattern &&
+          this.editingPattern.actionIndex === actionIndex &&
+          this.editingPattern.patternIndex === patternIndex;
       },
 
       getPatternTypeBadge(type) {
@@ -1401,7 +1403,7 @@ document.addEventListener("DOMContentLoaded", () => {
       getHandlerSummary(handler) {
         if (!handler || !handler.type) return 'Configure...';
         if (!handler.config) return 'No config set';
-        
+
         switch (handler.type) {
           case 'openUrl':
             return handler.config.urlTemplate || 'No URL set';
