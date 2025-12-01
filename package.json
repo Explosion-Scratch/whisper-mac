@@ -8,15 +8,16 @@
     "fullclean": "rm -rf dist .crush *.log vendor release build && bun install",
     "clear:userdata": "rm -rf \"$HOME/Library/Application Support/WhisperMac\" \"$HOME/Library/Application Support/Electron\" \"$HOME/Library/Application Support/whispermac\" \"$HOME/Library/Application Support/electron\" .whispermac-data",
     "build": "tsc && node scripts/copy-assets.js && node scripts/prep-vad-assets.js",
-    "killothers": "pkill -f whisper || true && pkill -f WhisperMac || true",
+    "killothers": "echo 'Noop'",
     "start": "bun run killothers && electron dist/main.js",
     "dev": "nodemon --exec \"bun run single-dev\" --ignore dist --ignore photon --ignore .crush",
     "single-dev": "concurrently --raw -m 1 \"rm -rf dist\"  \"bun run killothers\" \"bun run build\" \"bun run start\" --names \"cleanup, kill port, build, dev\"",
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never",
     "setup:plugins": "node scripts/setup-plugins.js",
-    "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js && bun scripts/download-photon.js && node scripts/build-get-selection.js && bun run build:native",
+    "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js && bun scripts/download-photon.js && node scripts/build-get-selection.js && bun run build:native && bun run build:parakeet",
     "build:native": "cd native/mac-input && node-gyp rebuild",
+    "build:parakeet": "cd native/parakeet-backend && cargo build --release",
     "postinstall": "bun run prep",
     "icons": "node scripts/generate-icons.js",
     "bundleid": "mdls -name kMDItemCFBundleIdentifier -r release/mac-arm64/WhisperMac.app || mdls -name kMDItemCFBundleIdentifier -r release/mac-x64/WhisperMac.app",
@@ -88,6 +89,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "native/parakeet-backend/target/release/parakeet-backend",
+        "to": "parakeet-backend"
       }
     ],
     "mac": {

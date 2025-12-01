@@ -104,16 +104,15 @@ class WhisperMacApp {
     );
     this.settingsManager = new SettingsManager(this.config);
 
-    // Set circular reference so ConfigurableActionsService can access SegmentManager
-    this.configurableActionsService.setSegmentManager(this.segmentManager);
+    // ConfigurableActionsService is now stateless regarding segments, no setSegmentManager needed
   }
 
   private initializeManagers(): void {
+    // ... (existing implementation)
     this.appStateManager = new AppStateManager();
     this.windowManager = new WindowManager();
     this.shortcutManager = new ShortcutManager();
     this.errorManager = new ErrorManager();
-    // Note: cleanupManager will be initialized after trayService is created
     this.dictationFlowManager = new DictationFlowManager(
       this.transcriptionPluginManager,
       this.dictationWindowService,
@@ -185,14 +184,19 @@ class WhisperMacApp {
         return;
       }
 
+      // This event is mostly for non-segment actions now, as segment actions are handled synchronously inside SegmentManager
       const actions = this.configurableActionsService.getActions();
 
       for (const actionMatch of actionMatches) {
-        console.log(
-          `[Main] Action detected via segment manager: "${actionMatch.actionId}" with argument: "${actionMatch.extractedArgument || "none"}"`,
+        // Execute handlers that aren't segment modifiers (like open app)
+        // Pass empty segments array as we don't want to modify segments here
+        const result = this.configurableActionsService.executeActions(
+            [], 
+            [actionMatch]
         );
-
-        await this.configurableActionsService.executeAction(actionMatch);
+        
+        // Re-queue any returned handlers if necessary, although usually non-segment actions won't return queued handlers
+        // In a more complex scenario, we might need to pass these back to SegmentManager, but typically OpenApp etc don't queue segment actions.
 
         const action = actions.find((a) => a.id === actionMatch.actionId);
 
@@ -203,10 +207,6 @@ class WhisperMacApp {
           await this.dictationFlowManager.stopDictation();
           break;
         }
-
-        console.log(
-          `[Main] Action ${action?.id || actionMatch.actionId} continues transcription`,
-        );
       }
     });
 
@@ -226,7 +226,6 @@ class WhisperMacApp {
       this.configurableActionsService.setActions(actionsConfig.actions);
     }
 
-    // Track last transformed result for hotkey injection
     this.segmentManager.on(
       "transformed",
       (result: { transformedText: string }) => {
@@ -236,7 +235,6 @@ class WhisperMacApp {
       },
     );
 
-    // Track last raw result for hotkey injection
     this.segmentManager.on(
       "raw",
       (result: { rawText: string }) => {
@@ -250,8 +248,7 @@ class WhisperMacApp {
   async initialize(): Promise<void> {
     await app.whenReady();
     console.log("App is ready");
-
-    // Initialize launch at login setting
+    
     await this.initializeLaunchAtLogin();
 
     this.createTrayService();
@@ -259,7 +256,6 @@ class WhisperMacApp {
       this.appStateManager.setTrayService(this.trayService);
     }
 
-    // Create trayInteractionManager after trayService is created
     this.trayInteractionManager = new TrayInteractionManager(
       this.trayService!,
       this.settingsService,
@@ -275,273 +271,259 @@ class WhisperMacApp {
     await this.initializationManager.initialize();
   }
 
+  // ... (rest of methods remain the same)
   private createTrayService(): void {
-    this.trayService = new TrayService(
-      this.trayIconIdleRelPath,
-      this.trayIconRecordingRelPath,
-      this.dockIconRelPath,
-      (s) => this.appStateManager.getStatusMessage(s),
-      () => this.handleTrayClick(),
-      () => this.settingsService.openSettingsWindow(),
-      this.transcriptionPluginManager,
-      this.notificationService,
-      this.settingsManager,
-    );
-    this.trayService.createTray();
-
-    // Initialize cleanupManager after trayService is created
-    this.cleanupManager = new CleanupManager(
-      this.transcriptionPluginManager,
-      this.dictationWindowService,
-      this.settingsService,
-      this.trayService,
-      this.windowManager,
-    );
-    this.dictationFlowManager.setTrayService(this.trayService);
-    this.shortcutManager.setDictationFlowManager(this.dictationFlowManager);
-    this.cleanupManager.setPushToTalkManager(this.pushToTalkManager);
-  }
-
-  private handleTrayClick(): void {
-    // This will be called by the tray service, delegate to trayInteractionManager if available
-    if (this.trayInteractionManager) {
-      this.trayInteractionManager.handleTrayClick();
-    } else {
-      this.toggleRecording();
+      this.trayService = new TrayService(
+        this.trayIconIdleRelPath,
+        this.trayIconRecordingRelPath,
+        this.dockIconRelPath,
+        (s) => this.appStateManager.getStatusMessage(s),
+        () => this.handleTrayClick(),
+        () => this.settingsService.openSettingsWindow(),
+        this.transcriptionPluginManager,
+        this.notificationService,
+        this.settingsManager,
+      );
+      this.trayService.createTray();
+  
+      this.cleanupManager = new CleanupManager(
+        this.transcriptionPluginManager,
+        this.dictationWindowService,
+        this.settingsService,
+        this.trayService,
+        this.windowManager,
+      );
+      this.dictationFlowManager.setTrayService(this.trayService);
+      this.shortcutManager.setDictationFlowManager(this.dictationFlowManager);
+      this.cleanupManager.setPushToTalkManager(this.pushToTalkManager);
     }
-  }
-
-  private async initializeLaunchAtLogin(): Promise<void> {
-    try {
-      const loginItemService = LoginItemService.getInstance();
-      const currentSettings = this.settingsManager.getAll();
-      
-      // Apply the saved launch at login setting
-      if (currentSettings.launchAtLogin !== undefined) {
-        await loginItemService.setLaunchAtLogin(currentSettings.launchAtLogin);
-        console.log(`Launch at login initialized to: ${currentSettings.launchAtLogin}`);
+  
+    private handleTrayClick(): void {
+      if (this.trayInteractionManager) {
+        this.trayInteractionManager.handleTrayClick();
+      } else {
+        this.toggleRecording();
       }
-
-      // Log if we were launched at login
-      if (loginItemService.wasOpenedAtLogin()) {
-        console.log("App was launched at login");
-      }
-    } catch (error) {
-      console.error("Failed to initialize launch at login:", error);
     }
-  }
-
-  private onInitializationComplete(): void {
-    this.registerHotkeys();
-    this.ipcHandlerManager.setupIpcHandlers();
-    this.trayInteractionManager.hideDockAfterOnboarding();
-    this.setupErrorManagerCallback();
-    this.checkPermissionsOnLaunch();
-    this.pushToTalkManager?.initialize();
-  }
-
-  private setupErrorManagerCallback(): void {
-    this.errorManager.setSettingsCallback(() => {
-      this.settingsService.openSettingsWindow("permissions");
-    });
-  }
-
-  private registerHotkeys(): void {
-    const hotkeySettings =
-      (this.settingsManager.get("hotkeys") as Record<string, string>) || {};
-
-    const actions: ShortcutActions = {
-      onToggleRecording: () => this.handleShortcutPress(),
-      onFinishDictationRaw: () => this.handleShortcutPress({ skipTransformation: true }),
-      onCancelDictation: () => this.shortcutManager.cancelDictation(),
-      onInjectLastResult: () => this.shortcutManager.injectLastResult(),
-      onInjectRawLastResult: () => this.shortcutManager.injectRawLastResult(),
-      onCyclePlugin: () => this.shortcutManager.cycleToNextPlugin(),
-      onQuitApp: () => this.shortcutManager.quitApp(),
-    };
-
-    this.shortcutManager.registerShortcuts(hotkeySettings, actions);
-
-    // Listen for hotkey setting changes and re-register shortcuts
-    this.settingsManager.on("setting-changed", (key: string, value: any) => {
-      if (key.startsWith("hotkeys.")) {
-        console.log(`Hotkey setting changed: ${key} = ${value}`);
-        this.registerHotkeys();
-
-        // Update tray menu to show new hotkey
-        if (this.trayService && key === "hotkeys.startStopDictation") {
-          this.trayService.refreshTrayMenu();
+  
+    private async initializeLaunchAtLogin(): Promise<void> {
+      try {
+        const loginItemService = LoginItemService.getInstance();
+        const currentSettings = this.settingsManager.getAll();
+        
+        if (currentSettings.launchAtLogin !== undefined) {
+          await loginItemService.setLaunchAtLogin(currentSettings.launchAtLogin);
         }
+  
+        if (loginItemService.wasOpenedAtLogin()) {
+          console.log("App was launched at login");
+        }
+      } catch (error) {
+        console.error("Failed to initialize launch at login:", error);
       }
-    });
-  }
-
-  private handleOnboardingComplete(): void {
-    // Close onboarding window and continue with regular initialization
-    this.windowManager.closeOnboardingWindow();
-    this.initializationManager.initializeAfterOnboarding();
-  }
-
-  private handleShortcutPress(options?: { skipTransformation?: boolean }): void {
-    if (!this.appStateManager.isIdle()) {
-      this.trayInteractionManager.setPendingToggle(true);
-      console.log("App not idle yet; deferring toggle until ready");
-      return;
     }
-    this.toggleRecording(options);
-  }
-
-  private async toggleRecording(options: { skipTransformation?: boolean } = {}): Promise<void> {
-    console.log("=== Toggle dictation called ===");
-    console.log(
-      "Current recording state:",
-      this.dictationFlowManager.isRecording(),
-    );
-    console.log(
-      "Current finishing state:",
-      this.dictationFlowManager.isFinishing(),
-    );
-
-    if (this.dictationFlowManager.isRecording()) {
-      if (this.dictationFlowManager.isFinishing()) {
-        console.log("Already finishing dictation, ignoring toggle...");
+  
+    private onInitializationComplete(): void {
+      this.registerHotkeys();
+      this.ipcHandlerManager.setupIpcHandlers();
+      this.trayInteractionManager.hideDockAfterOnboarding();
+      this.setupErrorManagerCallback();
+      this.checkPermissionsOnLaunch();
+      this.pushToTalkManager?.initialize();
+    }
+  
+    private setupErrorManagerCallback(): void {
+      this.errorManager.setSettingsCallback(() => {
+        this.settingsService.openSettingsWindow("permissions");
+      });
+    }
+  
+    private registerHotkeys(): void {
+      const hotkeySettings =
+        (this.settingsManager.get("hotkeys") as Record<string, string>) || {};
+  
+      const actions: ShortcutActions = {
+        onToggleRecording: () => this.handleShortcutPress(),
+        onFinishDictationRaw: () => this.handleShortcutPress({ skipTransformation: true }),
+        onCancelDictation: () => this.shortcutManager.cancelDictation(),
+        onInjectLastResult: () => this.shortcutManager.injectLastResult(),
+        onInjectRawLastResult: () => this.shortcutManager.injectRawLastResult(),
+        onCyclePlugin: () => this.shortcutManager.cycleToNextPlugin(),
+        onQuitApp: () => this.shortcutManager.quitApp(),
+      };
+  
+      this.shortcutManager.registerShortcuts(hotkeySettings, actions);
+  
+      this.settingsManager.on("setting-changed", (key: string, value: any) => {
+        if (key.startsWith("hotkeys.")) {
+          console.log(`Hotkey setting changed: ${key} = ${value}`);
+          this.registerHotkeys();
+  
+          if (this.trayService && key === "hotkeys.startStopDictation") {
+            this.trayService.refreshTrayMenu();
+          }
+        }
+      });
+    }
+  
+    private handleOnboardingComplete(): void {
+      this.windowManager.closeOnboardingWindow();
+      this.initializationManager.initializeAfterOnboarding();
+    }
+  
+    private handleShortcutPress(options?: { skipTransformation?: boolean }): void {
+      if (!this.appStateManager.isIdle()) {
+        this.trayInteractionManager.setPendingToggle(true);
+        console.log("App not idle yet; deferring toggle until ready");
         return;
       }
-
-      console.log("Immediately stopping audio recording...");
-      this.dictationWindowService.stopRecording();
-
-      if (this.config.showDictationWindowAlways) {
-        console.log(
-          "Always-show-window enabled: flushing segments and continuing recording",
-        );
-        await this.dictationFlowManager.flushSegmentsWhileContinuing({
+      this.toggleRecording(options);
+    }
+  
+    private async toggleRecording(options: { skipTransformation?: boolean } = {}): Promise<void> {
+      console.log("=== Toggle dictation called ===");
+      console.log(
+        "Current recording state:",
+        this.dictationFlowManager.isRecording(),
+      );
+      console.log(
+        "Current finishing state:",
+        this.dictationFlowManager.isFinishing(),
+      );
+  
+      if (this.dictationFlowManager.isRecording()) {
+        if (this.dictationFlowManager.isFinishing()) {
+          console.log("Already finishing dictation, ignoring toggle...");
+          return;
+        }
+  
+        console.log("Immediately stopping audio recording...");
+        this.dictationWindowService.stopRecording();
+  
+        if (this.config.showDictationWindowAlways) {
+          console.log(
+            "Always-show-window enabled: flushing segments and continuing recording",
+          );
+          await this.dictationFlowManager.flushSegmentsWhileContinuing({
+            skipTransformation: options.skipTransformation,
+          });
+          return;
+        }
+  
+        console.log("Finishing current dictation (waiting for completion)...");
+        await this.dictationFlowManager.finishCurrentDictation({
           skipTransformation: options.skipTransformation,
         });
-        return;
+      } else {
+        console.log("Starting dictation...");
+        await this.dictationFlowManager.startDictation();
       }
-
-      console.log("Finishing current dictation (waiting for completion)...");
-      await this.dictationFlowManager.finishCurrentDictation({
-        skipTransformation: options.skipTransformation,
-      });
-    } else {
-      console.log("Starting dictation...");
-      await this.dictationFlowManager.startDictation();
     }
-  }
-
-  public handleDockClick(): void {
-    if (this.trayInteractionManager) {
-      this.trayInteractionManager.handleDockClick();
-    }
-  }
-
-  async cleanup(): Promise<void> {
-    console.log("=== WhisperMacApp cleanup starting ===");
-
-    try {
-      // Cancel any finishing timeout from dictation flow
-      const finishingTimeout =
-        this.dictationFlowManager.setFinishingTimeout(null);
-      this.cleanupManager.setFinishingTimeout(finishingTimeout);
-
-      // Clean up IPC handlers first to prevent new requests
-      console.log("Cleaning up IPC handlers...");
-      this.ipcHandlerManager.cleanupIpcHandlers();
-
-      // Then perform comprehensive cleanup
-      console.log("Starting comprehensive cleanup...");
-      await this.cleanupManager.cleanup();
-      await this.transcriptionPluginManager.cleanup();
-
-      console.log("=== WhisperMacApp cleanup completed ===");
-    } catch (error) {
-      console.error("Error during WhisperMacApp cleanup:", error);
-      // Don't re-throw - we want the app to quit even if cleanup fails
-    }
-  }
-
-  async showError(payload: any): Promise<void> {
-    await this.errorManager.showError(payload);
-  }
-
-  private async checkPermissionsOnLaunch(): Promise<void> {
-    try {
-      // Don't check permissions if onboarding isn't complete
-      const settings = this.settingsService.getCurrentSettings();
-      if (!settings?.onboardingComplete) {
-        return;
+  
+    public handleDockClick(): void {
+      if (this.trayInteractionManager) {
+        this.trayInteractionManager.handleDockClick();
       }
-
-      // Add delay to ensure all services are initialized
-      setTimeout(() => {
-        this.checkPermissionsOnLaunchDelayed().catch(error => {
-          console.error("Failed to check permissions on launch:", error);
-        });
-      }, 500);
-    } catch (error) {
-      console.error("Failed to check permissions on launch:", error);
     }
-  }
-
-  private async checkPermissionsOnLaunchDelayed(): Promise<void> {
-    try {
-      const permissionsManager = this.settingsService.getPermissionsManager();
-      const permissions = await permissionsManager.getAllPermissionsQuiet();
-      const missingPermissions: string[] = [];
-
-      if (!permissions.accessibility.granted) {
-        missingPermissions.push("Accessibility");
+  
+    async cleanup(): Promise<void> {
+      console.log("=== WhisperMacApp cleanup starting ===");
+  
+      try {
+        const finishingTimeout =
+          this.dictationFlowManager.setFinishingTimeout(null);
+        this.cleanupManager.setFinishingTimeout(finishingTimeout);
+  
+        console.log("Cleaning up IPC handlers...");
+        this.ipcHandlerManager.cleanupIpcHandlers();
+  
+        console.log("Starting comprehensive cleanup...");
+        await this.cleanupManager.cleanup();
+        await this.transcriptionPluginManager.cleanup();
+  
+        console.log("=== WhisperMacApp cleanup completed ===");
+      } catch (error) {
+        console.error("Error during WhisperMacApp cleanup:", error);
       }
-
-      if (!permissions.microphone.granted) {
-        try {
-          const microphoneStatus =
-            await permissionsManager.ensureMicrophonePermissions();
-          if (!microphoneStatus.granted) {
+    }
+  
+    async showError(payload: any): Promise<void> {
+      await this.errorManager.showError(payload);
+    }
+  
+    private async checkPermissionsOnLaunch(): Promise<void> {
+      try {
+        const settings = this.settingsService.getCurrentSettings();
+        if (!settings?.onboardingComplete) {
+          return;
+        }
+  
+        setTimeout(() => {
+          this.checkPermissionsOnLaunchDelayed().catch(error => {
+            console.error("Failed to check permissions on launch:", error);
+          });
+        }, 500);
+      } catch (error) {
+        console.error("Failed to check permissions on launch:", error);
+      }
+    }
+  
+    private async checkPermissionsOnLaunchDelayed(): Promise<void> {
+      try {
+        const permissionsManager = this.settingsService.getPermissionsManager();
+        const permissions = await permissionsManager.getAllPermissionsQuiet();
+        const missingPermissions: string[] = [];
+  
+        if (!permissions.accessibility.granted) {
+          missingPermissions.push("Accessibility");
+        }
+  
+        if (!permissions.microphone.granted) {
+          try {
+            const microphoneStatus =
+              await permissionsManager.ensureMicrophonePermissions();
+            if (!microphoneStatus.granted) {
+              missingPermissions.push("Microphone");
+            }
+          } catch (error) {
+            console.error("Error ensuring microphone permissions:", error);
             missingPermissions.push("Microphone");
           }
-        } catch (error) {
-          console.error("Error ensuring microphone permissions:", error);
-          missingPermissions.push("Microphone");
         }
+  
+        if (missingPermissions.length > 0) {
+          await this.showPermissionsAlert(missingPermissions);
+        }
+      } catch (error) {
+        console.error("Failed to check permissions on launch (delayed):", error);
       }
-
-      if (missingPermissions.length > 0) {
-        await this.showPermissionsAlert(missingPermissions);
+    }
+  
+    private async showPermissionsAlert(missingPermissions: string[]): Promise<void> {
+      const permissionList = missingPermissions.join(" and ");
+      const message = `WhisperMac needs ${permissionList} permission${missingPermissions.length > 1 ? 's' : ''} to work properly.`;
+      const detail = `${permissionList} permission${missingPermissions.length > 1 ? 's are' : ' is'} required for full functionality.\n\nClick "Open Settings" to grant the necessary permissions.`;
+  
+      const { response } = await dialog.showMessageBox({
+        type: 'warning',
+        title: 'Permissions Required',
+        message: 'Permissions Required',
+        detail: detail,
+        buttons: ['Open Settings', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true
+      });
+  
+      if (response === 0) {
+        this.settingsService.openSettingsWindow("permissions");
       }
-    } catch (error) {
-      console.error("Failed to check permissions on launch (delayed):", error);
     }
-  }
-
-  private async showPermissionsAlert(missingPermissions: string[]): Promise<void> {
-    const permissionList = missingPermissions.join(" and ");
-    const message = `WhisperMac needs ${permissionList} permission${missingPermissions.length > 1 ? 's' : ''} to work properly.`;
-    const detail = `${permissionList} permission${missingPermissions.length > 1 ? 's are' : ' is'} required for full functionality.\n\nClick "Open Settings" to grant the necessary permissions.`;
-
-    // Use native dialog instead of HTML error window to prevent double prompts
-    const { response } = await dialog.showMessageBox({
-      type: 'warning',
-      title: 'Permissions Required',
-      message: 'Permissions Required',
-      detail: detail,
-      buttons: ['Open Settings', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-      noLink: true
-    });
-
-    if (response === 0) {
-      this.settingsService.openSettingsWindow("permissions");
-    }
-  }
 }
 
 const appInstance = new WhisperMacApp();
 appInstance.initialize();
-
+// ... (rest of event handlers)
 let isQuitting = false;
 
 app.on("before-quit", async (event: Electron.Event) => {
@@ -597,8 +579,6 @@ process.on("SIGTERM", async () => {
 });
 
 app.on("window-all-closed", (event: Electron.Event) => {
-  // For menu bar apps, we usually prevent quit when all windows close
-  // But allow quit if the user explicitly requested it
   if (!isQuitting) {
     event.preventDefault();
     console.log("All windows closed, but keeping app running (menu bar app)");
