@@ -338,27 +338,7 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
   }
 
-  getConfigSchema(): any {
-    return {
-      type: "object",
-      properties: {
-        api_key: {
-          type: "string",
-          title: "API Key",
-          description: "Your Mistral AI API key",
-          format: "password",
-        },
-        model: {
-          type: "string",
-          title: "Model",
-          description: "Mistral model to use for transcription",
-          enum: ["voxtral-mini-latest", "voxtral-small-latest"],
-          default: "voxtral-mini-latest",
-        },
-      },
-      required: ["api_key"],
-    };
-  }
+
 
   getSchema(): PluginSchemaItem[] {
     return [

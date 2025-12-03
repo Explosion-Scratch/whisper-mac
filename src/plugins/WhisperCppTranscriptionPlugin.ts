@@ -22,7 +22,6 @@ import {
 import {
   BaseTranscriptionPlugin,
   TranscriptionSetupProgress,
-  TranscriptionPluginConfigSchema,
   PluginSchemaItem,
   PluginUIFunctions,
 } from "./TranscriptionPlugin";
@@ -403,91 +402,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
   }
 
-  getConfigSchema(): TranscriptionPluginConfigSchema {
-    const schema: TranscriptionPluginConfigSchema = {
-      model: {
-        type: "select",
-        label: "Model",
-        description: "Whisper model to use for transcription",
-        default: "ggml-base.en.bin",
-        options: [
-          "ggml-tiny.bin",
-          "ggml-tiny-q5_1.bin",
-          "ggml-tiny-q8_0.bin",
-          "ggml-tiny.en.bin",
-          "ggml-tiny.en-q5_1.bin",
-          "ggml-tiny.en-q8_0.bin",
-          "ggml-base.bin",
-          "ggml-base-q5_1.bin",
-          "ggml-base-q8_0.bin",
-          "ggml-base.en.bin",
-          "ggml-base.en-q5_1.bin",
-          "ggml-base.en-q8_0.bin",
-          "ggml-small.bin",
-          "ggml-small-q5_1.bin",
-          "ggml-small-q8_0.bin",
-          "ggml-small.en.bin",
-          "ggml-small.en-q5_1.bin",
-          "ggml-small.en-q8_0.bin",
-          "ggml-medium.bin",
-          "ggml-medium-q5_0.bin",
-          "ggml-medium-q8_0.bin",
-          "ggml-medium.en.bin",
-          "ggml-medium.en-q5_0.bin",
-          "ggml-medium.en-q8_0.bin",
-          "ggml-large-v2.bin",
-          "ggml-large-v2-q5_0.bin",
-          "ggml-large-v2-q8_0.bin",
-          "ggml-large-v3.bin",
-          "ggml-large-v3-q5_0.bin",
-          "ggml-large-v3-turbo.bin",
-          "ggml-large-v3-turbo-q5_0.bin",
-          "ggml-large-v3-turbo-q8_0.bin",
-        ],
-      },
-      language: {
-        type: "select",
-        label: "Language",
-        description: "Language for transcription",
-        default: "auto",
-        options: [
-          "auto",
-          "en",
-          "es",
-          "fr",
-          "de",
-          "it",
-          "pt",
-          "zh",
-          "ja",
-          "ko",
-          "ru",
-          "ar",
-          "hi",
-        ],
-      },
-      threads: {
-        type: "number",
-        label: "Threads",
-        description: "Number of threads to use for processing",
-        default: 4,
-        min: 1,
-        max: 16,
-      },
-    };
 
-    // Add Core ML option only on Apple Silicon
-    if (this.isAppleSilicon) {
-      schema.useCoreML = {
-        type: "boolean",
-        label: "Use Core ML Acceleration",
-        description: "Use Apple Metal acceleration for faster transcription",
-        default: false,
-      };
-    }
-
-    return schema;
-  }
 
   /**
    * Update the model path after model switch

@@ -10,22 +10,28 @@ APPLICATIONS_DIR := /Applications
 all: install-deps setup-plugins build package
 
 install-deps:
-	$(BUN) install
+	hash_if install-deps package.json $(BUN) install
 
 setup-plugins:
-	$(BUN) run setup:plugins
+	hash_if setup-plugins ./scripts $(BUN) run setup:plugins
 
-build:
-	$(BUN) run build
+prep: install-deps setup-plugins
+	hash_if prep src,scripts,plugins-setup,native $(BUN) run prep
+
+build: prep
+	hash_if build ./src $(BUN) run build
 
 package:
-	$(BUN) run build:mac:arm64
+	hash_if package ./src $(BUN) run build:mac:arm64
 
 install-app: package
 	mkdir -p "$(APPLICATIONS_DIR)"
 	cp -R "$(MAC_APP_DIR)" "$(APPLICATIONS_DIR)/$(APP_NAME).app"
 
+dev: prep
+	$(BUN) run single-dev
+
 clean:
-	rm -rf dist $(RELEASE_DIR) build *.log .crush
+	rm -rf dist $(RELEASE_DIR) build *.log .crush node_modules && bun install
 
 rebuild: clean all

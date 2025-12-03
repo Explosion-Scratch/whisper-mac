@@ -22,7 +22,6 @@ import {
 import {
     BaseTranscriptionPlugin,
     TranscriptionSetupProgress,
-    TranscriptionPluginConfigSchema,
     PluginSchemaItem,
     PluginUIFunctions,
 } from "./TranscriptionPlugin";
@@ -67,12 +66,12 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     private resolveBinaryPath(): string {
         // Try production bundled path first
-            const packagedPath = join(
+        const packagedPath = join(
             process.resourcesPath,
-                "parakeet-backend",
-            );
-            if (existsSync(packagedPath)) {
-                return packagedPath;
+            "parakeet-backend",
+        );
+        if (existsSync(packagedPath)) {
+            return packagedPath;
         }
 
         // Fall back to development path
@@ -250,20 +249,19 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
         }
     }
 
-    getConfigSchema(): TranscriptionPluginConfigSchema {
-        return {
-            model: {
-                type: "select",
-                label: "Model",
-                description: "Parakeet model to use",
-                default: "parakeet-tdt-0.6b-v3-onnx",
-                options: ["parakeet-tdt-0.6b-v3-onnx"],
-            },
-        };
-    }
+
 
     getSchema(): PluginSchemaItem[] {
-        return []; // TODO: Implement if needed for new UI
+        return [{
+            key: "runOnAll",
+            type: "boolean",
+            label: "Process All Audio Together",
+            description:
+                "When enabled, processes all audio segments together for better context. When disabled, processes each segment individually.",
+            default: false,
+            category: "advanced",
+        }
+    ];
     }
 
     // Files needed for Parakeet TDT model

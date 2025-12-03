@@ -55,17 +55,7 @@ export interface PluginUIFunctions {
   confirmAction: (message: string) => Promise<boolean>;
 }
 
-export interface TranscriptionPluginConfigSchema {
-  [key: string]: {
-    type: "string" | "number" | "boolean" | "select";
-    label: string;
-    description: string;
-    default: any;
-    options?: string[];
-    min?: number;
-    max?: number;
-  };
-}
+
 
 export interface PostProcessedTranscription {
   text: string;
@@ -121,7 +111,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   finalizeBufferedAudio?(): Promise<void>;
   abstract stopTranscription(): Promise<void>;
   abstract cleanup(): Promise<void>;
-  abstract getConfigSchema(): TranscriptionPluginConfigSchema;
+
 
   // Schema methods (for UI)
   abstract getSchema(): PluginSchemaItem[];
