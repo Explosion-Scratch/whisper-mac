@@ -551,21 +551,25 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         hasOutput = true;
       });
 
-      pythonProcess.on("close", (code) => {
-        resolve(hasOutput && code === 0);
-      });
-
-      pythonProcess.on("error", () => {
-        resolve(false);
-      });
-
       // Timeout after 5 seconds
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         if (!pythonProcess.killed) {
           pythonProcess.kill();
           resolve(false);
         }
       }, 5000);
+
+      const clearAll = () => clearTimeout(timeout);
+
+      pythonProcess.on("close", (code) => {
+        clearAll();
+        resolve(hasOutput && code === 0);
+      });
+
+      pythonProcess.on("error", () => {
+        clearAll();
+        resolve(false);
+      });
     });
   }
 
@@ -810,7 +814,18 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
         stderr += data.toString();
       });
 
+      // Set timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        if (!voskProcess.killed) {
+          voskProcess.kill();
+          reject(new Error("Vosk transcription timeout"));
+        }
+      }, 30000); // 30 second timeout
+
+      const clearAll = () => clearTimeout(timeout);
+
       voskProcess.on("close", (code) => {
+        clearAll();
         if (code === 0) {
           const rawTranscription = stdout.trim();
           console.log(`Vosk raw transcription: "${rawTranscription}"`);
@@ -825,17 +840,10 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
       });
 
       voskProcess.on("error", (error) => {
+        clearAll();
         console.error("Vosk spawn error:", error);
         reject(error);
       });
-
-      // Set timeout to prevent hanging
-      setTimeout(() => {
-        if (!voskProcess.killed) {
-          voskProcess.kill();
-          reject(new Error("Vosk transcription timeout"));
-        }
-      }, 30000); // 30 second timeout
     });
   }
 

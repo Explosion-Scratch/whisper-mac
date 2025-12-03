@@ -15,3 +15,5 @@ scripts/photon.zip
 node_modules/
 release-zip/
 scripts/_vue.js
+src/photon
+bin

@@ -1,12 +1,19 @@
 import { join, resolve } from "path";
 import { homedir } from "os";
 import { readPrompt } from "../helpers/getPrompt";
-import { app } from "electron";
 import { readFileSync } from "fs";
 import {
   NonAiTransformationConfig,
   NonAiTransformationRule,
 } from "../types/TransformationRuleTypes";
+
+// Safe electron import
+let app: any;
+try {
+  app = require("electron").app;
+} catch (e) {
+  // Electron not available (CLI mode)
+}
 
 export type DictationWindowPosition = "active-app-corner" | "screen-corner";
 
@@ -53,11 +60,25 @@ export class AppConfig {
   constructor() {
     this.modelPath = "";
 
-    // Use Electron's user data directory instead of custom .whispermac-data
-    this.dataDir =
-      app && !process.env.USE_LOCAL_DATA_DIR
-        ? app.getPath("userData")
-        : resolve(__dirname, "../../.whispermac-data");
+    // Use Electron's user data directory if available, otherwise default to standard location
+    if (app && !process.env.USE_LOCAL_DATA_DIR) {
+        this.dataDir = app.getPath("userData");
+    } else {
+        // Fallback for CLI/Node environment to match Electron's default
+        const platform = process.platform;
+        if (platform === 'darwin') {
+            this.dataDir = resolve(homedir(), "Library/Application Support/WhisperMac");
+        } else if (platform === 'win32') {
+            this.dataDir = resolve(homedir(), "AppData/Roaming/WhisperMac");
+        } else {
+            this.dataDir = resolve(homedir(), ".config/WhisperMac");
+        }
+        
+        // Allow override via env var (useful for dev/testing)
+        if (process.env.WHISPER_MAC_DATA_DIR) {
+            this.dataDir = process.env.WHISPER_MAC_DATA_DIR;
+        }
+    }
 
     // Dictation window defaults
     this.dictationWindowPosition = "screen-corner";

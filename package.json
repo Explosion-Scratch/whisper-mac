@@ -28,7 +28,8 @@
     "build:mac:x64": "bun run build && electron-builder --x64 --publish=never",
     "build:dev": "rm -rf /Applications/WhisperMac.app && bun run build:mac && bun run removequarantine && bun run resetperms && rs release/mac-arm64/WhisperMac.app /Applications && osascript -e 'tell application \"WhisperMac\" to activate' && tail -f ~/Library/Logs/whispermac/main.log",
     "pack:prod": "NODE_ENV=production bun install && electron-builder --dir",
-    "start:prod": "rm -rf release && rm -rf /Applications/WhisperMac.app && bun run killothers && bun run build:mac && rs release/mac-arm64/WhisperMac.app /Applications && osascript -e 'tell application \"WhisperMac\" to activate' && tail -f ~/Library/Logs/whispermac/main.log"
+    "start:prod": "rm -rf release && rm -rf /Applications/WhisperMac.app && bun run killothers && bun run build:mac && rs release/mac-arm64/WhisperMac.app /Applications && osascript -e 'tell application \"WhisperMac\" to activate' && tail -f ~/Library/Logs/whispermac/main.log",
+    "build:cli": "bun build ./src/cli/index.ts --compile --outfile bin/whisper-mac-cli"
   },
   "repository": {
     "type": "git",
@@ -36,6 +37,7 @@
   },
   "dependencies": {
     "@ricky0123/vad-web": "^0.0.22",
+    "commander": "^14.0.2",
     "copy-paste": "^2.2.0",
     "electron-log": "^5.4.3",
     "iohook": "^0.9.3",
@@ -95,6 +97,10 @@
       {
         "from": "native/parakeet-backend/target/release/parakeet-backend",
         "to": "parakeet-backend"
+      },
+      {
+        "from": "bin/whisper-mac-cli",
+        "to": "whisper-mac-cli"
       }
     ],
     "mac": {

@@ -1505,6 +1505,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     const modelPath = join(this.config.getModelsDir(), modelName);
     if (existsSync(modelPath)) {
+      this.modelPath = modelPath;
       onLog?.(`Whisper.cpp model ${modelName} already available`);
       return true;
     }

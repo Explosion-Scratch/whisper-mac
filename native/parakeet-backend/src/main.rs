@@ -35,6 +35,7 @@ struct Segment {
 }
 
 fn main() -> Result<()> {
+    env_logger::init();
     let args = Args::parse();
     let start_time = std::time::Instant::now();
 
