@@ -20,7 +20,6 @@ import {
 import {
   BaseTranscriptionPlugin,
   TranscriptionSetupProgress,
-  TranscriptionPluginConfigSchema,
   PluginSchemaItem,
   PluginUIFunctions,
 } from "./TranscriptionPlugin";
@@ -746,27 +745,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
   }
 
-  getConfigSchema(): TranscriptionPluginConfigSchema {
-    const availableModels = this.getAvailableModels();
 
-    return {
-      model: {
-        type: "select",
-        label: "Vosk Model",
-        description: "Choose the Vosk model for transcription",
-        default: "vosk-model-small-en-us-0.15",
-        options: Object.keys(availableModels),
-      },
-      sampleRate: {
-        type: "number",
-        label: "Sample Rate",
-        description: "Audio sample rate for transcription",
-        default: 16000,
-        min: 8000,
-        max: 48000,
-      },
-    };
-  }
 
   /**
    * Convert Float32Array audio data to WAV file for Vosk

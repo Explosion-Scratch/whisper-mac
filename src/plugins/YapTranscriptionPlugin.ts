@@ -16,7 +16,6 @@ import {
 import {
   BaseTranscriptionPlugin,
   TranscriptionSetupProgress,
-  TranscriptionPluginConfigSchema,
   PluginSchemaItem,
   PluginUIFunctions,
 } from "./TranscriptionPlugin";
@@ -284,35 +283,7 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
   }
 
-  getConfigSchema(): TranscriptionPluginConfigSchema {
-    return {
-      locale: {
-        type: "select",
-        label: "Language",
-        description: "Language for transcription",
-        default: "en-US",
-        options: [
-          "current",
-          "en-US",
-          "en-GB",
-          "es-ES",
-          "fr-FR",
-          "de-DE",
-          "it-IT",
-          "pt-BR",
-          "zh-CN",
-          "ja-JP",
-          "ko-KR",
-        ],
-      },
-      censor: {
-        type: "boolean",
-        label: "Censor Profanity",
-        description: "Replaces certain words and phrases with a redacted form",
-        default: false,
-      },
-    };
-  }
+
 
   /**
    * Convert Float32Array audio data to WAV file for YAP

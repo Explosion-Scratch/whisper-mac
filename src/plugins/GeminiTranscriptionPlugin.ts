@@ -303,28 +303,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     await this.stopTranscription();
   }
 
-  getConfigSchema(): any {
-    return {
-      api_key: {
-        type: "string",
-        label: "API Key",
-        description: "Google Gemini API key",
-        default: "",
-      },
-      model: {
-        type: "string",
-        label: "Model",
-        description: "Gemini model to use",
-        default: "gemini-2.5-flash",
-      },
-      temperature: {
-        type: "number",
-        label: "Temperature",
-        description: "Creativity level (0.0-1.0)",
-        default: 1.0,
-      },
-    };
-  }
+
 
   configure(config: Record<string, any>): void {
     this.setOptions(config);
