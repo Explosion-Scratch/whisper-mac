@@ -15,7 +15,7 @@
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never",
     "setup:plugins": "node scripts/setup-plugins.js",
-    "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js && bun scripts/download-photon.js && node scripts/build-get-selection.js && bun run build:native && bun run build:parakeet",
+    "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js && bun scripts/download-photon.js && node scripts/build-get-selection.js && bun run build:native && bun run build:parakeet && bun run build:cli",
     "build:native": "cd native/mac-input && node-gyp rebuild",
     "build:parakeet": "cd native/parakeet-backend && cargo build --release",
     "postinstall": "bun run prep",
@@ -101,6 +101,12 @@
       {
         "from": "bin/whisper-mac-cli",
         "to": "whisper-mac-cli"
+      }
+    ],
+    "extraFiles": [
+      {
+        "from": "bin/whisper-mac-cli",
+        "to": "MacOS/transcribe"
       }
     ],
     "mac": {
