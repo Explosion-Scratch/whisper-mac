@@ -2,7 +2,7 @@ import { spawn, ChildProcess } from "child_process";
 import { unlinkSync, mkdtempSync, existsSync, readdirSync } from "fs";
 import { join, resolve } from "path";
 import { tmpdir } from "os";
-import { app } from "electron";
+// import { app } from "electron";
 import { v4 as uuidv4 } from "uuid";
 import { AppConfig } from "../config/AppConfig";
 import { FileSystemService } from "../services/FileSystemService";
@@ -360,7 +360,18 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
         stderr += data.toString();
       });
 
+      // Set timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        if (!yapProcess.killed) {
+          yapProcess.kill();
+          reject(new Error("YAP transcription timeout"));
+        }
+      }, 30000); // 30 second timeout
+
+      const clearAll = () => clearTimeout(timeout);
+
       yapProcess.on("close", (code) => {
+        clearAll();
         if (code === 0) {
           const rawTranscription = stdout.trim();
           console.log(`YAP raw transcription: "${rawTranscription}"`);
@@ -373,17 +384,10 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
       });
 
       yapProcess.on("error", (error) => {
+        clearAll();
         console.error("YAP spawn error:", error);
         reject(error);
       });
-
-      // Set timeout to prevent hanging
-      setTimeout(() => {
-        if (!yapProcess.killed) {
-          yapProcess.kill();
-          reject(new Error("YAP transcription timeout"));
-        }
-      }, 30000); // 30 second timeout
     });
   }
 

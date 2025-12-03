@@ -1,4 +1,4 @@
-import "isomorphic-fetch";
+// import "isomorphic-fetch";
 import { spawn } from "child_process";
 import {
     unlinkSync,
@@ -67,12 +67,12 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     private resolveBinaryPath(): string {
         // Try production bundled path first
-        const packagedPath = join(
+            const packagedPath = join(
             process.resourcesPath,
-            "parakeet-backend",
-        );
-        if (existsSync(packagedPath)) {
-            return packagedPath;
+                "parakeet-backend",
+            );
+            if (existsSync(packagedPath)) {
+                return packagedPath;
         }
 
         // Fall back to development path
@@ -268,9 +268,10 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     // Files needed for Parakeet TDT model
     private readonly modelFiles = [
-        "encoder-model.onnx",
-        "decoder_joint-model.onnx",
-        "vocab.txt",
+        { remote: "encoder-model.int8.onnx", local: "encoder-model.onnx" },
+        { remote: "decoder_joint-model.int8.onnx", local: "decoder_joint-model.onnx" },
+        { remote: "nemo128.onnx", local: "nemo128.onnx" },
+        { remote: "vocab.txt", local: "vocab.txt" },
     ];
 
     private readonly hfRepo = "istupakov/parakeet-tdt-0.6b-v3-onnx";
@@ -291,8 +292,8 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
             const totalFiles = this.modelFiles.length;
 
             for (const file of this.modelFiles) {
-                const url = `https://huggingface.co/${this.hfRepo}/resolve/main/${file}`;
-                const destPath = join(modelDir, file);
+                const url = `https://huggingface.co/${this.hfRepo}/resolve/main/${file.remote}`;
+                const destPath = join(modelDir, file.local);
 
                 if (existsSync(destPath)) {
                     completedFiles++;
@@ -301,7 +302,7 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
 
                 if (uiFunctions) {
                     uiFunctions.showProgress(
-                        `Downloading ${file} (${completedFiles + 1}/${totalFiles})...`,
+                        `Downloading ${file.local} (${completedFiles + 1}/${totalFiles})...`,
                         Math.round((completedFiles / totalFiles) * 100),
                     );
                 }
@@ -309,13 +310,13 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
                 await this.downloadFileWithProgress(
                     url,
                     destPath,
-                    file,
+                    file.local,
                     (percent) => {
                         const totalPercent = Math.round(
                             ((completedFiles + percent / 100) / totalFiles) * 100,
                         );
                         uiFunctions?.showProgress(
-                            `Downloading ${file}... ${percent}%`,
+                            `Downloading ${file.local}... ${percent}%`,
                             totalPercent,
                         );
                     },
@@ -351,7 +352,7 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
 
         // Check if all files exist
         const allFilesExist = this.modelFiles.every((file) =>
-            existsSync(join(modelDir, file)),
+            existsSync(join(modelDir, file.local)),
         );
 
         if (allFilesExist) {
