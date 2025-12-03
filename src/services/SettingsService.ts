@@ -278,6 +278,7 @@ export class SettingsService {
       },
     );
 
+
     // Save API key securely from settings
     ipcMain.handle(
       "settings:saveApiKey",
@@ -286,7 +287,7 @@ export class SettingsService {
           "../services/SecureStorageService"
         );
         const secure = new SecureStorageService();
-        await secure.setApiKey(payload.apiKey);
+        await secure.setSecureValue("ai_service", "api_key", payload.apiKey);
         return { success: true };
       },
     );
@@ -297,7 +298,7 @@ export class SettingsService {
         "../services/SecureStorageService"
       );
       const secure = new SecureStorageService();
-      return await secure.getApiKey();
+      return await secure.getSecureValue("ai_service", "api_key");
     });
 
     // Keychain handlers (used by settings window)
@@ -306,7 +307,7 @@ export class SettingsService {
         "../services/SecureStorageService"
       );
       const secure = new SecureStorageService();
-      await secure.setApiKey(apiKey);
+      await secure.setSecureValue("ai_service", "api_key", apiKey);
       return { success: true };
     });
 
@@ -315,7 +316,7 @@ export class SettingsService {
         "../services/SecureStorageService"
       );
       const secure = new SecureStorageService();
-      return await secure.getApiKey();
+      return await secure.getSecureValue("ai_service", "api_key");
     });
 
     ipcMain.handle("keychain:deleteApiKey", async () => {
@@ -323,7 +324,7 @@ export class SettingsService {
         "../services/SecureStorageService"
       );
       const secure = new SecureStorageService();
-      await secure.deleteApiKey();
+      await secure.deleteSecureValue("ai_service", "api_key");
       return { success: true };
     });
 

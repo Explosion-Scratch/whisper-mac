@@ -429,7 +429,7 @@ export class TransformationService {
     let apiKey: string | undefined;
     try {
       const secure = new SecureStorageService();
-      apiKey = (await secure.getApiKey()) || undefined;
+      apiKey = (await secure.getSecureValue("ai_service", "api_key")) || undefined;
     } catch (e) { }
     if (!apiKey) apiKey = process.env["AI_API_KEY"];
     if (!apiKey)

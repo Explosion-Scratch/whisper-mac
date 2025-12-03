@@ -44,7 +44,10 @@ export class AiValidationService {
     let keyToUse: string | null = apiKey || null;
     if (!keyToUse) {
       try {
-        keyToUse = await this.secureStorageService.getApiKey();
+        keyToUse = await this.secureStorageService.getSecureValue(
+          "ai_service",
+          "api_key",
+        );
       } catch (error) {
         // Ignore error, will be caught below
       }

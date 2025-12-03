@@ -512,7 +512,7 @@ export class IpcHandlerManager {
           "../services/SecureStorageService"
         );
         const secure = new SecureStorageService();
-        await secure.setApiKey(payload.apiKey);
+        await secure.setSecureValue("ai_service", "api_key", payload.apiKey);
         return { success: true };
       },
     );
