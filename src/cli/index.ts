@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "fs";
 declare global {
     namespace NodeJS {
         interface Process {
-            resourcesPath: string;
+            readonly resourcesPath: string;
         }
     }
 }
@@ -22,10 +22,10 @@ if (!process.resourcesPath) {
     
     // Simple heuristic: if vendor exists in cwd, use cwd. Else try to find it relative to execPath.
     if (existsSync(join(process.cwd(), "vendor"))) {
-        process.resourcesPath = process.cwd();
+        (process as any).resourcesPath = process.cwd();
     } else {
         // Fallback to directory of executable
-        process.resourcesPath = join(process.execPath, "..");
+        (process as any).resourcesPath = join(process.execPath, "..");
     }
 }
 
