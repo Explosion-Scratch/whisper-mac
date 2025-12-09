@@ -950,18 +950,25 @@
             allowFinalFlush = false;
           };
 
+          const flushPendingAudio = async () => {
+            console.log("[DictationWindow] Flushing pending audio...");
+            if (vadInstance.value) {
+              await vadInstance.value.pause();
+              await vadInstance.value.start();
+            }
+            transcriptionSegments.value = [];
+            finalText.value = "";
+          };
+
           watch([displaySegments], () => nextTick(scrollToEnd));
 
           onMounted(async () => {
+            console.log("Dictation window mounted, pre-initializing VAD...");
+            initializeVAD().catch(err => console.error("VAD pre-init failed:", err));
+            
             window.electronAPI.onAnimateIn(async () => {
               document.body.classList.add("visible");
               playStartSound();
-              if (isRecording.value) {
-                if (!mediaStream.value || !isVadInitialized.value) {
-                  await initializeVAD();
-                }
-                await enableVADStream();
-              }
             });
             window.electronAPI.onInitializeDictation(initializeDictation);
             window.electronAPI.onStartRecording(startRecording);
@@ -976,6 +983,7 @@
           window.electronAPI.onWindowHidden(() => {
             stopMediaStream();
           });
+          window.electronAPI.onFlushPendingAudio(flushPendingAudio);
           setupVisualizer();
             document.addEventListener("dragstart", (e) => e.preventDefault());
           window.addEventListener("beforeunload", () => {

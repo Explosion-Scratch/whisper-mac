@@ -11,6 +11,7 @@ import { TransformationService } from "./TransformationService";
 import { TextInjectionService } from "./TextInjectionService";
 import { SelectedTextResult, SelectedTextService } from "./SelectedTextService";
 import { ConfigurableActionsService } from "./ConfigurableActionsService";
+import { appStore } from "../core/AppStore";
 
 export class SegmentManager extends EventEmitter {
   private segments: Segment[] = [];
@@ -43,6 +44,7 @@ export class SegmentManager extends EventEmitter {
 
   setAccumulatingMode(enabled: boolean): void {
     this.isAccumulatingMode = enabled;
+    appStore.setState({ dictation: { ...appStore.getState().dictation, isAccumulatingMode: enabled } });
     console.log(`[SegmentManager] Accumulating mode set to: ${enabled}`);
   }
 
@@ -133,6 +135,9 @@ export class SegmentManager extends EventEmitter {
 
     // Deduplicate immediately
     this.deduplicateSegments();
+
+    // Sync to AppStore for state-based waiting
+    appStore.setSegments([...this.segments]);
 
     // Re-find the added segment if it survived deduplication, or use the last one
     const foundSegment = this.segments.find(s => s.id === segment.id);
@@ -258,6 +263,150 @@ export class SegmentManager extends EventEmitter {
     return this.transformAndInjectAllSegmentsInternal({
       skipTransformation: false,
     });
+  }
+
+  async transformAndInjectCompletedSegments(options: {
+    skipTransformation?: boolean;
+    skipAllTransforms?: boolean;
+    onInjecting?: () => void;
+  }): Promise<FlushResult> {
+    const segmentsToProcess = this.getCompletedTranscribedSegments();
+
+    if (segmentsToProcess.length === 0) {
+      return { transformedText: "", segmentsProcessed: 0, success: true };
+    }
+
+    try {
+      const shouldSkipAllTransforms = options?.skipAllTransforms || this.lastExecutedAction?.skipsAllTransforms;
+      const shouldSkipTransformation = options?.skipTransformation || this.lastExecutedAction?.skipsTransformation;
+
+      if (shouldSkipAllTransforms) {
+        const originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+        if (originalText) {
+          options.onInjecting?.();
+          await this.textInjectionService.insertText(originalText);
+          this.emit("raw", { rawText: originalText });
+          this.emit("transformed", { transformedText: originalText });
+        }
+        this.clearCompletedSegmentsOnly();
+        this.lastExecutedAction = null;
+        return { transformedText: originalText, segmentsProcessed: segmentsToProcess.length, success: true };
+      }
+
+      if (shouldSkipTransformation) {
+        if (this.configurableActionsService) {
+          await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+        }
+        let currentText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+
+        if (this.configurableActionsService && currentText.length > 0) {
+          const tempSegment: TranscribedSegment = {
+            id: "temp-combined",
+            type: "transcribed",
+            text: currentText,
+            completed: true,
+            timestamp: Date.now(),
+          };
+          await this.configurableActionsService.executeAllSegmentsActionsAfterAI([tempSegment]);
+          currentText = tempSegment.text;
+        }
+
+        const finalText = currentText ? this.transformationService.finalizeText(currentText) : currentText;
+
+        if (finalText) {
+          options.onInjecting?.();
+          await this.textInjectionService.insertText(finalText);
+          this.emit("raw", { rawText: currentText });
+          this.emit("transformed", { transformedText: finalText });
+        }
+        this.clearCompletedSegmentsOnly();
+        this.lastExecutedAction = null;
+        return { transformedText: finalText, segmentsProcessed: segmentsToProcess.length, success: true };
+      }
+
+      if (this.configurableActionsService) {
+        await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+      }
+
+      let originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+
+      if (this.configurableActionsService && originalText.length > 0) {
+        const tempSegment: TranscribedSegment = {
+          id: "temp-raw",
+          type: "transcribed",
+          text: originalText,
+          completed: true,
+          timestamp: Date.now(),
+        };
+        await this.configurableActionsService.executeAllSegmentsActionsAfterAI([tempSegment]);
+        originalText = tempSegment.text;
+      }
+
+      const transformResult = await this.transformationService.transformSegments(
+        segmentsToProcess,
+        await this.selectedTextService.getSelectedText(),
+      );
+
+      if (transformResult.success && transformResult.transformedText && this.configurableActionsService) {
+        const transformedSegment: TranscribedSegment = {
+          id: uuidv4(),
+          type: "transcribed",
+          text: transformResult.transformedText,
+          completed: true,
+          timestamp: Date.now(),
+        };
+        await this.configurableActionsService.executeAllSegmentsActionsAfterAI([transformedSegment]);
+        transformResult.transformedText = transformedSegment.text;
+      }
+
+      if (!transformResult.success) {
+        return await this.handleTransformationFallbackForContinuous(
+          segmentsToProcess,
+          transformResult.error || "Transformation failed",
+          options.onInjecting,
+        );
+      }
+
+      const transformedText = transformResult.transformedText;
+      if (transformedText) {
+        options.onInjecting?.();
+        await this.textInjectionService.insertText(transformedText);
+        if (originalText) this.emit("raw", { rawText: originalText });
+        this.emit("transformed", { transformedText });
+      }
+
+      this.clearCompletedSegmentsOnly();
+      this.lastExecutedAction = null;
+      return { transformedText, segmentsProcessed: transformResult.segmentsProcessed, success: true };
+
+    } catch (error) {
+      return await this.handleTransformationFallbackForContinuous(
+        segmentsToProcess,
+        error instanceof Error ? error.message : "Unknown error",
+        options.onInjecting,
+      );
+    }
+  }
+
+  private async handleTransformationFallbackForContinuous(
+    segmentsToProcess: TranscribedSegment[],
+    error: string,
+    onInjecting?: () => void,
+  ): Promise<FlushResult> {
+    if (this.configurableActionsService) {
+      await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+    }
+    const originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+    const finalText = originalText ? this.transformationService.finalizeText(originalText) : originalText;
+
+    if (finalText) {
+      onInjecting?.();
+      await this.textInjectionService.insertText(finalText);
+      if (originalText) this.emit("raw", { rawText: originalText });
+      this.emit("transformed", { transformedText: finalText });
+    }
+    this.clearCompletedSegmentsOnly();
+    return { transformedText: finalText, segmentsProcessed: segmentsToProcess.length, success: true, error };
   }
 
   async transformAndInjectAllSegmentsInternal(options: {
@@ -419,8 +568,20 @@ export class SegmentManager extends EventEmitter {
     this.segments = [];
     this.initialSelectedText = null;
     this.isAccumulatingMode = false;
-    this.queuedHandlers = []; // Clear queued handlers too
+    this.queuedHandlers = [];
+    appStore.clearSegments();
     this.emit("segments-cleared");
+  }
+
+  clearCompletedSegmentsOnly(): void {
+    const inProgress = this.segments.filter(
+      (s) => s.type === "transcribed" && !s.completed
+    );
+    this.segments = inProgress;
+    appStore.setSegments([...this.segments]);
+    console.log(
+      `[SegmentManager] Cleared completed segments, kept ${inProgress.length} in-progress`
+    );
   }
 
   // Legacy segment manipulation methods mostly replaced by executeActions logic,

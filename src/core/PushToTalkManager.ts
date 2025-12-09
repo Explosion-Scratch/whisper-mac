@@ -2,6 +2,7 @@ import { DictationFlowManager } from "./DictationFlowManager";
 import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManager";
 import { SettingsManager } from "../config/SettingsManager";
 import { macInput } from "../native/MacInput";
+import { appStore } from "./AppStore";
 
 type ModifierCombo = {
   shift: boolean;
@@ -33,14 +34,24 @@ export class PushToTalkManager {
   private initialized = false;
   private disposed = false;
   private currentHotkey: string | null = null;
-  private isSessionActive = false;
   private startPromise: Promise<void> | null = null;
   private finalizeScheduled = false;
   private settingsListener?: (key: string, value: unknown) => void;
+  private stateUnsubscribe?: () => void;
 
   private registeredWithMacInput = false;
   private hotkeyMatcher: HotkeyMatcher | null = null;
   private hotkeyPressed = false;
+
+  private get isSessionActive(): boolean {
+    return appStore.select((s) => s.dictation.pushToTalkActive);
+  }
+
+  private set isSessionActive(value: boolean) {
+    appStore.setState({
+      dictation: { ...appStore.getState().dictation, pushToTalkActive: value },
+    });
+  }
 
   constructor(
     private readonly dictationFlowManager: DictationFlowManager,
@@ -70,6 +81,12 @@ export class PushToTalkManager {
       this.settingsListener = undefined;
     }
 
+    if (this.stateUnsubscribe) {
+      this.stateUnsubscribe();
+      this.stateUnsubscribe = undefined;
+    }
+
+    this.isSessionActive = false;
     this.hotkeyMatcher = null;
     this.hotkeyPressed = false;
     this.currentHotkey = null;

@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 import { join } from "path";
 import { app } from "electron";
+import { appStore } from "./AppStore";
 
 export class WindowManager {
   private settingsWindow: BrowserWindow | null = null;
@@ -37,6 +38,7 @@ export class WindowManager {
 
     this.onboardingWindow.once("ready-to-show", () => {
       this.onboardingWindow?.show();
+      appStore.setUIState({ onboardingWindowVisible: true });
       try {
         app.dock?.show();
       } catch (e) {}
@@ -44,6 +46,7 @@ export class WindowManager {
 
     this.onboardingWindow.on("closed", () => {
       this.onboardingWindow = null;
+      appStore.setUIState({ onboardingWindowVisible: false });
       try {
         app.dock?.hide();
       } catch (e) {}

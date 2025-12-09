@@ -10,22 +10,17 @@ import { join } from "path";
 import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManager";
 import { NotificationService } from "./NotificationService";
 import { SettingsManager } from "../config/SettingsManager";
+import { appStore, SetupStatus } from "../core/AppStore";
 
-export type SetupStatus =
-  | "idle"
-  | "downloading-models"
-  | "setting-up-whisper"
-  | "preparing-app"
-  | "checking-permissions"
-  | "starting-server"
-  | "loading-windows"
-  | "initializing-plugins"
-  | "service-ready";
+export { SetupStatus };
 
 export class TrayService {
   private tray: Tray | null = null;
   private trayMenu: Menu | null = null;
-  private currentStatus: SetupStatus = "idle";
+
+  private get currentStatus(): SetupStatus {
+    return appStore.select((s) => s.app.status);
+  }
 
   constructor(
     private readonly trayIconIdleRelPath: string,
@@ -166,7 +161,6 @@ export class TrayService {
 
   async updateTrayMenu(status: SetupStatus) {
     if (!this.tray) return;
-    this.currentStatus = status;
     const isSetupInProgress = status !== "idle";
     if (isSetupInProgress) {
       const statusMenu = Menu.buildFromTemplate([
