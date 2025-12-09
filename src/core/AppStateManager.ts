@@ -2,39 +2,40 @@ import {
   TrayService,
   SetupStatus as TraySetupStatus,
 } from "../services/TrayService";
+import { appStore, SetupStatus } from "./AppStore";
 
-export type SetupStatus =
-  | "idle"
-  | "downloading-models"
-  | "setting-up-whisper"
-  | "preparing-app"
-  | "checking-permissions"
-  | "starting-server"
-  | "loading-windows"
-  | "initializing-plugins"
-  | "service-ready";
+export { SetupStatus } from "./AppStore";
 
 export class AppStateManager {
-  private currentSetupStatus: SetupStatus = "idle";
-  private setupStatusCallbacks: ((status: SetupStatus) => void)[] = [];
   private trayService: TrayService | null = null;
+  private unsubscribe: (() => void) | null = null;
+
+  constructor() {
+    this.unsubscribe = appStore.subscribe(
+      (state) => state.app.status,
+      (status) => {
+        this.trayService?.updateTrayMenu(status as TraySetupStatus);
+      }
+    );
+  }
 
   setTrayService(trayService: TrayService) {
     this.trayService = trayService;
   }
 
   setSetupStatus(status: SetupStatus) {
-    this.currentSetupStatus = status;
-    this.setupStatusCallbacks.forEach((callback) => callback(status));
-    this.trayService?.updateTrayMenu(status as TraySetupStatus);
+    appStore.setAppStatus(status);
   }
 
   getCurrentStatus(): SetupStatus {
-    return this.currentSetupStatus;
+    return appStore.select((state) => state.app.status);
   }
 
-  onSetupStatusChange(callback: (status: SetupStatus) => void) {
-    this.setupStatusCallbacks.push(callback);
+  onSetupStatusChange(callback: (status: SetupStatus) => void): () => void {
+    return appStore.subscribe(
+      (state) => state.app.status,
+      (status) => callback(status)
+    );
   }
 
   getStatusMessage(status: SetupStatus): string {
@@ -51,6 +52,10 @@ export class AppStateManager {
         return "Starting server...";
       case "loading-windows":
         return "Loading windows...";
+      case "initializing-plugins":
+        return "Initializing plugins...";
+      case "service-ready":
+        return "Ready";
       case "idle":
       default:
         return "WhisperMac - AI Dictation";
@@ -58,6 +63,17 @@ export class AppStateManager {
   }
 
   isIdle(): boolean {
-    return this.currentSetupStatus === "idle";
+    return appStore.select((state) => state.app.status) === "idle";
+  }
+
+  isServiceReady(): boolean {
+    return appStore.select((state) => state.app.status) === "service-ready";
+  }
+
+  destroy(): void {
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+    }
   }
 }

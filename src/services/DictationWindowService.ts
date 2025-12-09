@@ -4,6 +4,7 @@ import { EventEmitter } from "events";
 import { AppConfig } from "../config/AppConfig";
 import { appEventBus } from "./AppEventBus";
 import { Segment, SegmentUpdate } from "../types/SegmentTypes";
+import { appStore } from "../core/AppStore";
 
 export interface WindowPosition {
   x: number;
@@ -88,6 +89,7 @@ export class DictationWindowService extends EventEmitter {
   }
 
   private async createDictationWindow(): Promise<void> {
+    const DEBUG = false;
     // Optimize: Use synchronous position calculation for screen-corner
     const position = this.calculateWindowPositionSync();
 
@@ -96,14 +98,14 @@ export class DictationWindowService extends EventEmitter {
       height: this.config.dictationWindowHeight,
       x: position.x,
       y: position.y,
-      frame: false,
+      frame: DEBUG ? true : false,
       transparent: true,
       backgroundColor: "#00000000",
       vibrancy: "sidebar",
       visualEffectState: "active",
       alwaysOnTop: true,
       skipTaskbar: true,
-      resizable: false,
+      resizable: DEBUG ? true : false,
       minimizable: false,
       maximizable: false,
       closable: true,
@@ -111,6 +113,7 @@ export class DictationWindowService extends EventEmitter {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        devTools: DEBUG ? true : false,
         preload: join(__dirname, "../preload/dictationPreload.js"),
       },
       show: false,
@@ -281,6 +284,14 @@ export class DictationWindowService extends EventEmitter {
     }
   }
 
+  async flushPendingAudio(): Promise<void> {
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      console.log("[DictationWindowService] Flushing pending audio...");
+      this.dictationWindow.webContents.send("dictation-flush-pending-audio");
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+  }
+
   updateTranscription(update: SegmentUpdate): void {
     this.currentSegments = update.segments;
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
@@ -309,6 +320,13 @@ export class DictationWindowService extends EventEmitter {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.webContents.send("dictation-clear");
       this.setStatus("idle");
+    }
+  }
+
+  clearTranscriptionDisplay(): void {
+    this.currentSegments = [];
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      this.dictationWindow.webContents.send("dictation-clear");
     }
   }
 
@@ -385,6 +403,7 @@ export class DictationWindowService extends EventEmitter {
   hideWindow(): void {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.hide();
+      appStore.setUIState({ dictationWindowVisible: false });
       appEventBus.emit("dictation-window-hidden");
     }
   }
@@ -392,6 +411,7 @@ export class DictationWindowService extends EventEmitter {
   showWindow(): void {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.showInactive();
+      appStore.setUIState({ dictationWindowVisible: true });
       appEventBus.emit("dictation-window-shown");
     }
   }

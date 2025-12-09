@@ -2,6 +2,7 @@ import { globalShortcut, app } from "electron";
 import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManager";
 import { DictationFlowManager } from "./DictationFlowManager";
 import { SettingsManager } from "../config/SettingsManager";
+import { appStore } from "./AppStore";
 
 export interface ShortcutActions {
   onToggleRecording: () => void;
@@ -17,8 +18,6 @@ export class ShortcutManager {
   private registeredShortcuts: string[] = [];
   private transcriptionPluginManager: TranscriptionPluginManager | null = null;
   private dictationFlowManager: DictationFlowManager | null = null;
-  private lastTransformedResult: string | null = null;
-  private lastRawResult: string | null = null;
   private settingsManager: SettingsManager | null = null;
 
   setTranscriptionPluginManager(manager: TranscriptionPluginManager): void {
@@ -39,7 +38,9 @@ export class ShortcutManager {
     if (this.settingsManager) {
       const savedResult = this.settingsManager.get("internal.lastTransformedResult");
       if (savedResult && typeof savedResult === "string") {
-        this.lastTransformedResult = savedResult;
+        appStore.setState({
+          dictation: { ...appStore.getState().dictation, lastTransformedText: savedResult },
+        });
         console.log(`[ShortcutManager] Loaded last transformed result from storage: "${savedResult}"`);
       }
     }
@@ -49,16 +50,19 @@ export class ShortcutManager {
     if (this.settingsManager) {
       const savedResult = this.settingsManager.get("internal.lastRawResult");
       if (savedResult && typeof savedResult === "string") {
-        this.lastRawResult = savedResult;
+        appStore.setState({
+          dictation: { ...appStore.getState().dictation, lastRawText: savedResult },
+        });
         console.log(`[ShortcutManager] Loaded last raw result from storage: "${savedResult}"`);
       }
     }
   }
 
   setLastTransformedResult(result: string): void {
-    this.lastTransformedResult = result;
+    appStore.setState({
+      dictation: { ...appStore.getState().dictation, lastTransformedText: result },
+    });
 
-    // Persist the result for future app sessions
     if (this.settingsManager) {
       this.settingsManager.set("internal.lastTransformedResult", result);
       this.settingsManager.saveSettings();
@@ -66,9 +70,10 @@ export class ShortcutManager {
   }
 
   setLastRawResult(result: string): void {
-    this.lastRawResult = result;
+    appStore.setState({
+      dictation: { ...appStore.getState().dictation, lastRawText: result },
+    });
 
-    // Persist the result for future app sessions
     if (this.settingsManager) {
       this.settingsManager.set("internal.lastRawResult", result);
       this.settingsManager.saveSettings();
@@ -189,10 +194,10 @@ export class ShortcutManager {
   }
 
   async injectLastResult(): Promise<void> {
-    if (!this.lastTransformedResult) {
+    const lastTransformedResult = appStore.select((s) => s.dictation.lastTransformedText);
+    if (!lastTransformedResult) {
       console.log("No last result available to inject");
 
-      // Show a notification to the user
       try {
         const { NotificationService } = await import("../services/NotificationService");
         const notificationService = new NotificationService();
@@ -207,23 +212,22 @@ export class ShortcutManager {
     }
 
     try {
-      // Import the TextInjectionService and inject the last result
       const { TextInjectionService } = await import(
         "../services/TextInjectionService"
       );
       const injectionService = new TextInjectionService();
-      await injectionService.insertText(this.lastTransformedResult);
-      console.log(`Injected last result: "${this.lastTransformedResult}"`);
+      await injectionService.insertText(lastTransformedResult);
+      console.log(`Injected last result: "${lastTransformedResult}"`);
     } catch (error) {
       console.error("Failed to inject last result:", error);
     }
   }
 
   async injectRawLastResult(): Promise<void> {
-    if (!this.lastRawResult) {
+    const lastRawResult = appStore.select((s) => s.dictation.lastRawText);
+    if (!lastRawResult) {
       console.log("No last raw result available to inject");
 
-      // Show a notification to the user
       try {
         const { NotificationService } = await import("../services/NotificationService");
         const notificationService = new NotificationService();
@@ -238,13 +242,12 @@ export class ShortcutManager {
     }
 
     try {
-      // Import the TextInjectionService and inject the last raw result
       const { TextInjectionService } = await import(
         "../services/TextInjectionService"
       );
       const injectionService = new TextInjectionService();
-      await injectionService.insertText(this.lastRawResult);
-      console.log(`Injected last raw result: "${this.lastRawResult}"`);
+      await injectionService.insertText(lastRawResult);
+      console.log(`Injected last raw result: "${lastRawResult}"`);
     } catch (error) {
       console.error("Failed to inject last raw result:", error);
     }

@@ -10,6 +10,7 @@ import { SegmentUpdate } from "../types/SegmentTypes";
 import { AppConfig } from "../config/AppConfig";
 import { appEventBus } from "../services/AppEventBus";
 import { promiseManager } from "../core/PromiseManager";
+import { appStore } from "../core/AppStore";
 
 export class TranscriptionPluginManager extends EventEmitter {
   private plugins: Map<string, BaseTranscriptionPlugin> = new Map();
@@ -202,6 +203,7 @@ export class TranscriptionPluginManager extends EventEmitter {
 
     // Activate new plugin
     this.activePlugin = plugin;
+    appStore.setActivePlugin(plugin.name);
 
     try {
       // Update options with full updateOptions call (for plugins that need to store securely, etc.)
@@ -220,12 +222,20 @@ export class TranscriptionPluginManager extends EventEmitter {
         this.bufferingEnabled = !!criteria.runOnAll;
         this.bufferedAudioChunks = [];
         this.bufferingOverride = null;
+        appStore.setState({
+          plugins: {
+            ...appStore.getState().plugins,
+            bufferingEnabled: this.bufferingEnabled,
+            bufferingOverride: null,
+          },
+        });
       } catch { }
 
       this.emit("active-plugin-changed", plugin);
       console.log(`Active transcription plugin set to: ${plugin.displayName}`);
     } catch (error) {
       this.activePlugin = null;
+      appStore.setActivePlugin(null);
       throw new Error(`Failed to activate plugin ${name}: ${error}`);
     }
   }

@@ -7,6 +7,8 @@ import {
     readFileSync,
     createWriteStream,
     mkdirSync,
+    readdirSync,
+    statSync,
 } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -26,6 +28,7 @@ import {
     PluginUIFunctions,
 } from "./TranscriptionPlugin";
 import { WavProcessor } from "../helpers/WavProcessor";
+import { FileSystemService } from "../services/FileSystemService";
 
 /**
  * Parakeet transcription plugin using custom Rust backend
@@ -58,6 +61,10 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
 
         // Initialize schema
         this.schema = this.getSchema();
+
+        // Set default activation criteria based on schema default
+        const defaultRunOnAll = this.schema.find((opt) => opt.key === "runOnAll")?.default ?? false;
+        this.setActivationCriteria({ runOnAll: defaultRunOnAll, skipTransformation: false });
     }
 
     getFallbackChain(): string[] {
@@ -159,9 +166,10 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
             return;
         }
 
+        let tempAudioPath: string | null = null;
         try {
             this.isCurrentlyTranscribing = true;
-            const tempAudioPath = await this.saveAudioAsWav(audioData);
+            tempAudioPath = await this.saveAudioAsWav(audioData);
 
             const inProgressSegment: InProgressSegment = {
                 id: uuidv4(),
@@ -177,13 +185,6 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
             });
 
             const result = await this.transcribeWithBinary(tempAudioPath);
-
-            // Clean up temp file
-            try {
-                unlinkSync(tempAudioPath);
-            } catch (err) {
-                console.warn("Failed to delete temp audio file:", err);
-            }
 
             const completedSegment: TranscribedSegment = {
                 id: uuidv4(),
@@ -221,6 +222,13 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
             }
         } finally {
             this.isCurrentlyTranscribing = false;
+            if (tempAudioPath) {
+                try {
+                    unlinkSync(tempAudioPath);
+                } catch (err) {
+                    console.warn("[parakeet] Failed to delete temp audio file:", err);
+                }
+            }
         }
     }
 
@@ -534,20 +542,20 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
         if (this.isWindowVisible) return;
 
         this.isWarmupRunning = true;
+        let tempAudioPath: string | null = null;
         try {
             const dummy = new Float32Array(16000);
-            const tempAudioPath = await this.saveAudioAsWav(dummy);
-
-            try {
-                await this.transcribeWithBinary(tempAudioPath);
-                unlinkSync(tempAudioPath);
-            } catch (e) {
-                // Ignore warmup errors
-            }
+            tempAudioPath = await this.saveAudioAsWav(dummy);
+            await this.transcribeWithBinary(tempAudioPath);
         } catch (e) {
-            // Ignore warmup errors
         } finally {
             this.isWarmupRunning = false;
+            if (tempAudioPath) {
+                try {
+                    unlinkSync(tempAudioPath);
+                } catch (e) {
+                }
+            }
         }
     }
 
@@ -558,6 +566,14 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     async onActivated(uiFunctions?: any): Promise<void> {
         this.setActive(true);
+
+        // Update activation criteria based on runOnAll option
+        const runOnAll = this.options.runOnAll !== undefined
+            ? this.options.runOnAll
+            : this.getSchema().find((opt) => opt.key === "runOnAll")?.default ?? false;
+        this.setActivationCriteria({ runOnAll, skipTransformation: false });
+        console.log(`[parakeet] Activated with runOnAll: ${runOnAll}`);
+
         this.startWarmupLoop();
         this.runWarmupIfIdle();
     }
@@ -572,10 +588,168 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
         this.stopWarmupLoop();
     }
     getDataPath(): string { return this.config.getModelsDir(); }
-    async listData(): Promise<any[]> { return []; }
-    async deleteDataItem(id: string): Promise<void> { }
-    async deleteAllData(): Promise<void> { }
+
+    async listData(): Promise<
+        Array<{ name: string; description: string; size: number; id: string }>
+    > {
+        const dataItems: Array<{
+            name: string;
+            description: string;
+            size: number;
+            id: string;
+        }> = [];
+
+        try {
+            const modelsDir = this.config.getModelsDir();
+
+            if (existsSync(modelsDir)) {
+                const files = readdirSync(modelsDir);
+                for (const file of files) {
+                    const modelPath = join(modelsDir, file);
+                    try {
+                        const stats = statSync(modelPath);
+                        if (stats.isDirectory() && file.startsWith("parakeet")) {
+                            const dirSize = FileSystemService.calculateDirectorySize(modelPath);
+                            dataItems.push({
+                                name: file,
+                                description: `Parakeet model directory`,
+                                size: dirSize,
+                                id: `model:${file}`,
+                            });
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to stat model ${file}:`, error);
+                    }
+                }
+            }
+
+            if (existsSync(this.tempDir)) {
+                const tempFiles = readdirSync(this.tempDir);
+                for (const tempFile of tempFiles) {
+                    const tempPath = join(this.tempDir, tempFile);
+                    try {
+                        const stats = statSync(tempPath);
+                        dataItems.push({
+                            name: tempFile,
+                            description: `Temporary audio file`,
+                            size: stats.size,
+                            id: `temp:${tempFile}`,
+                        });
+                    } catch (error) {
+                        console.warn(`Failed to stat temp file ${tempFile}:`, error);
+                    }
+                }
+            }
+
+            const secureKeys = await this.listSecureKeys();
+            for (const key of secureKeys) {
+                dataItems.push({
+                    name: key,
+                    description: `Secure storage item`,
+                    size: 0,
+                    id: `secure:${key}`,
+                });
+            }
+        } catch (error) {
+            console.warn("Failed to list Parakeet plugin data:", error);
+        }
+
+        return dataItems;
+    }
+
+    async deleteDataItem(id: string): Promise<void> {
+        const [type, identifier] = id.split(":", 2);
+
+        try {
+            switch (type) {
+                case "model":
+                    const modelPath = join(this.config.getModelsDir(), identifier);
+                    if (existsSync(modelPath)) {
+                        const stats = statSync(modelPath);
+                        if (stats.isDirectory()) {
+                            FileSystemService.deleteDirectory(modelPath);
+                            console.log(`[parakeet] Deleted model directory: ${identifier}`);
+                        } else {
+                            unlinkSync(modelPath);
+                            console.log(`[parakeet] Deleted model file: ${identifier}`);
+                        }
+                    }
+                    break;
+
+                case "temp":
+                    const tempPath = join(this.tempDir, identifier);
+                    if (existsSync(tempPath)) {
+                        unlinkSync(tempPath);
+                        console.log(`[parakeet] Deleted temp file: ${identifier}`);
+                    }
+                    break;
+
+                case "secure":
+                    await this.deleteSecureValue(identifier);
+                    console.log(`[parakeet] Deleted secure data: ${identifier}`);
+                    break;
+
+                default:
+                    throw new Error(`Unknown data type: ${type}`);
+            }
+        } catch (error) {
+            console.error(`[parakeet] Failed to delete data item ${id}:`, error);
+            throw error;
+        }
+    }
+
+    async deleteAllData(): Promise<void> {
+        try {
+            if (existsSync(this.tempDir)) {
+                const tempFiles = readdirSync(this.tempDir);
+                for (const file of tempFiles) {
+                    try {
+                        unlinkSync(join(this.tempDir, file));
+                    } catch (error) {
+                        console.warn(`[parakeet] Failed to delete temp file ${file}:`, error);
+                    }
+                }
+            }
+
+            await this.clearSecureData();
+
+            const modelsDir = this.config.getModelsDir();
+            if (existsSync(modelsDir)) {
+                const files = readdirSync(modelsDir);
+
+                for (const file of files) {
+                    const filePath = join(modelsDir, file);
+
+                    try {
+                        const stats = statSync(filePath);
+                        if (file.startsWith("parakeet") && stats.isDirectory()) {
+                            FileSystemService.deleteDirectory(filePath);
+                            console.log(`[parakeet] Deleted model: ${file}`);
+                        }
+                    } catch (error) {
+                        console.warn(`[parakeet] Failed to delete model ${file}:`, error);
+                    }
+                }
+            }
+
+            console.log("[parakeet] All data cleared");
+        } catch (error) {
+            console.error("[parakeet] Failed to clear all data:", error);
+            throw error;
+        }
+    }
     async updateOptions(options: Record<string, any>): Promise<void> {
+        const previousRunOnAll = this.options.runOnAll;
         this.setOptions(options);
+
+        // Handle runOnAll setting changes
+        if (options.runOnAll !== undefined && options.runOnAll !== previousRunOnAll) {
+            const runOnAll = options.runOnAll;
+            this.setActivationCriteria({
+                runOnAll,
+                skipTransformation: false,
+            });
+            console.log(`[parakeet] runOnAll updated to: ${runOnAll}`);
+        }
     }
 }

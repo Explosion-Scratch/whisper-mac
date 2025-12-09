@@ -33,6 +33,7 @@ import {
   InitializationManager,
   TrayInteractionManager,
   PushToTalkManager,
+  ipcStateBridge,
 } from "./core";
 
 class WhisperMacApp {
@@ -326,6 +327,7 @@ class WhisperMacApp {
     private onInitializationComplete(): void {
       this.registerHotkeys();
       this.ipcHandlerManager.setupIpcHandlers();
+      ipcStateBridge.initialize();
       this.trayInteractionManager.hideDockAfterOnboarding();
       this.setupErrorManagerCallback();
       this.checkPermissionsOnLaunch();
@@ -397,9 +399,6 @@ class WhisperMacApp {
           return;
         }
   
-        console.log("Immediately stopping audio recording...");
-        this.dictationWindowService.stopRecording();
-  
         if (this.config.showDictationWindowAlways) {
           console.log(
             "Always-show-window enabled: flushing segments and continuing recording",
@@ -409,6 +408,9 @@ class WhisperMacApp {
           });
           return;
         }
+
+        console.log("Immediately stopping audio recording...");
+        this.dictationWindowService.stopRecording();
   
         console.log("Finishing current dictation (waiting for completion)...");
         await this.dictationFlowManager.finishCurrentDictation({
@@ -416,6 +418,15 @@ class WhisperMacApp {
         });
       } else {
         console.log("Starting dictation...");
+        
+        if (options.skipTransformation) {
+          const { appStore } = require("./core/AppStore");
+          appStore.setState({
+            dictation: { ...appStore.getState().dictation, pendingSkipTransformation: true },
+          });
+          console.log("Paste raw dictation: will skip transformation when finished");
+        }
+        
         await this.dictationFlowManager.startDictation();
       }
     }

@@ -2,6 +2,7 @@ import { TextInjectionService } from "./TextInjectionService";
 import { MicrophonePermissionService } from "./MicrophonePermissionService";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { appStore } from "../core/AppStore";
 
 const execAsync = promisify(exec);
 
@@ -50,15 +51,19 @@ export class PermissionsManager {
         try {
             const granted = await this.textInjector.checkAccessibilityPermissions();
             console.log(`PermissionsManager.checkAccessibilityPermissions: Accessibility permission ${granted ? 'granted' : 'denied'}`);
-            return { granted, checked: true };
+            const status = { granted, checked: true };
+            appStore.setPermission("accessibility", status);
+            return status;
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             console.error(`PermissionsManager.checkAccessibilityPermissions: Error checking accessibility permissions: ${errorMessage}`);
-            return {
+            const status = {
                 granted: false,
                 checked: true,
                 error: errorMessage,
             };
+            appStore.setPermission("accessibility", status);
+            return status;
         }
     }
 
@@ -93,15 +98,19 @@ export class PermissionsManager {
         try {
             const granted = await this.microphoneService.checkMicrophonePermissions();
             console.log(`PermissionsManager.checkMicrophonePermissions: Microphone permission ${granted ? 'granted' : 'denied'}`);
-            return { granted, checked: true };
+            const status = { granted, checked: true };
+            appStore.setPermission("microphone", status);
+            return status;
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             console.error(`PermissionsManager.checkMicrophonePermissions: Error checking microphone permissions: ${errorMessage}`);
-            return {
+            const status = {
                 granted: false,
                 checked: true,
                 error: errorMessage,
             };
+            appStore.setPermission("microphone", status);
+            return status;
         }
     }
 

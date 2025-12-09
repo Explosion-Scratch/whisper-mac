@@ -1,4 +1,5 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
+
 const g: any = globalThis as any;
 if (g && g.__electronLog && typeof g.__electronLog.log === "function") {
   Object.assign(console, g.__electronLog);
@@ -27,59 +28,80 @@ export interface TranscriptionUpdate {
   segments: TranscriptionSegment[];
 }
 
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
+type ListenerCleanupFn = () => void;
+const activeListeners: ListenerCleanupFn[] = [];
+
+function createListenerWithCleanup<T>(
+  channel: string,
+  callback: (data: T) => void
+): ListenerCleanupFn {
+  const handler = (_event: IpcRendererEvent, data: T) => callback(data);
+  ipcRenderer.on(channel, handler);
+  const cleanup = () => ipcRenderer.removeListener(channel, handler);
+  activeListeners.push(cleanup);
+  return cleanup;
+}
+
+function createSimpleListenerWithCleanup(
+  channel: string,
+  callback: () => void
+): ListenerCleanupFn {
+  const handler = () => callback();
+  ipcRenderer.on(channel, handler);
+  const cleanup = () => ipcRenderer.removeListener(channel, handler);
+  activeListeners.push(cleanup);
+  return cleanup;
+}
+
 contextBridge.exposeInMainWorld("electronAPI", {
-  // Animation trigger from main process
   onAnimateIn: (callback: () => void) => {
-    ipcRenderer.on("animate-in", callback);
+    return createSimpleListenerWithCleanup("animate-in", callback);
   },
-  // Listeners for commands from main process
+
   onInitializeDictation: (callback: (data: DictationInitData) => void) => {
-    ipcRenderer.on("initialize-dictation", (event, data) => callback(data));
+    return createListenerWithCleanup("initialize-dictation", callback);
   },
 
   onStartRecording: (callback: () => void) => {
-    ipcRenderer.on("dictation-start-recording", callback);
+    return createSimpleListenerWithCleanup("dictation-start-recording", callback);
   },
 
   onStopRecording: (callback: () => void) => {
-    ipcRenderer.on("dictation-stop-recording", callback);
+    return createSimpleListenerWithCleanup("dictation-stop-recording", callback);
   },
 
   onTranscriptionUpdate: (callback: (update: TranscriptionUpdate) => void) => {
-    ipcRenderer.on("dictation-transcription-update", (event, update) =>
-      callback(update),
-    );
+    return createListenerWithCleanup("dictation-transcription-update", callback);
   },
 
   onDictationComplete: (callback: (finalText: string) => void) => {
-    ipcRenderer.on("dictation-complete", (event, finalText) =>
-      callback(finalText),
-    );
+    return createListenerWithCleanup("dictation-complete", callback);
   },
 
   onDictationClear: (callback: () => void) => {
-    ipcRenderer.on("dictation-clear", callback);
+    return createSimpleListenerWithCleanup("dictation-clear", callback);
   },
 
   onSetStatus: (callback: (status: string) => void) => {
-    ipcRenderer.on("dictation-set-status", (event, status) => callback(status));
+    return createListenerWithCleanup("dictation-set-status", callback);
   },
 
   onPlayEndSound: (callback: () => void) => {
-    ipcRenderer.on("play-end-sound", callback);
+    return createSimpleListenerWithCleanup("play-end-sound", callback);
   },
 
   onWindowHidden: (callback: () => void) => {
-    ipcRenderer.on("window-hidden", callback);
+    return createSimpleListenerWithCleanup("window-hidden", callback);
+  },
+
+  onFlushPendingAudio: (callback: () => void) => {
+    return createSimpleListenerWithCleanup("dictation-flush-pending-audio", callback);
   },
 
   onError: (callback: (payload: any) => void) => {
-    ipcRenderer.on("error:data", (_e, payload) => callback(payload));
+    return createListenerWithCleanup("error:data", callback);
   },
 
-  // Senders to main process
   closeDictationWindow: () => {
     ipcRenderer.send("close-dictation-window");
   },
@@ -88,58 +110,61 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.send("cancel-dictation");
   },
 
-  // Window control
   minimizeWindow: () => {
     ipcRenderer.send("minimize-dictation-window");
   },
 
-  // Debug/logging
   logMessage: (message: string) => {
     ipcRenderer.send("dictation-log", message);
   },
 
-  // VAD audio processing
   sendAudioSegment: (audioData: Float32Array) => {
     ipcRenderer.send("vad-audio-segment", Array.from(audioData));
   },
 
-  // Get selected microphone from settings
   getSelectedMicrophone: () => {
     return ipcRenderer.invoke("dictation:getSelectedMicrophone");
   },
 
-  // Set selected microphone in settings
   setSelectedMicrophone: (deviceId: string) => {
     return ipcRenderer.invoke("dictation:setSelectedMicrophone", deviceId);
   },
+
+  cleanup: () => {
+    for (const cleanup of activeListeners) {
+      try {
+        cleanup();
+      } catch {}
+    }
+    activeListeners.length = 0;
+  },
 });
 
-// Declare the global interface for TypeScript
+
+
 declare global {
   interface Window {
     electronAPI: {
-      onAnimateIn: (callback: () => void) => void;
-      onInitializeDictation: (
-        callback: (data: DictationInitData) => void,
-      ) => void;
-      onStartRecording: (callback: () => void) => void;
-      onStopRecording: (callback: () => void) => void;
-      onTranscriptionUpdate: (
-        callback: (update: TranscriptionUpdate) => void,
-      ) => void;
-      onDictationComplete: (callback: (finalText: string) => void) => void;
-      onDictationClear: (callback: () => void) => void;
-      onSetStatus: (callback: (status: string) => void) => void;
-      onError: (callback: (payload: any) => void) => void;
+      onAnimateIn: (callback: () => void) => () => void;
+      onInitializeDictation: (callback: (data: DictationInitData) => void) => () => void;
+      onStartRecording: (callback: () => void) => () => void;
+      onStopRecording: (callback: () => void) => () => void;
+      onTranscriptionUpdate: (callback: (update: TranscriptionUpdate) => void) => () => void;
+      onDictationComplete: (callback: (finalText: string) => void) => () => void;
+      onDictationClear: (callback: () => void) => () => void;
+      onSetStatus: (callback: (status: string) => void) => () => void;
+      onError: (callback: (payload: any) => void) => () => void;
       closeDictationWindow: () => void;
       cancelDictation: () => void;
       minimizeWindow: () => void;
       logMessage: (message: string) => void;
-      onPlayEndSound: (callback: () => void) => void;
-      onWindowHidden: (callback: () => void) => void;
+      onPlayEndSound: (callback: () => void) => () => void;
+      onWindowHidden: (callback: () => void) => () => void;
+      onFlushPendingAudio: (callback: () => void) => () => void;
       sendAudioSegment: (audioData: Float32Array) => void;
       getSelectedMicrophone: () => Promise<string>;
       setSelectedMicrophone: (deviceId: string) => Promise<{ success: boolean }>;
+      cleanup: () => void;
     };
   }
 }

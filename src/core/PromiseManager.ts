@@ -368,7 +368,114 @@ export class PromiseManager extends EventEmitter {
           : 0,
     };
   }
+
+  /**
+   * Execute a function with a named lock (mutex)
+   * Prevents concurrent execution of the same named operation
+   */
+  async withLock<T>(name: string, fn: () => Promise<T> | T, timeout?: number): Promise<T> {
+    const lockName = `lock:${name}`;
+    
+    while (this.promises.has(lockName) && this.getPromiseStatus(lockName) === "pending") {
+      await this.waitFor(lockName, timeout).catch(() => {});
+    }
+    
+    this.start(lockName);
+    try {
+      const result = await fn();
+      this.resolve(lockName, result);
+      return result;
+    } catch (error) {
+      this.reject(lockName, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute a transactional operation that coordinates state updates with promise tracking
+   */
+  async transact<T>(
+    name: string,
+    fn: () => Promise<T> | T,
+    options: { timeout?: number; retries?: number } = {}
+  ): Promise<T> {
+    const { timeout = 30000, retries = 0 } = options;
+    const transactName = `transact:${name}:${Date.now()}`;
+    
+    let attempt = 0;
+    let lastError: any;
+    
+    while (attempt <= retries) {
+      this.start(transactName);
+      try {
+        const result = await Promise.race([
+          Promise.resolve(fn()),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Transaction '${name}' timed out`)), timeout)
+          ),
+        ]);
+        this.resolve(transactName, result);
+        return result;
+      } catch (error) {
+        lastError = error;
+        attempt++;
+        if (attempt <= retries) {
+          console.log(`[PromiseManager] Retrying transaction '${name}' (attempt ${attempt + 1})`);
+          this.clearPromise(transactName);
+          await new Promise((r) => setTimeout(r, 100 * attempt));
+        } else {
+          this.reject(transactName, error);
+        }
+      }
+    }
+    
+    throw lastError;
+  }
+
+  /**
+   * Create a debounced operation that only executes after a delay since last call
+   */
+  debounce<T extends (...args: any[]) => any>(
+    fn: T,
+    delay: number
+  ): (...args: Parameters<T>) => void {
+    let timeoutId: NodeJS.Timeout | null = null;
+    
+    return (...args: Parameters<T>) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        fn(...args);
+        timeoutId = null;
+      }, delay);
+    };
+  }
+
+  /**
+   * Wrap an async function to ensure only one instance runs at a time
+   */
+  singleton<T>(name: string, fn: () => Promise<T>): () => Promise<T> {
+    return async () => {
+      const singletonName = `singleton:${name}`;
+      
+      if (this.hasPromise(singletonName) && this.getPromiseStatus(singletonName) === "pending") {
+        return this.waitFor(singletonName) as Promise<T>;
+      }
+      
+      this.start(singletonName);
+      try {
+        const result = await fn();
+        this.resolve(singletonName, result);
+        return result;
+      } catch (error) {
+        this.reject(singletonName, error);
+        throw error;
+      }
+    };
+  }
 }
 
 // Export singleton instance
 export const promiseManager = PromiseManager.getInstance();
+
