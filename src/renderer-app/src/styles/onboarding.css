@@ -1,0 +1,372 @@
+:root {
+  --bg: #ffffff;
+  --fg: #222222;
+  --muted: #666666;
+  --primary: #111111;
+  --accent: #007aff;
+  --accent-hover: #2795ff; /* lighter accent for primary hover */
+  --border: #e6e6e6;
+  --panel-bg: rgba(255, 255, 255, 0.38); /* more translucent */
+  --card-bg: rgba(255, 255, 255, 0.82);
+  --log-bg: rgba(255, 255, 255, 0.8);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+    sans-serif;
+  color: var(--fg);
+}
+.container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  overflow-y: scroll !important;
+  -webkit-backdrop-filter: saturate(160%) blur(30px);
+  backdrop-filter: saturate(160%) blur(30px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+header {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  -webkit-app-region: drag;
+}
+main {
+  flex: 1;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+.slides {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+.slide {
+  flex: 0 0 100%;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+}
+.content {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  text-align: center;
+}
+h1 {
+  font-size: 18px;
+  margin: 0;
+}
+p {
+  color: var(--muted);
+  margin: 0;
+}
+.step-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+}
+/* Smaller, cleaner icons for onboarding steps (no background / shadow)
+         Welcome screen uses the separate `hero-logo` image instead. */
+.step-icn {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--accent);
+  font-size: 32px;
+}
+.step-icn .icn {
+  font-size: 32px;
+  line-height: 1;
+}
+.controls {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.btn {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease,
+    box-shadow 0.15s ease;
+}
+.btn[disabled] {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+  transform: none;
+}
+.btn:hover {
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
+}
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+.card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--card-bg);
+  transition: border-color 0.15s ease;
+}
+.card:hover {
+  border-color: rgba(0, 0, 0, 0.12);
+}
+.select,
+.input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+.form-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+.label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+.error-banner {
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(220, 53, 69, 0.18);
+  background: rgba(220, 53, 69, 0.09);
+  color: #b02a37;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.error-banner strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.progress {
+  height: 6px;
+  background: #f2f2f2;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.micro {
+  opacity: 0.9;
+  transition: opacity 0.2s ease;
+}
+.micro:hover {
+  opacity: 1;
+}
+.hero-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.05),
+    0 2px 10px rgba(0, 0, 0, 0.06) inset;
+  user-select: none;
+}
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.logs {
+  width: 100%;
+  max-width: 560px;
+  height: 120px;
+  margin: 8px auto 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--log-bg);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #444;
+  overflow: auto;
+  text-align: left;
+}
+.logs-line {
+  white-space: pre-wrap;
+}
+
+/* Plugin option styles */
+.plugin-options-section {
+  width: 100%;
+}
+.plugin-config-section {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.5);
+}
+.plugin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.plugin-info h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.plugin-description {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.plugin-delete-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.plugin-delete-btn:hover {
+  background: #c82333;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0b0c;
+    --fg: #ececec;
+    --muted: #a2a2a7;
+    --primary: #ffffff;
+    --border: rgba(255, 255, 255, 0.12);
+    --panel-bg: rgba(30, 30, 33, 0.28);
+    --card-bg: rgba(22, 22, 24, 0.6);
+    --log-bg: rgba(18, 18, 20, 0.6);
+  }
+  body {
+    color-scheme: dark;
+    color: var(--fg);
+  }
+  .container {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .btn {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--fg);
+  }
+  .btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .select,
+  .input {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--fg);
+    border-color: var(--border);
+  }
+  .progress {
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .plugin-config-section {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--border);
+  }
+}
+
+.onboarding-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  overflow-y: scroll !important;
+  -webkit-backdrop-filter: saturate(160%) blur(30px);
+  backdrop-filter: saturate(160%) blur(30px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}

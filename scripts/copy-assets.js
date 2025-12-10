@@ -200,38 +200,26 @@ async function discoverFilesRecursive(dirPath, extensions = EXTENSIONS) {
   return files;
 }
 
-// Parallel renderer file copying
+// Copy only error.html from old renderer (deprecated - everything else uses Vue app now)
 async function copyRendererFiles() {
-  console.log("\n📁 Copying renderer files...");
+  console.log("\n📁 Copying error.html from old renderer...");
 
   if (!fs.existsSync(distDir)) {
     fs.mkdirSync(distDir, { recursive: true });
   }
 
-  // Discover all renderer files
-  const rendererFiles = await discoverFiles(srcDir, EXTENSIONS);
-
-  // Create copy operations
-  const operations = rendererFiles.map((srcFile) => ({
-    src: srcFile,
-    dest: path.join(distDir, path.basename(srcFile)),
-    type: "renderer",
-  }));
-
-  // Add Vue.js copy operation if it exists
-  if (fs.existsSync(vueSrcPath)) {
-    operations.push({
-      src: vueSrcPath,
-      dest: vueDistPath,
-      type: "vue",
-    });
-  }
-
-  if (operations.length > 0) {
+  // Only copy error.html as it's still used by ErrorWindowService
+  const errorHtmlPath = path.join(srcDir, "error.html");
+  if (fs.existsSync(errorHtmlPath)) {
+    const operations = [{
+      src: errorHtmlPath,
+      dest: path.join(distDir, "error.html"),
+      type: "renderer",
+    }];
     totalOperations += operations.length;
     await parallelCopy(operations);
   } else {
-    console.log("No renderer files found to copy");
+    console.log("No error.html found to copy");
   }
 }
 

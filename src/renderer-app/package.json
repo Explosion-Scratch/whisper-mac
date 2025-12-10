@@ -1,0 +1,23 @@
+{
+  "name": "whisper-mac-renderer-app",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ricky0123/vad-web": "^0.0.22",
+    "onnxruntime-web": "^1.14.0",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "less": "^4.4.2",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0",
+    "vite-plugin-static-copy": "^2.2.0"
+  }
+}

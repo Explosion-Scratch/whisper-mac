@@ -1109,20 +1109,20 @@ export class SettingsService {
       backgroundColor: "#00000000",
       vibrancy: "under-window",
       visualEffectState: "followWindow",
-      titleBarStyle: "hidden", // Hide native title bar
-      trafficLightPosition: { x: 10, y: 12 }, // Position traffic light buttons
+      titleBarStyle: "hidden",
+      trafficLightPosition: { x: 10, y: 12 },
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        preload: join(__dirname, "../preload/settingsPreload.js"),
-        backgroundThrottling: false, // Prevent background throttling for better vibrancy
+        preload: join(__dirname, "../preload/rendererAppPreload.js"),
+        backgroundThrottling: false,
       },
-      show: false, // Don't show until ready-to-show
+      show: false,
     });
 
-    // Load the settings window HTML
     this.settingsWindow.loadFile(
-      join(__dirname, "../renderer/settingsWindow.html"),
+      join(__dirname, "../renderer-app/index.html"),
+      { hash: "/settings" }
     );
 
     // Show window when ready

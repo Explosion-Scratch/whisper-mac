@@ -112,6 +112,7 @@
     "plugins-setup/**",
     "scripts/**",
     "src/photon/**",
+    "src/renderer-app/**",
     "server/**",
     "src/**/*.test.ts"
   ]
