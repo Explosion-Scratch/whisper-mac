@@ -26,14 +26,15 @@ export class WindowManager {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        preload: join(__dirname, "../preload/onboardingPreload.js"),
+        preload: join(__dirname, "../preload/rendererAppPreload.js"),
         backgroundThrottling: false,
       },
       show: false,
     });
 
     this.onboardingWindow.loadFile(
-      join(__dirname, "../renderer/onboarding.html"),
+      join(__dirname, "../renderer-app/index.html"),
+      { hash: "/onboarding" }
     );
 
     this.onboardingWindow.once("ready-to-show", () => {

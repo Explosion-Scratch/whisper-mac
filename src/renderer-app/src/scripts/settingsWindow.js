@@ -1,36 +1,6 @@
-/**
- * Creates a console method wrapper that attempts to deep-clone arguments
- * using JSON.stringify/JSON.parse before delegating to the underlying
- * console method. Falls back to original arguments on failure.
- */
-function createCloningLogger(methodName) {
-  return (...args) => {
-    try {
-      const clonedArgs = args.map((arg) => {
-        try {
-          return JSON.parse(JSON.stringify(arg));
-        } catch (_) {
-          return arg;
-        }
-      });
-      console[methodName](...clonedArgs);
-    } catch (_) {
-      try {
-        console[methodName](...args);
-      } catch (_) { }
-    }
-  };
-}
+import { log, info, warn, error } from "../utils/logger";
 
-window.log = createCloningLogger("log");
-window.info = createCloningLogger("info");
-window.warn = createCloningLogger("warn");
-window.error = createCloningLogger("error");
-window.debug = createCloningLogger("debug");
-
-
-document.addEventListener("DOMContentLoaded", () => {
-  const app = Vue.createApp({
+export default {
     data() {
       return {
         schema: [],
@@ -97,33 +67,37 @@ document.addEventListener("DOMContentLoaded", () => {
             audio: {
               echoCancellation: true,
               noiseSuppression: true,
-              autoGainControl: false
-            }
+              autoGainControl: false,
+            },
           });
 
           // Stop the stream immediately after getting permissions
-          stream.getTracks().forEach(track => track.stop());
+          stream.getTracks().forEach((track) => track.stop());
 
           // Now enumerate all devices
           const allDevices = await navigator.mediaDevices.enumerateDevices();
 
           // Filter for audio input devices
           const audioInputs = allDevices
-            .filter(device => device.kind === 'audioinput')
-            .map(device => ({
+            .filter((device) => device.kind === "audioinput")
+            .map((device) => ({
               deviceId: device.deviceId,
-              label: device.label || (device.deviceId === 'default' ? 'System Default' : 'Microphone'),
-              groupId: device.groupId
+              label:
+                device.label ||
+                (device.deviceId === "default"
+                  ? "System Default"
+                  : "Microphone"),
+              groupId: device.groupId,
             }));
 
           console.log("Found microphones:", audioInputs);
 
           // Ensure we have at least the default option
-          if (!audioInputs.some(device => device.deviceId === 'default')) {
+          if (!audioInputs.some((device) => device.deviceId === "default")) {
             audioInputs.unshift({
-              deviceId: 'default',
-              label: 'System Default',
-              groupId: undefined
+              deviceId: "default",
+              label: "System Default",
+              groupId: undefined,
             });
           }
 
@@ -132,11 +106,13 @@ document.addEventListener("DOMContentLoaded", () => {
           console.error("Failed to enumerate microphones:", error);
 
           // Return fallback data on error
-          return [{
-            deviceId: 'default',
-            label: 'System Default',
-            groupId: undefined
-          }];
+          return [
+            {
+              deviceId: "default",
+              label: "System Default",
+              groupId: undefined,
+            },
+          ];
         }
       },
 
@@ -240,23 +216,23 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log("Updating microphone options in schema:", microphones);
 
         // Convert microphones to options format
-        const microphoneOptions = microphones.map(mic => ({
+        const microphoneOptions = microphones.map((mic) => ({
           value: mic.deviceId,
-          label: mic.label
+          label: mic.label,
         }));
 
         // Update the schema
-        this.schema = this.schema.map(section => ({
+        this.schema = this.schema.map((section) => ({
           ...section,
-          fields: section.fields.map(field => {
+          fields: section.fields.map((field) => {
             if (field.key === "selectedMicrophone") {
               return {
                 ...field,
-                options: microphoneOptions
+                options: microphoneOptions,
               };
             }
             return field;
-          })
+          }),
         }));
 
         console.log("Updated schema with microphone options");
@@ -411,7 +387,8 @@ document.addEventListener("DOMContentLoaded", () => {
         this.isCheckingAccessibility = true;
         try {
           window.log("Checking accessibility permissions...");
-          const status = await window.electronAPI.checkAccessibilityPermissions();
+          const status =
+            await window.electronAPI.checkAccessibilityPermissions();
           if (this.permissions) {
             this.permissions.accessibility = status;
           }
@@ -419,7 +396,10 @@ document.addEventListener("DOMContentLoaded", () => {
           if (status.granted) {
             this.showStatus("Accessibility permissions are enabled", "success");
           } else {
-            this.showStatus("Accessibility permissions need to be enabled in System Settings", "warning");
+            this.showStatus(
+              "Accessibility permissions need to be enabled in System Settings",
+              "warning",
+            );
           }
 
           window.log("Accessibility permission status:", status);
@@ -443,7 +423,10 @@ document.addEventListener("DOMContentLoaded", () => {
           if (status.granted) {
             this.showStatus("Microphone permissions are enabled", "success");
           } else {
-            this.showStatus("Microphone permissions need to be enabled in System Settings", "warning");
+            this.showStatus(
+              "Microphone permissions need to be enabled in System Settings",
+              "warning",
+            );
           }
 
           window.log("Microphone permission status:", status);
@@ -474,7 +457,10 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           window.log("Opening System Settings...");
           await window.electronAPI.openSystemPreferences();
-          this.showStatus("System Settings opened - return here after making changes", "info");
+          this.showStatus(
+            "System Settings opened - return here after making changes",
+            "info",
+          );
         } catch (error) {
           window.error("Failed to open System Settings:", error);
           this.showStatus("Failed to open System Settings", "error");
@@ -485,7 +471,10 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           window.log("Opening Accessibility Settings...");
           await window.electronAPI.openAccessibilitySettings();
-          this.showStatus("Accessibility Settings opened - return here after making changes", "info");
+          this.showStatus(
+            "Accessibility Settings opened - return here after making changes",
+            "info",
+          );
         } catch (error) {
           window.error("Failed to open Accessibility Settings:", error);
           this.showStatus("Failed to open Accessibility Settings", "error");
@@ -496,7 +485,10 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           window.log("Opening Microphone Settings...");
           await window.electronAPI.openMicrophoneSettings();
-          this.showStatus("Microphone Settings opened - return here after making changes", "info");
+          this.showStatus(
+            "Microphone Settings opened - return here after making changes",
+            "info",
+          );
         } catch (error) {
           window.error("Failed to open Microphone Settings:", error);
           this.showStatus("Failed to open Microphone Settings", "error");
@@ -514,7 +506,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!this.permissions?.accessibility?.checked) {
           return "Checking...";
         }
-        return this.permissions.accessibility.granted ? "Granted" : "Not Granted";
+        return this.permissions.accessibility.granted
+          ? "Granted"
+          : "Not Granted";
       },
 
       getMicrophoneStatusClass() {
@@ -1019,12 +1013,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (
           !confirm(
             "This will delete ALL data from ALL plugins.\n\nThis includes:\n" +
-            "• Downloaded models and temporary files\n" +
-            "• Secure storage data (API keys, settings)\n" +
-            "• All plugin-specific data\n\n" +
-            "If the current plugin can't reactivate after clearing, " +
-            "the system will automatically switch to an available fallback plugin.\n\n" +
-            "This action cannot be undone. Continue?",
+              "• Downloaded models and temporary files\n" +
+              "• Secure storage data (API keys, settings)\n" +
+              "• All plugin-specific data\n\n" +
+              "If the current plugin can't reactivate after clearing, " +
+              "the system will automatically switch to an available fallback plugin.\n\n" +
+              "This action cannot be undone. Continue?",
           )
         ) {
           return;
@@ -1242,14 +1236,14 @@ document.addEventListener("DOMContentLoaded", () => {
           type: "openUrl",
           config: {
             urlTemplate: "https://",
-            openInBackground: false
+            openInBackground: false,
           },
           order:
             (this.settings.actions.actions[actionIndex].handlers.length || 0) +
             1,
           applyToNextSegment: false,
           applyToAllSegments: false,
-          timingMode: "before_ai"
+          timingMode: "before_ai",
         });
       },
 
@@ -1273,30 +1267,30 @@ document.addEventListener("DOMContentLoaded", () => {
           case "openUrl":
             handler.config = {
               urlTemplate: "https://",
-              openInBackground: false
+              openInBackground: false,
             };
             break;
           case "openApplication":
             handler.config = {
-              applicationName: "{argument}"
+              applicationName: "{argument}",
             };
             break;
           case "quitApplication":
             handler.config = {
               applicationName: "{argument}",
-              forceQuit: false
+              forceQuit: false,
             };
             break;
           case "executeShell":
             handler.config = {
               command: "",
-              timeout: 10000
+              timeout: 10000,
             };
             break;
           case "segmentAction":
             handler.config = {
               action: "replace",
-              replacementText: "{argument}"
+              replacementText: "{argument}",
             };
             break;
           case "transformText":
@@ -1306,7 +1300,7 @@ document.addEventListener("DOMContentLoaded", () => {
               replacePattern: "",
               replaceFlags: "g",
               replacement: "",
-              replacementMode: "literal"
+              replacementMode: "literal",
             };
             break;
           default:
@@ -1334,9 +1328,11 @@ document.addEventListener("DOMContentLoaded", () => {
       },
 
       editPattern(actionIndex, patternIndex) {
-        if (this.editingPattern &&
+        if (
+          this.editingPattern &&
           this.editingPattern.actionIndex === actionIndex &&
-          this.editingPattern.patternIndex === patternIndex) {
+          this.editingPattern.patternIndex === patternIndex
+        ) {
           this.editingPattern = null;
         } else {
           this.editingPattern = { actionIndex, patternIndex };
@@ -1348,18 +1344,20 @@ document.addEventListener("DOMContentLoaded", () => {
       },
 
       isPatternEditing(actionIndex, patternIndex) {
-        return this.editingPattern &&
+        return (
+          this.editingPattern &&
           this.editingPattern.actionIndex === actionIndex &&
-          this.editingPattern.patternIndex === patternIndex;
+          this.editingPattern.patternIndex === patternIndex
+        );
       },
 
       getPatternTypeBadge(type) {
-        if (!type) return 'START';
+        if (!type) return "START";
         const badges = {
-          startsWith: 'START',
-          endsWith: 'END',
-          exact: 'EXACT',
-          regex: 'REGEX'
+          startsWith: "START",
+          endsWith: "END",
+          exact: "EXACT",
+          regex: "REGEX",
         };
         return badges[type] || type.toUpperCase();
       },
@@ -1375,52 +1373,54 @@ document.addEventListener("DOMContentLoaded", () => {
       },
 
       getHandlerIcon(type) {
-        if (!type) return 'ph ph-gear';
+        if (!type) return "ph ph-gear";
         const icons = {
-          openUrl: 'ph ph-link',
-          openApplication: 'ph ph-app-window',
-          quitApplication: 'ph ph-x-circle',
-          executeShell: 'ph ph-terminal',
-          segmentAction: 'ph ph-stack',
-          transformText: 'ph ph-text-aa'
+          openUrl: "ph ph-link",
+          openApplication: "ph ph-app-window",
+          quitApplication: "ph ph-x-circle",
+          executeShell: "ph ph-terminal",
+          segmentAction: "ph ph-stack",
+          transformText: "ph ph-text-aa",
         };
-        return icons[type] || 'ph ph-gear';
+        return icons[type] || "ph ph-gear";
       },
 
       getHandlerTypeName(type) {
-        if (!type) return 'Unknown';
+        if (!type) return "Unknown";
         const names = {
-          openUrl: 'Open URL',
-          openApplication: 'Open App',
-          quitApplication: 'Quit App',
-          executeShell: 'Shell',
-          segmentAction: 'Segment',
-          transformText: 'Transform'
+          openUrl: "Open URL",
+          openApplication: "Open App",
+          quitApplication: "Quit App",
+          executeShell: "Shell",
+          segmentAction: "Segment",
+          transformText: "Transform",
         };
         return names[type] || type;
       },
 
       getHandlerSummary(handler) {
-        if (!handler || !handler.type) return 'Configure...';
-        if (!handler.config) return 'No config set';
+        if (!handler || !handler.type) return "Configure...";
+        if (!handler.config) return "No config set";
 
         switch (handler.type) {
-          case 'openUrl':
-            return handler.config.urlTemplate || 'No URL set';
-          case 'openApplication':
-            return handler.config.applicationName || 'No app set';
-          case 'quitApplication':
-            return handler.config.applicationName || 'No app set';
-          case 'executeShell':
-            const cmd = handler.config.command || '';
-            return cmd.length > 50 ? cmd.substring(0, 50) + '...' : cmd || 'No command set';
-          case 'segmentAction':
-            return handler.config.action || 'No action set';
-          case 'transformText':
-            const pattern = handler.config.replacePattern || '';
-            return pattern ? `Replace: ${pattern}` : 'No pattern set';
+          case "openUrl":
+            return handler.config.urlTemplate || "No URL set";
+          case "openApplication":
+            return handler.config.applicationName || "No app set";
+          case "quitApplication":
+            return handler.config.applicationName || "No app set";
+          case "executeShell":
+            const cmd = handler.config.command || "";
+            return cmd.length > 50
+              ? cmd.substring(0, 50) + "..."
+              : cmd || "No command set";
+          case "segmentAction":
+            return handler.config.action || "No action set";
+          case "transformText":
+            const pattern = handler.config.replacePattern || "";
+            return pattern ? `Replace: ${pattern}` : "No pattern set";
           default:
-            return 'Configure...';
+            return "Configure...";
         }
       },
 
@@ -1529,11 +1529,8 @@ document.addEventListener("DOMContentLoaded", () => {
       async exportAllSettings() {
         await this.exportSettings();
       },
-    },
-    mounted() {
-      this.init();
-    },
-  });
-
-  app.mount("#app");
-});
+  },
+  mounted() {
+    this.init();
+  },
+};

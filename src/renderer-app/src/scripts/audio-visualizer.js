@@ -5,14 +5,13 @@
 //   visualizer.stop();
 //   visualizer.resize();
 
-(function () {
-  function clamp01(x) {
+function clamp01(x) {
     if (x < 0) return 0;
     if (x > 1) return 1;
     return x;
-  }
+}
 
-  function createAudioVisualizer(canvas, options) {
+export default function createAudioVisualizer(canvas, options) {
     const ctx = canvas.getContext("2d");
     const getLevel =
       typeof options?.getLevel === "function"
@@ -94,9 +93,4 @@
     }
 
     return { start, stop, resize };
-  }
-
-  if (typeof window !== "undefined") {
-    window.createAudioVisualizer = createAudioVisualizer;
-  }
-})();
+}

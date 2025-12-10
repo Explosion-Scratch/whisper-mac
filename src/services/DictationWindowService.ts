@@ -89,13 +89,12 @@ export class DictationWindowService extends EventEmitter {
   }
 
   private async createDictationWindow(): Promise<void> {
-    const DEBUG = false;
-    // Optimize: Use synchronous position calculation for screen-corner
+    const DEBUG = true;
     const position = this.calculateWindowPositionSync();
 
     this.dictationWindow = new BrowserWindow({
-      width: this.config.dictationWindowWidth,
-      height: this.config.dictationWindowHeight,
+      width: DEBUG ? 400 : this.config.dictationWindowWidth,
+      height: DEBUG ? 800 : this.config.dictationWindowHeight,
       x: position.x,
       y: position.y,
       frame: DEBUG ? true : false,
@@ -114,23 +113,22 @@ export class DictationWindowService extends EventEmitter {
         nodeIntegration: false,
         contextIsolation: true,
         devTools: DEBUG ? true : false,
-        preload: join(__dirname, "../preload/dictationPreload.js"),
+        preload: join(__dirname, "../preload/rendererAppPreload.js"),
       },
       show: false,
     });
     this.dictationWindow.setVisibleOnAllWorkspaces(true);
 
-    // Load the dictation window HTML
     await this.dictationWindow.loadFile(
-      join(__dirname, "../renderer/dictationWindow.html"),
+      join(__dirname, "../renderer-app/index.html"),
+      { hash: "/dictation" }
     );
 
-    // Set up window event handlers
     this.setupWindowEventHandlers();
   }
 
   private setupWindowEventHandlers(): void {
-    if (!this.dictationWindow) return;
+  if (!this.dictationWindow) return;
 
     this.dictationWindow.on("closed", () => {
       this.dictationWindow = null;
