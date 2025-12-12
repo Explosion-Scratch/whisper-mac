@@ -1,6 +1,12 @@
 import { log, info, warn, error } from "../utils/logger";
+import SettingsField from "../components/settings/ui/Field.vue";
+import TranscriptionSection from "../components/settings/transcription/TranscriptionSection.vue";
 
 export default {
+    components: {
+      SettingsField,
+      TranscriptionSection,
+    },
     data() {
       return {
         schema: [],
@@ -540,6 +546,61 @@ export default {
           temp = temp[keys[i]];
         }
         temp[keys[keys.length - 1]] = value;
+      },
+
+      /**
+       * Checks if the field type is a standard type handled by SettingsField component
+       * @param {string} type - The field type
+       * @returns {boolean} Whether it's a standard field type
+       */
+      isStandardFieldType(type) {
+        const standardTypes = [
+          "text",
+          "number",
+          "boolean",
+          "select",
+          "textarea",
+          "slider",
+          "directory",
+          "hotkey",
+        ];
+        return standardTypes.includes(type);
+      },
+
+      /**
+       * Handles field value updates from SettingsField component
+       * @param {string} key - The setting key
+       * @param {*} value - The new value
+       */
+      handleFieldUpdate(key, value) {
+        this.setSettingValue(key, value);
+      },
+
+      /**
+       * Handles plugin selection change from TranscriptionSection
+       * @param {string} newPlugin - The new plugin name
+       */
+      handleTranscriptionPluginChange(newPlugin) {
+        this.activePlugin = newPlugin;
+        this.handlePluginChange();
+      },
+
+      /**
+       * Handles option change from TranscriptionSection
+       * @param {Object} payload - { pluginName, optionKey, value }
+       */
+      handleTranscriptionOptionChange(payload) {
+        const { pluginName, optionKey, value } = payload;
+        this.settings.plugin[pluginName][optionKey] = value;
+      },
+
+      /**
+       * Handles model change from TranscriptionSection (triggers download)
+       * @param {Object} payload - { pluginName, optionKey, value }
+       */
+      handleTranscriptionModelChange(payload) {
+        const { pluginName, optionKey, value } = payload;
+        this.handlePluginModelChange(pluginName, optionKey, value);
       },
 
       async saveSettings() {

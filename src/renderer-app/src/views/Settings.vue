@@ -1,5 +1,5 @@
 <template>
-<div class="window" v-cloak>
+<div class="window settings-root" v-cloak>
   <header class="toolbar toolbar-header">
     <h1 class="title">Settings</h1>
     <div class="toolbar-actions">
@@ -46,105 +46,22 @@
           </div>
 
           <!-- REGULAR FIELDS RENDERER -->
-          <div v-if="currentSectionId !== 'permissions'" v-for="field in currentSection.fields" :key="field.key"
-            class="form-group" :class="{ 'has-error': validationErrors[field.key] }">
-            <template
-              v-if="field.type !== 'boolean' && field.type !== 'actions-editor' && field.type !== 'rules-editor'">
-              <label>
-                <i class="ph-duotone" :class="getFieldIcon(field)"></i>
-                {{ field.label }}
-              </label>
-            </template>
-            <div v-if="field.description" class="field-description">
-              {{ field.description }}
-            </div>
-
-            <!-- Field types -->
-            <input v-if="field.type === 'text' && field.key !== 'ai.baseUrl'" type="text" class="form-control"
-              :value="getSettingValue(field.key)" @input="setSettingValue(field.key, $event.target.value)"
-              :placeholder="field.placeholder" />
-
-            <template v-if="field.key === 'ai.baseUrl'">
-              <input type="text" class="form-control" v-model="settings.ai.baseUrl"
-                @input="aiModelsState.loadedForBaseUrl = null" :placeholder="field.placeholder" />
-              <div class="form-group" style="margin-top: 8px">
-                <label for="aiApiKeyInline">
-                  <i class="ph-duotone ph-key" style="margin-right: 6px; font-size: 14px"></i>
-                  API Key (saved securely)
-                  <span v-if="aiModelsState.loading" class="spinner" style="
-                        margin-left: 8px;
-                        width: 12px;
-                        height: 12px;
-                        border-color: var(--color-text-secondary);
-                        border-top-color: var(--color-primary);
-                      "></span>
-                </label>
-                <input type="password" class="form-control" id="aiApiKeyInline" v-model="apiKeyInput"
-                  @input="debouncedValidateApiKey" placeholder="Paste API Key to validate & load models" />
-              </div>
-            </template>
-
-            <template v-if="field.key === 'ai.model'">
-              <select v-if="aiModelsState.loading" class="form-control" disabled>
-                <option>Loading models...</option>
-              </select>
-              <select v-else-if="aiModelsState.models.length > 0" class="form-control" v-model="settings.ai.model">
-                <option v-for="model in aiModelsState.models" :key="model.id" :value="model.id">
-                  {{ model.name || model.id }}
-                </option>
-              </select>
-              <input v-else type="text" class="form-control" v-model="settings.ai.model"
-                placeholder="Enter model name or validate API key" />
-            </template>
-
-            <input v-if="field.type === 'number'" type="number" class="form-control"
-              :value="getSettingValue(field.key)" @input="setSettingValue(field.key, parseFloat($event.target.value))"
-              :min="field.min" :max="field.max" :step="field.step" />
-
-            <div v-if="field.type === 'boolean'" class="checkbox-container">
-              <input type="checkbox" class="checkbox" :id="'field-' + field.key" :checked="getSettingValue(field.key)"
-                @change="setSettingValue(field.key, $event.target.checked)" />
-              <label :for="'field-' + field.key">
-                <i class="ph-duotone" :class="getFieldIcon(field)"></i>
-                {{ field.label }}
-              </label>
-            </div>
-
-            <select v-if="field.type === 'select' && field.key !== 'ai.model'" class="form-control"
-              :value="getSettingValue(field.key)" @change="setSettingValue(field.key, $event.target.value)">
-              <option v-for="option in field.options" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-
-            <textarea v-if="field.type === 'textarea'" class="form-control" rows="6"
-              :value="getSettingValue(field.key)" @input="setSettingValue(field.key, $event.target.value)"
-              :placeholder="field.placeholder"></textarea>
-
-            <div v-if="field.type === 'slider'" class="slider-container">
-              <input type="range" class="slider" :value="getSettingValue(field.key)"
-                @input="setSettingValue(field.key, parseFloat($event.target.value))" :min="field.min" :max="field.max"
-                :step="field.step" />
-              <span class="slider-value">{{ getSettingValue(field.key) }}</span>
-            </div>
-
-            <div v-if="field.type === 'directory'" class="directory-container">
-              <input type="text" class="form-control directory-input" :value="getSettingValue(field.key)" readonly />
-              <button type="button" @click="browseDirectory(field.key)" class="btn btn-default directory-browse-btn">
-                <i class="ph-duotone ph-folder-open"></i> Browse
-              </button>
-            </div>
-
-            <!-- Hotkey Input -->
-            <div v-if="field.type === 'hotkey'" class="hotkey-container">
-              <input type="text" class="form-control hotkey-input" :value="getSettingValue(field.key)"
-                @input="setSettingValue(field.key, $event.target.value)" @keydown="captureHotkey($event, field.key)"
-                :placeholder="field.placeholder || 'Press keys to set hotkey'" readonly />
-              <button type="button" @click="clearHotkey(field.key)" class="btn btn-default hotkey-clear-btn"
-                v-if="getSettingValue(field.key)" title="Clear hotkey">
-                <i class="ph-duotone ph-x"></i>
-              </button>
-            </div>
+          <template v-if="currentSectionId !== 'permissions'" v-for="field in currentSection.fields" :key="field.key">
+            <!-- Use SettingsField for standard field types -->
+            <SettingsField
+              v-if="isStandardFieldType(field.type)"
+              :field="field"
+              :modelValue="getSettingValue(field.key)"
+              :validationErrors="validationErrors"
+              :apiKeyInput="apiKeyInput"
+              :aiModelsState="aiModelsState"
+              @update:modelValue="handleFieldUpdate(field.key, $event)"
+              @update:apiKeyInput="apiKeyInput = $event"
+              @validateApiKey="debouncedValidateApiKey"
+              @baseUrlChanged="aiModelsState.loadedForBaseUrl = null"
+              @browseDirectory="browseDirectory(field.key)"
+              @clearHotkey="clearHotkey(field.key)"
+            />
 
             <!-- Actions Editor -->
             <div v-if="field.type === 'actions-editor' && settings.actions">
@@ -780,58 +697,19 @@
             <div class="validation-error" v-if="validationErrors[field.key]">
               {{ validationErrors[field.key] }}
             </div>
-          </div>
+          </template>
 
           <!-- TRANSCRIPTION SECTION -->
-          <div v-if="currentSection.id === 'transcription' && pluginData.plugins.length"
-            class="plugin-options-section">
-            <div class="form-group">
-              <label><i class="ph-duotone ph-plugs-connected"></i> Active
-                Plugin</label>
-              <select class="form-control" v-model="activePlugin" @change="handlePluginChange">
-                <option v-for="plugin in pluginData.plugins" :key="plugin.name" :value="plugin.name">
-                  {{ plugin.displayName }}
-                </option>
-              </select>
-            </div>
-            <div v-for="plugin in pluginData.plugins" :key="plugin.name" class="plugin-config-section">
-              <div class="plugin-header">
-                <div class="plugin-info">
-                  <h4>{{ plugin.displayName }}</h4>
-                  <p class="plugin-description">{{ plugin.description }}</p>
-                </div>
-                <button v-if="activePlugin !== plugin.name" type="button" @click="clearPluginData(plugin.name)"
-                  class="btn btn-negative btn-sm" title="Clear plugin data">
-                  <i class="ph-duotone ph-trash"></i> Clear Data
-                </button>
-              </div>
-              <div v-if="activePlugin === plugin.name">
-                <div v-for="option in pluginData.schemas[plugin.name]" :key="option.key"
-                  class="form-group plugin-option">
-                  <label v-if="option.type !== 'boolean'">{{ option.label }}</label>
-                  <div v-if="option.description" class="field-description">
-                    {{ option.description }}
-                  </div>
-                  <select v-if="option.type === 'model-select' || option.type === 'select'" class="form-control"
-                    :value="settings.plugin[plugin.name][option.key]"
-                    @change="handleOptionChange(plugin.name, option, $event.target.value)">
-                    <option v-for="opt in option.options" :value="opt.value">
-                      {{ opt.label }}{{ opt.size ? ` (${opt.size})` : '' }}
-                    </option>
-                  </select>
-                  <div v-else-if="option.type === 'boolean'" class="checkbox-container">
-                    <input type="checkbox" class="checkbox" :id="`plugin-${plugin.name}-${option.key}`"
-                      v-model="settings.plugin[plugin.name][option.key]" />
-                    <label :for="`plugin-${plugin.name}-${option.key}`">{{ option.label }}</label>
-                  </div>
-                  <input v-else-if="option.type === 'number'" type="number" class="form-control"
-                    v-model.number="settings.plugin[plugin.name][option.key]" :min="option.min" :max="option.max"
-                    :step="option.step || 1" />
-                  <input v-else type="text" class="form-control" v-model="settings.plugin[plugin.name][option.key]" />
-                </div>
-              </div>
-            </div>
-          </div>
+          <TranscriptionSection
+            v-if="currentSection.id === 'transcription' && pluginData.plugins.length"
+            :pluginData="pluginData"
+            :activePlugin="activePlugin"
+            :settings="settings"
+            @pluginChange="handleTranscriptionPluginChange"
+            @optionChange="handleTranscriptionOptionChange"
+            @modelChange="handleTranscriptionModelChange"
+            @clearData="clearPluginData"
+          />
 
           <!-- DATA MANAGEMENT SECTION -->
           <div v-if="currentSection.id === 'data'" class="data-management-section">
