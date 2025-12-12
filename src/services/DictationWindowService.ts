@@ -89,7 +89,7 @@ export class DictationWindowService extends EventEmitter {
   }
 
   private async createDictationWindow(): Promise<void> {
-    const DEBUG = true;
+    const DEBUG = false;
     const position = this.calculateWindowPositionSync();
 
     this.dictationWindow = new BrowserWindow({
