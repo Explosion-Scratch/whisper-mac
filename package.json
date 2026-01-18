@@ -10,7 +10,7 @@
     "build": "tsc && cd src/renderer-app && bun run build && cd ../.. && node scripts/copy-assets.js && node scripts/prep-vad-assets.js",
     "killothers": "echo 'Noop'",
     "start": "bun run killothers && electron dist/main.js",
-    "dev": "nodemon --exec \"bun run single-dev\" --ignore dist --ignore photon --ignore .crush",
+    "dev": "nodemon --watch src --watch scripts --watch package.json --watch tsconfig.json --ext ts,js,json,html,css --exec \"bun run single-dev\"",
     "single-dev": "concurrently --raw -m 1 \"rm -rf dist\"  \"bun run killothers\" \"bun run build\" \"bun run start\" --names \"cleanup, kill port, build, dev\"",
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never",
