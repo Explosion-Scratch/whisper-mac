@@ -80,7 +80,25 @@ export class ShortcutManager {
     }
   }
 
+  private registerDebounceTimeout: NodeJS.Timeout | null = null;
+  private static REGISTER_DEBOUNCE_MS = 100;
+  private static MAX_REGISTER_RETRIES = 3;
+
   registerShortcuts(
+    hotkeys: Record<string, string>,
+    actions: ShortcutActions,
+  ): void {
+    if (this.registerDebounceTimeout) {
+      clearTimeout(this.registerDebounceTimeout);
+    }
+    
+    this.registerDebounceTimeout = setTimeout(() => {
+      this.registerDebounceTimeout = null;
+      this.doRegisterShortcuts(hotkeys, actions);
+    }, ShortcutManager.REGISTER_DEBOUNCE_MS);
+  }
+
+  private doRegisterShortcuts(
     hotkeys: Record<string, string>,
     actions: ShortcutActions,
   ): void {
@@ -130,22 +148,45 @@ export class ShortcutManager {
         return;
       }
 
-      const success = globalShortcut.register(key, () => {
-        console.log(`${key} is pressed (${description})`);
-        try {
-          handler();
-        } catch (error) {
-          console.error(`Error executing shortcut ${key}:`, error);
-        }
-      });
-
+      const success = this.registerWithRetry(key, handler, description);
       if (success) {
         this.registeredShortcuts.push(key);
-        console.log(`Registered shortcut: ${key} (${description})`);
-      } else {
-        console.error(`Failed to register ${key} shortcut (${description})`);
       }
     });
+  }
+
+  private registerWithRetry(
+    key: string, 
+    handler: () => void, 
+    description: string,
+    retryCount = 0
+  ): boolean {
+    if (globalShortcut.isRegistered(key)) {
+      console.log(`Shortcut ${key} already registered, unregistering first`);
+      globalShortcut.unregister(key);
+    }
+
+    const success = globalShortcut.register(key, () => {
+      console.log(`${key} is pressed (${description})`);
+      try {
+        handler();
+      } catch (error) {
+        console.error(`Error executing shortcut ${key}:`, error);
+      }
+    });
+
+    if (success) {
+      console.log(`Registered shortcut: ${key} (${description})`);
+      return true;
+    }
+
+    if (retryCount < ShortcutManager.MAX_REGISTER_RETRIES) {
+      console.warn(`Failed to register ${key}, retrying (${retryCount + 1}/${ShortcutManager.MAX_REGISTER_RETRIES})...`);
+      return this.registerWithRetry(key, handler, description, retryCount + 1);
+    }
+
+    console.error(`Failed to register ${key} shortcut after ${ShortcutManager.MAX_REGISTER_RETRIES} retries (${description})`);
+    return false;
   }
 
   async cycleToNextPlugin(): Promise<void> {

@@ -328,6 +328,16 @@ static void triggerRelease() {
 static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *refcon) {
   (void)proxy;
   (void)refcon;
+  
+  // Handle event tap being disabled by system - re-enable it for reliability
+  if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
+    if (g_eventTap && g_hotkeyActive.load()) {
+      CGEventTapEnable(g_eventTap, true);
+      NSLog(@"[mac_input] Event tap re-enabled after system disabled it (type=%d)", (int)type);
+    }
+    return event;
+  }
+  
   if (!g_hotkeyActive.load()) return event;
 
   // Monitor modifier flag changes when combo is active
@@ -348,16 +358,20 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
 
   CGKeyCode key = (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
   
-  // If combo is active or we're waiting for keyup, consume the main key to prevent typing
-  if ((g_keyIsPressed.load() || g_waitingForKeyUp.load()) && key == g_targetKeyCode) {
+  // Handle repeat keydowns while pressed - consume them to prevent typing
+  if (g_keyIsPressed.load() && key == g_targetKeyCode && type == kCGEventKeyDown) {
+    return nullptr; // Consume repeat keydowns
+  }
+  
+  // Handle stray keyups after modifier-triggered release (e.g., user releases Alt before /)
+  // Only consume keyups, NOT keydowns - this was the bug causing alternating failures
+  if (g_waitingForKeyUp.load() && key == g_targetKeyCode) {
     if (type == kCGEventKeyUp) {
       g_waitingForKeyUp.store(false);
-      if (g_keyIsPressed.load()) {
-        triggerRelease();
-      }
+      return nullptr; // Consume the stray keyup
     }
-    // Consume both keydown and keyup when combo is active to prevent typing
-    return nullptr;
+    // For keydown while waiting: clear the flag and let it proceed to be handled as new press
+    g_waitingForKeyUp.store(false);
   }
 
   if (key != g_targetKeyCode) return event;
@@ -369,7 +383,7 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
       (NSEventModifierFlags)CGEventGetFlags(event));
     g_expectedModifiers.store(currentFlags);
     g_keyIsPressed.store(true);
-    g_waitingForKeyUp.store(false);
+    g_waitingForKeyUp.store(false); // Clear stale flag from previous release to allow new press
   } else { // kCGEventKeyUp
     if (!g_keyIsPressed.load()) return event;
     triggerRelease();
