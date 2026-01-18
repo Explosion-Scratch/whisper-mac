@@ -22,6 +22,15 @@ import {
 } from "./SettingsSchema";
 import { NonAiTransformationConfig } from "../types/TransformationRuleTypes";
 
+const SETTINGS_REQUIRING_RESTART = new Set([
+  "transcriptionPlugin",
+  "dataDir",
+  "plugin.whisper-cpp.model",
+  "plugin.yap.model",
+  "plugin.vosk.model",
+  "plugin.parakeet.model",
+]);
+
 export class SettingsManager extends EventEmitter {
   private settingsPath: string;
   private settings: Record<string, any>;
@@ -235,7 +244,6 @@ export class SettingsManager extends EventEmitter {
     const keys = key.split(".");
     let current = this.settings;
 
-    // Get the old value to check if it actually changed
     const oldValue = this.get(key);
 
     for (let i = 0; i < keys.length - 1; i++) {
@@ -248,12 +256,14 @@ export class SettingsManager extends EventEmitter {
 
     current[keys[keys.length - 1]] = value;
 
-    // Emit setting-changed event if the value actually changed
     if (JSON.stringify(oldValue) !== JSON.stringify(value)) {
       this.emit("setting-changed", key, value);
+      
+      if (this.doesSettingRequireRestart(key)) {
+        this.emit("setting-changed-requires-restart", key, value);
+      }
     }
 
-    // If dataDir changed, migrate data
     if (
       key === "dataDir" &&
       typeof value === "string" &&
@@ -262,6 +272,18 @@ export class SettingsManager extends EventEmitter {
       this.migrateDataDirectory(this.previousDataDir, value);
       this.previousDataDir = value;
     }
+  }
+
+  doesSettingRequireRestart(key: string): boolean {
+    if (SETTINGS_REQUIRING_RESTART.has(key)) {
+      return true;
+    }
+    for (const prefix of SETTINGS_REQUIRING_RESTART) {
+      if (key.startsWith(prefix + ".")) {
+        return true;
+      }
+    }
+    return false;
   }
 
   getAll(): Record<string, any> {

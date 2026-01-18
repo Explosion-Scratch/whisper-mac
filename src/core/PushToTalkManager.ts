@@ -17,6 +17,14 @@ interface HotkeyMatcher {
   source: string;
 }
 
+type PushToTalkState =
+  | "idle"
+  | "starting"
+  | "active"
+  | "stopping";
+
+const STATE_TIMEOUT_MS = 5000;
+
 const dedupeModifierCombos = (combos: ModifierCombo[]): ModifierCombo[] => {
   const seen = new Set<string>();
   const result: ModifierCombo[] = [];
@@ -35,23 +43,16 @@ export class PushToTalkManager {
   private disposed = false;
   private currentHotkey: string | null = null;
   private startPromise: Promise<void> | null = null;
-  private finalizeScheduled = false;
   private settingsListener?: (key: string, value: unknown) => void;
   private stateUnsubscribe?: () => void;
+  private dictationStateUnsubscribe?: () => void;
 
   private registeredWithMacInput = false;
   private hotkeyMatcher: HotkeyMatcher | null = null;
-  private hotkeyPressed = false;
 
-  private get isSessionActive(): boolean {
-    return appStore.select((s) => s.dictation.pushToTalkActive);
-  }
-
-  private set isSessionActive(value: boolean) {
-    appStore.setState({
-      dictation: { ...appStore.getState().dictation, pushToTalkActive: value },
-    });
-  }
+  private pttState: PushToTalkState = "idle";
+  private stateTimeoutId: NodeJS.Timeout | null = null;
+  private lastStateChangeTime = 0;
 
   constructor(
     private readonly dictationFlowManager: DictationFlowManager,
@@ -71,6 +72,16 @@ export class PushToTalkManager {
       }
     };
     this.settingsManager.on("setting-changed", this.settingsListener);
+
+    this.dictationStateUnsubscribe = appStore.subscribe(
+      (state) => state.dictation.state,
+      (dictationState) => {
+        if (dictationState === "idle" && this.pttState !== "idle") {
+          console.log(`[PushToTalkManager] Dictation became idle, syncing PTT state from ${this.pttState} to idle`);
+          this.transitionTo("idle");
+        }
+      }
+    );
   }
 
   dispose(): void {
@@ -86,12 +97,72 @@ export class PushToTalkManager {
       this.stateUnsubscribe = undefined;
     }
 
-    this.isSessionActive = false;
+    if (this.dictationStateUnsubscribe) {
+      this.dictationStateUnsubscribe();
+      this.dictationStateUnsubscribe = undefined;
+    }
+
+    this.clearStateTimeout();
+    this.transitionTo("idle");
     this.hotkeyMatcher = null;
-    this.hotkeyPressed = false;
     this.currentHotkey = null;
     this.unregisterFromMacInput();
     this.initialized = false;
+  }
+
+  private transitionTo(newState: PushToTalkState): void {
+    const prevState = this.pttState;
+    if (prevState === newState) return;
+
+    console.log(`[PushToTalkManager] State transition: ${prevState} -> ${newState}`);
+    this.pttState = newState;
+    this.lastStateChangeTime = Date.now();
+
+    this.clearStateTimeout();
+
+    appStore.setState({
+      dictation: {
+        ...appStore.getState().dictation,
+        pushToTalkActive: newState !== "idle",
+      },
+    });
+
+    if (newState === "starting" || newState === "stopping") {
+      this.stateTimeoutId = setTimeout(() => {
+        console.warn(`[PushToTalkManager] State ${newState} timed out after ${STATE_TIMEOUT_MS}ms, recovering to idle`);
+        this.recoverToIdle();
+      }, STATE_TIMEOUT_MS);
+    }
+  }
+
+  private clearStateTimeout(): void {
+    if (this.stateTimeoutId) {
+      clearTimeout(this.stateTimeoutId);
+      this.stateTimeoutId = null;
+    }
+  }
+
+  private async recoverToIdle(): Promise<void> {
+    console.log("[PushToTalkManager] Recovering to idle state");
+    this.clearStateTimeout();
+
+    try {
+      if (this.dictationFlowManager.isRecording() || this.dictationFlowManager.isFinishing()) {
+        await this.dictationFlowManager.cancelDictationFlow();
+      }
+    } catch (error) {
+      console.error("[PushToTalkManager] Error during recovery:", error);
+    }
+
+    this.pttState = "idle";
+    this.startPromise = null;
+
+    appStore.setState({
+      dictation: {
+        ...appStore.getState().dictation,
+        pushToTalkActive: false,
+      },
+    });
   }
 
   private registerWithMacInput(): void {
@@ -109,27 +180,15 @@ export class PushToTalkManager {
     const modifierMasks = this.hotkeyMatcher.combos.map((c) => this.modifiersToMask(c));
     const modifierArgument = modifierMasks.length <= 1 ? (modifierMasks[0] ?? 0) : modifierMasks;
 
-    console.log(`[PushToTalkManager] Registering hotkey: keyCode=${keyCode}, modifierMasks=${JSON.stringify(modifierMasks)}, modifierArgument=${Array.isArray(modifierArgument) ? JSON.stringify(modifierArgument) : modifierArgument}`);
+    console.log(`[PushToTalkManager] Registering hotkey: keyCode=${keyCode}, modifierMasks=${JSON.stringify(modifierMasks)}`);
 
     try {
       macInput.registerPushToTalkHotkey(keyCode, modifierArgument, (evt: { type: "down" | "up" }) => {
-        console.log(`[PushToTalkManager] Native callback received: type=${evt?.type}, currentState={hotkeyPressed=${this.hotkeyPressed}, isSessionActive=${this.isSessionActive}, finalizeScheduled=${this.finalizeScheduled}}`);
+        console.log(`[PushToTalkManager] Native callback: type=${evt?.type}, pttState=${this.pttState}`);
         
         if (evt?.type === "down") {
-          if (this.hotkeyPressed) {
-            console.log(`[PushToTalkManager] Ignoring duplicate down event (hotkeyPressed already true)`);
-            return;
-          }
-          console.log(`[PushToTalkManager] Processing hotkey down event`);
-          this.hotkeyPressed = true;
           this.handleHotkeyPress();
         } else if (evt?.type === "up") {
-          if (!this.hotkeyPressed) {
-            console.log(`[PushToTalkManager] Ignoring up event (hotkeyPressed is false, state={isSessionActive=${this.isSessionActive}, finalizeScheduled=${this.finalizeScheduled}})`);
-            return;
-          }
-          console.log(`[PushToTalkManager] Processing hotkey up event`);
-          this.hotkeyPressed = false;
           this.handleHotkeyRelease();
         } else {
           console.warn(`[PushToTalkManager] Unknown event type: ${evt?.type}`);
@@ -137,7 +196,7 @@ export class PushToTalkManager {
       });
       this.registeredWithMacInput = true;
     } catch (error) {
-      console.warn("[PushToTalkManager] Failed to register native hotkey. This usually happens if Accessibility permissions are missing.", error);
+      console.warn("[PushToTalkManager] Failed to register native hotkey:", error);
       this.registeredWithMacInput = false;
     }
   }
@@ -163,7 +222,7 @@ export class PushToTalkManager {
       }
       this.currentHotkey = null;
       this.hotkeyMatcher = null;
-      this.hotkeyPressed = false;
+      this.transitionTo("idle");
       this.unregisterFromMacInput();
       return;
     }
@@ -179,7 +238,7 @@ export class PushToTalkManager {
       );
       this.currentHotkey = null;
       this.hotkeyMatcher = null;
-      this.hotkeyPressed = false;
+      this.transitionTo("idle");
       this.unregisterFromMacInput();
       return;
     }
@@ -187,7 +246,7 @@ export class PushToTalkManager {
     console.log(`[PushToTalkManager] Parsed hotkey "${normalized}": combos=${JSON.stringify(matcher.combos)}`);
 
     this.hotkeyMatcher = matcher;
-    this.hotkeyPressed = false;
+    this.transitionTo("idle");
     this.currentHotkey = normalized;
     this.unregisterFromMacInput();
     this.registerWithMacInput();
@@ -260,8 +319,6 @@ export class PushToTalkManager {
       );
     }
 
-    const primaryKeyToken = nonModifierTokens[nonModifierTokens.length - 1];
-
     return {
       keycode: 0,
       combos: dedupeModifierCombos(combos),
@@ -308,8 +365,9 @@ export class PushToTalkManager {
 
   private handleHotkeyPress(): void {
     if (this.disposed) return;
-    if (this.isSessionActive) {
-      console.log("[PushToTalkManager] Ignoring press; session already active");
+
+    if (this.pttState !== "idle") {
+      console.log(`[PushToTalkManager] Ignoring press; current state is ${this.pttState}`);
       return;
     }
 
@@ -324,10 +382,8 @@ export class PushToTalkManager {
     }
 
     console.log("[PushToTalkManager] Starting push-to-talk session");
-    this.isSessionActive = true;
-    this.finalizeScheduled = false;
+    this.transitionTo("starting");
 
-    // We must ensure buffering override is set BEFORE starting dictation
     this.transcriptionPluginManager.setBufferingOverrideForNextSession(true);
 
     const start = this.dictationFlowManager.startDictation();
@@ -335,19 +391,22 @@ export class PushToTalkManager {
 
     start
       .then(() => {
-        console.log("[PushToTalkManager] Dictation started successfully");
+        if (this.pttState === "starting") {
+          console.log("[PushToTalkManager] Dictation started successfully");
+          this.transitionTo("active");
+        } else {
+          console.log(`[PushToTalkManager] Dictation started but state already changed to ${this.pttState}`);
+        }
       })
       .catch((error) => {
         console.error(
           "[PushToTalkManager] Failed to start push-to-talk dictation:",
           error,
         );
-        this.isSessionActive = false;
+        this.transitionTo("idle");
         this.startPromise = null;
       })
       .finally(() => {
-        // We don't clear startPromise here immediately on success because release needs to wait for it
-        // Only clear if it failed or if we're done (handled in finalize)
         this.transcriptionPluginManager.setBufferingOverrideForNextSession(null);
       });
   }
@@ -355,20 +414,13 @@ export class PushToTalkManager {
   private handleHotkeyRelease(): void {
     if (this.disposed) return;
     
-    // CRITICAL FIX: If the session is active, we MUST proceed to finalize, 
-    // even if hotkeyPressed was somehow lost or desynced.
-    if (!this.isSessionActive) {
-      console.log("[PushToTalkManager] Ignoring release; no active session");
-      return;
-    }
-    
-    if (this.finalizeScheduled) {
-      console.log("[PushToTalkManager] Ignoring release; finalize already scheduled");
+    if (this.pttState !== "starting" && this.pttState !== "active") {
+      console.log(`[PushToTalkManager] Ignoring release; current state is ${this.pttState}`);
       return;
     }
 
     console.log("[PushToTalkManager] Scheduling session finalization");
-    this.finalizeScheduled = true;
+    this.transitionTo("stopping");
 
     const waitForStart = this.startPromise ?? Promise.resolve();
     waitForStart
@@ -385,14 +437,12 @@ export class PushToTalkManager {
     try {
       if (this.dictationFlowManager.isRecording()) {
         console.log("[PushToTalkManager] Finishing current dictation (skipTransformation=true)");
-        // For push-to-talk, we want to skip AI transformations for speed/privacy
-        // but still allow default text transformation actions to run
         await this.dictationFlowManager.finishCurrentDictation({
           skipTransformation: true,
         });
       } else if (this.dictationFlowManager.isFinishing()) {
         console.log(
-          "[PushToTalkManager] Apps already finishing state during release",
+          "[PushToTalkManager] Already in finishing state during release",
         );
       } else {
         console.log("[PushToTalkManager] Not recording/finishing, cancelling flow");
@@ -413,10 +463,8 @@ export class PushToTalkManager {
       }
     } finally {
       console.log("[PushToTalkManager] Session ended, resetting state");
-      this.isSessionActive = false;
-      this.finalizeScheduled = false;
+      this.transitionTo("idle");
       this.startPromise = null;
-      this.hotkeyPressed = false; // Ensure this is reset too
     }
   }
 }
