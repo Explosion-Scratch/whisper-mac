@@ -136,6 +136,25 @@ export class SettingsService {
             this.permissionsManager.resetCaches();
           }
 
+          // Update active plugin options if they changed
+          if (this.transcriptionPluginManager) {
+            const activePlugin = this.transcriptionPluginManager.getActivePlugin();
+            if (activePlugin) {
+              const pluginName = activePlugin.name;
+              const oldPluginSettings = oldSettings.plugin?.[pluginName] || {};
+              const newPluginSettings = settings.plugin?.[pluginName] || {};
+              
+              if (JSON.stringify(oldPluginSettings) !== JSON.stringify(newPluginSettings)) {
+                try {
+                  await this.transcriptionPluginManager.updateActivePluginOptions(newPluginSettings);
+                  console.log(`[SettingsService] Updated active plugin (${pluginName}) options after save`);
+                } catch (updateError) {
+                  console.warn(`[SettingsService] Failed to update active plugin options:`, updateError);
+                }
+              }
+            }
+          }
+
           // Notify other windows about settings update
           this.broadcastSettingsUpdate();
 

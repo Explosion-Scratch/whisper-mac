@@ -308,56 +308,72 @@ export class PushToTalkManager {
 
   private handleHotkeyPress(): void {
     if (this.disposed) return;
-    if (this.isSessionActive) return;
+    if (this.isSessionActive) {
+      console.log("[PushToTalkManager] Ignoring press; session already active");
+      return;
+    }
 
     if (
       this.dictationFlowManager.isRecording() ||
       this.dictationFlowManager.isFinishing()
     ) {
       console.log(
-        "[PushToTalkManager] Ignoring push-to-talk press; dictation already active",
+        "[PushToTalkManager] Ignoring push-to-talk press; dictation already active/finishing",
       );
       return;
     }
 
+    console.log("[PushToTalkManager] Starting push-to-talk session");
     this.isSessionActive = true;
     this.finalizeScheduled = false;
 
+    // We must ensure buffering override is set BEFORE starting dictation
     this.transcriptionPluginManager.setBufferingOverrideForNextSession(true);
 
     const start = this.dictationFlowManager.startDictation();
     this.startPromise = start;
 
     start
+      .then(() => {
+        console.log("[PushToTalkManager] Dictation started successfully");
+      })
       .catch((error) => {
         console.error(
           "[PushToTalkManager] Failed to start push-to-talk dictation:",
           error,
         );
         this.isSessionActive = false;
+        this.startPromise = null;
       })
       .finally(() => {
-        this.startPromise = null;
+        // We don't clear startPromise here immediately on success because release needs to wait for it
+        // Only clear if it failed or if we're done (handled in finalize)
         this.transcriptionPluginManager.setBufferingOverrideForNextSession(null);
       });
   }
 
   private handleHotkeyRelease(): void {
     if (this.disposed) return;
-    if (!this.isSessionActive) return;
-    if (this.finalizeScheduled) return;
+    
+    // CRITICAL FIX: If the session is active, we MUST proceed to finalize, 
+    // even if hotkeyPressed was somehow lost or desynced.
+    if (!this.isSessionActive) {
+      console.log("[PushToTalkManager] Ignoring release; no active session");
+      return;
+    }
+    
+    if (this.finalizeScheduled) {
+      console.log("[PushToTalkManager] Ignoring release; finalize already scheduled");
+      return;
+    }
 
+    console.log("[PushToTalkManager] Scheduling session finalization");
     this.finalizeScheduled = true;
 
     const waitForStart = this.startPromise ?? Promise.resolve();
     waitForStart
       .catch((error) => {
-        if (error) {
-          console.error(
-            "[PushToTalkManager] Push-to-talk start promise rejected:",
-            error,
-          );
-        }
+        console.warn("[PushToTalkManager] Waiting for start failed (ignoring for stop):", error);
       })
       .finally(() => {
         void this.finalizePushToTalkSession();
@@ -365,8 +381,10 @@ export class PushToTalkManager {
   }
 
   private async finalizePushToTalkSession(): Promise<void> {
+    console.log("[PushToTalkManager] Finalizing session...");
     try {
       if (this.dictationFlowManager.isRecording()) {
+        console.log("[PushToTalkManager] Finishing current dictation (skipTransformation=true)");
         // For push-to-talk, we want to skip AI transformations for speed/privacy
         // but still allow default text transformation actions to run
         await this.dictationFlowManager.finishCurrentDictation({
@@ -374,9 +392,10 @@ export class PushToTalkManager {
         });
       } else if (this.dictationFlowManager.isFinishing()) {
         console.log(
-          "[PushToTalkManager] Push-to-talk release detected during finishing state",
+          "[PushToTalkManager] Apps already finishing state during release",
         );
       } else {
+        console.log("[PushToTalkManager] Not recording/finishing, cancelling flow");
         await this.dictationFlowManager.cancelDictationFlow();
       }
     } catch (error) {
@@ -393,8 +412,11 @@ export class PushToTalkManager {
         );
       }
     } finally {
+      console.log("[PushToTalkManager] Session ended, resetting state");
       this.isSessionActive = false;
       this.finalizeScheduled = false;
+      this.startPromise = null;
+      this.hotkeyPressed = false; // Ensure this is reset too
     }
   }
 }

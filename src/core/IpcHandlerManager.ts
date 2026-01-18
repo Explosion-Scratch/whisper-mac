@@ -73,6 +73,8 @@ export class IpcHandlerManager {
     ipcMain.removeHandler("onboarding:getCurrentPluginInfo");
     ipcMain.removeHandler("onboarding:checkAccessibility");
     ipcMain.removeHandler("onboarding:resetAccessibilityCache");
+    ipcMain.removeHandler("onboarding:checkAccessibilityWithPrompt");
+    ipcMain.removeHandler("onboarding:waitForAccessibility");
     ipcMain.removeHandler("onboarding:checkMicrophone");
     ipcMain.removeHandler("onboarding:resetMicrophoneCache");
     ipcMain.removeHandler("onboarding:setPlugin");
@@ -362,6 +364,33 @@ export class IpcHandlerManager {
       console.log("IPC:onboarding:resetAccessibilityCache invoked");
       this.permissionsManager.resetCaches();
       return true;
+    });
+
+    ipcMain.handle("onboarding:checkAccessibilityWithPrompt", async () => {
+      console.log("IPC:onboarding:checkAccessibilityWithPrompt invoked");
+      try {
+        const result = await this.permissionsManager.checkAccessibilityPermissionsWithPrompt();
+        console.log(`IPC:onboarding:checkAccessibilityWithPrompt result: ${result.granted ? 'granted' : 'denied'}`);
+        return result.granted;
+      } catch (error: any) {
+        console.error("IPC:onboarding:checkAccessibilityWithPrompt error", error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle("onboarding:waitForAccessibility", async (_event, options?: { pollIntervalMs?: number; timeoutMs?: number }) => {
+      console.log("IPC:onboarding:waitForAccessibility invoked", options);
+      try {
+        const result = await this.permissionsManager.waitForAccessibilityPermission(
+          options?.pollIntervalMs ?? 1000,
+          options?.timeoutMs ?? 60000
+        );
+        console.log(`IPC:onboarding:waitForAccessibility result: ${result.granted ? 'granted' : 'denied'}`);
+        return result;
+      } catch (error: any) {
+        console.error("IPC:onboarding:waitForAccessibility error", error);
+        throw error;
+      }
     });
 
     ipcMain.handle("onboarding:checkMicrophone", async () => {

@@ -68,15 +68,39 @@ export class PermissionsManager {
     }
 
     /**
+     * Check accessibility permissions and prompt user if not granted
+     * Uses macOS AXIsProcessTrustedWithOptions to show the system accessibility dialog
+     */
+    async checkAccessibilityPermissionsWithPrompt(): Promise<PermissionStatus> {
+        console.log("PermissionsManager.checkAccessibilityPermissionsWithPrompt: Checking with prompt");
+        try {
+            this.textInjector.resetAccessibilityCache();
+            const granted = await this.textInjector.checkAccessibilityPermissionsWithPrompt();
+            console.log(`PermissionsManager.checkAccessibilityPermissionsWithPrompt: Accessibility permission ${granted ? 'granted' : 'denied'}`);
+            const status = { granted, checked: true };
+            appStore.setPermission("accessibility", status);
+            return status;
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error(`PermissionsManager.checkAccessibilityPermissionsWithPrompt: Error: ${errorMessage}`);
+            const status = {
+                granted: false,
+                checked: true,
+                error: errorMessage,
+            };
+            appStore.setPermission("accessibility", status);
+            return status;
+        }
+    }
+
+    /**
      * Check accessibility permissions without prompting user
      */
     async checkAccessibilityPermissionsQuiet(): Promise<PermissionStatus> {
         console.log("PermissionsManager.checkAccessibilityPermissionsQuiet: Starting quiet accessibility permission check");
         try {
-            // Reset cache to ensure fresh check for quiet operations
-            console.log("PermissionsManager.checkAccessibilityPermissionsQuiet: Resetting accessibility cache for fresh check");
             this.textInjector.resetAccessibilityCache();
-            const granted = await this.textInjector.checkAccessibilityPermissions();
+            const granted = await this.textInjector.checkAccessibilityPermissions({ forceCheck: true });
             console.log(`PermissionsManager.checkAccessibilityPermissionsQuiet: Accessibility permission ${granted ? 'granted' : 'denied'} (quiet check)`);
             return { granted, checked: true };
         } catch (error) {
@@ -88,6 +112,56 @@ export class PermissionsManager {
                 error: errorMessage,
             };
         }
+    }
+
+    /**
+     * Poll for accessibility permission with a timeout
+     * Useful during onboarding when waiting for user to grant permissions
+     * @param pollIntervalMs - How often to check (default 1000ms)
+     * @param timeoutMs - Maximum time to wait (default 60000ms = 1 minute)
+     * @returns Promise that resolves when granted or rejects on timeout
+     */
+    async waitForAccessibilityPermission(
+        pollIntervalMs: number = 1000,
+        timeoutMs: number = 60000
+    ): Promise<PermissionStatus> {
+        console.log(`PermissionsManager.waitForAccessibilityPermission: Polling every ${pollIntervalMs}ms, timeout ${timeoutMs}ms`);
+        
+        const startTime = Date.now();
+        
+        return new Promise((resolve, reject) => {
+            const checkPermission = async () => {
+                const elapsed = Date.now() - startTime;
+                
+                if (elapsed >= timeoutMs) {
+                    console.log("PermissionsManager.waitForAccessibilityPermission: Timeout waiting for permission");
+                    resolve({ granted: false, checked: true, error: "Timeout waiting for accessibility permission" });
+                    return;
+                }
+                
+                try {
+                    this.textInjector.resetAccessibilityCache();
+                    const granted = await this.textInjector.checkAccessibilityPermissions({ forceCheck: true });
+                    
+                    if (granted) {
+                        console.log("PermissionsManager.waitForAccessibilityPermission: Permission granted!");
+                        const status = { granted: true, checked: true };
+                        appStore.setPermission("accessibility", status);
+                        resolve(status);
+                        return;
+                    }
+                    
+                    console.log(`PermissionsManager.waitForAccessibilityPermission: Still waiting... (${Math.round(elapsed / 1000)}s)`);
+                    setTimeout(checkPermission, pollIntervalMs);
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    console.error(`PermissionsManager.waitForAccessibilityPermission: Error: ${errorMessage}`);
+                    setTimeout(checkPermission, pollIntervalMs);
+                }
+            };
+            
+            checkPermission();
+        });
     }
 
     /**

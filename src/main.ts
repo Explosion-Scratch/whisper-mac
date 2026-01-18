@@ -466,47 +466,73 @@ class WhisperMacApp {
       try {
         const settings = this.settingsService.getCurrentSettings();
         if (!settings?.onboardingComplete) {
+          console.log("checkPermissionsOnLaunch: Onboarding not complete, skipping");
           return;
         }
   
-        setTimeout(() => {
-          this.checkPermissionsOnLaunchDelayed().catch(error => {
-            console.error("Failed to check permissions on launch:", error);
-          });
-        }, 500);
+        console.log("checkPermissionsOnLaunch: Starting permission check with retry logic");
+        this.checkPermissionsWithRetry(3, 500).catch(error => {
+          console.error("Failed to check permissions on launch:", error);
+        });
       } catch (error) {
         console.error("Failed to check permissions on launch:", error);
       }
     }
   
-    private async checkPermissionsOnLaunchDelayed(): Promise<void> {
-      try {
-        const permissionsManager = this.settingsService.getPermissionsManager();
-        const permissions = await permissionsManager.getAllPermissionsQuiet();
-        const missingPermissions: string[] = [];
-  
-        if (!permissions.accessibility.granted) {
-          missingPermissions.push("Accessibility");
-        }
-  
-        if (!permissions.microphone.granted) {
-          try {
-            const microphoneStatus =
-              await permissionsManager.ensureMicrophonePermissions();
-            if (!microphoneStatus.granted) {
+    private async checkPermissionsWithRetry(
+      maxRetries: number = 3,
+      initialDelayMs: number = 500
+    ): Promise<void> {
+      let lastError: Error | null = null;
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        const delayMs = initialDelayMs * Math.pow(2, attempt - 1);
+        
+        console.log(`checkPermissionsWithRetry: Attempt ${attempt}/${maxRetries} after ${delayMs}ms delay`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        
+        try {
+          const permissionsManager = this.settingsService.getPermissionsManager();
+          const permissions = await permissionsManager.getAllPermissionsQuiet();
+          const missingPermissions: string[] = [];
+    
+          if (!permissions.accessibility.granted) {
+            console.log(`checkPermissionsWithRetry: Accessibility not granted on attempt ${attempt}`);
+            
+            if (attempt < maxRetries) {
+              continue;
+            }
+            missingPermissions.push("Accessibility");
+          }
+    
+          if (!permissions.microphone.granted) {
+            try {
+              const microphoneStatus = await permissionsManager.ensureMicrophonePermissions();
+              if (!microphoneStatus.granted) {
+                missingPermissions.push("Microphone");
+              }
+            } catch (error) {
+              console.error("Error ensuring microphone permissions:", error);
               missingPermissions.push("Microphone");
             }
-          } catch (error) {
-            console.error("Error ensuring microphone permissions:", error);
-            missingPermissions.push("Microphone");
+          }
+    
+          if (missingPermissions.length > 0) {
+            console.log(`checkPermissionsWithRetry: Missing permissions: ${missingPermissions.join(", ")}`);
+            await this.showPermissionsAlert(missingPermissions);
+          } else {
+            console.log("checkPermissionsWithRetry: All permissions granted");
+          }
+          return;
+          
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+          console.error(`checkPermissionsWithRetry: Error on attempt ${attempt}:`, lastError.message);
+          
+          if (attempt === maxRetries) {
+            console.error("checkPermissionsWithRetry: All retry attempts failed");
           }
         }
-  
-        if (missingPermissions.length > 0) {
-          await this.showPermissionsAlert(missingPermissions);
-        }
-      } catch (error) {
-        console.error("Failed to check permissions on launch (delayed):", error);
       }
     }
   

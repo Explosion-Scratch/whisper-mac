@@ -83,6 +83,20 @@ export default {
         F11: "F11",
         F12: "F12",
       },
+      codeToKeyMap: {
+        Slash: "/",
+        Backslash: "\\",
+        BracketLeft: "[",
+        BracketRight: "]",
+        Semicolon: ";",
+        Quote: "'",
+        Comma: ",",
+        Period: ".",
+        Minus: "-",
+        Equal: "=",
+        Backquote: "`",
+        IntlBackslash: "\\",
+      },
     };
   },
 
@@ -108,10 +122,14 @@ export default {
 
       let keyToUse = event.key;
 
-      if (event.altKey && event.code.startsWith("Key")) {
-        keyToUse = event.code.replace("Key", "");
-      } else if (event.altKey && event.code.startsWith("Digit")) {
-        keyToUse = event.code.replace("Digit", "");
+      if (event.altKey) {
+        if (event.code.startsWith("Key")) {
+          keyToUse = event.code.replace("Key", "");
+        } else if (event.code.startsWith("Digit")) {
+          keyToUse = event.code.replace("Digit", "");
+        } else if (this.codeToKeyMap[event.code]) {
+          keyToUse = this.codeToKeyMap[event.code];
+        }
       }
 
       const normalizedKey = this.keyMap[keyToUse] || keyToUse;

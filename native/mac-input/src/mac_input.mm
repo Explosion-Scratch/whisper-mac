@@ -115,6 +115,22 @@ Napi::Value CheckPermissions(const Napi::CallbackInfo &info) {
   return Napi::Boolean::New(env, trusted ? true : false);
 }
 
+Napi::Value CheckPermissionsWithPrompt(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  
+  bool shouldPrompt = info.Length() > 0 && info[0].IsBoolean() && info[0].As<Napi::Boolean>().Value();
+  
+  @autoreleasepool {
+    NSDictionary *options = @{};
+    if (shouldPrompt) {
+      options = @{(__bridge NSString *)kAXTrustedCheckOptionPrompt: @YES};
+    }
+    
+    Boolean trusted = AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
+    return Napi::Boolean::New(env, trusted ? true : false);
+  }
+}
+
 Napi::Value InjectText(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
   if (info.Length() < 1 || !info[0].IsString()) {
@@ -623,6 +639,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
               Napi::Function::New(env, GetClipboardText));
   exports.Set(Napi::String::New(env, "checkPermissions"),
               Napi::Function::New(env, CheckPermissions));
+  exports.Set(Napi::String::New(env, "checkPermissionsWithPrompt"),
+              Napi::Function::New(env, CheckPermissionsWithPrompt));
   exports.Set(Napi::String::New(env, "injectText"),
               Napi::Function::New(env, InjectText));
   exports.Set(Napi::String::New(env, "getWindowAppDetails"),

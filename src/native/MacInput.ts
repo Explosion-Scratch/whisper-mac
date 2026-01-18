@@ -30,6 +30,7 @@ export type MacInputBinding = {
   copyToClipboard?: (text: string) => boolean;
   getClipboardText?: () => string | null;
   checkPermissions?: () => boolean;
+  checkPermissionsWithPrompt?: (shouldPrompt: boolean) => boolean;
   getWindowAppDetails?: () => string | null;
   getSelectedText?: () => {
     text: string;
