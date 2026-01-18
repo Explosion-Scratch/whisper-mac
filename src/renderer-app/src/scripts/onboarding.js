@@ -1,5 +1,33 @@
 import { ref, computed, onMounted, nextTick } from "vue";
 
+import {
+  resetAccessibilityCache,
+  checkAccessibilityOnboarding,
+  checkMicrophoneOnboarding,
+  openSystemPreferences,
+} from "../utils/permissions";
+
+import {
+  testMicrophoneAccess,
+} from "../utils/microphone";
+
+import { deepClone } from "../utils/settings-store";
+
+import {
+  getPluginSchemas,
+  getPluginDisplayName,
+  initializePluginOptions,
+  setPluginOnboarding,
+} from "../utils/plugins";
+
+import {
+  validateApiKeyAndListModels,
+  validateAiConfiguration,
+  saveApiKeySecure,
+  setAiEnabled,
+  setAiProvider,
+} from "../utils/ai-provider";
+
 export default {
   setup() {
     const idx = ref(0);
@@ -63,10 +91,7 @@ const availablePlugins = ref([]);
 const currentPluginOptions = ref([]);
 
 const getSelectedPluginDisplayName = () => {
-  const active = availablePlugins.value.find(
-    (plugin) => plugin.name === pluginSelect.value,
-  );
-  return active?.displayName || pluginSelect.value;
+  return getPluginDisplayName(availablePlugins.value, pluginSelect.value);
 };
 
 const resetSetupState = (options = { preserveLogs: false }) => {
@@ -87,30 +112,19 @@ const init = async () => {
   aiEnabled.value = !!initState.ai.enabled;
   pluginSelect.value = initState.plugin || pluginSelect.value;
 
-  // Load plugin information
   try {
-    const pluginData = await window.onboardingAPI.getPluginSchemas();
-    if (!pluginData || !pluginData.plugins || !pluginData.schemas) {
+    const pluginData = await getPluginSchemas();
+    if (!pluginData?.plugins || !pluginData?.schemas) {
       console.error("Invalid plugin data structure received:", pluginData);
       throw new Error("Failed to load plugin schemas");
     }
 
     availablePlugins.value = pluginData.plugins || [];
     pluginOptions.value = pluginData.schemas || {};
-
-    // Set default options for each plugin
-    for (const [pluginName, options] of Object.entries(pluginOptions.value)) {
-      selectedOptions.value[pluginName] = {};
-      for (const option of options) {
-        selectedOptions.value[pluginName][option.key] = option.default;
-      }
-    }
-
-    // Load current plugin options
+    selectedOptions.value = initializePluginOptions(pluginOptions.value);
     updateCurrentPluginOptions();
   } catch (error) {
     console.error("Failed to load plugin schemas:", error);
-    // Set fallback values
     availablePlugins.value = [];
     pluginOptions.value = {};
   }
@@ -154,126 +168,99 @@ const prev = () => {
   }
 };
 
+const handleAccessibilityStep = async () => {
+  console.log("Renderer:onboarding next() accessibility check start");
+  await resetAccessibilityCache();
+  const t0 = Date.now();
+  const hasAccess = await checkAccessibilityOnboarding();
+  console.log("Renderer:onboarding next() accessibility check result", JSON.stringify({ hasAccess, durationMs: Date.now() - t0 }));
+  if (!hasAccess) {
+    accessStatus.value = "Please enable accessibility permissions first";
+    return false;
+  }
+  return true;
+};
+
+const handleMicrophoneStep = async () => {
+  const hasAccess = await testMicrophoneAccess();
+  if (!hasAccess) {
+    microphoneStatus.value = "Please enable microphone permissions first";
+    return false;
+  }
+  return true;
+};
+
+const handlePluginStep = async () => {
+  const currentOptions = selectedOptions.value[pluginSelect.value] || {};
+  const plainOptions = deepClone(currentOptions);
+  try {
+    await setPluginOnboarding(pluginSelect.value, plainOptions);
+  } catch (error) {
+    console.error("Failed to set plugin options:", error);
+  }
+};
+
+const handleAiStep = async () => {
+  if (aiEnabled.value) {
+    const result = await validateAiConfiguration(aiBaseUrl.value, aiModel.value, aiApiKey.value);
+    if (!result.isValid) {
+      aiValidationError.value = result.error || "AI configuration is invalid";
+      return false;
+    }
+  }
+  await setAiEnabled(aiEnabled.value);
+  if (aiEnabled.value) {
+    await setAiProvider(aiBaseUrl.value, aiModel.value);
+  }
+  return true;
+};
+
+const handleComplete = async () => {
+  try {
+    const result = await window.onboardingAPI.complete();
+    if (!result?.success) {
+      const pluginLabel = getSelectedPluginDisplayName();
+      completionError.value = result?.error
+        ? `${pluginLabel}: ${result.error}`
+        : `${pluginLabel} can't be activated right now.`;
+      return false;
+    }
+    return true;
+  } catch (error) {
+    const pluginLabel = getSelectedPluginDisplayName();
+    const message = error?.message || error?.toString?.() || "The selected plugin could not be activated.";
+    completionError.value = `${pluginLabel}: ${message}`;
+    return false;
+  }
+};
+
 const next = async () => {
-  // Check accessibility permissions before allowing progression from step 1
-  if (idx.value === 1) {
-    // Reset cache to ensure we get fresh results
-    console.log("Renderer:onboarding next() accessibility check start");
-    await window.onboardingAPI.resetAccessibilityCache();
-    const t0 = Date.now();
-    const hasAccess = await window.onboardingAPI.checkAccessibility();
-    console.log(
-      "Renderer:onboarding next() accessibility check result",
-      JSON.stringify({ hasAccess, durationMs: Date.now() - t0 }),
-    );
-    if (!hasAccess) {
-      accessStatus.value = "Please enable accessibility permissions first";
-      return;
-    }
-  }
-
-  // Check microphone permissions before allowing progression from step 2
-  if (idx.value === 2) {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 16000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      });
-
-      // Immediately stop all tracks to release the microphone
-      stream.getTracks().forEach((track) => {
-        track.stop();
-      });
-    } catch (error) {
-      microphoneStatus.value = "Please enable microphone permissions first";
-      return;
-    }
-  }
-
+  if (idx.value === 1 && !(await handleAccessibilityStep())) return;
+  if (idx.value === 2 && !(await handleMicrophoneStep())) return;
   if (idx.value === 5 && !setupDone.value) return;
   if (idx.value === 5 && completionError.value) {
     resetSetupState();
     idx.value = 3;
     return;
   }
-  if (idx.value === 3) {
-    const currentOptions = selectedOptions.value[pluginSelect.value] || {};
-    // Convert Vue reactive object to plain object to avoid cloning errors
-    const plainOptions = JSON.parse(JSON.stringify(currentOptions));
-    try {
-      await window.onboardingAPI.setPlugin(pluginSelect.value, plainOptions);
-    } catch (error) {
-      console.error("Failed to set plugin options:", error);
-      // Continue with the flow even if plugin options setting fails
-    }
-  }
-  if (idx.value === 4) {
-    // If AI is enabled, validate configuration before proceeding
-    if (aiEnabled.value) {
-      const result = await window.electronAPI.validateAiConfiguration(
-        aiBaseUrl.value,
-        aiModel.value,
-        aiApiKey.value,
-      );
-
-      if (!result.isValid) {
-        aiValidationError.value = result.error || "AI configuration is invalid";
-        return;
-      }
-    }
-
-    await window.onboardingAPI.setAiEnabled(aiEnabled.value);
-    if (aiEnabled.value) {
-      await window.onboardingAPI.setAiProvider(aiBaseUrl.value, aiModel.value);
-    }
-  }
+  if (idx.value === 3) await handlePluginStep();
+  if (idx.value === 4 && !(await handleAiStep())) return;
   if (idx.value < 5) {
     idx.value += 1;
   } else {
-    try {
-      const result = await window.onboardingAPI.complete();
-      if (!result?.success) {
-        const pluginLabel = getSelectedPluginDisplayName();
-        const detail = result?.error
-          ? `${pluginLabel}: ${result.error}`
-          : `${pluginLabel} can't be activated right now.`;
-        completionError.value = detail;
-        return;
-      }
-    } catch (error) {
-      const pluginLabel = getSelectedPluginDisplayName();
-      const message =
-        error?.message ||
-        error?.toString?.() ||
-        "The selected plugin could not be activated.";
-      completionError.value = `${pluginLabel}: ${message}`;
-      return;
-    }
+    await handleComplete();
   }
 };
 
 const checkAccess = async () => {
   isCheckingAccess.value = true;
   accessStatus.value = "Checking...";
-  // Reset cache to ensure we get fresh results
-  console.log("Renderer:onboarding checkAccess() start");
-  await window.onboardingAPI.resetAccessibilityCache();
-  const t0 = Date.now();
-  const ok = await window.onboardingAPI.checkAccessibility();
-  console.log(
-    "Renderer:onboarding checkAccess() result",
-    JSON.stringify({ ok, durationMs: Date.now() - t0 }),
-  );
+  const ok = await handleAccessibilityStep();
   if (ok) {
     accessStatus.value = "Enabled";
     showAccessibilityHelp.value = false;
   } else {
     accessStatus.value = "Please grant accessibility permissions";
-    // Show options to open system preferences or settings
     showAccessibilityHelp.value = true;
   }
   isCheckingAccess.value = false;
@@ -282,31 +269,14 @@ const checkAccess = async () => {
 const checkMicrophone = async () => {
   isCheckingMicrophone.value = true;
   microphoneStatus.value = "Checking...";
-  try {
-    // Test microphone access directly in the renderer process
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        sampleRate: 16000,
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-      },
-    });
-
-    // Immediately stop all tracks to release the microphone
-    stream.getTracks().forEach((track) => {
-      track.stop();
-    });
-
+  const ok = await handleMicrophoneStep();
+  if (ok) {
     microphoneStatus.value = "Enabled";
     showMicrophoneHelp.value = false;
-  } catch (error) {
-    console.error("Microphone permission denied:", error);
+  } else {
     microphoneStatus.value = "Please grant microphone permissions";
-    // Show options to open system preferences or settings
     showMicrophoneHelp.value = true;
-    // Also try the main process check to show system dialog
-    await window.onboardingAPI.checkMicrophone();
+    await checkMicrophoneOnboarding();
   }
   isCheckingMicrophone.value = false;
 };
@@ -315,15 +285,9 @@ const saveKey = async () => {
   try {
     savingKey.value = true;
     keyStatus.value = "Validating...";
-    // Validate key by calling provider /models via settings bridge
-    const result = await window.electronAPI.validateApiKeyAndListModels(
-      aiBaseUrl.value,
-      aiApiKey.value,
-    );
+    const result = await validateApiKeyAndListModels(aiBaseUrl.value, aiApiKey.value);
     if (!result?.success) {
-      keyStatus.value = `Validation failed: ${
-        result?.error || "Unknown error"
-      }`;
+      keyStatus.value = `Validation failed: ${result?.error || "Unknown error"}`;
       savingKey.value = false;
       return;
     }
@@ -331,11 +295,9 @@ const saveKey = async () => {
     if (aiModels.value.length && !aiModel.value) {
       aiModel.value = aiModels.value[0].id;
     }
-    await window.onboardingAPI.saveApiKey(aiApiKey.value);
+    await saveApiKeySecure(aiApiKey.value);
     keyStatus.value = "Saved to Keychain";
     aiApiKey.value = "";
-
-    // Clear validation error since key is now valid
     aiValidationError.value = "";
   } catch (e) {
     keyStatus.value = "Failed to save key";
@@ -347,36 +309,24 @@ const saveKey = async () => {
 const validateAiConfig = async () => {
   if (aiEnabled.value) {
     aiValidationError.value = "";
-
     try {
-      const result = await window.electronAPI.validateAiConfiguration(
-        aiBaseUrl.value,
-        aiModel.value,
-        aiApiKey.value,
-      );
-
+      const result = await validateAiConfiguration(aiBaseUrl.value, aiModel.value, aiApiKey.value);
       if (!result.isValid) {
         aiValidationError.value = result.error || "AI configuration is invalid";
-        aiEnabled.value = false; // Revert the toggle
+        aiEnabled.value = false;
         return;
       }
-
-      // If validation succeeds and we have models, update the model list
-      if (result.models && result.models.length > 0) {
+      if (result.models?.length > 0) {
         aiModels.value = result.models;
-        // If current model is not in the list, select the first one
         if (!result.models.some((m) => m.id === aiModel.value)) {
           aiModel.value = result.models[0].id;
         }
       }
     } catch (error) {
-      aiValidationError.value = `Validation failed: ${
-        error.message || String(error)
-      }`;
-      aiEnabled.value = false; // Revert the toggle
+      aiValidationError.value = `Validation failed: ${error.message || String(error)}`;
+      aiEnabled.value = false;
     }
   } else {
-    // Clear validation error when disabling AI
     aiValidationError.value = "";
   }
 };
@@ -393,12 +343,8 @@ const runSetup = async () => {
   await window.onboardingAPI.runSetup();
 };
 
-const openSystemPreferences = async (type) => {
-  try {
-    await window.onboardingAPI.openSystemPreferences(type);
-  } catch (error) {
-    console.error(`Failed to open ${type} preferences:`, error);
-  }
+const openSystemPreferencesDialog = async (type) => {
+  await openSystemPreferences(type);
 };
 
 const openSettings = async (section) => {
@@ -409,34 +355,11 @@ const openSettings = async (section) => {
   }
 };
 
-onMounted(() => {
-  init();
-
-  // Add watchers for AI configuration changes
-  const aiBaseUrlInput = document.getElementById("aiBaseUrl");
-  const aiModelSelect = document.getElementById("aiModelSelect");
-
-  if (aiBaseUrlInput) {
-    aiBaseUrlInput.addEventListener("input", () => {
-      if (aiEnabled.value) {
-        validateAiConfig();
-      }
-    });
-  }
-
-  if (aiModelSelect) {
-    aiModelSelect.addEventListener("change", () => {
-      if (aiEnabled.value) {
-        validateAiConfig();
-      }
-    });
-  }
-
+const setupIpcListeners = () => {
   window.onboardingAPI.onProgress((p) => {
     progressText.value = p.message || p.status || "";
     if (p.percent != null) {
-      const pct = Math.max(0, Math.min(100, p.percent));
-      progressPercent.value = pct;
+      progressPercent.value = Math.max(0, Math.min(100, p.percent));
     }
     if (p.status === "complete") {
       setupDone.value = true;
@@ -451,14 +374,20 @@ onMounted(() => {
         : `${pluginLabel}: Setup failed`;
     }
   });
+
   window.onboardingAPI.onLog((payload) => {
-    if (!payload || !payload.line) return;
+    if (!payload?.line) return;
     logs.value.push(payload.line);
     nextTick(() => {
       const el = document.querySelector(".logs");
       if (el) el.scrollTop = el.scrollHeight;
     });
   });
+};
+
+onMounted(() => {
+  init();
+  setupIpcListeners();
 });
 
     return {
@@ -498,7 +427,7 @@ onMounted(() => {
       checkMicrophone,
       onAiEnabledChange,
       validateAiConfig,
-      openSystemPreferences,
+      openSystemPreferences: openSystemPreferencesDialog,
       openSettings,
       saveKey,
       runSetup,

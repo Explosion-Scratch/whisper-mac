@@ -2,6 +2,82 @@ import { log, info, warn, error } from "../utils/logger";
 import SettingsField from "../components/settings/ui/Field.vue";
 import TranscriptionSection from "../components/settings/transcription/TranscriptionSection.vue";
 
+import {
+  loadPermissions,
+  checkAccessibilityPermissions,
+  checkMicrophonePermissions,
+  refreshPermissions,
+  openSystemPreferences,
+  getPermissionStatusClass,
+  getPermissionStatusText,
+} from "../utils/permissions";
+
+import {
+  enumerateMicrophones,
+  updateSchemaWithMicrophones,
+} from "../utils/microphone";
+
+import {
+  getSettingValue,
+  setSettingValue,
+  isStandardFieldType,
+  deepClone,
+} from "../utils/settings-store";
+
+import {
+  ensurePluginSettingsObjects,
+  getPluginDisplayName,
+  testPluginActivation,
+  switchPlugin,
+  getActivePlugin,
+  getPluginSchemas,
+  updatePluginOption,
+} from "../utils/plugins";
+
+import {
+  validateApiKeyAndListModels,
+  saveApiKeySecure,
+  loadAiModelsIfConfigured,
+  createDebouncedValidator,
+} from "../utils/ai-provider";
+
+import { captureHotkey } from "../utils/hotkey";
+
+import {
+  showStatus as showStatusUtil,
+  showProgress as showProgressUtil,
+  hideProgress as hideProgressUtil,
+} from "../utils/status-notification";
+
+import { formatBytes, formatRepoUrl, getAuthorUrl, openExternalUrl } from "../utils/formatters";
+
+import {
+  addAction,
+  deleteAction as deleteActionUtil,
+  addPattern,
+  deletePattern as deletePatternUtil,
+  addHandler,
+  deleteHandler as deleteHandlerUtil,
+  updateHandlerType as updateHandlerTypeUtil,
+  getHandlerIcon,
+  getHandlerTypeName,
+  getHandlerSummary,
+  getPatternTypeBadge,
+  moveItem,
+  resyncOrder,
+} from "../utils/actions-editor";
+
+import {
+  addRule,
+  deleteRule as deleteRuleUtil,
+  moveRule as moveRuleUtil,
+  addExample,
+  deleteExample as deleteExampleUtil,
+  updateRuleCondition,
+  getConditionIcon,
+  getConditionLabel,
+} from "../utils/rules-editor";
+
 export default {
     components: {
       SettingsField,
@@ -63,140 +139,60 @@ export default {
       },
     },
     methods: {
-      // --- MICROPHONE ENUMERATION ---
-      async enumerateMicrophones() {
-        try {
-          console.log("Enumerating microphones...");
 
-          // Request audio permissions first
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: false,
-            },
-          });
-
-          // Stop the stream immediately after getting permissions
-          stream.getTracks().forEach((track) => track.stop());
-
-          // Now enumerate all devices
-          const allDevices = await navigator.mediaDevices.enumerateDevices();
-
-          // Filter for audio input devices
-          const audioInputs = allDevices
-            .filter((device) => device.kind === "audioinput")
-            .map((device) => ({
-              deviceId: device.deviceId,
-              label:
-                device.label ||
-                (device.deviceId === "default"
-                  ? "System Default"
-                  : "Microphone"),
-              groupId: device.groupId,
-            }));
-
-          console.log("Found microphones:", audioInputs);
-
-          // Ensure we have at least the default option
-          if (!audioInputs.some((device) => device.deviceId === "default")) {
-            audioInputs.unshift({
-              deviceId: "default",
-              label: "System Default",
-              groupId: undefined,
-            });
-          }
-
-          return audioInputs;
-        } catch (error) {
-          console.error("Failed to enumerate microphones:", error);
-
-          // Return fallback data on error
-          return [
-            {
-              deviceId: "default",
-              label: "System Default",
-              groupId: undefined,
-            },
-          ];
-        }
-      },
 
       // --- INITIALIZATION ---
       async openAuthorLink(event) {
         event.preventDefault();
         if (this.packageInfo?.repository?.url) {
-          const repoUrl = this.packageInfo.repository.url
-            .replace("git+", "")
-            .replace(".git", "");
-          const authorUrl = repoUrl.split("/").slice(0, -1).join("/");
-          try {
-            await window.electronAPI.openExternalUrl(authorUrl);
-          } catch (error) {
-            window.error("Failed to open author link:", error);
-          }
+          const authorUrl = getAuthorUrl(this.packageInfo.repository.url);
+          await openExternalUrl(authorUrl);
         }
       },
 
       getRepoUrl() {
         if (this.packageInfo?.repository?.url) {
-          return this.packageInfo.repository.url
-            .replace("git+", "")
-            .replace(".git", "");
+          return formatRepoUrl(this.packageInfo.repository.url);
         }
         return "https://github.com/explosion-scratch/whisper-mac";
       },
 
       getReleasesUrl() {
-        const repoUrl = this.getRepoUrl();
-        return `${repoUrl}/releases/tag/v${this.appVersion}`;
+        return `${this.getRepoUrl()}/releases/tag/v${this.appVersion}`;
       },
 
       async openExternalLink(url) {
-        try {
-          await window.electronAPI.openExternalUrl(url);
-        } catch (error) {
-          window.error("Failed to open external link:", error);
-        }
+        await openExternalUrl(url);
       },
 
       async init() {
         try {
-          this.schema = JSON.parse(
-            JSON.stringify(await window.electronAPI.getSettingsSchema()),
-          );
-          this.settings = JSON.parse(
-            JSON.stringify(await window.electronAPI.getSettings()),
-          );
-          this.originalSettings = JSON.parse(JSON.stringify(this.settings));
+          this.schema = deepClone(await window.electronAPI.getSettingsSchema());
+          this.settings = deepClone(await window.electronAPI.getSettings());
+          this.originalSettings = deepClone(this.settings);
           window.log("this.settings", this.originalSettings);
 
-          // Enumerate microphones and update options
           try {
-            const microphones = await this.enumerateMicrophones();
+            const microphones = await enumerateMicrophones();
             console.log("Enumerated microphones:", microphones);
-
-            // Update the microphone options in the schema
-            this.updateMicrophoneOptions(microphones);
+            this.schema = updateSchemaWithMicrophones(this.schema, microphones);
           } catch (error) {
             console.error("Failed to enumerate microphones:", error);
           }
+
           try {
-            this.pluginData = await window.electronAPI.getPluginSchemas();
+            this.pluginData = await getPluginSchemas();
             window.log("this.pluginData", this.pluginData);
           } catch (error) {
             window.error("Failed to load plugin schemas:", error);
             this.pluginData = { plugins: [], schemas: {} };
           }
 
-          const pluginManagerActive =
-            await window.electronAPI.getActivePlugin();
-          this.activePlugin =
-            pluginManagerActive || this.settings.transcriptionPlugin || "yap";
+          const pluginManagerActive = await getActivePlugin();
+          this.activePlugin = pluginManagerActive || this.settings.transcriptionPlugin || "yap";
           window.log("this.activePlugin", this.activePlugin);
-          this.ensurePluginSettingsObjects();
+          ensurePluginSettingsObjects(this.settings, this.pluginData);
 
-          // Load app version and package info
           try {
             this.appVersion = await window.electronAPI.getAppVersion();
             this.packageInfo = await window.electronAPI.getPackageInfo();
@@ -215,33 +211,6 @@ export default {
           window.error("Failed to initialize settings window:", error);
           this.showStatus("Failed to load settings", "error");
         }
-      },
-
-      // Update microphone options in the schema
-      updateMicrophoneOptions(microphones) {
-        console.log("Updating microphone options in schema:", microphones);
-
-        // Convert microphones to options format
-        const microphoneOptions = microphones.map((mic) => ({
-          value: mic.deviceId,
-          label: mic.label,
-        }));
-
-        // Update the schema
-        this.schema = this.schema.map((section) => ({
-          ...section,
-          fields: section.fields.map((field) => {
-            if (field.key === "selectedMicrophone") {
-              return {
-                ...field,
-                options: microphoneOptions,
-              };
-            }
-            return field;
-          }),
-        }));
-
-        console.log("Updated schema with microphone options");
       },
 
       setupIpcListeners() {
@@ -379,35 +348,27 @@ export default {
 
       // --- PERMISSIONS MANAGEMENT ---
       async loadPermissions() {
-        try {
-          window.log("Loading permissions status...");
-          this.permissions = await window.electronAPI.getPermissionsQuiet();
-          window.log("Permissions loaded:", this.permissions);
-        } catch (error) {
-          window.error("Failed to load permissions:", error);
+        window.log("Loading permissions status...");
+        this.permissions = await loadPermissions();
+        if (!this.permissions) {
           this.showStatus("Failed to load permissions status", "error");
         }
+        window.log("Permissions loaded:", this.permissions);
       },
 
       async checkAccessibilityPermissions() {
         this.isCheckingAccessibility = true;
         try {
           window.log("Checking accessibility permissions...");
-          const status =
-            await window.electronAPI.checkAccessibilityPermissions();
+          const status = await checkAccessibilityPermissions();
           if (this.permissions) {
             this.permissions.accessibility = status;
           }
-
           if (status.granted) {
             this.showStatus("Accessibility permissions are enabled", "success");
           } else {
-            this.showStatus(
-              "Accessibility permissions need to be enabled in System Settings",
-              "warning",
-            );
+            this.showStatus("Accessibility permissions need to be enabled in System Settings", "warning");
           }
-
           window.log("Accessibility permission status:", status);
         } catch (error) {
           window.error("Failed to check accessibility permissions:", error);
@@ -421,20 +382,15 @@ export default {
         this.isCheckingMicrophone = true;
         try {
           window.log("Checking microphone permissions...");
-          const status = await window.electronAPI.checkMicrophonePermissions();
+          const status = await checkMicrophonePermissions();
           if (this.permissions) {
             this.permissions.microphone = status;
           }
-
           if (status.granted) {
             this.showStatus("Microphone permissions are enabled", "success");
           } else {
-            this.showStatus(
-              "Microphone permissions need to be enabled in System Settings",
-              "warning",
-            );
+            this.showStatus("Microphone permissions need to be enabled in System Settings", "warning");
           }
-
           window.log("Microphone permission status:", status);
         } catch (error) {
           window.error("Failed to check microphone permissions:", error);
@@ -448,8 +404,7 @@ export default {
         this.isRefreshingAll = true;
         try {
           window.log("Refreshing all permissions...");
-          await window.electronAPI.resetPermissionCaches();
-          await this.loadPermissions();
+          this.permissions = await refreshPermissions();
           this.showStatus("Permission status refreshed", "success");
         } catch (error) {
           window.error("Failed to refresh permissions:", error);
@@ -460,111 +415,50 @@ export default {
       },
 
       async openSystemPreferences() {
-        try {
-          window.log("Opening System Settings...");
-          await window.electronAPI.openSystemPreferences();
-          this.showStatus(
-            "System Settings opened - return here after making changes",
-            "info",
-          );
-        } catch (error) {
-          window.error("Failed to open System Settings:", error);
-          this.showStatus("Failed to open System Settings", "error");
-        }
+        window.log("Opening System Settings...");
+        await openSystemPreferences("general");
+        this.showStatus("System Settings opened - return here after making changes", "info");
       },
 
       async openAccessibilitySettings() {
-        try {
-          window.log("Opening Accessibility Settings...");
-          await window.electronAPI.openAccessibilitySettings();
-          this.showStatus(
-            "Accessibility Settings opened - return here after making changes",
-            "info",
-          );
-        } catch (error) {
-          window.error("Failed to open Accessibility Settings:", error);
-          this.showStatus("Failed to open Accessibility Settings", "error");
-        }
+        window.log("Opening Accessibility Settings...");
+        await openSystemPreferences("accessibility");
+        this.showStatus("Accessibility Settings opened - return here after making changes", "info");
       },
 
       async openMicrophoneSettings() {
-        try {
-          window.log("Opening Microphone Settings...");
-          await window.electronAPI.openMicrophoneSettings();
-          this.showStatus(
-            "Microphone Settings opened - return here after making changes",
-            "info",
-          );
-        } catch (error) {
-          window.error("Failed to open Microphone Settings:", error);
-          this.showStatus("Failed to open Microphone Settings", "error");
-        }
+        window.log("Opening Microphone Settings...");
+        await openSystemPreferences("microphone");
+        this.showStatus("Microphone Settings opened - return here after making changes", "info");
       },
 
       getAccessibilityStatusClass() {
-        if (!this.permissions?.accessibility?.checked) {
-          return "unknown";
-        }
-        return this.permissions.accessibility.granted ? "granted" : "denied";
+        return getPermissionStatusClass(this.permissions?.accessibility);
       },
 
       getAccessibilityStatusText() {
-        if (!this.permissions?.accessibility?.checked) {
-          return "Checking...";
-        }
-        return this.permissions.accessibility.granted
-          ? "Granted"
-          : "Not Granted";
+        return getPermissionStatusText(this.permissions?.accessibility);
       },
 
       getMicrophoneStatusClass() {
-        if (!this.permissions?.microphone?.checked) {
-          return "unknown";
-        }
-        return this.permissions.microphone.granted ? "granted" : "denied";
+        return getPermissionStatusClass(this.permissions?.microphone);
       },
 
       getMicrophoneStatusText() {
-        if (!this.permissions?.microphone?.checked) {
-          return "Checking...";
-        }
-        return this.permissions.microphone.granted ? "Granted" : "Not Granted";
+        return getPermissionStatusText(this.permissions?.microphone);
       },
 
       // --- DATA HANDLING ---
       getSettingValue(key) {
-        return key
-          .split(".")
-          .reduce((o, i) => (o ? o[i] : undefined), this.settings);
+        return getSettingValue(this.settings, key);
       },
 
       setSettingValue(key, value) {
-        const keys = key.split(".");
-        let temp = this.settings;
-        for (let i = 0; i < keys.length - 1; i++) {
-          if (!temp[keys[i]]) temp[keys[i]] = {};
-          temp = temp[keys[i]];
-        }
-        temp[keys[keys.length - 1]] = value;
+        setSettingValue(this.settings, key, value);
       },
 
-      /**
-       * Checks if the field type is a standard type handled by SettingsField component
-       * @param {string} type - The field type
-       * @returns {boolean} Whether it's a standard field type
-       */
       isStandardFieldType(type) {
-        const standardTypes = [
-          "text",
-          "number",
-          "boolean",
-          "select",
-          "textarea",
-          "slider",
-          "directory",
-          "hotkey",
-        ];
-        return standardTypes.includes(type);
+        return isStandardFieldType(type);
       },
 
       /**
@@ -573,7 +467,7 @@ export default {
        * @param {*} value - The new value
        */
       handleFieldUpdate(key, value) {
-        this.setSettingValue(key, value);
+        setSettingValue(this.settings, key, value);
       },
 
       /**
@@ -606,15 +500,11 @@ export default {
       async saveSettings() {
         this.isSaving = true;
         try {
-          // Check if plugin has changed and needs to be switched
           const currentActivePlugin = this.settings.transcriptionPlugin;
           const newActivePlugin = this.activePlugin;
           const pluginChanged = currentActivePlugin !== newActivePlugin;
 
-          // Only attempt plugin switching in saveSettings if we're in fallback mode
-          // (i.e., immediate switch failed and user is now saving configuration)
           if (pluginChanged && this.pendingPluginSwitch) {
-            // Test plugin activation before saving
             const pluginOptions = JSON.parse(
               JSON.stringify(this.settings.plugin[newActivePlugin] || {}),
             );
@@ -631,7 +521,6 @@ export default {
               return;
             }
 
-            // Perform the plugin switch
             this.showProgress(`Switching to ${newActivePlugin}...`, 0);
             try {
               await window.electronAPI.switchPlugin(newActivePlugin);
@@ -644,28 +533,22 @@ export default {
                 `Failed to switch to ${newActivePlugin}: ${switchError.message}`,
                 "error",
               );
-              this.activePlugin = currentActivePlugin; // Revert on failure
+              this.activePlugin = currentActivePlugin;
               return;
             } finally {
               this.hideProgress();
             }
-            // Clear the pending switch flag after successful switch
             this.pendingPluginSwitch = false;
           } else if (pluginChanged) {
-            // Plugin changed but no pending switch - this means immediate activation worked
-            // Just update the settings tracking
             this.settings.transcriptionPlugin = this.activePlugin;
           }
 
-          // Update the settings object with the active plugin
           this.settings.transcriptionPlugin = this.activePlugin;
 
-          // Convert the reactive proxy to a plain object before sending
           const settingsToSave = JSON.parse(JSON.stringify(this.settings));
 
           await window.electronAPI.saveSettings(settingsToSave);
 
-          // Update originalSettings from the plain object to ensure consistency
           this.originalSettings = settingsToSave;
 
           if (!pluginChanged) {
@@ -680,22 +563,18 @@ export default {
       },
 
       cancelChanges() {
-        this.settings = JSON.parse(JSON.stringify(this.originalSettings));
+        this.settings = deepClone(this.originalSettings);
         this.activePlugin = this.originalSettings.transcriptionPlugin || "yap";
-        this.pendingPluginSwitch = false; // Clear any pending plugin switch
+        this.pendingPluginSwitch = false;
         this.showStatus("Changes cancelled", "info");
       },
 
       // --- IMPORT/EXPORT/RESET ---
       async resetSection() {
-        if (
-          confirm(
-            `Reset all settings in the "${this.currentSection.title}" section to defaults?`,
-          )
-        ) {
+        if (confirm(`Reset all settings in the "${this.currentSection.title}" section to defaults?`)) {
           await window.electronAPI.resetSettingsSection(this.currentSectionId);
           this.settings = await window.electronAPI.getSettings();
-          this.ensurePluginSettingsObjects(); // Re-ensure objects exist after reset
+          ensurePluginSettingsObjects(this.settings, this.pluginData);
           this.showStatus("Section reset to defaults", "success");
         }
       },
@@ -704,7 +583,7 @@ export default {
         if (confirm("Reset all settings to defaults? This cannot be undone.")) {
           await window.electronAPI.resetAllSettings();
           this.settings = await window.electronAPI.getSettings();
-          this.ensurePluginSettingsObjects();
+          ensurePluginSettingsObjects(this.settings, this.pluginData);
           this.showStatus("All settings reset to defaults", "success");
         }
       },
@@ -737,129 +616,45 @@ export default {
       async browseDirectory(key) {
         const result = await window.electronAPI.showDirectoryDialog({});
         if (!result.canceled && result.filePaths.length > 0) {
-          this.setSettingValue(key, result.filePaths[0]);
+          setSettingValue(this.settings, key, result.filePaths[0]);
         }
       },
 
       // --- HOTKEY METHODS ---
-      captureHotkey(event, key) {
-        event.preventDefault();
-        event.stopPropagation();
-
-        // Ignore if just modifier keys pressed
-        const modifierKeys = [
-          "Control",
-          "Alt",
-          "Shift",
-          "Meta",
-          "Command",
-          "AltGraph",
-        ];
-        if (modifierKeys.includes(event.key)) {
-          return;
-        }
-
-        // Build hotkey string
-        const parts = [];
-
-        // Distinguish between Ctrl and Cmd on macOS
-        if (event.ctrlKey && !event.metaKey) parts.push("Control");
-        if (event.metaKey) parts.push("CommandOrControl");
-        if (event.altKey) parts.push("Alt");
-        if (event.shiftKey) parts.push("Shift");
-
-        // Use event.code for better key detection, especially with Alt combinations
-        let keyToUse = event.key;
-
-        // Handle special keys and Alt combinations
-        if (event.altKey && event.code.startsWith("Key")) {
-          // For Alt + letter combinations, use the base key from code
-          keyToUse = event.code.replace("Key", "");
-        } else if (event.altKey && event.code.startsWith("Digit")) {
-          // For Alt + number combinations
-          keyToUse = event.code.replace("Digit", "");
-        }
-
-        // Map special keys
-        const keyMap = {
-          " ": "Space",
-          " ": "Space",
-          ArrowUp: "Up",
-          ArrowDown: "Down",
-          ArrowLeft: "Left",
-          ArrowRight: "Right",
-          Backspace: "BackSpace",
-          Delete: "Delete",
-          Enter: "Return",
-          Tab: "Tab",
-          Escape: "Escape",
-          // Handle function keys
-          F1: "F1",
-          F2: "F2",
-          F3: "F3",
-          F4: "F4",
-          F5: "F5",
-          F6: "F6",
-          F7: "F7",
-          F8: "F8",
-          F9: "F9",
-          F10: "F10",
-          F11: "F11",
-          F12: "F12",
-        };
-
-        const normalizedKey = keyMap[keyToUse] || keyToUse;
-
-        // Don't add modifier keys again
-        if (!modifierKeys.includes(normalizedKey)) {
-          parts.push(normalizedKey);
-        }
-
-        const hotkeyString = parts.join("+");
-
-        if (hotkeyString && parts.length > 0) {
-          this.setSettingValue(key, hotkeyString);
+      captureHotkeyEvent(event, key) {
+        const hotkey = captureHotkey(event);
+        if (hotkey) {
+          setSettingValue(this.settings, key, hotkey);
         }
       },
 
       clearHotkey(key) {
-        this.setSettingValue(key, "");
+        setSettingValue(this.settings, key, "");
       },
 
       // --- AI PROVIDER METHODS ---
       debouncedValidateApiKey() {
         clearTimeout(this.apiKeyValidationTimeout);
-        this.apiKeyValidationTimeout = setTimeout(
-          this.validateApiKeyAndModels,
-          1000,
-        );
+        this.apiKeyValidationTimeout = setTimeout(this.validateApiKeyAndModelsData, 1000);
       },
 
-      async validateApiKeyAndModels() {
-        if (!this.apiKeyInput || !this.settings.ai || !this.settings.ai.baseUrl)
-          return;
+      async validateApiKeyAndModelsData() {
+        if (!this.apiKeyInput || !this.settings.ai?.baseUrl) return;
 
         this.aiModelsState.loading = true;
         try {
-          const result = await window.electronAPI.validateApiKeyAndListModels(
-            this.settings.ai.baseUrl,
-            this.apiKeyInput,
-          );
-          if (result.success && result.models.length > 0) {
+          const result = await validateApiKeyAndListModels(this.settings.ai.baseUrl, this.apiKeyInput);
+          if (result.success && result.models?.length > 0) {
             this.aiModelsState.models = result.models;
-            // If current model not in new list, select first one
             if (!result.models.some((m) => m.id === this.settings.ai.model)) {
               this.settings.ai.model = result.models[0].id;
             }
-            await window.electronAPI.saveApiKeySecure(this.apiKeyInput);
-            this.apiKeyInput = ""; // Clear after successful save
+            await saveApiKeySecure(this.apiKeyInput);
+            this.apiKeyInput = "";
             this.showStatus("API Key validated and models loaded.", "success");
           } else {
             this.aiModelsState.models = [];
-            this.showStatus(
-              `API Key validation failed: ${result.error}`,
-              "error",
-            );
+            this.showStatus(`API Key validation failed: ${result.error}`, "error");
           }
         } catch (e) {
           this.aiModelsState.models = [];
@@ -1181,73 +976,23 @@ export default {
       },
 
       formatBytes(bytes) {
-        if (bytes === 0) return "0 B";
-        const k = 1024;
-        const sizes = ["B", "KB", "MB", "GB", "TB"];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+        return formatBytes(bytes);
       },
 
       // --- ACTIONS EDITOR METHODS ---
       addNewAction() {
-        if (!this.settings.actions) {
-          this.settings.actions = { actions: [] };
-        } else if (!Array.isArray(this.settings.actions.actions)) {
-          this.settings.actions.actions = [];
-        }
-
-        this.settings.actions.actions.push({
-          id: "action_" + Date.now(),
-          name: "New Action",
-          description: "A new voice-activated action.",
-          enabled: true,
-          order: (this.settings.actions.actions.length || 0) + 1,
-          closesTranscription: false,
-          skipsTransformation: false,
-          applyToAllSegments: false,
-          timingMode: "before_ai",
-          matchPatterns: [
-            {
-              id: "pattern_" + Date.now(),
-              type: "startsWith",
-              pattern: "trigger word ",
-              caseSensitive: false,
-            },
-          ],
-          handlers: [
-            {
-              id: "handler_" + Date.now(),
-              type: "openUrl",
-              config: {
-                urlTemplate: "https://www.google.com/search?q={argument}",
-              },
-              order: 1,
-            },
-          ],
-        });
+        addAction(this.settings);
       },
 
       deleteAction(index) {
         if (confirm("Delete this action?")) {
-          this.settings.actions.actions.splice(index, 1);
+          deleteActionUtil(this.settings, index);
         }
       },
 
       moveAction(index, direction) {
-        const actions = this.settings.actions.actions;
-        const newIndex = index + direction;
-
-        if (newIndex >= 0 && newIndex < actions.length) {
-          // Use array destructuring to swap elements reactively
-          [actions[index], actions[newIndex]] = [
-            actions[newIndex],
-            actions[index],
-          ];
-
-          // Re-sync the order property
-          actions.forEach((action, idx) => {
-            action.order = idx + 1;
-          });
+        if (moveItem(this.settings.actions.actions, index, direction)) {
+          resyncOrder(this.settings.actions.actions);
         }
       },
 
@@ -1261,117 +1006,30 @@ export default {
             .find((s) => s.id === "actions")
             ?.fields.find((f) => f.key === "actions");
           if (actionsField) {
-            this.settings.actions = JSON.parse(
-              JSON.stringify(actionsField.defaultValue),
-            );
+            this.settings.actions = deepClone(actionsField.defaultValue);
             this.showStatus("Actions have been reset to default.", "success");
           }
         }
       },
 
       addNewPattern(actionIndex) {
-        if (!this.settings.actions.actions[actionIndex].matchPatterns) {
-          this.settings.actions.actions[actionIndex].matchPatterns = [];
-        }
-        this.settings.actions.actions[actionIndex].matchPatterns.push({
-          id: "pattern_" + Date.now(),
-          type: "startsWith",
-          pattern: "",
-          caseSensitive: false,
-        });
+        addPattern(this.settings.actions.actions[actionIndex]);
       },
 
       deletePattern(actionIndex, patternIndex) {
-        this.settings.actions.actions[actionIndex].matchPatterns.splice(
-          patternIndex,
-          1,
-        );
+        deletePatternUtil(this.settings.actions.actions[actionIndex], patternIndex);
       },
 
       addNewHandler(actionIndex) {
-        if (!this.settings.actions.actions[actionIndex].handlers) {
-          this.settings.actions.actions[actionIndex].handlers = [];
-        }
-        this.settings.actions.actions[actionIndex].handlers.push({
-          id: "handler_" + Date.now(),
-          type: "openUrl",
-          config: {
-            urlTemplate: "https://",
-            openInBackground: false,
-          },
-          order:
-            (this.settings.actions.actions[actionIndex].handlers.length || 0) +
-            1,
-          applyToNextSegment: false,
-          applyToAllSegments: false,
-          timingMode: "before_ai",
-        });
+        addHandler(this.settings.actions.actions[actionIndex]);
       },
 
       deleteHandler(actionIndex, handlerIndex) {
-        this.settings.actions.actions[actionIndex].handlers.splice(
-          handlerIndex,
-          1,
-        );
+        deleteHandlerUtil(this.settings.actions.actions[actionIndex], handlerIndex);
       },
 
       updateHandlerType(handler) {
-        if (!handler) return;
-
-        // Ensure config exists
-        if (!handler.config) {
-          handler.config = {};
-        }
-
-        // Reset config based on new type
-        switch (handler.type) {
-          case "openUrl":
-            handler.config = {
-              urlTemplate: "https://",
-              openInBackground: false,
-            };
-            break;
-          case "openApplication":
-            handler.config = {
-              applicationName: "{argument}",
-            };
-            break;
-          case "quitApplication":
-            handler.config = {
-              applicationName: "{argument}",
-              forceQuit: false,
-            };
-            break;
-          case "executeShell":
-            handler.config = {
-              command: "",
-              timeout: 10000,
-            };
-            break;
-          case "segmentAction":
-            handler.config = {
-              action: "replace",
-              replacementText: "{argument}",
-            };
-            break;
-          case "transformText":
-            handler.config = {
-              matchPattern: "",
-              matchFlags: "",
-              replacePattern: "",
-              replaceFlags: "g",
-              replacement: "",
-              replacementMode: "literal",
-            };
-            break;
-          default:
-            handler.config = {};
-        }
-
-        // Set default values for new action handler properties
-        handler.applyToNextSegment = false;
-        handler.applyToAllSegments = false;
-        handler.timingMode = "before_ai";
+        updateHandlerTypeUtil(handler, handler.type);
       },
 
       toggleConfigSection(itemId, sectionName) {
@@ -1413,14 +1071,7 @@ export default {
       },
 
       getPatternTypeBadge(type) {
-        if (!type) return "START";
-        const badges = {
-          startsWith: "START",
-          endsWith: "END",
-          exact: "EXACT",
-          regex: "REGEX",
-        };
-        return badges[type] || type.toUpperCase();
+        return getPatternTypeBadge(type);
       },
 
       toggleHandler(actionIndex, handlerIndex) {
@@ -1434,90 +1085,30 @@ export default {
       },
 
       getHandlerIcon(type) {
-        if (!type) return "ph ph-gear";
-        const icons = {
-          openUrl: "ph ph-link",
-          openApplication: "ph ph-app-window",
-          quitApplication: "ph ph-x-circle",
-          executeShell: "ph ph-terminal",
-          segmentAction: "ph ph-stack",
-          transformText: "ph ph-text-aa",
-        };
-        return icons[type] || "ph ph-gear";
+        return getHandlerIcon(type);
       },
 
       getHandlerTypeName(type) {
-        if (!type) return "Unknown";
-        const names = {
-          openUrl: "Open URL",
-          openApplication: "Open App",
-          quitApplication: "Quit App",
-          executeShell: "Shell",
-          segmentAction: "Segment",
-          transformText: "Transform",
-        };
-        return names[type] || type;
+        return getHandlerTypeName(type);
       },
 
       getHandlerSummary(handler) {
-        if (!handler || !handler.type) return "Configure...";
-        if (!handler.config) return "No config set";
-
-        switch (handler.type) {
-          case "openUrl":
-            return handler.config.urlTemplate || "No URL set";
-          case "openApplication":
-            return handler.config.applicationName || "No app set";
-          case "quitApplication":
-            return handler.config.applicationName || "No app set";
-          case "executeShell":
-            const cmd = handler.config.command || "";
-            return cmd.length > 50
-              ? cmd.substring(0, 50) + "..."
-              : cmd || "No command set";
-          case "segmentAction":
-            return handler.config.action || "No action set";
-          case "transformText":
-            const pattern = handler.config.replacePattern || "";
-            return pattern ? `Replace: ${pattern}` : "No pattern set";
-          default:
-            return "Configure...";
-        }
+        return getHandlerSummary(handler);
       },
 
       // --- RULES EDITOR METHODS ---
       addNewRule() {
-        if (!this.settings.rules) {
-          this.settings.rules = [];
-        }
-
-        this.settings.rules.push({
-          id: "rule_" + Date.now(),
-          name: "New Rule",
-          enabled: true,
-          examples: [
-            {
-              from: "",
-              to: "",
-            },
-          ],
-        });
+        addRule(this.settings);
       },
 
       deleteRule(index) {
         if (confirm("Delete this rule?")) {
-          this.settings.rules.splice(index, 1);
+          deleteRuleUtil(this.settings, index);
         }
       },
 
       moveRule(index, direction) {
-        const rules = this.settings.rules;
-        const newIndex = index + direction;
-
-        if (newIndex >= 0 && newIndex < rules.length) {
-          // Use array destructuring to swap elements reactively
-          [rules[index], rules[newIndex]] = [rules[newIndex], rules[index]];
-        }
+        moveRuleUtil(this.settings.rules, index, direction);
       },
 
       toggleRuleCard(ruleId) {
@@ -1530,56 +1121,30 @@ export default {
             .find((s) => s.id === "ai")
             ?.fields.find((f) => f.key === "rules");
           if (rulesField) {
-            this.settings.rules = JSON.parse(
-              JSON.stringify(rulesField.defaultValue),
-            );
+            this.settings.rules = deepClone(rulesField.defaultValue);
             this.showStatus("Rules have been reset to default.", "success");
           }
         }
       },
 
       addNewExample(ruleIndex) {
-        if (!this.settings.rules[ruleIndex].examples) {
-          this.settings.rules[ruleIndex].examples = [];
-        }
-        this.settings.rules[ruleIndex].examples.push({
-          from: "",
-          to: "",
-        });
+        addExample(this.settings.rules[ruleIndex]);
       },
 
       deleteExample(ruleIndex, exampleIndex) {
-        this.settings.rules[ruleIndex].examples.splice(exampleIndex, 1);
+        deleteExampleUtil(this.settings.rules[ruleIndex], exampleIndex);
       },
 
       updateRuleCondition(rule, condition, checked) {
-        if (!rule.if) {
-          rule.if = [];
-        }
-
-        if (checked && !rule.if.includes(condition)) {
-          rule.if.push(condition);
-        } else if (!checked && rule.if.includes(condition)) {
-          rule.if = rule.if.filter((c) => c !== condition);
-        }
+        updateRuleCondition(rule, condition, checked);
       },
 
       getConditionIcon(condition) {
-        const iconMap = {
-          selection: "ph-selection",
-          context: "ph-file-text",
-          writing_style: "ph-pen-nib",
-        };
-        return iconMap[condition] || "ph-gear";
+        return getConditionIcon(condition);
       },
 
       getConditionLabel(condition) {
-        const labelMap = {
-          selection: "Selection",
-          context: "Document",
-          writing_style: "Writing style",
-        };
-        return labelMap[condition] || condition;
+        return getConditionLabel(condition);
       },
 
       // --- ABOUT SECTION METHODS ---

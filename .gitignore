@@ -19,3 +19,4 @@ src/photon
 bin
 src/renderer-app/public/photon/
 src/renderer-app/public/*.js
+zi*

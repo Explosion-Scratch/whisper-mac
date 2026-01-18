@@ -104,30 +104,68 @@ export class TextInjectionService {
     await this.notificationService.sendClipboardNotification();
   }
 
-  async checkAccessibilityPermissions(): Promise<boolean> {
+  async checkAccessibilityPermissions(options: { forceCheck?: boolean } = {}): Promise<boolean> {
+    const { forceCheck = false } = options;
+    
     console.log(
-      "TextInjectionService.checkAccessibilityPermissions cache:",
-      this.accessibilityEnabled,
+      "TextInjectionService.checkAccessibilityPermissions:",
+      { cache: this.accessibilityEnabled, forceCheck },
     );
-    if (this.accessibilityEnabled !== null) {
+    
+    if (!forceCheck && this.accessibilityEnabled !== null) {
       return this.accessibilityEnabled;
     }
 
     try {
       const startedAt = Date.now();
-      const enabled = macInput?.checkPermissions
-        ? macInput.checkPermissions()
-        : systemPreferences.isTrustedAccessibilityClient(false);
+      let enabled: boolean;
+      
+      if (macInput?.checkPermissions) {
+        enabled = macInput.checkPermissions();
+      } else {
+        enabled = systemPreferences.isTrustedAccessibilityClient(false);
+      }
+      
       const durationMs = Date.now() - startedAt;
       this.accessibilityEnabled = Boolean(enabled);
       console.log(
-        "TextInjectionService.checkAccessibilityPermissions (in-process) result:",
-        { enabled: this.accessibilityEnabled, durationMs },
+        "TextInjectionService.checkAccessibilityPermissions result:",
+        { enabled: this.accessibilityEnabled, durationMs, forceCheck },
       );
       return this.accessibilityEnabled;
     } catch (error) {
       console.warn(
         "TextInjectionService.checkAccessibilityPermissions failed:",
+        error,
+      );
+      this.accessibilityEnabled = false;
+      return false;
+    }
+  }
+
+  async checkAccessibilityPermissionsWithPrompt(): Promise<boolean> {
+    console.log("TextInjectionService.checkAccessibilityPermissionsWithPrompt: prompting user");
+    
+    try {
+      const startedAt = Date.now();
+      let enabled: boolean;
+      
+      if (macInput?.checkPermissionsWithPrompt) {
+        enabled = macInput.checkPermissionsWithPrompt(true);
+      } else {
+        enabled = systemPreferences.isTrustedAccessibilityClient(true);
+      }
+      
+      const durationMs = Date.now() - startedAt;
+      this.accessibilityEnabled = Boolean(enabled);
+      console.log(
+        "TextInjectionService.checkAccessibilityPermissionsWithPrompt result:",
+        { enabled: this.accessibilityEnabled, durationMs },
+      );
+      return this.accessibilityEnabled;
+    } catch (error) {
+      console.warn(
+        "TextInjectionService.checkAccessibilityPermissionsWithPrompt failed:",
         error,
       );
       this.accessibilityEnabled = false;

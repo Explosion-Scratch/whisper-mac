@@ -267,6 +267,14 @@ const onboardingAPI = {
     console.log("Preload:onboarding.resetAccessibilityCache -> main");
     return ipcRenderer.invoke("onboarding:resetAccessibilityCache");
   },
+  checkAccessibilityWithPrompt: () => {
+    console.log("Preload:onboarding.checkAccessibilityWithPrompt -> main");
+    return ipcRenderer.invoke("onboarding:checkAccessibilityWithPrompt");
+  },
+  waitForAccessibility: (options?: { pollIntervalMs?: number; timeoutMs?: number }) => {
+    console.log("Preload:onboarding.waitForAccessibility -> main", options);
+    return ipcRenderer.invoke("onboarding:waitForAccessibility", options);
+  },
   checkMicrophone: () => ipcRenderer.invoke("onboarding:checkMicrophone"),
   resetMicrophoneCache: () =>
     ipcRenderer.invoke("onboarding:resetMicrophoneCache"),
