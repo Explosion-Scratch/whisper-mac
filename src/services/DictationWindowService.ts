@@ -40,15 +40,15 @@ export class DictationWindowService extends EventEmitter {
       appEventBus.emit("dictation-window-shown");
 
       // Wait a moment for the window to be ready, then initialize
-      setTimeout(() => {
-        if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
-          this.dictationWindow.webContents.send("initialize-dictation", {
-            selectedText: "",
-            hasSelection: false,
-            isRunOnAll,
-          });
-        }
-      }, 100);
+      if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+        this.dictationWindow.webContents.send("initialize-dictation", {
+          selectedText: "",
+          hasSelection: false,
+          isRunOnAll,
+        });
+      }
+
+      return;
 
       return;
     }
@@ -89,7 +89,7 @@ export class DictationWindowService extends EventEmitter {
   }
 
   private async createDictationWindow(): Promise<void> {
-    const DEBUG = false;
+    const DEBUG = true;
     const position = this.calculateWindowPositionSync();
 
     this.dictationWindow = new BrowserWindow({
@@ -113,6 +113,7 @@ export class DictationWindowService extends EventEmitter {
         nodeIntegration: false,
         contextIsolation: true,
         devTools: DEBUG ? true : false,
+        backgroundThrottling: false,
         preload: join(__dirname, "../preload/rendererAppPreload.js"),
       },
       show: false,
@@ -153,7 +154,12 @@ export class DictationWindowService extends EventEmitter {
 
         switch (channel) {
           case "close-dictation-window":
-            this.hideAndReloadWindow();
+            // Don't hide window here - let DictationFlowManager.finishCurrentDictation()
+            // handle the window lifecycle after transformation/injection completes.
+            // The IpcHandlerManager will call finishCurrentDictation() which properly
+            // shows status updates (transcribing, transforming, injecting, complete)
+            // and hides the window at the end.
+            this.emit("close-requested");
             break;
           case "cancel-dictation":
             this.hideAndReloadWindow();
@@ -171,6 +177,9 @@ export class DictationWindowService extends EventEmitter {
               "samples",
             );
             this.emit("vad-audio-segment", new Float32Array(args[0]));
+            break;
+          case "dictation-window-ready":
+            console.log("Dictation window signaled ready");
             break;
           default:
             console.log("Unknown IPC channel:", channel);
@@ -280,6 +289,24 @@ export class DictationWindowService extends EventEmitter {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       this.dictationWindow.webContents.send("dictation-stop-recording");
     }
+  }
+
+  sendAudioLevel(level: number): void {
+      if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+          this.dictationWindow.webContents.send("dictation-audio-level", level);
+      }
+  }
+
+  sendSpeechStart(): void {
+      if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+          this.dictationWindow.webContents.send("dictation-speech-start");
+      }
+  }
+
+  sendSpeechEnd(): void {
+      if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+          this.dictationWindow.webContents.send("dictation-speech-end");
+      }
   }
 
   async flushPendingAudio(): Promise<void> {

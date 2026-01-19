@@ -362,13 +362,30 @@ export class TranscriptionPluginManager extends EventEmitter {
    * When runOnAll is enabled, combine all buffered chunks and send one call to the plugin.
    */
   async finalizeBufferedAudio(): Promise<void> {
-    if (!this.activePlugin) return;
-    if (!this.bufferingEnabled) return;
+    console.log(`[TranscriptionPluginManager] finalizeBufferedAudio called:`, {
+      hasActivePlugin: !!this.activePlugin,
+      bufferingEnabled: this.bufferingEnabled,
+      chunksCount: this.bufferedAudioChunks.length,
+    });
+
+    if (!this.activePlugin) {
+      console.log(`[TranscriptionPluginManager] finalizeBufferedAudio: No active plugin, returning`);
+      return;
+    }
+    if (!this.bufferingEnabled) {
+      console.log(`[TranscriptionPluginManager] finalizeBufferedAudio: Buffering not enabled, returning`);
+      return;
+    }
     const total = this.bufferedAudioChunks.reduce(
       (acc, cur) => acc + cur.length,
       0,
     );
-    if (total === 0) return;
+    if (total === 0) {
+      console.log(`[TranscriptionPluginManager] finalizeBufferedAudio: No buffered audio (total=0), returning`);
+      return;
+    }
+
+    console.log(`[TranscriptionPluginManager] finalizeBufferedAudio: Processing ${this.bufferedAudioChunks.length} chunks, ${total} total samples`);
 
     // Check if plugin has its own finalizeBufferedAudio method
     if (typeof this.activePlugin.finalizeBufferedAudio === "function") {
@@ -393,8 +410,11 @@ export class TranscriptionPluginManager extends EventEmitter {
     this.bufferedAudioChunks = [];
     // Bypass manager buffering and call plugin directly
     try {
+      console.log(`[TranscriptionPluginManager] Calling plugin.processAudioSegment with ${combined.length} samples`);
       await this.activePlugin.processAudioSegment(combined);
+      console.log(`[TranscriptionPluginManager] Plugin.processAudioSegment completed`);
     } catch (e) {
+      console.error(`[TranscriptionPluginManager] Plugin.processAudioSegment failed:`, e);
       this.emit("plugin-error", { plugin: this.activePlugin.name, error: e });
     }
   }
@@ -404,11 +424,13 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   async processAudioSegment(audioData: Float32Array): Promise<void> {
     if (!this.activePlugin || !this.activePlugin.processAudioSegment) {
+      console.log(`[TranscriptionPluginManager] processAudioSegment: No active plugin or processAudioSegment method`);
       return;
     }
 
     if (this.bufferingEnabled) {
       this.bufferedAudioChunks.push(audioData);
+      console.log(`[TranscriptionPluginManager] Buffered audio chunk (${audioData.length} samples), total chunks: ${this.bufferedAudioChunks.length}`);
       return;
     }
 

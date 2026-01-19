@@ -113,6 +113,12 @@ export class TrayService {
       if (result.success) {
         console.log(`Successfully activated plugin: ${result.activePlugin}`);
 
+        // Persist the plugin selection to settings so it survives restarts
+        if (result.activePlugin) {
+          this.settingsManager.set("transcriptionPlugin", result.activePlugin);
+          this.settingsManager.saveSettings();
+        }
+
         // Show notification about plugin switch
         const targetPlugin = this.pluginManager.getPlugin(result.activePlugin!);
         if (targetPlugin) {

@@ -108,9 +108,9 @@ export class IpcHandlerManager {
       await this.onCancelDictation();
     });
 
-    ipcMain.on("close-dictation-window", () => {
-      console.log("Closing dictation window via IPC, finishing flow...");
-      this.onFinishDictation();
+    ipcMain.on("close-dictation-window", async () => {
+      console.log("Closing dictation window via IPC, cancelling flow...");
+      await this.onCancelDictation();
     });
 
     // Get selected microphone from settings

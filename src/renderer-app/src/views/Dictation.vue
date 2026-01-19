@@ -1,12 +1,12 @@
 <template>
-<div class="dictation-root" ref="dictationRoot">
+<div class="dictation-root" :class="{ visible: isVisible }" ref="dictationRoot">
   <div class="dictation-container">
     <div class="status-icn" :class="currentStatus">
       <div
         class="loading-circle"
         :class="{
           active:
-            currentStatus === 'transforming' || currentStatus === 'injecting',
+            isTranscribing || currentStatus === 'transforming' || currentStatus === 'injecting',
         }"
       ></div>
       <!-- Microphone icon for idle and recording states -->
@@ -16,7 +16,7 @@
       ></i>
 
       <!-- Spinner icon for transcribing state -->
-      <i v-else-if="currentStatus === 'transcribing'" class="ph ph-spinner"></i>
+      <i v-else-if="currentStatus === 'transcribing'" class="ph-duotone ph-waveform"></i>
 
       <!-- Sparkle icon for transforming state -->
       <i
@@ -39,7 +39,7 @@
 
     <div class="text-scroll-container" ref="textScrollContainer">
       <div class="wave-container" :class="{ active: showVisualizer }">
-        <canvas id="waveCanvas" class="wave-canvas" height="24"></canvas>
+        <canvas id="waveCanvas" class="wave-canvas" height="24" ref="visualizerCanvas"></canvas>
       </div>
       <div class="text-content" ref="textContent">
         <template v-if="!showVisualizer">

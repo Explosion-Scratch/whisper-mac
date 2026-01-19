@@ -958,7 +958,9 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     try {
       // Initialize useCoreML from options
       this.useCoreML =
-        this.options.useCoreML !== undefined ? this.options.useCoreML : false;
+        this.options.useCoreML !== undefined
+          ? this.options.useCoreML
+          : this.isAppleSilicon;
       this.resolvedBinaryPath = this.getBinaryPath(true);
 
       // Update activation criteria based on runOnAll option

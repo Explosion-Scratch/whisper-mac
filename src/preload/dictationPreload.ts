@@ -62,11 +62,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return createListenerWithCleanup("initialize-dictation", callback);
   },
 
-  onStartRecording: (callback: () => void) => {
+  onDictationStartRecording: (callback: () => void) => {
     return createSimpleListenerWithCleanup("dictation-start-recording", callback);
   },
 
-  onStopRecording: (callback: () => void) => {
+  onDictationStopRecording: (callback: () => void) => {
     return createSimpleListenerWithCleanup("dictation-stop-recording", callback);
   },
 
@@ -82,8 +82,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return createSimpleListenerWithCleanup("dictation-clear", callback);
   },
 
-  onSetStatus: (callback: (status: string) => void) => {
+  onDictationStatus: (callback: (status: string) => void) => {
     return createListenerWithCleanup("dictation-set-status", callback);
+  },
+
+  onAudioLevel: (callback: (level: number) => void) => {
+    return createListenerWithCleanup("dictation-audio-level", callback);
   },
 
   onPlayEndSound: (callback: () => void) => {
@@ -122,6 +126,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.send("vad-audio-segment", Array.from(audioData));
   },
 
+  sendDictationWindowReady: () => {
+    ipcRenderer.send("dictation-window-ready");
+  },
+
   getSelectedMicrophone: () => {
     return ipcRenderer.invoke("dictation:getSelectedMicrophone");
   },
@@ -147,12 +155,13 @@ declare global {
     electronAPI: {
       onAnimateIn: (callback: () => void) => () => void;
       onInitializeDictation: (callback: (data: DictationInitData) => void) => () => void;
-      onStartRecording: (callback: () => void) => () => void;
-      onStopRecording: (callback: () => void) => () => void;
+      onDictationStartRecording: (callback: () => void) => () => void;
+      onDictationStopRecording: (callback: () => void) => () => void;
       onTranscriptionUpdate: (callback: (update: TranscriptionUpdate) => void) => () => void;
       onDictationComplete: (callback: (finalText: string) => void) => () => void;
       onDictationClear: (callback: () => void) => () => void;
-      onSetStatus: (callback: (status: string) => void) => () => void;
+      onDictationStatus: (callback: (status: string) => void) => () => void;
+      onAudioLevel: (callback: (level: number) => void) => () => void;
       onError: (callback: (payload: any) => void) => () => void;
       closeDictationWindow: () => void;
       cancelDictation: () => void;
@@ -162,6 +171,7 @@ declare global {
       onWindowHidden: (callback: () => void) => () => void;
       onFlushPendingAudio: (callback: () => void) => () => void;
       sendAudioSegment: (audioData: Float32Array) => void;
+      sendDictationWindowReady: () => void;
       getSelectedMicrophone: () => Promise<string>;
       setSelectedMicrophone: (deviceId: string) => Promise<{ success: boolean }>;
       cleanup: () => void;

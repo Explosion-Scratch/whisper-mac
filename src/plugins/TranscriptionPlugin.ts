@@ -418,6 +418,12 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
         .replace(/\[unintelligible\]/gi, "")
         .replace(/\[music\]/gi, "")
         .replace(/\[noise\]/gi, "")
+        // Remove stuttering artifacts: repeated single letters/characters with spaces
+        // e.g., "s s s s s s" or "e e e e e"
+        // Pattern: 3 or more occurrences of the same single character separated by spaces
+        .replace(/\b([\w])(?: \1){2,}\b/gi, "")
+        // Clean up any double spaces left after removal
+        .replace(/\s+/g, " ")
         .trim()
     );
   }

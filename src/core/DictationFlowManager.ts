@@ -1,5 +1,6 @@
 import { TranscriptionPluginManager } from "../plugins";
 import { DictationWindowService } from "../services/DictationWindowService";
+import { AudioCaptureService } from "../services/AudioCaptureService";
 import { SegmentManager } from "../services/SegmentManager";
 import { TrayService } from "../services/TrayService";
 import { SegmentUpdate } from "../types/SegmentTypes";
@@ -26,11 +27,24 @@ export class DictationFlowManager {
     private segmentManager: SegmentManager,
     private trayService: TrayService | null,
     private errorManager: ErrorManager,
+    private audioCaptureService: AudioCaptureService,
   ) {
-    this.dictationWindowService.on(
-      "vad-audio-segment",
-      this.processVadAudioSegment.bind(this),
-    );
+    this.audioCaptureService.on("vad-segment", (audio: Float32Array) => {
+        console.log(`[DictationFlowManager] Received vad-segment event (${audio.length} samples), state=${this.state}`);
+        this.processVadAudioSegment(audio);
+    });
+    
+    this.audioCaptureService.on("audio-level", (level: number) => {
+         this.dictationWindowService.sendAudioLevel(level);
+    });
+
+    this.audioCaptureService.on("speech-start", () => {
+         this.dictationWindowService.sendSpeechStart();
+    });
+
+    this.audioCaptureService.on("speech-end", () => {
+         this.dictationWindowService.sendSpeechEnd();
+    });
   }
 
   setTrayService(trayService: TrayService | null): void {
@@ -59,10 +73,15 @@ export class DictationFlowManager {
     promiseManager.start(`dictation:init:${sessionId}`);
     const startTime = Date.now();
     try {
+      console.log(`[Perf] Sending start recording command at ${Date.now()}`);
       console.log("=== Starting dictation process ===");
 
       this.clearState();
       this.setupAccumulatingMode();
+
+      promiseManager.start(`dictation:transcription:start:${sessionId}`);
+      await this.startTranscription();
+      promiseManager.resolve(`dictation:transcription:start:${sessionId}`);
 
       promiseManager.start(`dictation:window:show:${sessionId}`);
       const windowStartTime = Date.now();
@@ -71,15 +90,14 @@ export class DictationFlowManager {
       const runOnAllSession =
         !!criteria?.runOnAll ||
         this.transcriptionPluginManager.willBufferNextSession();
+      
+      // Start recording immediately
+      await this.startRecording();
+      
       await this.dictationWindowService.showDictationWindow(runOnAllSession);
       const windowEndTime = Date.now();
       console.log(`Window display: ${windowEndTime - windowStartTime}ms`);
       promiseManager.resolve(`dictation:window:show:${sessionId}`);
-
-      promiseManager.start(`dictation:transcription:start:${sessionId}`);
-      await this.startTranscription();
-      this.startRecording();
-      promiseManager.resolve(`dictation:transcription:start:${sessionId}`);
 
       promiseManager.resolve(`dictation:init:${sessionId}`);
 
@@ -125,14 +143,28 @@ export class DictationFlowManager {
         this.transcriptionPluginManager.getActivePluginActivationCriteria();
       const bufferingEnabled =
         this.transcriptionPluginManager.isBufferingEnabledForActivePlugin();
+      const hasBufferedAudio = this.transcriptionPluginManager.hasBufferedAudio();
       const skipAllTransforms = !!criteria?.skipAllTransforms;
       const skipTransformation =
         !!options.skipTransformation || pendingSkipTransformation || !!criteria?.skipTransformation;
 
+      // Diagnostic logging for intermittent no-transcription bug
+      console.log(`[DictationFlowManager] finishCurrentDictation state:`, {
+        bufferingEnabled,
+        hasBufferedAudio,
+        segmentsCount: this.segmentManager.getAllSegments().length,
+        hasSegmentsToProcess: this.hasSegmentsToProcess(),
+        criteria,
+      });
+
       console.log(
         `=== Finishing current dictation with ${skipTransformation ? "raw injection" : "transform+inject"} ===`,
       );
-      this.dictationWindowService.stopRecording(); // Stop VAD audio processing
+      this.dictationWindowService.stopRecording(); // UI update
+      
+      // Stop audio capture - fallback audio is already emitted as vad-segment event
+      // and processed by the event listener, so we don't need to process the return value
+      await this.audioCaptureService.stopCapture();
       
       // Coordinate audio stop
       if (this.currentSessionId) {
@@ -143,6 +175,15 @@ export class DictationFlowManager {
         await new Promise((resolve) => setTimeout(resolve, 300));
       }
 
+      // Re-check buffered audio state after 300ms wait (it may have changed)
+      const hasBufferedAudioAfterWait = this.transcriptionPluginManager.hasBufferedAudio();
+      const segmentsAfterWait = this.segmentManager.getAllSegments().length;
+      console.log(`[DictationFlowManager] After 300ms wait:`, {
+        hasBufferedAudioAfterWait,
+        segmentsAfterWait,
+        hasSegmentsToProcess: this.hasSegmentsToProcess(),
+      });
+
       if (!this.hasSegmentsToProcess()) {
         if (
           !(
@@ -150,7 +191,7 @@ export class DictationFlowManager {
             this.transcriptionPluginManager.hasBufferedAudio()
           )
         ) {
-          console.log("No segments found, cancelling dictation immediately");
+          console.log(`[DictationFlowManager] CANCELLING: No segments found. bufferingEnabled=${bufferingEnabled}, hasBufferedAudio=${this.transcriptionPluginManager.hasBufferedAudio()}`);
           await this.cancelDictationFlow();
           return;
         }
@@ -329,7 +370,9 @@ console.log(
       appStore.setDictationState("recording");
       this.updateTrayIcon("recording");
       this.dictationWindowService.setStatus("recording");
+      this.dictationWindowService.setStatus("recording");
       this.dictationWindowService.startRecording();
+      await this.audioCaptureService.startCapture();
       
       promiseManager.resolve(flushId, result);
     } catch (error) {
@@ -459,9 +502,10 @@ console.log(
     }
   }
 
-  private startRecording(): void {
+  private async startRecording(): Promise<void> {
     this.trayService?.updateTrayIcon("recording");
     this.dictationWindowService.startRecording();
+    await this.audioCaptureService.startCapture();
   }
 
   private async processVadAudioSegment(audioData: Float32Array): Promise<void> {

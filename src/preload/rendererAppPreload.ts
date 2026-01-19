@@ -41,10 +41,10 @@ const dictationAPI = {
   onInitializeDictation: (callback: (data: any) => void) => {
     return createListenerWithCleanup("initialize-dictation", callback);
   },
-  onStartRecording: (callback: () => void) => {
+  onDictationStartRecording: (callback: () => void) => {
     return createSimpleListenerWithCleanup("dictation-start-recording", callback);
   },
-  onStopRecording: (callback: () => void) => {
+  onDictationStopRecording: (callback: () => void) => {
     return createSimpleListenerWithCleanup("dictation-stop-recording", callback);
   },
   onTranscriptionUpdate: (callback: (update: any) => void) => {
@@ -56,7 +56,7 @@ const dictationAPI = {
   onDictationClear: (callback: () => void) => {
     return createSimpleListenerWithCleanup("dictation-clear", callback);
   },
-  onSetStatus: (callback: (status: string) => void) => {
+  onDictationStatus: (callback: (status: string) => void) => {
     return createListenerWithCleanup("dictation-set-status", callback);
   },
   onPlayEndSound: (callback: () => void) => {
@@ -85,6 +85,18 @@ const dictationAPI = {
   },
   sendAudioSegment: (audioData: Float32Array) => {
     ipcRenderer.send("vad-audio-segment", Array.from(audioData));
+  },
+  sendDictationWindowReady: () => {
+    ipcRenderer.send("dictation-window-ready");
+  },
+  onAudioLevel: (callback: (level: number) => void) => {
+    return createListenerWithCleanup("dictation-audio-level", callback);
+  },
+  onDictationSpeechStart: (callback: () => void) => {
+    return createSimpleListenerWithCleanup("dictation-speech-start", callback);
+  },
+  onDictationSpeechEnd: (callback: () => void) => {
+    return createSimpleListenerWithCleanup("dictation-speech-end", callback);
   },
   getSelectedMicrophone: () => {
     return ipcRenderer.invoke("dictation:getSelectedMicrophone");

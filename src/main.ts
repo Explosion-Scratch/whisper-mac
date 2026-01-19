@@ -19,6 +19,7 @@ import { SegmentManager } from "./services/SegmentManager";
 import { UnifiedModelDownloadService } from "./services/UnifiedModelDownloadService";
 import { TrayService } from "./services/TrayService";
 import { LoginItemService } from "./services/LoginItemService";
+import { AudioCaptureService } from "./services/AudioCaptureService";
 import { DefaultActionsConfig } from "./types/ActionTypes";
 
 import {
@@ -50,6 +51,7 @@ class WhisperMacApp {
   private configurableActionsService!: ConfigurableActionsService;
   private segmentManager!: SegmentManager;
   private settingsManager!: SettingsManager;
+  private audioCaptureService!: AudioCaptureService;
   private trayService: TrayService | null = null;
 
   private appStateManager!: AppStateManager;
@@ -104,6 +106,7 @@ class WhisperMacApp {
       this.configurableActionsService,
     );
     this.settingsManager = new SettingsManager(this.config);
+    this.audioCaptureService = new AudioCaptureService(this.config);
 
     // ConfigurableActionsService is now stateless regarding segments, no setSegmentManager needed
   }
@@ -120,6 +123,7 @@ class WhisperMacApp {
       this.segmentManager,
       this.trayService,
       this.errorManager,
+      this.audioCaptureService,
     );
     this.ipcHandlerManager = new IpcHandlerManager(
       this.transcriptionPluginManager,

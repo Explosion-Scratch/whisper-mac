@@ -12,6 +12,8 @@ export default {
         const isRunOnAllPlugin = ref(false);
         const selectedText = ref("");
         const isSpeaking = ref(false);
+        const isVisible = ref(false);
+        const dictationRoot = ref(null);
 
         const displaySegments = computed(() => {
             if (finalText.value) {
@@ -41,527 +43,193 @@ export default {
             return result;
         });
 
+        // Show visualizer when:
+        // 1. User is actively speaking (takes precedence over everything)
+        // 2. No segments exist and we're in an active state (recording/processing/transcribing)
         const showVisualizer = computed(() => {
-            // Priority 1: If the user is speaking, always show the visualizer.
+            // Speaking takes precedence - always show visualizer when user is speaking
             if (isSpeaking.value) {
                 return true;
             }
-            if (currentStatus.value === "idle" && isRecording.value) {
-                return true;
-            }
-            // Priority 2: In these final states, never show the visualizer.
-            if (
-                ["transforming", "injecting", "complete"].includes(
-                    currentStatus.value,
-                )
-            ) {
-                return false;
-            }
-
-            // Priority 3: If we have text segments to display, hide the visualizer to show them.
+            
+            // If there are segments, show them (not the visualizer) unless speaking
             if (displaySegments.value.length > 0) {
                 return false;
             }
-
-            // Priority 4: If we are 'transcribing' but have no segments, hide visualizer to show 'Transcribing...'.
-            if (
-                currentStatus.value === "transcribing" &&
-                displaySegments.value.length === 0
-            ) {
-                return false;
-            }
-
-            // Priority 5: If we are in the 'recording' state without any text, show the visualizer.
-            if (currentStatus.value === "recording") {
-                return true;
-            }
-
-            return false; // Default case
+            
+            // No segments - show visualizer during active states
+            return currentStatus.value === "recording" || 
+                   currentStatus.value === "processing" || 
+                   currentStatus.value === "transcribing" ||
+                   currentStatus.value === "transforming" ||
+                   currentStatus.value === "injecting";
+        });
+        
+        // Icon should show loading spinner when transcribing
+        const isTranscribing = computed(() => {
+            return currentStatus.value === "transcribing" || 
+                   currentStatus.value === "processing";
         });
 
-        const hasTranscription = computed(() => {
-            return transcriptionSegments.value.length > 0 || finalText.value;
-        });
-
-        const textContent = ref(null);
+        // Refs
+        const visualizerCanvas = ref(null);
         const textScrollContainer = ref(null);
-        const dictationRoot = ref(null);
         let visualizer = null;
-        let resizeObserver = null;
 
-        // VAD state
-        const vadInstance = ref(null);
-        const isVadInitialized = ref(false);
-        const mediaStream = ref(null);
-        let audioContext = null;
-        let analyser = null;
-        let sourceNode = null;
-        let rmsArray = null;
-        let allowFinalFlush = false;
-        let deviceChangeTimeout = null;
-
-        const scrollToEnd = () => {
-            if (textScrollContainer.value) {
-                textScrollContainer.value.scrollLeft =
-                    textScrollContainer.value.scrollWidth;
+        const initialize = () => {
+            // Signal ready
+            window.electronAPI.sendDictationWindowReady();
+            
+            if (visualizerCanvas.value) {
+                try {
+                    visualizer = createAudioVisualizer(visualizerCanvas.value, {
+                        getLevel: () => currentAudioLevel.value,
+                        bars: 30, // Adjust bars for the smaller window usually
+                        smoothing: 0.5,
+                        maxHeightRatio: 0.8
+                    });
+                    
+                    if (isRecording.value) {
+                        visualizer.start();
+                    }
+                } catch (e) {
+                    console.error("Failed to initialize visualizer:", e);
+                }
             }
         };
 
-        // Methods
-        const resetTranscription = () => {
-            transcriptionSegments.value = [];
-            finalText.value = "";
-            currentAudioLevel.value = 0;
+        const cleanup = () => {
+            if (visualizer) {
+                visualizer.stop();
+            }
         };
-
-        // Sound feedback
-        const playStartSound = () => {
-            try {
-                const startSound = document.getElementById("startSound");
-                if (startSound) {
-                    startSound.volume = 0.8;
-                    startSound.play().catch(() => { });
+        
+        // Watch recording state to start/stop visualizer to save resources
+        watch(isRecording, (newValue) => {
+            if (visualizer) {
+                if (newValue) {
+                    visualizer.start();
+                } else {
+                    // We might want to keep it running purely for fade out or if processing
+                    // But typically stop to save CPU
+                    // However, if we want to show 'processing' animations, we might need manual drawing
+                    // The visualizer is strictly for audio levels.
+                    visualizer.stop();
                 }
-            } catch (_) { }
+            }
+        });
+        
+        // Auto-scroll to show latest segment when segments update
+        const scrollToLatest = () => {
+            if (textScrollContainer.value) {
+                nextTick(() => {
+                    textScrollContainer.value.scrollLeft = textScrollContainer.value.scrollWidth;
+                });
+            }
         };
+        
+        // Watch for segment changes and auto-scroll
+        watch(displaySegments, () => {
+            scrollToLatest();
+        }, { deep: true });
 
-        const playEndSound = () => {
-            try {
-                const endSound = document.getElementById("endSound");
-                if (endSound) {
-                    endSound.volume = 0.8;
-                    endSound.play().catch(() => { });
-                }
-            } catch (_) { }
+        const handleClose = () => {
+            window.electronAPI.closeDictationWindow();
         };
 
         const getSegmentClass = (segment) => {
-            if (segment.type === "transcribed") {
-                return segment.completed ? "transcribed" : "in-progress";
+            if (segment.completed || segment.type === "transcribed") {
+                return "transcribed";
             }
-            if (segment.type === "inprogress") return "in-progress";
-            return "";
+            return "in-progress";
         };
 
-        const getSegmentDisplayText = (segment) => {
-            return segment.text;
-        };
+        onMounted(() => {
+            // Defer initialization to ensure canvas is mounted (if v-if allows)
+            nextTick(() => {
+                initialize();
+            });
 
-        setInterval(() => {
-            if (analyser && rmsArray) {
-                try {
-                    analyser.getFloatTimeDomainData(rmsArray);
-                    let sum = 0;
-                    for (let i = 0; i < rmsArray.length; i++) {
-                        const v = rmsArray[i];
-                        sum += v * v;
-                    }
-                    const rms = Math.sqrt(sum / rmsArray.length);
-                    const scaled = Math.min(1, rms * 8);
-                    currentAudioLevel.value = scaled;
-                } catch (_) { }
-            }
-        }, 50);
-
-        const handleClose = () => {
-            disableVADStream();
-            playEndSound();
-            window.electronAPI.cancelDictation();
-        };
-
-        const createVAD = (stream) => window.vad.MicVAD.new({
-                    // Needs trailing slash
-                    baseAssetPath: "./vad/",
-                    // Needs protocol
-                    onnxWASMBasePath: './',
-                    model: "v5",
-                    positiveSpeechThreshold: 0.5,
-                    negativeSpeechThreshold: 0.35,
-                    preSpeechPadFrames: 40,
-                    redemptionFrames: 10,
-                    frameSamples: 512,
-                    minSpeechFrames: 3,
-                    submitUserSpeechOnPause: true,
-                    stream: stream,
-                    onSpeechStart: () => {
-                        isSpeaking.value = true;
-                    },
-                    onSpeechEnd: (audio) => {
-                        isSpeaking.value = false;
-                        if (
-                            (isRecording.value || allowFinalFlush) &&
-                            audio.length > 0
-                        ) {
-                            window.electronAPI.sendAudioSegment(audio);
-                            allowFinalFlush = false;
-                        }
-                    },
+            // IPC Listeners
+            if (window.electronAPI.onAudioLevel) {
+                window.electronAPI.onAudioLevel((level) => {
+                    currentAudioLevel.value = level;
+                    // VAD now handles isSpeaking
                 });
-        // VAD Methods
-        const initializeVAD = async () => {
-            try {
-
-                // Get selected microphone from settings
-                const selectedMicrophone = await window.electronAPI.getSelectedMicrophone() || "default";
-
-                // Validate device availability if not using default
-                if (selectedMicrophone !== "default") {
-                    const isAvailable = await checkDeviceAvailability(selectedMicrophone);
-                    if (!isAvailable) {
-                        console.log(
-                            `Selected device ${selectedMicrophone} is not available, resetting to default`
-                        );
-                        await window.electronAPI.setSelectedMicrophone("default");
-                        // Recursively call with default to avoid code duplication
-                        return await initializeVAD();
-                    }
-                }
-
-                // Build audio constraints with selected microphone
-                const audioConstraints = {
-                    sampleRate: 16000,
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                };
-
-                // Add device ID if not using default
-                if (selectedMicrophone !== "default") {
-                    audioConstraints.deviceId = { exact: selectedMicrophone };
-                }
-
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: audioConstraints,
-                });
-
-                mediaStream.value = stream;
-                stream
-                    .getAudioTracks()
-                    .forEach((track) => (track.enabled = false));
-                const myVAD = await createVAD(stream);
-                vadInstance.value = myVAD;
-                isVadInitialized.value = true;
-                await startVAD();
-            } catch (error) {
-                console.error("Failed to initialize VAD:", error);
-                // If specific microphone fails, try with default
-                try {
-                    console.log("Falling back to default microphone");
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        audio: {
-                            sampleRate: 16000,
-                            channelCount: 1,
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                        },
-                    });
-
-                    mediaStream.value = stream;
-                    stream
-                        .getAudioTracks()
-                        .forEach((track) => (track.enabled = false));
-                    const myVAD = await createVAD(stream);
-                    vadInstance.value = myVAD;
-                    isVadInitialized.value = true;
-                    await startVAD();
-                } catch (fallbackError) {
-                    console.error("Failed to initialize VAD with fallback:", fallbackError);
-                }
             }
-        };
 
-        const startVAD = async () => {
-            if (!isVadInitialized.value) await initializeVAD();
-            if (vadInstance.value) await vadInstance.value.start();
-        };
+             window.electronAPI.onDictationStartRecording(() => {
+                 isRecording.value = true;
+                 currentStatus.value = "recording";
+             });
+             
+             window.electronAPI.onDictationStopRecording(() => {
+                 isRecording.value = false;
+                 currentStatus.value = "processing";
+             });
+             
+             window.electronAPI.onTranscriptionUpdate((update) => {
+                 if (update && update.segments) {
+                     transcriptionSegments.value = update.segments;
+                 }
+             });
+             
+             window.electronAPI.onDictationComplete((text) => {
+                 finalText.value = text;
+                 currentStatus.value = "idle";
+                 isRecording.value = false;
+             });
+             
+             window.electronAPI.onDictationClear(() => {
+                 transcriptionSegments.value = [];
+                 finalText.value = "";
+                 currentStatus.value = "idle";
+             });
+                          window.electronAPI.onDictationStatus((status) => {
+                  currentStatus.value = status;
+                  if (status === "idle") {
+                      isRecording.value = false;
+                  }
+              });
 
-        const enableVADStream = async () => {
-            if (mediaStream.value) {
-                mediaStream.value
-                    .getAudioTracks()
-                    .forEach((track) => (track.enabled = true));
-                if (!audioContext)
-                    audioContext = new (window.AudioContext ||
-                        window.webkitAudioContext)();
-                if (sourceNode) sourceNode.disconnect();
-                sourceNode = audioContext.createMediaStreamSource(
-                    mediaStream.value,
-                );
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 512;
-                rmsArray = new Float32Array(analyser.fftSize);
-                sourceNode.connect(analyser);
-            }
-        };
+              window.electronAPI.onAnimateIn(() => {
+                  isVisible.value = true;
+              });
 
-        const disableVADStream = async () => {
-            if (mediaStream.value) {
-                mediaStream.value
-                    .getAudioTracks()
-                    .forEach((track) => (track.enabled = false));
-            }
-            if (sourceNode) sourceNode.disconnect();
-            sourceNode = null;
-            analyser = null;
-            rmsArray = null;
-        };
+              window.electronAPI.onWindowHidden(() => {
+                  isVisible.value = false;
+              });
 
-        const stopVAD = async () => {
-            if (vadInstance.value) await vadInstance.value.pause();
-        };
+              if (window.electronAPI.onDictationSpeechStart) {
+                  window.electronAPI.onDictationSpeechStart(() => {
+                      isSpeaking.value = true;
+                  });
+              }
 
-        const stopMediaStream = () => {
-            if (mediaStream.value) {
-                mediaStream.value.getTracks().forEach((track) => track.stop());
-                mediaStream.value = null;
-            }
-        };
-
-        const cleanupMediaStream = () => {
-            stopMediaStream();
-        };
-
-        const cleanupVAD = async () => {
-            if (vadInstance.value) {
-                try {
-                    await vadInstance.value.pause();
-                } catch (e) {
-                    console.error("Error pausing VAD:", e);
-                }
-                vadInstance.value = null;
-            }
-            cleanupMediaStream();
-            isVadInitialized.value = false;
-        };
-
-        const checkDeviceAvailability = async (deviceId) => {
-            if (deviceId === "default") {
-                return true;
-            }
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                return devices.some(
-                    (device) =>
-                        device.kind === "audioinput" && device.deviceId === deviceId
-                );
-            } catch (error) {
-                console.error("Error checking device availability:", error);
-                return false;
-            }
-        };
-
-        const handleDeviceChange = async () => {
-            if (deviceChangeTimeout) {
-                clearTimeout(deviceChangeTimeout);
-            }
-            deviceChangeTimeout = setTimeout(async () => {
-                try {
-                    const selectedMicrophone =
-                        (await window.electronAPI.getSelectedMicrophone()) || "default";
-
-                    if (selectedMicrophone === "default") {
-                        return;
-                    }
-
-                    const isAvailable = await checkDeviceAvailability(
-                        selectedMicrophone
-                    );
-
-                    if (!isAvailable) {
-                        console.log(
-                            `Selected device ${selectedMicrophone} is no longer available, resetting to default`
-                        );
-                        await window.electronAPI.setSelectedMicrophone("default");
-                        const wasInitialized = isVadInitialized.value;
-                        const wasRecording = isRecording.value;
-                        await cleanupVAD();
-                        await initializeVAD();
-                        if (wasInitialized && wasRecording) {
-                            await startRecording();
-                        }
-                    }
-                } catch (error) {
-                    console.error("Error handling device change:", error);
-                }
-            }, 500);
-        };
-
-        // IPC event handlers
-        const initializeDictation = (data) => {
-            selectedText.value = data.selectedText || "";
-            isRunOnAllPlugin.value = data.isRunOnAll || false;
-            resetTranscription();
-            isSpeaking.value = false;
-            allowFinalFlush = false;
-            currentStatus.value = "idle";
-        };
-
-        const startRecording = async () => {
-            isRecording.value = true;
-            allowFinalFlush = false;
-            resetTranscription();
-            if (!mediaStream.value || !isVadInitialized.value) {
-                await initializeVAD();
-            }
-            await enableVADStream();
-            await startVAD();
-            nextTick(setupVisualizer);
-        };
-
-        const stopRecording = async () => {
-            isRecording.value = false;
-            allowFinalFlush = true;
-            await stopVAD();
-            setTimeout(async () => {
-                allowFinalFlush = false;
-                await disableVADStream();
-                teardownVisualizer();
-                stopMediaStream();
-            }, 320);
-        };
-
-        const updateTranscription = (update) => {
-            transcriptionSegments.value = update.segments;
-        };
-
-        const completeDictation = (text) => {
-            finalText.value = text;
-            transcriptionSegments.value = [
-                { type: "transcribed", text, completed: true },
-            ];
-        };
-
-        const clearDictation = () => {
-            isRecording.value = false;
-            resetTranscription();
-            isSpeaking.value = false;
-            allowFinalFlush = false;
-        };
-
-        const flushPendingAudio = async () => {
-            console.log("[DictationWindow] Flushing pending audio...");
-            if (vadInstance.value) {
-                await vadInstance.value.pause();
-                await vadInstance.value.start();
-            }
-            transcriptionSegments.value = [];
-            finalText.value = "";
-        };
-
-        watch([displaySegments], () => nextTick(scrollToEnd));
-
-        onMounted(async () => {
-            console.log("Dictation window mounted, pre-initializing VAD...");
-            initializeVAD().catch(err => console.error("VAD pre-init failed:", err));
-
-            window.electronAPI.onAnimateIn(async () => {
-                if (dictationRoot.value) {
-                    dictationRoot.value.classList.add("visible");
-                }
-                playStartSound();
-            });
-            window.electronAPI.onInitializeDictation(initializeDictation);
-            window.electronAPI.onStartRecording(startRecording);
-            window.electronAPI.onStopRecording(stopRecording);
-            window.electronAPI.onTranscriptionUpdate(updateTranscription);
-            window.electronAPI.onDictationComplete(completeDictation);
-            window.electronAPI.onDictationClear(clearDictation);
-            window.electronAPI.onSetStatus(
-                (status) => (currentStatus.value = status),
-            );
-            window.electronAPI.onPlayEndSound(playEndSound);
-            window.electronAPI.onWindowHidden(() => {
-                stopMediaStream();
-            });
-            window.electronAPI.onFlushPendingAudio(flushPendingAudio);
-            setupVisualizer();
-            document.addEventListener("dragstart", (e) => e.preventDefault());
-            window.addEventListener("beforeunload", () => {
-                playEndSound();
-                cleanupMediaStream();
-            });
-
-            document.addEventListener("visibilitychange", () => {
-                if (document.hidden) {
-                    stopMediaStream();
-                }
-            });
-
-            // Listen for device changes
-            navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+              if (window.electronAPI.onDictationSpeechEnd) {
+                  window.electronAPI.onDictationSpeechEnd(() => {
+                      isSpeaking.value = false;
+                  });
+              }
         });
 
         onUnmounted(() => {
-            if (deviceChangeTimeout) {
-                clearTimeout(deviceChangeTimeout);
-            }
-            navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
-            cleanupVAD();
+            cleanup();
         });
 
-        function setupVisualizer() {
-            const container = textScrollContainer.value;
-            const canvas = document.getElementById("waveCanvas");
-            if (!container || !canvas) return;
-            canvas.width = container.offsetWidth;
-            if (!visualizer) {
-                visualizer = createAudioVisualizer(canvas, {
-                    getLevel: () => currentAudioLevel.value,
-                    bars: 64,
-                    smoothing: 0.6,
-                });
-                visualizer.start();
-            }
-            if (!resizeObserver) {
-                resizeObserver = new ResizeObserver(() => {
-                    canvas.width = container.offsetWidth;
-                    if (visualizer) visualizer.resize();
-                });
-                resizeObserver.observe(container);
-            }
-        }
-
-        function teardownVisualizer() {
-            try {
-                if (visualizer && typeof visualizer.stop === "function") {
-                    visualizer.stop();
-                }
-            } catch (_) { }
-            visualizer = null;
-            if (resizeObserver && textScrollContainer.value) {
-                try {
-                    resizeObserver.unobserve(textScrollContainer.value);
-                } catch (_) { }
-            }
-            resizeObserver = null;
-            const canvas = document.getElementById("waveCanvas");
-            if (canvas && canvas.getContext) {
-                const ctx = canvas.getContext("2d");
-                if (ctx) {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                }
-            }
-        }
-
-    const statusIconClass = computed(() => currentStatus.value);
-
-    return {
-      isRecording,
-      currentStatus,
-      finalText,
-      showVisualizer,
-      isRunOnAllPlugin,
-      selectedText,
-      statusIconClass,
-      hasTranscription,
-      displaySegments,
-      textContent,
-      textScrollContainer,
-      dictationRoot,
-      resetTranscription,
-      getSegmentClass,
-      getSegmentDisplayText,
-      handleClose,
-    };
-  },
+        return {
+            isRecording,
+            currentStatus,
+            displaySegments,
+            showVisualizer,
+            isTranscribing,
+            visualizerCanvas,
+            textScrollContainer,
+            dictationRoot,
+            isVisible,
+            currentAudioLevel,
+            handleClose,
+            getSegmentClass
+        };
+  }
 };

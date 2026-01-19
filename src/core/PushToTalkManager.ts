@@ -23,8 +23,6 @@ type PushToTalkState =
   | "active"
   | "stopping";
 
-const STATE_TIMEOUT_MS = 5000;
-
 const dedupeModifierCombos = (combos: ModifierCombo[]): ModifierCombo[] => {
   const seen = new Set<string>();
   const result: ModifierCombo[] = [];
@@ -51,7 +49,6 @@ export class PushToTalkManager {
   private hotkeyMatcher: HotkeyMatcher | null = null;
 
   private pttState: PushToTalkState = "idle";
-  private stateTimeoutId: NodeJS.Timeout | null = null;
   private lastStateChangeTime = 0;
 
   constructor(
@@ -102,7 +99,6 @@ export class PushToTalkManager {
       this.dictationStateUnsubscribe = undefined;
     }
 
-    this.clearStateTimeout();
     this.transitionTo("idle");
     this.hotkeyMatcher = null;
     this.currentHotkey = null;
@@ -118,51 +114,13 @@ export class PushToTalkManager {
     this.pttState = newState;
     this.lastStateChangeTime = Date.now();
 
-    this.clearStateTimeout();
-
     appStore.setState({
       dictation: {
         ...appStore.getState().dictation,
         pushToTalkActive: newState !== "idle",
       },
     });
-
-    if (newState === "starting" || newState === "stopping") {
-      this.stateTimeoutId = setTimeout(() => {
-        console.warn(`[PushToTalkManager] State ${newState} timed out after ${STATE_TIMEOUT_MS}ms, recovering to idle`);
-        this.recoverToIdle();
-      }, STATE_TIMEOUT_MS);
-    }
-  }
-
-  private clearStateTimeout(): void {
-    if (this.stateTimeoutId) {
-      clearTimeout(this.stateTimeoutId);
-      this.stateTimeoutId = null;
-    }
-  }
-
-  private async recoverToIdle(): Promise<void> {
-    console.log("[PushToTalkManager] Recovering to idle state");
-    this.clearStateTimeout();
-
-    try {
-      if (this.dictationFlowManager.isRecording() || this.dictationFlowManager.isFinishing()) {
-        await this.dictationFlowManager.cancelDictationFlow();
-      }
-    } catch (error) {
-      console.error("[PushToTalkManager] Error during recovery:", error);
-    }
-
-    this.pttState = "idle";
-    this.startPromise = null;
-
-    appStore.setState({
-      dictation: {
-        ...appStore.getState().dictation,
-        pushToTalkActive: false,
-      },
-    });
+    // PTT state is now driven by dictation state subscription - no timeouts needed
   }
 
   private registerWithMacInput(): void {
@@ -381,6 +339,7 @@ export class PushToTalkManager {
       return;
     }
 
+    console.log(`[Perf] Hotkey detected at ${Date.now()}`);
     console.log("[PushToTalkManager] Starting push-to-talk session");
     this.transitionTo("starting");
 

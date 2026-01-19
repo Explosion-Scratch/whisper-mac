@@ -36,12 +36,14 @@
     "url": "git+https://github.com/explosion-scratch/whisper-mac.git"
   },
   "dependencies": {
+    "@ricky0123/vad-node": "^0.0.3",
     "@ricky0123/vad-web": "^0.0.22",
     "commander": "^14.0.2",
     "electron-log": "^5.4.3",
     "isomorphic-fetch": "^3.0.0",
     "keytar": "^7.9.0",
     "node-addon-api": "^7.1.0",
+    "onnxruntime-node": "^1.23.2",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
