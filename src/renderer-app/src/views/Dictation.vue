@@ -2,13 +2,7 @@
 <div class="dictation-root" :class="{ visible: isVisible }" ref="dictationRoot">
   <div class="dictation-container">
     <div class="status-icn" :class="currentStatus">
-      <div
-        class="loading-circle"
-        :class="{
-          active:
-            isTranscribing || currentStatus === 'transforming' || currentStatus === 'injecting',
-        }"
-      ></div>
+
       <!-- Microphone icon for idle and recording states -->
       <i
         v-if="currentStatus === 'idle' || currentStatus === 'recording'"
@@ -16,7 +10,7 @@
       ></i>
 
       <!-- Spinner icon for transcribing state -->
-      <i v-else-if="currentStatus === 'transcribing'" class="ph-duotone ph-waveform"></i>
+      <i v-else-if="currentStatus === 'transcribing'" class="ph ph-spinner"></i>
 
       <!-- Sparkle icon for transforming state -->
       <i
