@@ -395,7 +395,7 @@ export class IpcHandlerManager {
 
     ipcMain.handle("onboarding:checkMicrophone", async () => {
       try {
-        const result = await this.permissionsManager.checkMicrophonePermissions();
+        const result = await this.permissionsManager.ensureMicrophonePermissions();
         return result.granted;
       } catch (error: any) {
         console.error("IPC:onboarding:checkMicrophone error", error);

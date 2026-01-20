@@ -15,9 +15,15 @@ try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     nativeBinding = require("../../native/audio-capture/build/Release/audio_capture.node");
   } catch (err) {
-    console.warn(
-      "audio_capture native module could not be loaded; native audio features will be disabled",
-      err
+
+    console.error(
+      "CRITICAL: audio_capture native module could not be loaded. Native audio features will be disabled.",
+      err,
+      "\nTraversed paths:",
+      [
+          "./audio_capture.node",
+          "../../native/audio-capture/build/Release/audio_capture.node"
+      ]
     );
     nativeBinding = {};
   }
@@ -29,6 +35,7 @@ export interface AudioCaptureBinding {
   checkMicrophonePermission: () => "authorized" | "denied" | "restricted" | "not_determined" | "unknown";
   requestMicrophonePermission: () => Promise<boolean>;
   getAudioLevel: () => number;
+  isFallback?: boolean;
 }
 
 // Helper class to instantiate the native object
@@ -45,9 +52,14 @@ export class AudioCaptureNative {
             stop: () => false,
             checkMicrophonePermission: () => "unknown",
             requestMicrophonePermission: async () => false,
-            getAudioLevel: () => 0
+            getAudioLevel: () => 0,
+            isFallback: true
         };
     }
+  }
+
+  isFallback(): boolean {
+      return (this.instance as any).isFallback === true;
   }
 
   start(options: { sampleRate: number; bufferSize: number }, callback: (data: Float32Array) => void): boolean {

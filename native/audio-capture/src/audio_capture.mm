@@ -130,14 +130,24 @@ Napi::Value AudioCapture::Start(const Napi::CallbackInfo& info) {
     
     if (status != noErr) {
         m_tsfn.Release();
-        Napi::Error::New(env, "Failed to create AudioQueue").ThrowAsJavaScriptException();
+        std::string errMsg = "Failed to create AudioQueue. OSStatus: " + std::to_string(status);
+        if (status == 1836086396) errMsg += " (kAudioQueueErr_InvalidDevice)";
+        if (status == 1718449215) errMsg += " (kAudioQueueErr_InvalidBuffer)";
+        Napi::Error::New(env, errMsg).ThrowAsJavaScriptException();
         return env.Null();
     }
 
     UInt32 bufferByteSize = m_bufferSize * format.mBytesPerFrame;
     for (int i = 0; i < NUM_BUFFERS; ++i) {
         AudioQueueBufferRef buffer;
-        AudioQueueAllocateBuffer(m_queue, bufferByteSize, &buffer);
+        OSStatus allocStatus = AudioQueueAllocateBuffer(m_queue, bufferByteSize, &buffer);
+        if (allocStatus != noErr) {
+            AudioQueueDispose(m_queue, true);
+            m_queue = nullptr;
+            m_tsfn.Release();
+            Napi::Error::New(env, "Failed to allocate AudioQueue buffer. OSStatus: " + std::to_string(allocStatus)).ThrowAsJavaScriptException();
+            return env.Null();
+        }
         AudioQueueEnqueueBuffer(m_queue, buffer, 0, NULL);
     }
 
@@ -146,7 +156,9 @@ Napi::Value AudioCapture::Start(const Napi::CallbackInfo& info) {
         AudioQueueDispose(m_queue, true);
         m_queue = nullptr;
         m_tsfn.Release();
-        Napi::Error::New(env, "Failed to start AudioQueue").ThrowAsJavaScriptException();
+        std::string errMsg = "Failed to start AudioQueue. OSStatus: " + std::to_string(status);
+        if (status == -50) errMsg += " (Permission Denied or Invalid Argument)";
+        Napi::Error::New(env, errMsg).ThrowAsJavaScriptException();
         return env.Null();
     }
 
@@ -206,30 +218,31 @@ Napi::Value AudioCapture::RequestMicrophonePermission(const Napi::CallbackInfo& 
     Napi::Promise::Deferred deferred = Napi::Promise::Deferred::New(env);
 
     if (@available(macOS 10.14, *)) {
+        AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
+        if (status == AVAuthorizationStatusAuthorized) {
+            deferred.Resolve(Napi::Boolean::New(env, true));
+            return deferred.Promise();
+        }
+        if (status == AVAuthorizationStatusDenied || status == AVAuthorizationStatusRestricted) {
+            deferred.Resolve(Napi::Boolean::New(env, false));
+            return deferred.Promise();
+        }
+
+        auto tsfn = Napi::ThreadSafeFunction::New(
+            env,
+            Napi::Function::New(env, [](const Napi::CallbackInfo& info) {}),
+            "RequestPermissionTSFN",
+            0, 1
+        );
+
+        auto deferred_ptr = std::make_shared<Napi::Promise::Deferred>(deferred);
+
         [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio completionHandler:^(BOOL granted) {
-            // Need to call back on main thread or via threadsafe mechanism
-            // Since this is a one-off promise, we can't easily use TSFN with deferred
-            // But we can use a blocking concept or just let JS poll after user interaction.
-            // CAUTION: requestAccessForMediaType callback is on arbitrary thread.
-            // Node N-API Generic support? 
-            // For simplicity in this iteration, we might block if we were careless, but here we can't.
-            // The cleanest way is to just define a TSFN for resolution.
-            
-            // Actually, for immediate response in current turn, it's hard.
-            // Let's implement this as a async callback style or just assume user handles the UI prompt.
-            // But strict requirement: we need the result.
-            
-            // Let's do polling in JS or return immediate triggering.
-            // Better: use ThreadSafeFunction to resolve the promise.
+            tsfn.BlockingCall([granted, deferred_ptr](Napi::Env env, Napi::Function dummy) {
+                deferred_ptr->Resolve(Napi::Boolean::New(env, granted));
+            });
+            tsfn.Release();
         }];
-        
-        // Simpler approach for now: Trigger request, return "requesting", let user re-check status.
-        // Napi doesn't support async promise resolution from other threads easily without TSFN.
-        
-        // Actually, we can just trigger it. The system dialog is modal-ish.
-        [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio completionHandler:^(BOOL granted) {}];
-        
-        deferred.Resolve(Napi::Boolean::New(env, true)); // "Prompt triggered"
     } else {
         deferred.Resolve(Napi::Boolean::New(env, true));
     }

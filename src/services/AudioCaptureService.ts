@@ -111,7 +111,11 @@ export class AudioCaptureService extends EventEmitter {
       this.isRecording = true;
       this.emit("recording-started");
     } else {
-      console.error("Failed to start native audio capture");
+      if (this.nativeAudio.isFallback()) {
+        console.error("Failed to start native audio capture: Native module not loaded (Fallback active). Please run 'bun run build:native'");
+      } else {
+        console.error("Failed to start native audio capture: Native module loaded but start() returned false.");
+      }
     }
 
     return success;

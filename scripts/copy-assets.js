@@ -24,6 +24,12 @@ const macInputBuiltPath = path.join(
 const macInputDistDir = path.join(__dirname, "../dist/native");
 const macInputDistPath = path.join(macInputDistDir, "mac_input.node");
 
+const audioCaptureBuiltPath = path.join(
+  __dirname,
+  "../native/audio-capture/build/Release/audio_capture.node",
+);
+const audioCaptureDistPath = path.join(macInputDistDir, "audio_capture.node");
+
 const EXTENSIONS = [
   ".html",
   ".js",
@@ -381,6 +387,20 @@ async function main() {
       );
     } else {
       console.log("mac_input.node not found; skipping native addon copy");
+    }
+
+    // Copy native audio_capture.node if it exists
+    if (fs.existsSync(audioCaptureBuiltPath)) {
+      await fsPromises.mkdir(macInputDistDir, { recursive: true });
+      await fsPromises.copyFile(audioCaptureBuiltPath, audioCaptureDistPath);
+      console.log(
+        `Copied native audio capture addon to ${path.relative(
+          path.join(__dirname, ".."),
+          audioCaptureDistPath,
+        )}`,
+      );
+    } else {
+      console.log("audio_capture.node not found; skipping native audio capture addon copy");
     }
 
     // Copy assets (depends on discovering files, so run after other operations)
