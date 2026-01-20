@@ -246,6 +246,7 @@
                                   <option value="executeShell">Execute Shell</option>
                                   <option value="segmentAction">Segment Action</option>
                                   <option value="transformText">Transform Text</option>
+                                  <option value="cleanUrl">Clean Spoken URL</option>
                                 </select>
                               </div>
                               <template v-if="handler.type === 'openUrl' && handler.config">
@@ -545,6 +546,25 @@
                                         <option value="lowercase">Lowercase Match</option>
                                         <option value="uppercase">Uppercase Match</option>
                                       </select>
+                                    </div>
+                                  </div>
+                                </div>
+                              </template>
+                              <template v-if="handler.type === 'cleanUrl'">
+                                <div class="config-section">
+                                  <div class="config-section-header"
+                                    @click="toggleConfigSection(handler.id, 'info')">
+                                    <i class="ph ph-info"></i>
+                                    <span>Information</span>
+                                    <i class="ph ph-caret-down collapse-icon"
+                                      :class="{ collapsed: !isConfigSectionExpanded(handler.id, 'info') }"></i>
+                                  </div>
+                                  <div class="config-section-body"
+                                    v-show="isConfigSectionExpanded(handler.id, 'info')">
+                                    <div class="config-field">
+                                      <div class="field-description" style="margin-top: 0;">
+                                        Automatically clean spoken URLs (e.g. "google dot com" → "google.com").
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
