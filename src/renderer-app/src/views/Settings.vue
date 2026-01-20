@@ -549,6 +549,7 @@
                                   </div>
                                 </div>
                               </template>
+
                               <div class="config-section">
                                 <div class="config-section-header" @click="toggleConfigSection(handler.id, 'timing')">
                                   <i class="ph ph-clock"></i>
@@ -565,6 +566,13 @@
                                     </label>
                                     <span class="field-help">Queue this handler for the next segment instead of
                                       current</span>
+                                  </div>
+                                  <div class="config-field">
+                                    <label class="checkbox-label">
+                                      <input type="checkbox" v-model="handler.stopOnSuccess" />
+                                      Stop on Success
+                                    </label>
+                                    <span class="field-help">Stop executing subsequent handlers if this one success</span>
                                   </div>
                                 </div>
                               </div>

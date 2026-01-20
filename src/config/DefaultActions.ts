@@ -26,6 +26,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
           openInBackground: false,
         },
         order: 1,
+        stopOnSuccess: true,
       },
       {
         id: "check-application",
@@ -34,6 +35,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
           applicationName: "{argument}",
         },
         order: 2,
+        stopOnSuccess: true,
       },
       {
         id: "fallback-search",
@@ -44,6 +46,7 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
           openInBackground: false,
         },
         order: 3,
+        stopOnSuccess: true,
       },
     ],
   },
@@ -528,35 +531,6 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
       },
     ],
   },
-
-  {
-    id: "fix-dictation-typo",
-    name: "Fix Dictation Typo",
-    description: "Fix common dictation typos like 'dicatation'",
-    enabled: true,
-    order: 13,
-    closesTranscription: false,
-    skipsTransformation: false,
-    matchPatterns: [
-      {
-        id: "typo-dicatation",
-        type: "regex",
-        pattern: "dicatation",
-        caseSensitive: false,
-      },
-    ],
-    handlers: [
-      {
-        id: "fix-dicatation",
-        type: "transformText",
-        config: {
-          replacePattern: "dicatation",
-          replacement: "dictation",
-        },
-        order: 1,
-      },
-    ],
-  },
   {
     id: "merge-single-words",
     name: "Merge Single Word Segments",
@@ -602,22 +576,22 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
     order: 15,
     closesTranscription: false,
     skipsTransformation: false,
+    applyToAllSegments: true,
+    timingMode: "after_ai",
     matchPatterns: [
       {
         id: "url-pattern",
         type: "regex",
-        pattern: ".*",
+        // Broad pattern to capture potential URLs for cleaning.
+        pattern: "(?:https?|ftp|file|h[tbd][bpt][sp]?|w{3}|[a-z0-9.-]+\\.(?:com|org|net|io|co|uk|us|gov|edu))[^\\s]*",
         caseSensitive: false,
       },
     ],
     handlers: [
       {
-        id: "fix-https-slash",
-        type: "transformText",
-        config: {
-          replacePattern: "https/",
-          replacement: "https://",
-        },
+        id: "fix-spoken-url",
+        type: "cleanUrl",
+        config: {},
         order: 1,
       },
     ],

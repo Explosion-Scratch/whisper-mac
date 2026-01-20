@@ -30,10 +30,12 @@ export interface ActionHandlerConfig {
   | "quitApplication"
   | "executeShell"
   | "segmentAction"
-  | "transformText";
+  | "transformText"
+  | "cleanUrl";
   config: HandlerConfig;
   order: number;
   applyToNextSegment?: boolean; // If true, queue this handler for next segment
+  stopOnSuccess?: boolean; // If true, stop processing subsequent handlers if this one succeeds
   conditions?: ActionConditions;
 }
 
@@ -52,7 +54,8 @@ export type HandlerConfig =
   | QuitApplicationConfig
   | ExecuteShellConfig
   | SegmentActionConfig
-  | TransformTextConfig;
+  | TransformTextConfig
+  | CleanUrlConfig;
 
 export interface OpenUrlConfig {
   urlTemplate: string; // Can use {match}, {argument}, etc.
@@ -142,4 +145,9 @@ export interface SegmentActionResult {
 
 export interface DefaultActionsConfig {
   actions: ActionHandler[];
+}
+
+export interface CleanUrlConfig {
+  matchPattern?: string; // Optional pattern to find URL within text
+  matchFlags?: string;
 }

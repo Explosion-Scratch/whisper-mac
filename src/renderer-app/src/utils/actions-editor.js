@@ -54,6 +54,7 @@ export function createNewHandler(order = 1) {
     applyToNextSegment: false,
     applyToAllSegments: false,
     timingMode: "before_ai",
+    stopOnSuccess: false,
   };
 }
 
@@ -85,6 +86,7 @@ const HANDLER_TYPE_CONFIGS = {
     replacement: "",
     replacementMode: "literal",
   },
+  cleanUrl: {},
 };
 
 /**
@@ -100,6 +102,10 @@ export function updateHandlerType(handler, type) {
   handler.applyToNextSegment = false;
   handler.applyToAllSegments = false;
   handler.timingMode = "before_ai";
+  // Preserve stopOnSuccess if it exists, otherwise default to false
+  if (handler.stopOnSuccess === undefined) {
+    handler.stopOnSuccess = false;
+  }
 }
 
 const HANDLER_ICONS = {
@@ -109,6 +115,7 @@ const HANDLER_ICONS = {
   executeShell: "ph ph-terminal",
   segmentAction: "ph ph-stack",
   transformText: "ph ph-text-aa",
+  cleanUrl: "ph ph-link",
 };
 
 /**
@@ -127,6 +134,7 @@ const HANDLER_TYPE_NAMES = {
   executeShell: "Shell",
   segmentAction: "Segment",
   transformText: "Transform",
+  cleanUrl: "Clean Spoken URL",
 };
 
 /**
@@ -166,6 +174,8 @@ export function getHandlerSummary(handler) {
       const pattern = config.replacePattern || "";
       return pattern ? `Replace: ${pattern}` : "No pattern set";
     }
+    case "cleanUrl":
+      return "Auto-clean detected URLs";
     default:
       return "Configure...";
   }

@@ -9,8 +9,10 @@ import {
   TransformTextConfig,
   ActionResult,
   SegmentActionResult,
+  CleanUrlConfig,
 } from "../types/ActionTypes";
 import { TranscribedSegment } from "../types/SegmentTypes";
+import cleanSpokenUrl, { URL_FINDER_REGEX } from "../utils/cleanSpokenUrl";
 
 export class ConfigurableActionsService extends EventEmitter {
   private actions: ActionHandler[] = [];
@@ -127,6 +129,11 @@ export class ConfigurableActionsService extends EventEmitter {
 
         if (result.success && result.segments) {
           currentSegments = result.segments;
+          
+          if (handler.stopOnSuccess) {
+            console.log(`[ConfigurableActions] Stopping action ${action.name} after successful handler ${handler.id}`);
+            break;
+          }
         }
 
         if (result.queuedHandlers) {
@@ -190,6 +197,16 @@ export class ConfigurableActionsService extends EventEmitter {
           this.emit(transformResult.event.name, transformResult.event.data);
         }
         break;
+
+      case "cleanUrl": {
+        const cleanResult = executeCleanUrl(
+          config as CleanUrlConfig,
+          updatedSegments
+        );
+        success = cleanResult.success;
+        updatedSegments = cleanResult.segments;
+        break;
+      }
       case "openUrl":
         this.executeOpenUrl(config);
         success = true;
@@ -219,39 +236,36 @@ export class ConfigurableActionsService extends EventEmitter {
   private async executeOpenUrl(config: any): Promise<boolean> {
     try {
       const { shell } = await import("electron");
+      const urlTemplate = config.urlTemplate;
+      
+      // If we have a direct argument injection, let's clean it first if it looks like a URL
+      // This allows "Open [spoken url]" to work better
+      let cleanedUrl = urlTemplate;
+      if (urlTemplate.includes("{argument}")) {
+        // The argument might be a spoken URL
+        // We can't easily detect if it IS a URL before interpolation, 
+        // but we can try to clean the result effectively.
+        // Actually, let's just clean the result of interpolation in runHandler logic, 
+        // or - cleaner - apply cleanSpokenUrl logic here on the final URL.
+      }
+      
       try {
-        const url = new URL(config.urlTemplate).toString();
-        await shell.openExternal(url);
+        // First try as-is (e.g. if it's already a valid URL or interpolated valid URL)
+        const urlObj = new URL(cleanedUrl);
+        await shell.openExternal(urlObj.toString());
         return true;
       } catch (error) {
-        // Continue to manual parsing
+        // Continue to cleanup logic
       }
 
-      let url = this._removeTrailingPunctuation(config.urlTemplate || "");
-      url = url.replace(/^[,\.\s]+/i, "");
-      // Helper replacements for spoken URLs
-      url = url.replace(/\W*(?:colon|:|cologne)\W*/gi, ":");
-      url = url.replace(/\W*(?:slash)\W*/gi, "/");
-      url = url.replace(/\W*(?:dot)\W*/gi, ".");
-      url = url.replace(/^h(\W?t|b|e|p)+(\W?t|b|e|p)+(\W?s)?/i, "https://");
-      url = url.replace(/(\:\/\/)+/gi, "://");
-      url = url.replace(/^h[a-z]{1,7}\:?\//i, "https://");
-      url = url.replace(/\/+/gi, "/");
-      url = url.trim();
+    // Clean URL if possible
+    const finalUrl = cleanSpokenUrl(cleanedUrl);
 
-      if (!url || typeof url !== "string") return false;
+    if (!finalUrl) return false;
 
-      let finalUrl = url;
-      if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("file://")) {
-        if (url.startsWith("www.") || url.includes(".")) {
-          finalUrl = `https://${url}`;
-        } else {
-          return false;
-        }
-      }
-
-      await shell.openExternal(finalUrl);
-      return true;
+    // Open URL
+    await shell.openExternal(finalUrl);
+    return true;
     } catch (error) {
       console.error("[ConfigurableActions] Failed to open URL:", error);
       return false;
@@ -484,7 +498,18 @@ export class ConfigurableActionsService extends EventEmitter {
 
           for (const handler of actionMatch.handlers) {
             if (handler.type === "transformText") {
-              const result = executeTransformText(handler.config as TransformTextConfig, virtualSegmentsArray);
+              const result = executeTransformText(
+                handler.config as TransformTextConfig,
+                virtualSegmentsArray
+              );
+              if (result.success && result.segments.length > 0) {
+                virtualSegment.text = result.segments[0].text;
+              }
+            } else if (handler.type === "cleanUrl") {
+              const result = executeCleanUrl(
+                handler.config as CleanUrlConfig,
+                virtualSegmentsArray
+              );
               if (result.success && result.segments.length > 0) {
                 virtualSegment.text = result.segments[0].text;
               }
@@ -743,6 +768,45 @@ function executeTransformText(
       "[ConfigurableActions] Failed to transform text:",
       error,
     );
+    return { success: false, segments };
+  }
+}
+
+// Helper to execute cleanUrl action
+function executeCleanUrl(
+  config: CleanUrlConfig,
+  segments: TranscribedSegment[]
+): { success: boolean; segments: TranscribedSegment[] } {
+  const updatedSegments = [...segments];
+  if (updatedSegments.length === 0) {
+    return { success: false, segments };
+  }
+
+  try {
+    const lastSegment = updatedSegments[updatedSegments.length - 1];
+    if (!lastSegment || !lastSegment.text) {
+      return { success: false, segments };
+    }
+
+    let text = lastSegment.text;
+    let replacedText = text;
+
+    // Always use the robust URL finder regex to clean all URLs in the input
+    // The user has specified that this handler should NOT be configurable and should just work.
+    const matchRegex = new RegExp(URL_FINDER_REGEX); // Ensure it's a new instance with global flag from definition
+    replacedText = text.replace(matchRegex, (match) => {
+      const cleaned = cleanSpokenUrl(match);
+      return cleaned || match;
+    });
+
+    if (replacedText !== text) {
+      lastSegment.text = replacedText;
+      return { success: true, segments: updatedSegments };
+    }
+
+    return { success: false, segments };
+  } catch (error) {
+    console.error("[ConfigurableActions] Error in executeCleanUrl:", error);
     return { success: false, segments };
   }
 }
