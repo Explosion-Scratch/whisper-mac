@@ -5,6 +5,7 @@ import { AppConfig } from "../config/AppConfig";
 import { appEventBus } from "./AppEventBus";
 import { Segment, SegmentUpdate } from "../types/SegmentTypes";
 import { appStore } from "../core/AppStore";
+import liquidGlass from "electron-liquid-glass";
 
 export interface WindowPosition {
   x: number;
@@ -89,7 +90,7 @@ export class DictationWindowService extends EventEmitter {
   }
 
   private async createDictationWindow(): Promise<void> {
-    const DEBUG = true;
+    const DEBUG = false;
     const position = this.calculateWindowPositionSync();
 
     this.dictationWindow = new BrowserWindow({
@@ -99,9 +100,6 @@ export class DictationWindowService extends EventEmitter {
       y: position.y,
       frame: DEBUG ? true : false,
       transparent: true,
-      backgroundColor: "#00000000",
-      vibrancy: "sidebar",
-      visualEffectState: "active",
       alwaysOnTop: true,
       skipTaskbar: true,
       resizable: DEBUG ? true : false,
@@ -117,6 +115,15 @@ export class DictationWindowService extends EventEmitter {
         preload: join(__dirname, "../preload/rendererAppPreload.js"),
       },
       show: false,
+    });
+    this.dictationWindow.webContents.once("did-finish-load", () => {
+      console.log("Dictation window finished loading");
+      const glassId = liquidGlass.addView(this.dictationWindow!.getNativeWindowHandle(), {
+        cornerRadius: 8,
+      });
+      liquidGlass.unstable_setVariant(glassId, 11);
+      liquidGlass.unstable_setScrim(glassId, 0);
+      liquidGlass.unstable_setSubdued(glassId, 0);
     });
     this.dictationWindow.setVisibleOnAllWorkspaces(true);
 
@@ -141,6 +148,7 @@ export class DictationWindowService extends EventEmitter {
 
     this.dictationWindow.on("hide", () => {
       this.dictationWindow?.webContents.send("window-hidden");
+      this.emit("window-hidden");
     });
 
     this.dictationWindow.webContents.on(

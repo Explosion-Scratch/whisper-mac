@@ -45,6 +45,13 @@ export class DictationFlowManager {
     this.audioCaptureService.on("speech-end", () => {
          this.dictationWindowService.sendSpeechEnd();
     });
+
+    this.dictationWindowService.on("window-hidden", async () => {
+      if (this.state === "recording") {
+        console.log("Window hidden while recording - cancelling dictation");
+        await this.cancelDictationFlow();
+      }
+    });
   }
 
   setTrayService(trayService: TrayService | null): void {
@@ -452,6 +459,7 @@ console.log(
 
     if (wasRecording) {
       await this.transcriptionPluginManager.stopTranscription();
+      await this.audioCaptureService.stopCapture();
     }
 
     this.dictationWindowService.hideWindow();

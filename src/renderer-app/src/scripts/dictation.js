@@ -76,19 +76,36 @@ export default {
         const textScrollContainer = ref(null);
         let visualizer = null;
 
+        const syncCanvasSize = () => {
+            const canvas = visualizerCanvas.value;
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+        };
+
         const initialize = () => {
-            // Signal ready
             window.electronAPI.sendDictationWindowReady();
             
             if (visualizerCanvas.value) {
                 try {
+                    syncCanvasSize();
+
                     visualizer = createAudioVisualizer(visualizerCanvas.value, {
                         getLevel: () => currentAudioLevel.value,
-                        bars: 30, // Adjust bars for the smaller window usually
+                        barWidth: 1, 
+                        barGap: 2,
                         smoothing: 0.5,
-                        maxHeightRatio: 0.8
+                        maxHeightRatio: 1
                     });
                     
+                    const resizeObserver = new ResizeObserver(() => {
+                        syncCanvasSize();
+                        if (visualizer) visualizer.resize();
+                    });
+                    resizeObserver.observe(visualizerCanvas.value);
+
                     if (isRecording.value) {
                         visualizer.start();
                     }
@@ -104,16 +121,11 @@ export default {
             }
         };
         
-        // Watch recording state to start/stop visualizer to save resources
         watch(isRecording, (newValue) => {
             if (visualizer) {
                 if (newValue) {
                     visualizer.start();
                 } else {
-                    // We might want to keep it running purely for fade out or if processing
-                    // But typically stop to save CPU
-                    // However, if we want to show 'processing' animations, we might need manual drawing
-                    // The visualizer is strictly for audio levels.
                     visualizer.stop();
                 }
             }

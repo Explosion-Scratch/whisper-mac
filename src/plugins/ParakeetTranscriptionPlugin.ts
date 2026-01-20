@@ -1,10 +1,9 @@
 // import "isomorphic-fetch";
-import { spawn } from "child_process";
+import { spawn, ChildProcess } from "child_process";
 import {
     unlinkSync,
     mkdtempSync,
     existsSync,
-    readFileSync,
     createWriteStream,
     mkdirSync,
     readdirSync,
@@ -13,7 +12,7 @@ import {
 import { join } from "path";
 import { tmpdir } from "os";
 import { v4 as uuidv4 } from "uuid";
-import * as https from "https";
+import * as createInterface from "readline";
 import { AppConfig } from "../config/AppConfig";
 import {
     Segment,
@@ -31,15 +30,15 @@ import { WavProcessor } from "../helpers/WavProcessor";
 import { FileSystemService } from "../services/FileSystemService";
 
 /**
- * Parakeet transcription plugin using custom Rust backend
+ * Parakeet transcription plugin using custom Rust backend in server mode
  */
 export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
     readonly name = "parakeet";
     readonly displayName = "Parakeet";
-    readonly version = "0.1.0";
+    readonly version = "0.2.0";
     readonly description =
-        "Fast Parakeet-based transcription using local Rust backend";
-    readonly supportsRealtime = false; // Parakeet might be fast enough, but let's start with batch
+        "Fast Parakeet-based transcription using persistent local Rust backend";
+    readonly supportsRealtime = false; 
     readonly supportsBatchProcessing = true;
 
     private config: AppConfig;
@@ -49,9 +48,18 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
     private binaryPath: string;
     private modelPath: string = "";
     private isCurrentlyTranscribing = false;
-    private warmupTimer: NodeJS.Timeout | null = null;
-    private isWarmupRunning = false;
     private isWindowVisible = false;
+
+    // Server process management
+    private serverProcess: ChildProcess | null = null;
+    private serverReadline: createInterface.Interface | null = null;
+    private requestQueue: Array<{ resolve: (val: any) => void; reject: (err: any) => void }> = [];
+    private isServerReady = false;
+    
+    // Lifecycle management
+    private shutdownTimeout: NodeJS.Timeout | null = null;
+    private readyPromise: Promise<void> | null = null;
+    private readonly SHUTDOWN_DELAY_MS = 5 * 60 * 1000; // 5 minutes
 
     constructor(config: AppConfig) {
         super();
@@ -104,22 +112,176 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
 
     async isAvailable(): Promise<boolean> {
+        // We can just check if binary exists for now
+        return existsSync(this.binaryPath);
+    }
+
+    private async ensureServerStarted(): Promise<void> {
+        // If we have a pending shutdown, cancel it
+        if (this.shutdownTimeout) {
+            clearTimeout(this.shutdownTimeout);
+            this.shutdownTimeout = null;
+        }
+
+        if (this.serverProcess && !this.serverProcess.killed) {
+            return;
+        }
+
+        // Kill any existing dead process refs just in case
+        this.killServer();
+
+        return new Promise((resolve, reject) => {
+            try {
+                const args = ["--server"];
+                console.log(`[parakeet] Spawning server: ${this.binaryPath} ${args.join(" ")}`);
+                
+                this.serverProcess = spawn(this.binaryPath, args, {
+                    stdio: ["pipe", "pipe", "pipe"],
+                });
+
+                if (!this.serverProcess.stdout || !this.serverProcess.stdin) {
+                    throw new Error("Failed to open stdio for Parakeet server");
+                }
+
+                this.serverReadline = createInterface.createInterface({
+                    input: this.serverProcess.stdout,
+                    terminal: false,
+                });
+
+                this.serverProcess.stderr?.on("data", (data) => {
+                    console.error(`[parakeet-server] ${data.toString()}`);
+                });
+
+                this.serverProcess.on("close", (code) => {
+                    console.log(`[parakeet] Server exited with code ${code}`);
+                    this.serverProcess = null;
+                    this.isServerReady = false;
+                    this.readyPromise = null; // Reset ready promise so we retry next time
+                    this.rejectAllPending(new Error(`Server exited unexpectedly with code ${code}`));
+                });
+
+                // Wait for ready signal
+                const readyListener = (line: string) => {
+                    if (line.trim() === "PARAKEET_SERVER_READY") {
+                        console.log("[parakeet] Server ready signal received");
+                        this.isServerReady = true;
+                        this.serverReadline?.off("line", readyListener);
+                        this.serverReadline?.on("line", (line) => this.handleServerResponse(line));
+                        resolve();
+                    } else {
+                        // Might be logs appearing before ready signal
+                        console.log(`[parakeet-server init] ${line}`);
+                    }
+                };
+
+                this.serverReadline.on("line", readyListener);
+
+                // Timeout for startup
+                setTimeout(() => {
+                    if (!this.isServerReady) {
+                        this.serverReadline?.off("line", readyListener);
+                        this.killServer();
+                        reject(new Error("Timeout waiting for Parakeet server to start"));
+                    }
+                }, 10000);
+
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    private handleServerResponse(line: string) {
+        if (line.trim().length === 0) return;
+
         try {
-            return new Promise((resolve) => {
-                const process = spawn(this.binaryPath, ["--help"], {
-                    stdio: ["ignore", "pipe", "pipe"],
-                });
+            const response = JSON.parse(line);
+            const request = this.requestQueue.shift();
+            if (request) {
+                if (response.status === "ok") {
+                    request.resolve(response.data);
+                } else {
+                    request.reject(new Error(response.message || "Unknown server error"));
+                }
+            } else {
+                console.warn("[parakeet] Received response with no pending request:", line);
+            }
+        } catch (e) {
+            console.error("[parakeet] Failed to parse server response:", line, e);
+        }
+    }
 
-                process.on("close", (code) => {
-                    resolve(code === 0);
-                });
+    private rejectAllPending(error: Error) {
+        while (this.requestQueue.length > 0) {
+            const req = this.requestQueue.shift();
+            req?.reject(error);
+        }
+    }
 
-                process.on("error", () => {
-                    resolve(false);
+    private async sendRequest(command: any): Promise<any> {
+        // Ensure server is physically running (this should be fast if already running)
+        // Note: ensureServerStarted handles the checking of existing process
+        if (!this.serverProcess) {
+             throw new Error("Server process not active");
+        }
+
+        return new Promise((resolve, reject) => {
+            this.requestQueue.push({ resolve, reject });
+            try {
+                const cmdString = JSON.stringify(command) + "\n";
+                this.serverProcess?.stdin?.write(cmdString);
+            } catch (e) {
+                const req = this.requestQueue.pop(); // Remove the one we just added
+                reject(e);
+            }
+        });
+    }
+
+    private killServer() {
+        if (this.shutdownTimeout) {
+            clearTimeout(this.shutdownTimeout);
+            this.shutdownTimeout = null;
+        }
+        
+        if (this.serverProcess) {
+            console.log("[parakeet] Killing server process");
+            try {
+                this.serverProcess.kill();
+            } catch (e) {
+                // ignore
+            }
+            this.serverProcess = null;
+        }
+        if (this.serverReadline) {
+            this.serverReadline.close();
+            this.serverReadline = null;
+        }
+        this.isServerReady = false;
+        this.readyPromise = null;
+        this.rejectAllPending(new Error("Server killed"));
+    }
+    
+    // Background initialization to prevent blocking the UI
+    private async initializeBackend(onProgress?: (p: TranscriptionSetupProgress) => void) {
+        try {
+            const needsModelLoad = !this.serverProcess; // If no process (or killed), we need to load model.
+            
+            await this.ensureServerStarted();
+
+            if (needsModelLoad) {
+                onProgress?.({ status: "starting", message: "Loading model into memory..." });
+                 this.modelPath = this.resolveModelPath();
+                await this.sendRequest({
+                    command: "load_model",
+                    path: this.modelPath
                 });
-            });
+                onProgress?.({ status: "complete", message: "Parakeet backend ready" });
+            }
         } catch (error) {
-            return false;
+            console.error("[parakeet] Background initialization failed", error);
+            // We don't throw here because this is running in background.
+            // processAudioSegment will catch the failure when it awaits readyPromise.
+            throw error;
         }
     }
 
@@ -140,17 +302,26 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
 
             this.modelPath = this.resolveModelPath();
 
-            // Check if model exists
+            // Check if model exists (FAST sync check)
             if (!existsSync(this.modelPath)) {
                 throw new Error(`Model not found at ${this.modelPath}. Please download it first.`);
             }
 
+            // Sync setup
             this.setTranscriptionCallback(onUpdate);
             this.sessionUid = uuidv4();
             this.currentSegments = [];
             this.setRunning(true);
+            
+            // Kick off backend init properly.
+            // If readyPromise exists and is effectively "done" (or running), we use it.
+            // But if the server died or this is a fresh start, we create a new one.
+            // ensureServerStarted will clear timeout and check logic.
+            
+            // We chain the initialization to ensure order
+            this.readyPromise = this.initializeBackend(onProgress);
 
-            onProgress?.({ status: "complete", message: "Parakeet plugin ready" });
+            // RETURN IMMEDIATELY so UI can show up.
         } catch (error: any) {
             this.setRunning(false);
             onProgress?.({
@@ -184,7 +355,17 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
                 sessionUid: this.sessionUid,
             });
 
-            const result = await this.transcribeWithBinary(tempAudioPath);
+            // Wait for backend to be ready (load_model cmd etc)
+            if (this.readyPromise) {
+                await this.readyPromise;
+            }
+
+            // Send transcribe command
+            const result = await this.sendRequest({
+                command: "transcribe",
+                path: tempAudioPath,
+                options: {}
+            });
 
             const completedSegment: TranscribedSegment = {
                 id: uuidv4(),
@@ -192,8 +373,8 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
                 text: result.text,
                 completed: true,
                 timestamp: Date.now(),
-                start: result.segments[0]?.start,
-                end: result.segments[result.segments.length - 1]?.end,
+                start: result.segments?.[0]?.start,
+                end: result.segments?.[result.segments.length - 1]?.end,
             };
 
             this.currentSegments = [completedSegment];
@@ -222,6 +403,10 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
             }
         } finally {
             this.isCurrentlyTranscribing = false;
+            // Should properly delete temp files, or let the OS handle it if we are confident.
+            // Using a queue ensures we don't delete before server reads it? 
+            // Actually, server reads it during 'transcribe' call, which awaits until done.
+            // So it is safe to delete here.
             if (tempAudioPath) {
                 try {
                     unlinkSync(tempAudioPath);
@@ -233,7 +418,22 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
 
     async transcribeFile(filePath: string): Promise<string> {
-        const result = await this.transcribeWithBinary(filePath);
+         // Assuming server is running, or start it temporarily?
+         // For now, let's assume this is called when active.
+         if (!this.serverProcess) {
+             await this.ensureServerStarted();
+             // And we probably need to load the model if not loaded...
+             // This method might need more robust handling if called outside a session.
+             await this.sendRequest({
+                 command: "load_model",
+                 path: this.resolveModelPath()
+             });
+         }
+         
+        const result = await this.sendRequest({
+            command: "transcribe",
+            path: filePath
+        });
         return result.text;
     }
 
@@ -242,15 +442,24 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
         this.setTranscriptionCallback(null);
         this.currentSegments = [];
         this.isCurrentlyTranscribing = false;
+        
+        // Don't kill server immediately, just start shutdown timer
+        if (this.shutdownTimeout) clearTimeout(this.shutdownTimeout);
+        this.shutdownTimeout = setTimeout(() => {
+            console.log("[parakeet] Server idle timeout reached, shutting down...");
+            this.killServer();
+        }, this.SHUTDOWN_DELAY_MS);
     }
 
     async cleanup(): Promise<void> {
         await this.stopTranscription();
         try {
             const { readdirSync } = require("fs");
-            const files = readdirSync(this.tempDir);
-            for (const file of files) {
-                unlinkSync(join(this.tempDir, file));
+            if (existsSync(this.tempDir)) {
+                 const files = readdirSync(this.tempDir);
+                for (const file of files) {
+                    unlinkSync(join(this.tempDir, file));
+                }
             }
         } catch (err) {
             console.warn("Failed to clean temp directory:", err);
@@ -472,91 +681,12 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
         });
     }
 
-    private async transcribeWithBinary(audioPath: string): Promise<{ text: string; segments: any[] }> {
-        return new Promise((resolve, reject) => {
-            const args = [
-                "--file",
-                audioPath,
-                "--model",
-                this.modelPath,
-                "--output",
-                "json",
-            ];
-
-            const process = spawn(this.binaryPath, args, {
-                stdio: ["ignore", "pipe", "pipe"],
-            });
-
-            let stdout = "";
-            let stderr = "";
-
-            process.stdout?.on("data", (data) => {
-                stdout += data.toString();
-            });
-
-            process.stderr?.on("data", (data) => {
-                stderr += data.toString();
-            });
-
-            process.on("close", (code) => {
-                if (code === 0) {
-                    try {
-                        const result = JSON.parse(stdout);
-                        resolve(result);
-                    } catch (e) {
-                        reject(new Error(`Failed to parse JSON output: ${stdout}`));
-                    }
-                } else {
-                    reject(new Error(`Parakeet binary failed with code ${code}: ${stderr}`));
-                }
-            });
-        });
-    }
-
     onDictationWindowShow(): void {
         this.isWindowVisible = true;
     }
 
     onDictationWindowHide(): void {
         this.isWindowVisible = false;
-    }
-
-    private startWarmupLoop() {
-        if (this.warmupTimer) return;
-        this.warmupTimer = setInterval(() => {
-            this.runWarmupIfIdle();
-        }, 5000);
-    }
-
-    private stopWarmupLoop() {
-        if (this.warmupTimer) {
-            clearInterval(this.warmupTimer);
-            this.warmupTimer = null;
-        }
-    }
-
-    private async runWarmupIfIdle() {
-        if (this.isWarmupRunning) return;
-        if (!this.isPluginActive()) return;
-        if (this.isCurrentlyTranscribing) return;
-        if (this.isWindowVisible) return;
-
-        this.isWarmupRunning = true;
-        let tempAudioPath: string | null = null;
-        try {
-            const dummy = new Float32Array(16000);
-            tempAudioPath = await this.saveAudioAsWav(dummy);
-            await this.transcribeWithBinary(tempAudioPath);
-        } catch (e) {
-        } finally {
-            this.isWarmupRunning = false;
-            if (tempAudioPath) {
-                try {
-                    unlinkSync(tempAudioPath);
-                } catch (e) {
-                }
-            }
-        }
     }
 
     // Required abstract methods
@@ -573,19 +703,16 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
             : this.getSchema().find((opt) => opt.key === "runOnAll")?.default ?? false;
         this.setActivationCriteria({ runOnAll, skipTransformation: false });
         console.log(`[parakeet] Activated with runOnAll: ${runOnAll}`);
-
-        this.startWarmupLoop();
-        this.runWarmupIfIdle();
     }
     async initialize(): Promise<void> {
         this.setInitialized(true);
     }
     async destroy(): Promise<void> {
-        this.stopWarmupLoop();
+        this.killServer();
     }
     async onDeactivate(): Promise<void> {
         this.setActive(false);
-        this.stopWarmupLoop();
+        this.killServer();
     }
     getDataPath(): string { return this.config.getModelsDir(); }
 
@@ -697,7 +824,7 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
             throw error;
         }
     }
-
+    
     async deleteAllData(): Promise<void> {
         try {
             if (existsSync(this.tempDir)) {
@@ -738,18 +865,16 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
             throw error;
         }
     }
+
     async updateOptions(options: Record<string, any>): Promise<void> {
         const previousRunOnAll = this.options.runOnAll;
         this.setOptions(options);
-
-        // Handle runOnAll setting changes
         if (options.runOnAll !== undefined && options.runOnAll !== previousRunOnAll) {
             const runOnAll = options.runOnAll;
             this.setActivationCriteria({
                 runOnAll,
                 skipTransformation: false,
             });
-            console.log(`[parakeet] runOnAll updated to: ${runOnAll}`);
         }
     }
 }
