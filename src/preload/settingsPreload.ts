@@ -15,7 +15,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   resetAllSettings: () => ipcRenderer.invoke("settings:resetAll"),
   resetSettingsSection: (sectionId: string) =>
     ipcRenderer.invoke("settings:resetSection", sectionId),
-  getLaunchAtLoginStatus: () => ipcRenderer.invoke("settings:getLaunchAtLoginStatus"),
+  getLaunchAtLoginStatus: () =>
+    ipcRenderer.invoke("settings:getLaunchAtLoginStatus"),
 
   // Import/Export
   importSettings: (filePath: string) =>
@@ -42,6 +43,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onError: (callback: (payload: any) => void) => {
     ipcRenderer.on("error:data", (_e, payload) => callback(payload));
   },
+
+  // Hotkey updates with conflict detection and auto-save
+  updateHotkey: (key: string, value: string) =>
+    ipcRenderer.invoke("settings:updateHotkey", { key, value }),
+  suspendShortcuts: () => ipcRenderer.invoke("shortcuts:suspend"),
+  resumeShortcuts: () => ipcRenderer.invoke("shortcuts:resume"),
+
   saveApiKeySecure: (apiKey: string) =>
     ipcRenderer.invoke("keychain:saveApiKey", apiKey),
   getApiKeySecure: () => ipcRenderer.invoke("keychain:getApiKey"),
@@ -50,12 +58,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Permissions management - quiet methods
   getPermissionsQuiet: () => ipcRenderer.invoke("permissions:getAllQuiet"),
 
-  checkAccessibilityQuiet: () => ipcRenderer.invoke("permissions:checkAccessibilityQuiet"),
-  checkMicrophoneQuiet: () => ipcRenderer.invoke("permissions:checkMicrophoneQuiet"),
+  checkAccessibilityQuiet: () =>
+    ipcRenderer.invoke("permissions:checkAccessibilityQuiet"),
+  checkMicrophoneQuiet: () =>
+    ipcRenderer.invoke("permissions:checkMicrophoneQuiet"),
 
   // Open specific system preferences
-  openAccessibilitySettings: () => ipcRenderer.invoke("permissions:openAccessibilitySettings"),
-  openMicrophoneSettings: () => ipcRenderer.invoke("permissions:openMicrophoneSettings"),
+  openAccessibilitySettings: () =>
+    ipcRenderer.invoke("permissions:openAccessibilitySettings"),
+  openMicrophoneSettings: () =>
+    ipcRenderer.invoke("permissions:openMicrophoneSettings"),
 
   // Settings navigation
   openSettingsToSection: (sectionId: string) =>
@@ -63,15 +75,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Listen for navigation events
   onNavigateToSection: (callback: (sectionId: string) => void) => {
-    ipcRenderer.on("settings:navigateToSection", (_e, sectionId) => callback(sectionId));
+    ipcRenderer.on("settings:navigateToSection", (_e, sectionId) =>
+      callback(sectionId),
+    );
   },
 
   // Existing permissions methods
   getPermissions: () => ipcRenderer.invoke("permissions:getAll"),
-  checkAccessibility: () => ipcRenderer.invoke("permissions:checkAccessibility"),
+  checkAccessibility: () =>
+    ipcRenderer.invoke("permissions:checkAccessibility"),
   checkMicrophone: () => ipcRenderer.invoke("permissions:checkMicrophone"),
   refreshAllPermissions: () => ipcRenderer.invoke("permissions:resetCaches"),
-  openSystemPreferences: () => ipcRenderer.invoke("permissions:openSystemPreferences"),
+  openSystemPreferences: () =>
+    ipcRenderer.invoke("permissions:openSystemPreferences"),
 
   // Unified plugin switching
   switchPlugin: (pluginName: string, modelName?: string) =>
@@ -179,7 +195,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Permissions management
   getAllPermissions: () => ipcRenderer.invoke("permissions:getAll"),
-  checkAccessibilityPermissions: () => ipcRenderer.invoke("permissions:checkAccessibility"),
-  checkMicrophonePermissions: () => ipcRenderer.invoke("permissions:checkMicrophone"),
+  checkAccessibilityPermissions: () =>
+    ipcRenderer.invoke("permissions:checkAccessibility"),
+  checkMicrophonePermissions: () =>
+    ipcRenderer.invoke("permissions:checkMicrophone"),
   resetPermissionCaches: () => ipcRenderer.invoke("permissions:resetCaches"),
 });

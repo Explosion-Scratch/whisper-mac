@@ -61,6 +61,7 @@
               @baseUrlChanged="aiModelsState.loadedForBaseUrl = null"
               @browseDirectory="browseDirectory(field.key)"
               @clearHotkey="clearHotkey(field.key)"
+              @hotkeyChanged="handleHotkeyChanged(field.key, $event)"
             />
 
             <!-- Actions Editor -->

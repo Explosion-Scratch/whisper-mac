@@ -5,6 +5,8 @@
       class="form-control hotkey-input"
       :value="modelValue"
       @keydown="captureHotkey"
+      @focus="handleFocus"
+      @blur="handleBlur"
       :placeholder="placeholder || 'Press keys to set hotkey'"
       readonly
     />
@@ -47,18 +49,12 @@ export default {
     },
   },
 
-  emits: ["update:modelValue", "clear"],
+  emits: ["update:modelValue", "clear", "hotkeyChanged"],
 
   data() {
     return {
-      modifierKeys: [
-        "Control",
-        "Alt",
-        "Shift",
-        "Meta",
-        "Command",
-        "AltGraph",
-      ],
+      isFocused: false,
+      modifierKeys: ["Control", "Alt", "Shift", "Meta", "Command", "AltGraph"],
       keyMap: {
         " ": "Space",
         ArrowUp: "Up",
@@ -102,6 +98,38 @@ export default {
 
   methods: {
     /**
+     * Handles input focus - suspends global shortcuts
+     */
+    async handleFocus() {
+      if (this.isFocused) return;
+      this.isFocused = true;
+      try {
+        if (window.electronAPI?.suspendShortcuts) {
+          await window.electronAPI.suspendShortcuts();
+          console.log("[HotkeyField] Global shortcuts suspended for capture");
+        }
+      } catch (error) {
+        console.error("[HotkeyField] Failed to suspend shortcuts:", error);
+      }
+    },
+
+    /**
+     * Handles input blur - resumes global shortcuts
+     */
+    async handleBlur() {
+      if (!this.isFocused) return;
+      this.isFocused = false;
+      try {
+        if (window.electronAPI?.resumeShortcuts) {
+          await window.electronAPI.resumeShortcuts();
+          console.log("[HotkeyField] Global shortcuts resumed");
+        }
+      } catch (error) {
+        console.error("[HotkeyField] Failed to resume shortcuts:", error);
+      }
+    },
+
+    /**
      * Captures a hotkey from keyboard event
      * @param {KeyboardEvent} event - The keyboard event
      */
@@ -142,6 +170,8 @@ export default {
 
       if (hotkeyString && parts.length > 0) {
         this.$emit("update:modelValue", hotkeyString);
+        // Emit hotkeyChanged for immediate backend sync with conflict detection
+        this.$emit("hotkeyChanged", hotkeyString);
       }
     },
   },

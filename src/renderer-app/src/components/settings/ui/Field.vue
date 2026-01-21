@@ -113,6 +113,7 @@
       :placeholder="field.placeholder"
       @update:modelValue="$emit('update:modelValue', $event)"
       @clear="$emit('clearHotkey')"
+      @hotkeyChanged="$emit('hotkeyChanged', $event)"
     />
 
     <!-- Validation Error -->
@@ -189,6 +190,7 @@ export default {
     "baseUrlChanged",
     "browseDirectory",
     "clearHotkey",
+    "hotkeyChanged",
   ],
 
   computed: {

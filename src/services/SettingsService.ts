@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, dialog } from "electron";
+import { BrowserWindow, ipcMain, dialog, globalShortcut } from "electron";
 import { join } from "path";
 import { readFileSync, writeFileSync } from "fs";
 import { AppConfig } from "../config/AppConfig";
@@ -61,7 +61,9 @@ export class SettingsService {
    */
   getPermissionsManager(): PermissionsManager {
     if (!this.permissionsManager) {
-      throw new Error("Permissions manager not initialized. Call setPermissionsDependencies first.");
+      throw new Error(
+        "Permissions manager not initialized. Call setPermissionsDependencies first.",
+      );
     }
     return this.permissionsManager;
   }
@@ -85,9 +87,7 @@ export class SettingsService {
             if (field.key === "selectedMicrophone") {
               return {
                 ...serializableField,
-                options: [
-                  { value: "default", label: "System Default" }
-                ]
+                options: [{ value: "default", label: "System Default" }],
               };
             }
 
@@ -128,7 +128,9 @@ export class SettingsService {
 
           // Handle launch at login setting change
           if (oldSettings.launchAtLogin !== settings.launchAtLogin) {
-            await this.loginItemService.setLaunchAtLogin(settings.launchAtLogin);
+            await this.loginItemService.setLaunchAtLogin(
+              settings.launchAtLogin,
+            );
           }
 
           // Reset permission caches when settings change to avoid restart requirement
@@ -138,18 +140,29 @@ export class SettingsService {
 
           // Update active plugin options if they changed
           if (this.transcriptionPluginManager) {
-            const activePlugin = this.transcriptionPluginManager.getActivePlugin();
+            const activePlugin =
+              this.transcriptionPluginManager.getActivePlugin();
             if (activePlugin) {
               const pluginName = activePlugin.name;
               const oldPluginSettings = oldSettings.plugin?.[pluginName] || {};
               const newPluginSettings = settings.plugin?.[pluginName] || {};
-              
-              if (JSON.stringify(oldPluginSettings) !== JSON.stringify(newPluginSettings)) {
+
+              if (
+                JSON.stringify(oldPluginSettings) !==
+                JSON.stringify(newPluginSettings)
+              ) {
                 try {
-                  await this.transcriptionPluginManager.updateActivePluginOptions(newPluginSettings);
-                  console.log(`[SettingsService] Updated active plugin (${pluginName}) options after save`);
+                  await this.transcriptionPluginManager.updateActivePluginOptions(
+                    newPluginSettings,
+                  );
+                  console.log(
+                    `[SettingsService] Updated active plugin (${pluginName}) options after save`,
+                  );
                 } catch (updateError) {
-                  console.warn(`[SettingsService] Failed to update active plugin options:`, updateError);
+                  console.warn(
+                    `[SettingsService] Failed to update active plugin options:`,
+                    updateError,
+                  );
                 }
               }
             }
@@ -259,6 +272,82 @@ export class SettingsService {
       this.closeSettingsWindow();
     });
 
+    // Update a single hotkey with conflict detection and auto-save
+    ipcMain.handle(
+      "settings:updateHotkey",
+      async (_event, payload: { key: string; value: string }) => {
+        try {
+          const { key, value } = payload;
+
+          if (!key.startsWith("hotkeys.")) {
+            throw new Error(`Invalid hotkey key: ${key}`);
+          }
+
+          const currentSettings = this.settingsManager.getAll();
+          const hotkeys = currentSettings.hotkeys || {};
+          const hotkeyField = key.replace("hotkeys.", "");
+
+          // Track which fields were cleared due to conflicts
+          const clearedConflicts: string[] = [];
+
+          // If setting a non-empty value, check for conflicts with other hotkeys
+          if (value && value.trim() !== "") {
+            for (const [existingField, existingValue] of Object.entries(
+              hotkeys,
+            )) {
+              if (existingField !== hotkeyField && existingValue === value) {
+                // Found a conflict - clear the other hotkey
+                console.log(
+                  `[SettingsService] Clearing conflicting hotkey: hotkeys.${existingField} (was: ${existingValue})`,
+                );
+                this.settingsManager.set(`hotkeys.${existingField}`, "");
+                clearedConflicts.push(`hotkeys.${existingField}`);
+              }
+            }
+          }
+
+          // Update the target hotkey
+          this.settingsManager.set(key, value);
+          this.settingsManager.saveSettings();
+          this.settingsManager.applyToConfig();
+
+          console.log(
+            `[SettingsService] Updated hotkey ${key} = ${value}${clearedConflicts.length > 0 ? `, cleared conflicts: ${clearedConflicts.join(", ")}` : ""}`,
+          );
+
+          // Broadcast update to all windows so UI stays in sync
+          this.broadcastSettingsUpdate();
+
+          return {
+            success: true,
+            clearedConflicts,
+            settings: this.settingsManager.getAll(),
+          };
+        } catch (error) {
+          console.error("Failed to update hotkey:", error);
+          throw error;
+        }
+      },
+    );
+
+    // Suspend shortcuts temporarily (for hotkey input capture)
+    ipcMain.handle("shortcuts:suspend", () => {
+      console.log(
+        "[SettingsService] Suspending global shortcuts for hotkey capture",
+      );
+      globalShortcut.unregisterAll();
+      return { success: true };
+    });
+
+    // Resume shortcuts (re-register all hotkeys)
+    ipcMain.handle("shortcuts:resume", () => {
+      console.log("[SettingsService] Resuming global shortcuts");
+      // Emit a synthetic setting-changed event to trigger re-registration in main.ts
+      // We use a special key that main.ts will recognize
+      this.settingsManager.emit("shortcuts-resume");
+      return { success: true };
+    });
+
     // Get launch at login status
     ipcMain.handle("settings:getLaunchAtLoginStatus", () => {
       return this.loginItemService.getCurrentSettings();
@@ -269,9 +358,8 @@ export class SettingsService {
       "ai:validateKeyAndListModels",
       async (_event, payload: { baseUrl: string; apiKey: string }) => {
         const { baseUrl, apiKey } = payload || { baseUrl: "", apiKey: "" };
-        const { AiProviderService } = await import(
-          "../services/AiProviderService"
-        );
+        const { AiProviderService } =
+          await import("../services/AiProviderService");
         const svc = new AiProviderService();
         return svc.validateAndListModels(baseUrl, apiKey);
       },
@@ -289,22 +377,19 @@ export class SettingsService {
           model: "",
           apiKey: "",
         };
-        const { AiValidationService } = await import(
-          "../services/AiValidationService"
-        );
+        const { AiValidationService } =
+          await import("../services/AiValidationService");
         const svc = new AiValidationService();
         return svc.validateAiConfiguration(baseUrl, model, apiKey);
       },
     );
 
-
     // Save API key securely from settings
     ipcMain.handle(
       "settings:saveApiKey",
       async (_e, payload: { apiKey: string }) => {
-        const { SecureStorageService } = await import(
-          "../services/SecureStorageService"
-        );
+        const { SecureStorageService } =
+          await import("../services/SecureStorageService");
         const secure = new SecureStorageService();
         await secure.setSecureValue("ai_service", "api_key", payload.apiKey);
         return { success: true };
@@ -313,35 +398,31 @@ export class SettingsService {
 
     // Get API key securely from settings
     ipcMain.handle("settings:getApiKey", async () => {
-      const { SecureStorageService } = await import(
-        "../services/SecureStorageService"
-      );
+      const { SecureStorageService } =
+        await import("../services/SecureStorageService");
       const secure = new SecureStorageService();
       return await secure.getSecureValue("ai_service", "api_key");
     });
 
     // Keychain handlers (used by settings window)
     ipcMain.handle("keychain:saveApiKey", async (_e, apiKey: string) => {
-      const { SecureStorageService } = await import(
-        "../services/SecureStorageService"
-      );
+      const { SecureStorageService } =
+        await import("../services/SecureStorageService");
       const secure = new SecureStorageService();
       await secure.setSecureValue("ai_service", "api_key", apiKey);
       return { success: true };
     });
 
     ipcMain.handle("keychain:getApiKey", async () => {
-      const { SecureStorageService } = await import(
-        "../services/SecureStorageService"
-      );
+      const { SecureStorageService } =
+        await import("../services/SecureStorageService");
       const secure = new SecureStorageService();
       return await secure.getSecureValue("ai_service", "api_key");
     });
 
     ipcMain.handle("keychain:deleteApiKey", async () => {
-      const { SecureStorageService } = await import(
-        "../services/SecureStorageService"
-      );
+      const { SecureStorageService } =
+        await import("../services/SecureStorageService");
       const secure = new SecureStorageService();
       await secure.deleteSecureValue("ai_service", "api_key");
       return { success: true };
@@ -1032,7 +1113,10 @@ export class SettingsService {
       try {
         return await this.permissionsManager.checkAccessibilityPermissionsQuiet();
       } catch (error) {
-        console.error("Failed to check accessibility permissions quietly:", error);
+        console.error(
+          "Failed to check accessibility permissions quietly:",
+          error,
+        );
         throw error;
       }
     });
@@ -1077,16 +1161,18 @@ export class SettingsService {
     });
 
     // Open settings window to specific section
-    ipcMain.handle("settings:openToSection", async (_event, sectionId: string) => {
-      try {
-        this.openSettingsWindow(sectionId);
-        return { success: true };
-      } catch (error) {
-        console.error("Failed to open settings to section:", error);
-        throw error;
-      }
-    });
-
+    ipcMain.handle(
+      "settings:openToSection",
+      async (_event, sectionId: string) => {
+        try {
+          this.openSettingsWindow(sectionId);
+          return { success: true };
+        } catch (error) {
+          console.error("Failed to open settings to section:", error);
+          throw error;
+        }
+      },
+    );
   }
 
   private broadcastSettingsUpdate(): void {
@@ -1111,9 +1197,12 @@ export class SettingsService {
         this.settingsWindow.focus();
         // Send section to navigate to if specified
         if (sectionId) {
-          this.settingsWindow.webContents.send("settings:navigateToSection", sectionId);
+          this.settingsWindow.webContents.send(
+            "settings:navigateToSection",
+            sectionId,
+          );
         }
-      } catch { }
+      } catch {}
       return;
     }
 
@@ -1141,7 +1230,7 @@ export class SettingsService {
 
     this.settingsWindow.loadFile(
       join(__dirname, "../renderer-app/index.html"),
-      { hash: "/settings" }
+      { hash: "/settings" },
     );
 
     // Show window when ready
@@ -1150,7 +1239,10 @@ export class SettingsService {
       this.emitWindowVisibility(true);
       // Send section to navigate to if specified
       if (sectionId) {
-        this.settingsWindow?.webContents.send("settings:navigateToSection", sectionId);
+        this.settingsWindow?.webContents.send(
+          "settings:navigateToSection",
+          sectionId,
+        );
       }
     });
 
@@ -1190,7 +1282,7 @@ export class SettingsService {
     this.windowVisibilityCallbacks.forEach((cb) => {
       try {
         cb(visible);
-      } catch (e) { }
+      } catch (e) {}
     });
   }
 

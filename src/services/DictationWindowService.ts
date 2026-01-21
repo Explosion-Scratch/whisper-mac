@@ -33,6 +33,9 @@ export class DictationWindowService extends EventEmitter {
 
   async showDictationWindow(isRunOnAll: boolean = false): Promise<void> {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      // Reset internal segment state (renderer clears on window-hidden event)
+      this.currentSegments = [];
+
       // Window already exists, just show it
       this.dictationWindow.showInactive();
 
@@ -48,8 +51,6 @@ export class DictationWindowService extends EventEmitter {
           isRunOnAll,
         });
       }
-
-      return;
 
       return;
     }
@@ -118,10 +119,13 @@ export class DictationWindowService extends EventEmitter {
     });
     this.dictationWindow.webContents.once("did-finish-load", () => {
       console.log("Dictation window finished loading");
-      const glassId = liquidGlass.addView(this.dictationWindow!.getNativeWindowHandle(), {
-        cornerRadius: 8,
-      });
-      liquidGlass.unstable_setVariant(glassId, 11);
+      const glassId = liquidGlass.addView(
+        this.dictationWindow!.getNativeWindowHandle(),
+        {
+          cornerRadius: 8,
+        },
+      );
+      liquidGlass.unstable_setVariant(glassId, 6);
       liquidGlass.unstable_setScrim(glassId, 0);
       liquidGlass.unstable_setSubdued(glassId, 0);
     });
@@ -129,14 +133,14 @@ export class DictationWindowService extends EventEmitter {
 
     await this.dictationWindow.loadFile(
       join(__dirname, "../renderer-app/index.html"),
-      { hash: "/dictation" }
+      { hash: "/dictation" },
     );
 
     this.setupWindowEventHandlers();
   }
 
   private setupWindowEventHandlers(): void {
-  if (!this.dictationWindow) return;
+    if (!this.dictationWindow) return;
 
     this.dictationWindow.on("closed", () => {
       this.dictationWindow = null;
@@ -300,21 +304,21 @@ export class DictationWindowService extends EventEmitter {
   }
 
   sendAudioLevel(level: number): void {
-      if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
-          this.dictationWindow.webContents.send("dictation-audio-level", level);
-      }
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      this.dictationWindow.webContents.send("dictation-audio-level", level);
+    }
   }
 
   sendSpeechStart(): void {
-      if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
-          this.dictationWindow.webContents.send("dictation-speech-start");
-      }
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      this.dictationWindow.webContents.send("dictation-speech-start");
+    }
   }
 
   sendSpeechEnd(): void {
-      if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
-          this.dictationWindow.webContents.send("dictation-speech-end");
-      }
+    if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
+      this.dictationWindow.webContents.send("dictation-speech-end");
+    }
   }
 
   async flushPendingAudio(): Promise<void> {
@@ -453,7 +457,7 @@ export class DictationWindowService extends EventEmitter {
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       try {
         return this.dictationWindow.isVisible();
-      } catch { }
+      } catch {}
     }
     return false;
   }
