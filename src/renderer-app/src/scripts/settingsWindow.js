@@ -1,16 +1,7 @@
 import { log, info, warn, error } from "../utils/logger";
 import SettingsField from "../components/settings/ui/Field.vue";
 import TranscriptionSection from "../components/settings/transcription/TranscriptionSection.vue";
-
-import {
-  loadPermissions,
-  checkAccessibilityPermissions,
-  checkMicrophonePermissions,
-  refreshPermissions,
-  openSystemPreferences,
-  getPermissionStatusClass,
-  getPermissionStatusText,
-} from "../utils/permissions";
+import PermissionsSection from "../components/settings/PermissionsSection.vue";
 
 import {
   enumerateMicrophones,
@@ -87,6 +78,7 @@ export default {
   components: {
     SettingsField,
     TranscriptionSection,
+    PermissionsSection,
   },
   data() {
     return {
@@ -109,11 +101,6 @@ export default {
       status: { visible: false, message: "", type: "success" },
       progress: { visible: false, message: "", percent: 0 },
       isSaving: false,
-      // Permissions state
-      permissions: null,
-      isCheckingAccessibility: false,
-      isCheckingMicrophone: false,
-      isRefreshingAll: false,
       isClearingAll: false,
       apiKeyInput: "",
       apiKeyValidationTimeout: null,
@@ -273,9 +260,7 @@ export default {
       if (sectionId === "ai") {
         this.loadAiModelsIfConfigured();
       }
-      if (sectionId === "permissions") {
-        this.loadPermissions();
-      }
+      // Permissions section now handles its own initialization via PermissionsSection component
     },
 
     async loadAiModelsIfConfigured() {
@@ -354,121 +339,13 @@ export default {
       this.progress.visible = false;
     },
 
-    // --- PERMISSIONS MANAGEMENT ---
-    async loadPermissions() {
-      window.log("Loading permissions status...");
-      this.permissions = await loadPermissions();
-      if (!this.permissions) {
-        this.showStatus("Failed to load permissions status", "error");
-      }
-      window.log("Permissions loaded:", this.permissions);
-    },
-
-    async checkAccessibilityPermissions() {
-      this.isCheckingAccessibility = true;
-      try {
-        window.log("Checking accessibility permissions...");
-        const status = await checkAccessibilityPermissions();
-        if (this.permissions) {
-          this.permissions.accessibility = status;
-        }
-        if (status.granted) {
-          this.showStatus("Accessibility permissions are enabled", "success");
-        } else {
-          this.showStatus(
-            "Accessibility permissions need to be enabled in System Settings",
-            "warning",
-          );
-        }
-        window.log("Accessibility permission status:", status);
-      } catch (error) {
-        window.error("Failed to check accessibility permissions:", error);
-        this.showStatus("Failed to check accessibility permissions", "error");
-      } finally {
-        this.isCheckingAccessibility = false;
-      }
-    },
-
-    async checkMicrophonePermissions() {
-      this.isCheckingMicrophone = true;
-      try {
-        window.log("Checking microphone permissions...");
-        const status = await checkMicrophonePermissions();
-        if (this.permissions) {
-          this.permissions.microphone = status;
-        }
-        if (status.granted) {
-          this.showStatus("Microphone permissions are enabled", "success");
-        } else {
-          this.showStatus(
-            "Microphone permissions need to be enabled in System Settings",
-            "warning",
-          );
-        }
-        window.log("Microphone permission status:", status);
-      } catch (error) {
-        window.error("Failed to check microphone permissions:", error);
-        this.showStatus("Failed to check microphone permissions", "error");
-      } finally {
-        this.isCheckingMicrophone = false;
-      }
-    },
-
-    async refreshAllPermissions() {
-      this.isRefreshingAll = true;
-      try {
-        window.log("Refreshing all permissions...");
-        this.permissions = await refreshPermissions();
-        this.showStatus("Permission status refreshed", "success");
-      } catch (error) {
-        window.error("Failed to refresh permissions:", error);
-        this.showStatus("Failed to refresh permission status", "error");
-      } finally {
-        this.isRefreshingAll = false;
-      }
-    },
-
-    async openSystemPreferences() {
-      window.log("Opening System Settings...");
-      await openSystemPreferences("general");
-      this.showStatus(
-        "System Settings opened - return here after making changes",
-        "info",
-      );
-    },
-
-    async openAccessibilitySettings() {
-      window.log("Opening Accessibility Settings...");
-      await openSystemPreferences("accessibility");
-      this.showStatus(
-        "Accessibility Settings opened - return here after making changes",
-        "info",
-      );
-    },
-
-    async openMicrophoneSettings() {
-      window.log("Opening Microphone Settings...");
-      await openSystemPreferences("microphone");
-      this.showStatus(
-        "Microphone Settings opened - return here after making changes",
-        "info",
-      );
-    },
-
-    getAccessibilityStatusClass() {
-      return getPermissionStatusClass(this.permissions?.accessibility);
-    },
-
-    getAccessibilityStatusText() {
-      return getPermissionStatusText(this.permissions?.accessibility);
-    },
-
-    getMicrophoneStatusClass() {
-      return getPermissionStatusClass(this.permissions?.microphone);
-    },
-
-    getMicrophoneStatusText() {
-      return getPermissionStatusText(this.permissions?.microphone);
+    // --- PERMISSIONS STATUS HANDLER ---
+    /**
+     * Handle status events from PermissionsSection component
+     * @param {Object} payload - { message: string, type: 'success' | 'error' | 'warning' | 'info' }
+     */
+    handlePermissionStatus(payload) {
+      this.showStatus(payload.message, payload.type);
     },
 
     // --- DATA HANDLING ---
