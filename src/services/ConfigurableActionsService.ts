@@ -12,7 +12,10 @@ import {
   CleanUrlConfig,
 } from "../types/ActionTypes";
 import { TranscribedSegment } from "../types/SegmentTypes";
-import cleanSpokenUrl, { URL_FINDER_REGEX } from "../utils/cleanSpokenUrl";
+import cleanSpokenUrl, {
+  URL_FINDER_REGEX,
+  normalizeSpokenUrlInText,
+} from "../utils/cleanSpokenUrl";
 
 export class ConfigurableActionsService extends EventEmitter {
   private actions: ActionHandler[] = [];
@@ -129,9 +132,11 @@ export class ConfigurableActionsService extends EventEmitter {
 
         if (result.success && result.segments) {
           currentSegments = result.segments;
-          
+
           if (handler.stopOnSuccess) {
-            console.log(`[ConfigurableActions] Stopping action ${action.name} after successful handler ${handler.id}`);
+            console.log(
+              `[ConfigurableActions] Stopping action ${action.name} after successful handler ${handler.id}`,
+            );
             break;
           }
         }
@@ -159,8 +164,15 @@ export class ConfigurableActionsService extends EventEmitter {
     handler: ActionHandlerConfig,
     match: ActionMatch,
     segments: TranscribedSegment[],
-  ): { success: boolean; segments: TranscribedSegment[]; queuedHandlers?: ActionHandlerConfig[] } {
-    if (handler.conditions && !this.checkConditions(handler.conditions, segments)) {
+  ): {
+    success: boolean;
+    segments: TranscribedSegment[];
+    queuedHandlers?: ActionHandlerConfig[];
+  } {
+    if (
+      handler.conditions &&
+      !this.checkConditions(handler.conditions, segments)
+    ) {
       return { success: false, segments };
     }
 
@@ -201,7 +213,7 @@ export class ConfigurableActionsService extends EventEmitter {
       case "cleanUrl": {
         const cleanResult = executeCleanUrl(
           config as CleanUrlConfig,
-          updatedSegments
+          updatedSegments,
         );
         success = cleanResult.success;
         updatedSegments = cleanResult.segments;
@@ -237,18 +249,18 @@ export class ConfigurableActionsService extends EventEmitter {
     try {
       const { shell } = await import("electron");
       const urlTemplate = config.urlTemplate;
-      
+
       // If we have a direct argument injection, let's clean it first if it looks like a URL
       // This allows "Open [spoken url]" to work better
       let cleanedUrl = urlTemplate;
       if (urlTemplate.includes("{argument}")) {
         // The argument might be a spoken URL
-        // We can't easily detect if it IS a URL before interpolation, 
+        // We can't easily detect if it IS a URL before interpolation,
         // but we can try to clean the result effectively.
-        // Actually, let's just clean the result of interpolation in runHandler logic, 
+        // Actually, let's just clean the result of interpolation in runHandler logic,
         // or - cleaner - apply cleanSpokenUrl logic here on the final URL.
       }
-      
+
       try {
         // First try as-is (e.g. if it's already a valid URL or interpolated valid URL)
         const urlObj = new URL(cleanedUrl);
@@ -258,14 +270,14 @@ export class ConfigurableActionsService extends EventEmitter {
         // Continue to cleanup logic
       }
 
-    // Clean URL if possible
-    const finalUrl = cleanSpokenUrl(cleanedUrl);
+      // Clean URL if possible
+      const finalUrl = cleanSpokenUrl(cleanedUrl);
 
-    if (!finalUrl) return false;
+      if (!finalUrl) return false;
 
-    // Open URL
-    await shell.openExternal(finalUrl);
-    return true;
+      // Open URL
+      await shell.openExternal(finalUrl);
+      return true;
     } catch (error) {
       console.error("[ConfigurableActions] Failed to open URL:", error);
       return false;
@@ -274,7 +286,9 @@ export class ConfigurableActionsService extends EventEmitter {
 
   private async executeOpenApplication(config: any): Promise<boolean> {
     try {
-      const appName = this._removeTrailingPunctuation(config.applicationName || "").toLowerCase();
+      const appName = this._removeTrailingPunctuation(
+        config.applicationName || "",
+      ).toLowerCase();
       if (!appName) return false;
 
       if (!this.installedApps.has(appName)) return false;
@@ -345,7 +359,10 @@ export class ConfigurableActionsService extends EventEmitter {
         return true;
       }
     } catch (error) {
-      console.error("[ConfigurableActions] Failed to execute shell command:", error);
+      console.error(
+        "[ConfigurableActions] Failed to execute shell command:",
+        error,
+      );
       return false;
     }
   }
@@ -414,7 +431,10 @@ export class ConfigurableActionsService extends EventEmitter {
     return [...this.actions].sort((a, b) => (a.order || 0) - (b.order || 0));
   }
 
-  private checkConditions(conditions: any, segments: TranscribedSegment[]): boolean {
+  private checkConditions(
+    conditions: any,
+    segments: TranscribedSegment[],
+  ): boolean {
     if (segments.length === 0) return false;
 
     // Check previous segment conditions
@@ -423,7 +443,7 @@ export class ConfigurableActionsService extends EventEmitter {
       const previousSegment = segments[segments.length - 2];
       const regex = new RegExp(
         conditions.previousSegmentMatchPattern,
-        conditions.previousSegmentMatchFlags || ""
+        conditions.previousSegmentMatchFlags || "",
       );
       if (!regex.test(previousSegment.text)) {
         return false;
@@ -436,14 +456,18 @@ export class ConfigurableActionsService extends EventEmitter {
   /**
    * Execute all-segments actions before AI transformation
    */
-  async executeAllSegmentsActionsBeforeAI(segments: TranscribedSegment[]): Promise<void> {
+  async executeAllSegmentsActionsBeforeAI(
+    segments: TranscribedSegment[],
+  ): Promise<void> {
     await this.executeGlobalActionsOnSegments(segments, "before_ai");
   }
 
   /**
    * Execute all-segments actions after AI transformation
    */
-  async executeAllSegmentsActionsAfterAI(segments: TranscribedSegment[]): Promise<void> {
+  async executeAllSegmentsActionsAfterAI(
+    segments: TranscribedSegment[],
+  ): Promise<void> {
     await this.executeGlobalActionsOnSegments(segments, "after_ai");
   }
 
@@ -452,10 +476,10 @@ export class ConfigurableActionsService extends EventEmitter {
    */
   private async executeGlobalActionsOnSegments(
     segments: TranscribedSegment[],
-    timingMode: "before_ai" | "after_ai"
+    timingMode: "before_ai" | "after_ai",
   ): Promise<void> {
     const globalActions = this.actions.filter(
-      (action) => action.applyToAllSegments && action.timingMode === timingMode
+      (action) => action.applyToAllSegments && action.timingMode === timingMode,
     );
 
     if (globalActions.length === 0) {
@@ -463,7 +487,7 @@ export class ConfigurableActionsService extends EventEmitter {
     }
 
     console.log(
-      `[ConfigurableActions] Found ${globalActions.length} ${timingMode} global actions to execute on ${segments.length} segments`
+      `[ConfigurableActions] Found ${globalActions.length} ${timingMode} global actions to execute on ${segments.length} segments`,
     );
 
     // Create a virtual segment with combined text from all segments
@@ -500,7 +524,7 @@ export class ConfigurableActionsService extends EventEmitter {
             if (handler.type === "transformText") {
               const result = executeTransformText(
                 handler.config as TransformTextConfig,
-                virtualSegmentsArray
+                virtualSegmentsArray,
               );
               if (result.success && result.segments.length > 0) {
                 virtualSegment.text = result.segments[0].text;
@@ -508,7 +532,7 @@ export class ConfigurableActionsService extends EventEmitter {
             } else if (handler.type === "cleanUrl") {
               const result = executeCleanUrl(
                 handler.config as CleanUrlConfig,
-                virtualSegmentsArray
+                virtualSegmentsArray,
               );
               if (result.success && result.segments.length > 0) {
                 virtualSegment.text = result.segments[0].text;
@@ -537,7 +561,11 @@ function shellEscape(arg: string): string {
   return "'" + arg.replace(/'/g, "'\\''") + "'";
 }
 
-function interpolateConfig(config: HandlerConfig, match: ActionMatch, escapeFn?: (s: string) => string): any {
+function interpolateConfig(
+  config: HandlerConfig,
+  match: ActionMatch,
+  escapeFn?: (s: string) => string,
+): any {
   const interpolated = JSON.parse(JSON.stringify(config));
   const replacements = {
     "{match}": match.originalText,
@@ -574,9 +602,15 @@ function interpolateConfig(config: HandlerConfig, match: ActionMatch, escapeFn?:
 function executeSegmentAction(
   config: SegmentActionConfig,
   segments: TranscribedSegment[],
-): { success: boolean; segments: TranscribedSegment[]; queuedHandlers?: ActionHandlerConfig[] } {
+): {
+  success: boolean;
+  segments: TranscribedSegment[];
+  queuedHandlers?: ActionHandlerConfig[];
+} {
   const updatedSegments = [...segments];
-  console.log(`[ConfigurableActions] Executing segment action: ${config.action} on ${segments.length} segments`);
+  console.log(
+    `[ConfigurableActions] Executing segment action: ${config.action} on ${segments.length} segments`,
+  );
 
   try {
     switch (config.action) {
@@ -598,7 +632,8 @@ function executeSegmentAction(
             console.warn("[ConfigurableActions] No replacement text provided");
             return { success: false, segments };
           }
-          updatedSegments[updatedSegments.length - 1].text = config.replacementText;
+          updatedSegments[updatedSegments.length - 1].text =
+            config.replacementText;
           return { success: true, segments: updatedSegments };
         }
         return { success: false, segments };
@@ -608,7 +643,9 @@ function executeSegmentAction(
         if (updatedSegments.length > 0) {
           const actualCount = Math.min(count, updatedSegments.length);
           updatedSegments.splice(-actualCount, actualCount);
-          console.log(`[ConfigurableActions] Deleted last ${actualCount} segments`);
+          console.log(
+            `[ConfigurableActions] Deleted last ${actualCount} segments`,
+          );
           return { success: true, segments: updatedSegments };
         }
         return { success: false, segments };
@@ -657,7 +694,10 @@ function executeSegmentAction(
           if (config.pattern === "\\.\\.\\.") {
             regexPattern = "\\.{3,}$";
           } else {
-            const escapedPattern = config.pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const escapedPattern = config.pattern.replace(
+              /[.*+?^${}()|[\]\\]/g,
+              "\\$&",
+            );
             regexPattern = escapedPattern + "+$";
           }
           last.text = last.text.replace(new RegExp(regexPattern), "").trim();
@@ -678,18 +718,25 @@ function executeSegmentAction(
             const joiner = config.joiner !== undefined ? config.joiner : " ";
             previous.text = previous.text + joiner + current.text;
 
-            console.log(`[ConfigurableActions] Merged segment into previous: "${previous.text}"`);
+            console.log(
+              `[ConfigurableActions] Merged segment into previous: "${previous.text}"`,
+            );
             return { success: true, segments: updatedSegments };
           }
         }
         return { success: false, segments };
 
       default:
-        console.warn(`[ConfigurableActions] Unknown segment action: ${config.action}`);
+        console.warn(
+          `[ConfigurableActions] Unknown segment action: ${config.action}`,
+        );
         return { success: false, segments };
     }
   } catch (error) {
-    console.error("[ConfigurableActions] Failed to execute segment action:", error);
+    console.error(
+      "[ConfigurableActions] Failed to execute segment action:",
+      error,
+    );
     return { success: false, segments };
   }
 }
@@ -697,7 +744,12 @@ function executeSegmentAction(
 function executeTransformText(
   config: TransformTextConfig,
   segments: TranscribedSegment[],
-): { success: boolean; segments: TranscribedSegment[]; queuedHandlers?: ActionHandlerConfig[]; event?: { name: string; data: any } } {
+): {
+  success: boolean;
+  segments: TranscribedSegment[];
+  queuedHandlers?: ActionHandlerConfig[];
+  event?: { name: string; data: any };
+} {
   const updatedSegments = [...segments];
   if (updatedSegments.length === 0) {
     return { success: false, segments };
@@ -722,7 +774,10 @@ function executeTransformText(
 
     // Check match pattern if specified
     if (config.matchPattern) {
-      const matchRegex = new RegExp(config.matchPattern, config.matchFlags || "");
+      const matchRegex = new RegExp(
+        config.matchPattern,
+        config.matchFlags || "",
+      );
       if (!matchRegex.test(text)) {
         return { success: false, segments };
       }
@@ -731,14 +786,18 @@ function executeTransformText(
     // Apply the replacement
     const replaceRegex = new RegExp(
       config.replacePattern,
-      config.replaceFlags || "g"
+      config.replaceFlags || "g",
     );
 
     let replacedText: string;
     if (config.replacementMode === "lowercase") {
-      replacedText = text.replace(replaceRegex, (match: string) => match.toLowerCase());
+      replacedText = text.replace(replaceRegex, (match: string) =>
+        match.toLowerCase(),
+      );
     } else if (config.replacementMode === "uppercase") {
-      replacedText = text.replace(replaceRegex, (match: string) => match.toUpperCase());
+      replacedText = text.replace(replaceRegex, (match: string) =>
+        match.toUpperCase(),
+      );
     } else {
       // Literal replacement (default)
       replacedText = text.replace(replaceRegex, config.replacement || "");
@@ -760,14 +819,11 @@ function executeTransformText(
           segment: lastSegment,
           originalText: text,
           transformedText: replacedText,
-        }
-      }
+        },
+      },
     };
   } catch (error) {
-    console.error(
-      "[ConfigurableActions] Failed to transform text:",
-      error,
-    );
+    console.error("[ConfigurableActions] Failed to transform text:", error);
     return { success: false, segments };
   }
 }
@@ -775,7 +831,7 @@ function executeTransformText(
 // Helper to execute cleanUrl action
 function executeCleanUrl(
   config: CleanUrlConfig,
-  segments: TranscribedSegment[]
+  segments: TranscribedSegment[],
 ): { success: boolean; segments: TranscribedSegment[] } {
   const updatedSegments = [...segments];
   if (updatedSegments.length === 0) {
@@ -789,12 +845,15 @@ function executeCleanUrl(
     }
 
     let text = lastSegment.text;
-    let replacedText = text;
 
-    // Always use the robust URL finder regex to clean all URLs in the input
-    // The user has specified that this handler should NOT be configurable and should just work.
-    const matchRegex = new RegExp(URL_FINDER_REGEX); // Ensure it's a new instance with global flag from definition
-    replacedText = text.replace(matchRegex, (match) => {
+    // FIRST: Pre-process the entire text to normalize spoken URL components
+    // This converts "https: colon slash slash github dot com slash explosion hyphen scratch"
+    // into "https://github.com/explosion-scratch" BEFORE applying the URL finder regex
+    let replacedText = normalizeSpokenUrlInText(text);
+
+    // THEN: Apply the URL finder regex to clean any remaining URL artifacts
+    const matchRegex = new RegExp(URL_FINDER_REGEX);
+    replacedText = replacedText.replace(matchRegex, (match) => {
       const cleaned = cleanSpokenUrl(match);
       return cleaned || match;
     });
