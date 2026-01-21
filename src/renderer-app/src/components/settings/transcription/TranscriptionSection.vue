@@ -11,7 +11,11 @@
         :value="activePlugin"
         @change="handlePluginChange($event.target.value)"
       >
-        <option v-for="plugin in plugins" :key="plugin.name" :value="plugin.name">
+        <option
+          v-for="plugin in plugins"
+          :key="plugin.name"
+          :value="plugin.name"
+        >
           {{ plugin.displayName }}
         </option>
       </select>
@@ -27,6 +31,7 @@
       :isActive="activePlugin === plugin.name"
       @optionChange="handleOptionChange"
       @clearData="handleClearData"
+      @apiKeyValidated="handleApiKeyValidated"
     />
   </div>
 </template>
@@ -72,7 +77,13 @@ export default {
     },
   },
 
-  emits: ["pluginChange", "optionChange", "modelChange", "clearData"],
+  emits: [
+    "pluginChange",
+    "optionChange",
+    "modelChange",
+    "clearData",
+    "apiKeyValidated",
+  ],
 
   computed: {
     hasPlugins() {
@@ -103,12 +114,20 @@ export default {
       if (option.type === "model-select") {
         this.$emit("modelChange", { pluginName, optionKey: option.key, value });
       } else {
-        this.$emit("optionChange", { pluginName, optionKey: option.key, value });
+        this.$emit("optionChange", {
+          pluginName,
+          optionKey: option.key,
+          value,
+        });
       }
     },
 
     handleClearData(pluginName) {
       this.$emit("clearData", pluginName);
+    },
+
+    handleApiKeyValidated(payload) {
+      this.$emit("apiKeyValidated", payload);
     },
   },
 };

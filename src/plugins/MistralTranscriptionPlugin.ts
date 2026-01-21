@@ -7,6 +7,11 @@ import {
 import { SegmentUpdate } from "../types/SegmentTypes";
 import { WavProcessor } from "../helpers/WavProcessor";
 import { AppConfig } from "../config/AppConfig";
+import { TransformationService } from "../services/TransformationService";
+import {
+  SelectedTextService,
+  SelectedTextResult,
+} from "../services/SelectedTextService";
 import * as os from "os";
 import * as fs from "fs";
 import { join } from "path";
@@ -39,6 +44,13 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.setActivationCriteria({
       runOnAll: PROCESS_ALL_AUDIO,
       skipTransformation: false,
+      overridesTransformationSettings: false,
+    });
+    // Set AI plugin capabilities
+    this.setAiCapabilities({
+      isAiPlugin: true,
+      supportsCombinedMode: true,
+      processingMode: "transcription_only",
     });
 
     // Initialize schema
@@ -51,6 +63,49 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
    */
   getFallbackChain(): string[] {
     return ["whisper-cpp", "vosk", "yap"];
+  }
+
+  /**
+   * Validate an API key by making a simple API call to Mistral
+   * Returns success status and any error message
+   */
+  async validateApiKey(
+    apiKey: string,
+  ): Promise<{ valid: boolean; error?: string }> {
+    if (!apiKey || apiKey.trim() === "") {
+      return { valid: false, error: "API key is required" };
+    }
+
+    try {
+      // Use a simple models list call to validate the API key
+      const url = `${this.apiBase}/models`;
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "");
+        if (response.status === 401 || response.status === 403) {
+          return { valid: false, error: "Invalid API key" };
+        }
+        return {
+          valid: false,
+          error: `API error: ${response.status} ${errText}`,
+        };
+      }
+
+      // If we get a valid response, the key is valid
+      return { valid: true };
+    } catch (error: any) {
+      return {
+        valid: false,
+        error: error.message || "Failed to validate API key",
+      };
+    }
   }
 
   /**
@@ -208,10 +263,64 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
     // Get model from options or use default
     const model = this.options.model || "voxtral-mini-latest";
 
-    // Prepare request payload
+    // Determine which prompts to use based on processing mode
+    const isTranscriptionAndTransformation =
+      this.options.processing_mode !== "transcription_only";
+
+    let systemPromptText: string;
+    let messagePromptText: string;
+
+    if (isTranscriptionAndTransformation) {
+      // In combined mode, use prompts from AI Enhancement settings
+      const transcribeInstruction =
+        "You are receiving audio input. First, accurately transcribe the spoken content, then apply the following instructions to transform and enhance the text:\n\n";
+      systemPromptText =
+        transcribeInstruction +
+        (this.config.ai?.prompt ||
+          "You are a transcription assistant. Accurately transcribe the audio provided.");
+      messagePromptText =
+        this.config.ai?.messagePrompt ||
+        "Please transcribe and transform this audio accurately.";
+    } else {
+      // In transcription-only mode, use plugin-specific prompts
+      systemPromptText =
+        this.options.system_prompt ||
+        "You are a transcription assistant. Accurately transcribe the audio provided.";
+      messagePromptText =
+        this.options.message_prompt ||
+        "Please transcribe this audio accurately.";
+    }
+
+    // Get context for prompt processing
+    const selectedTextService = new SelectedTextService();
+    const savedState = await selectedTextService.getSelectedText();
+    const windowInfo = await selectedTextService.getActiveWindowInfo();
+
+    // Process prompts with placeholders
+    const processedSystemPrompt = TransformationService.processPrompt({
+      prompt: systemPromptText,
+      savedState,
+      windowInfo,
+      text: undefined,
+      config: this.config,
+    });
+
+    const processedMessagePrompt = TransformationService.processPrompt({
+      prompt: messagePromptText,
+      savedState,
+      windowInfo,
+      text: undefined,
+      config: this.config,
+    });
+
+    // Prepare request payload with system prompt
     const payload = {
       model: model,
       messages: [
+        {
+          role: "system",
+          content: processedSystemPrompt,
+        },
         {
           role: "user",
           content: [
@@ -221,7 +330,7 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
             },
             {
               type: "text",
-              text: "Please transcribe this audio accurately.",
+              text: processedMessagePrompt,
             },
           ],
         },
@@ -338,18 +447,17 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
   }
 
-
-
   getSchema(): PluginSchemaItem[] {
     return [
       {
         key: "api_key",
-        type: "string",
+        type: "api-key",
         label: "API Key",
-        description: "Your Mistral AI API key",
+        description: "Enter your Mistral AI API key",
         default: "",
         category: "basic",
         required: true,
+        secureStorageKey: "api_key",
       },
       {
         key: "model",
@@ -370,6 +478,73 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
           },
         ],
         category: "basic",
+      },
+      {
+        key: "processing_mode",
+        type: "select",
+        label: "Processing Mode",
+        description: "How Mistral should process the audio",
+        default: "transcription_only",
+        options: [
+          {
+            value: "transcription_and_transformation",
+            label: "Transcription + Transformation",
+            description:
+              "Handle both transcription and text enhancement in a single AI call. Prompts are configured in the AI Enhancement section.",
+          },
+          {
+            value: "transcription_only",
+            label: "Transcription Only",
+            description:
+              "Only transcribe audio, use separate AI Enhancement for text transformation",
+          },
+        ],
+        category: "basic",
+      },
+      {
+        key: "system_prompt",
+        type: "textarea",
+        label: "System Prompt",
+        description:
+          "Custom system prompt with {selection}, {title}, {app} placeholders",
+        default:
+          "You are a transcription assistant. Accurately transcribe the audio provided.",
+        category: "advanced",
+        dependsOn: {
+          key: "processing_mode",
+          value: "transcription_and_transformation",
+          negate: true,
+        },
+        conditionalDescription: {
+          condition: {
+            key: "processing_mode",
+            value: "transcription_and_transformation",
+          },
+          description:
+            "When using Transcription + Transformation mode, prompts are configured in the AI Enhancement section.",
+        },
+      },
+      {
+        key: "message_prompt",
+        type: "textarea",
+        label: "Message Prompt",
+        description:
+          "Custom message prompt for audio processing with {selection}, {title}, {app}, {text} placeholders",
+        default: "Please transcribe the following audio accurately.",
+        category: "advanced",
+        dependsOn: {
+          key: "processing_mode",
+          value: "transcription_and_transformation",
+          negate: true,
+        },
+        conditionalDescription: {
+          condition: {
+            key: "processing_mode",
+            value: "transcription_and_transformation",
+          },
+          description:
+            "When using Transcription + Transformation mode, prompts are configured in the AI Enhancement section.",
+        },
       },
     ];
   }
@@ -409,10 +584,20 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
       throw new Error("Mistral API key not configured");
     }
 
-    // Update activation criteria - always process all audio
+    // Update activation criteria based on processing mode
+    const isTranscriptionOnly =
+      this.options.processing_mode !== "transcription_and_transformation";
     this.setActivationCriteria({
       runOnAll: PROCESS_ALL_AUDIO,
-      skipTransformation: false,
+      skipTransformation: !isTranscriptionOnly,
+      overridesTransformationSettings: !isTranscriptionOnly,
+    });
+    this.setAiCapabilities({
+      isAiPlugin: true,
+      supportsCombinedMode: true,
+      processingMode: isTranscriptionOnly
+        ? "transcription_only"
+        : "transcription_and_transformation",
     });
 
     this.setActive(true);
@@ -507,11 +692,38 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
       console.log("No API key in options to store");
     }
 
-    // Update activation criteria - always process all audio
-    this.setActivationCriteria({
-      runOnAll: PROCESS_ALL_AUDIO,
-      skipTransformation: false,
-    });
+    // Update activation criteria and AI capabilities based on processing mode
+    const isTranscriptionOnly =
+      options.processing_mode !== "transcription_and_transformation";
+    if (isTranscriptionOnly) {
+      this.setActivationCriteria({
+        runOnAll: PROCESS_ALL_AUDIO,
+        skipTransformation: false,
+        overridesTransformationSettings: false,
+      });
+      this.setAiCapabilities({
+        isAiPlugin: true,
+        supportsCombinedMode: true,
+        processingMode: "transcription_only",
+      });
+    } else {
+      this.setActivationCriteria({
+        runOnAll: PROCESS_ALL_AUDIO,
+        skipTransformation: true,
+        overridesTransformationSettings: true,
+      });
+      this.setAiCapabilities({
+        isAiPlugin: true,
+        supportsCombinedMode: true,
+        processingMode: "transcription_and_transformation",
+        transformationSettingsKeys: [
+          "model",
+          "temperature",
+          "maxTokens",
+          "baseUrl",
+        ],
+      });
+    }
 
     uiFunctions?.showSuccess("Mistral configuration updated");
     console.log("=== Mistral options update completed ===");

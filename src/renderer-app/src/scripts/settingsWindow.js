@@ -107,6 +107,12 @@ export default {
       pendingPluginSwitch: false, // Track when plugin switch is pending due to failed immediate activation
       appVersion: "1.0.0", // Will be populated from package.json
       packageInfo: null, // Will be populated from package.json
+      activePluginAiCapabilities: {
+        isAiPlugin: false,
+        supportsCombinedMode: false,
+        processingMode: null,
+        transformationSettingsKeys: [],
+      },
     };
   },
   computed: {
@@ -127,8 +133,49 @@ export default {
     totalRulesCount() {
       return (this.settings.rules || []).length;
     },
+    /**
+     * Check if AI transformation settings are overridden by the active transcription plugin
+     * Returns true if the plugin is an AI plugin in combined transcription+transformation mode
+     */
+    aiTransformationOverridden() {
+      const caps = this.activePluginAiCapabilities;
+      return (
+        caps.isAiPlugin &&
+        caps.supportsCombinedMode &&
+        caps.processingMode === "transcription_and_transformation"
+      );
+    },
+    /**
+     * Get the display name of the active plugin that overrides transformation
+     */
+    overridingPluginName() {
+      if (!this.aiTransformationOverridden) return null;
+      const plugin = this.pluginData.plugins.find(
+        (p) => p.name === this.activePlugin,
+      );
+      return plugin?.displayName || this.activePlugin;
+    },
   },
   methods: {
+    /**
+     * Check if a specific field should be disabled because it's overridden by the plugin
+     * These fields are managed by the AI transcription plugin when in combined mode
+     */
+    isFieldOverriddenByPlugin(fieldKey) {
+      if (!this.aiTransformationOverridden) return false;
+
+      // Fields that are overridden by the AI transcription plugin
+      const overriddenFields = [
+        "ai.baseUrl",
+        "ai.model",
+        "ai.maxTokens",
+        "ai.temperature",
+        "ai.topP",
+      ];
+
+      return overriddenFields.includes(fieldKey);
+    },
+
     // --- INITIALIZATION ---
     async openAuthorLink(event) {
       event.preventDefault();
@@ -182,6 +229,9 @@ export default {
         window.log("this.activePlugin", this.activePlugin);
         ensurePluginSettingsObjects(this.settings, this.pluginData);
 
+        // Fetch AI capabilities of active plugin
+        await this.fetchActivePluginAiCapabilities();
+
         try {
           this.appVersion = await window.electronAPI.getAppVersion();
           this.packageInfo = await window.electronAPI.getPackageInfo();
@@ -199,6 +249,35 @@ export default {
       } catch (error) {
         window.error("Failed to initialize settings window:", error);
         this.showStatus("Failed to load settings", "error");
+      }
+    },
+
+    /**
+     * Fetch AI capabilities of the active transcription plugin
+     * Used to determine if AI transformation settings should be overridden
+     */
+    async fetchActivePluginAiCapabilities() {
+      try {
+        const capabilities =
+          await window.electronAPI.getActivePluginAiCapabilities();
+        this.activePluginAiCapabilities = capabilities || {
+          isAiPlugin: false,
+          supportsCombinedMode: false,
+          processingMode: null,
+          transformationSettingsKeys: [],
+        };
+        window.log(
+          "Active plugin AI capabilities:",
+          this.activePluginAiCapabilities,
+        );
+      } catch (error) {
+        window.error("Failed to fetch active plugin AI capabilities:", error);
+        this.activePluginAiCapabilities = {
+          isAiPlugin: false,
+          supportsCombinedMode: false,
+          processingMode: null,
+          transformationSettingsKeys: [],
+        };
       }
     },
 
@@ -374,18 +453,35 @@ export default {
      * Handles plugin selection change from TranscriptionSection
      * @param {string} newPlugin - The new plugin name
      */
-    handleTranscriptionPluginChange(newPlugin) {
+    async handleTranscriptionPluginChange(newPlugin) {
       this.activePlugin = newPlugin;
       this.handlePluginChange();
+      // Refresh AI capabilities when plugin changes
+      await this.fetchActivePluginAiCapabilities();
     },
 
     /**
      * Handles option change from TranscriptionSection
      * @param {Object} payload - { pluginName, optionKey, value }
      */
-    handleTranscriptionOptionChange(payload) {
+    async handleTranscriptionOptionChange(payload) {
       const { pluginName, optionKey, value } = payload;
       this.settings.plugin[pluginName][optionKey] = value;
+
+      // If processing_mode changed, refresh AI capabilities
+      if (optionKey === "processing_mode") {
+        // Update plugin options first so the backend knows the new mode
+        try {
+          await window.electronAPI.setPluginOptions(pluginName, {
+            ...this.settings.plugin[pluginName],
+            [optionKey]: value,
+          });
+        } catch (error) {
+          window.error("Failed to update plugin options:", error);
+        }
+        // Refresh AI capabilities to update the override state
+        await this.fetchActivePluginAiCapabilities();
+      }
     },
 
     /**
@@ -395,6 +491,25 @@ export default {
     handleTranscriptionModelChange(payload) {
       const { pluginName, optionKey, value } = payload;
       this.handlePluginModelChange(pluginName, optionKey, value);
+    },
+
+    /**
+     * Handles API key validation result from TranscriptionSection
+     * @param {Object} payload - { pluginName, valid, error? }
+     */
+    async handlePluginApiKeyValidated(payload) {
+      const { pluginName, valid, error } = payload;
+      if (valid) {
+        this.showStatus(`${pluginName} API key validated and saved`, "success");
+        // Refresh AI capabilities in case this affects override state
+        await this.fetchActivePluginAiCapabilities();
+        // Clear any pending plugin switch since we now have valid config
+        if (this.pendingPluginSwitch && this.activePlugin === pluginName) {
+          this.pendingPluginSwitch = false;
+        }
+      } else if (error) {
+        this.showStatus(`API key validation failed: ${error}`, "error");
+      }
     },
 
     async saveSettings() {

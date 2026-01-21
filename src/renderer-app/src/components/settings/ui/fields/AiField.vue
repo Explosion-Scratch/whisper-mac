@@ -1,5 +1,12 @@
 <template>
-  <div class="ai-field" :class="{ 'ai-field--base-url': type === 'baseUrl', 'ai-field--model': type === 'model' }">
+  <div
+    class="ai-field"
+    :class="{
+      'ai-field--base-url': type === 'baseUrl',
+      'ai-field--model': type === 'model',
+      'is-disabled': disabled,
+    }"
+  >
     <template v-if="type === 'baseUrl'">
       <input
         type="text"
@@ -7,10 +14,12 @@
         :value="modelValue"
         @input="handleBaseUrlInput"
         :placeholder="field.placeholder"
+        :disabled="disabled"
       />
       <ApiKeyField
         :modelValue="apiKeyInput"
         :loading="aiModelsState.loading"
+        :disabled="disabled"
         @update:modelValue="$emit('update:apiKeyInput', $event)"
         @validate="$emit('validateApiKey')"
       />
@@ -25,8 +34,13 @@
         class="form-control"
         :value="modelValue"
         @change="$emit('update:modelValue', $event.target.value)"
+        :disabled="disabled"
       >
-        <option v-for="model in aiModelsState.models" :key="model.id" :value="model.id">
+        <option
+          v-for="model in aiModelsState.models"
+          :key="model.id"
+          :value="model.id"
+        >
           {{ model.name || model.id }}
         </option>
       </select>
@@ -37,6 +51,7 @@
         :value="modelValue"
         @input="$emit('update:modelValue', $event.target.value)"
         placeholder="Enter model name or validate API key"
+        :disabled="disabled"
       />
     </template>
   </div>
@@ -98,6 +113,14 @@ export default {
       type: Object,
       default: () => ({ loading: false, loadedForBaseUrl: null, models: [] }),
     },
+
+    /**
+     * Whether the field is disabled
+     */
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   emits: [
@@ -144,5 +167,11 @@ export default {
   background: rgba(255, 255, 255, 0.06);
   color: var(--color-text-tertiary, #999999);
   cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.ai-field.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
 }
 </style>

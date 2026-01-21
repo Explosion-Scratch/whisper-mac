@@ -36,12 +36,12 @@ export class TranscriptionPluginManager extends EventEmitter {
     appEventBus.on("dictation-window-shown", () => {
       try {
         this.activePlugin?.onDictationWindowShow?.();
-      } catch { }
+      } catch {}
     });
     appEventBus.on("dictation-window-hidden", () => {
       try {
         this.activePlugin?.onDictationWindowHide?.();
-      } catch { }
+      } catch {}
     });
   }
 
@@ -88,7 +88,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     const plugins = this.getPlugins();
     const checkId = `plugin:availability:check:${Date.now()}`;
     promiseManager.start(checkId);
-    
+
     // Use sequential execution to avoid resource conflicts
     const operations = plugins.map((plugin) => async () => {
       try {
@@ -98,12 +98,12 @@ export class TranscriptionPluginManager extends EventEmitter {
         return { plugin, available: false, success: false, error };
       }
     });
-    
+
     const results = await promiseManager.sequence(operations);
 
     const availablePlugins = results
-      .filter(result => result.success && result.available)
-      .map(result => result.plugin);
+      .filter((result) => result.success && result.available)
+      .map((result) => result.plugin);
 
     promiseManager.resolve(checkId, { count: availablePlugins.length });
     return availablePlugins;
@@ -229,7 +229,7 @@ export class TranscriptionPluginManager extends EventEmitter {
             bufferingOverride: null,
           },
         });
-      } catch { }
+      } catch {}
 
       this.emit("active-plugin-changed", plugin);
       console.log(`Active transcription plugin set to: ${plugin.displayName}`);
@@ -333,7 +333,7 @@ export class TranscriptionPluginManager extends EventEmitter {
       `Stopping transcription with plugin: ${this.activePlugin.displayName}`,
     );
     await this.activePlugin.stopTranscription();
-    
+
     // Clear any lingering buffering override
     if (this.bufferingOverride !== null) {
       console.log(
@@ -369,11 +369,15 @@ export class TranscriptionPluginManager extends EventEmitter {
     });
 
     if (!this.activePlugin) {
-      console.log(`[TranscriptionPluginManager] finalizeBufferedAudio: No active plugin, returning`);
+      console.log(
+        `[TranscriptionPluginManager] finalizeBufferedAudio: No active plugin, returning`,
+      );
       return;
     }
     if (!this.bufferingEnabled) {
-      console.log(`[TranscriptionPluginManager] finalizeBufferedAudio: Buffering not enabled, returning`);
+      console.log(
+        `[TranscriptionPluginManager] finalizeBufferedAudio: Buffering not enabled, returning`,
+      );
       return;
     }
     const total = this.bufferedAudioChunks.reduce(
@@ -381,11 +385,15 @@ export class TranscriptionPluginManager extends EventEmitter {
       0,
     );
     if (total === 0) {
-      console.log(`[TranscriptionPluginManager] finalizeBufferedAudio: No buffered audio (total=0), returning`);
+      console.log(
+        `[TranscriptionPluginManager] finalizeBufferedAudio: No buffered audio (total=0), returning`,
+      );
       return;
     }
 
-    console.log(`[TranscriptionPluginManager] finalizeBufferedAudio: Processing ${this.bufferedAudioChunks.length} chunks, ${total} total samples`);
+    console.log(
+      `[TranscriptionPluginManager] finalizeBufferedAudio: Processing ${this.bufferedAudioChunks.length} chunks, ${total} total samples`,
+    );
 
     // Check if plugin has its own finalizeBufferedAudio method
     if (typeof this.activePlugin.finalizeBufferedAudio === "function") {
@@ -410,11 +418,18 @@ export class TranscriptionPluginManager extends EventEmitter {
     this.bufferedAudioChunks = [];
     // Bypass manager buffering and call plugin directly
     try {
-      console.log(`[TranscriptionPluginManager] Calling plugin.processAudioSegment with ${combined.length} samples`);
+      console.log(
+        `[TranscriptionPluginManager] Calling plugin.processAudioSegment with ${combined.length} samples`,
+      );
       await this.activePlugin.processAudioSegment(combined);
-      console.log(`[TranscriptionPluginManager] Plugin.processAudioSegment completed`);
+      console.log(
+        `[TranscriptionPluginManager] Plugin.processAudioSegment completed`,
+      );
     } catch (e) {
-      console.error(`[TranscriptionPluginManager] Plugin.processAudioSegment failed:`, e);
+      console.error(
+        `[TranscriptionPluginManager] Plugin.processAudioSegment failed:`,
+        e,
+      );
       this.emit("plugin-error", { plugin: this.activePlugin.name, error: e });
     }
   }
@@ -424,13 +439,17 @@ export class TranscriptionPluginManager extends EventEmitter {
    */
   async processAudioSegment(audioData: Float32Array): Promise<void> {
     if (!this.activePlugin || !this.activePlugin.processAudioSegment) {
-      console.log(`[TranscriptionPluginManager] processAudioSegment: No active plugin or processAudioSegment method`);
+      console.log(
+        `[TranscriptionPluginManager] processAudioSegment: No active plugin or processAudioSegment method`,
+      );
       return;
     }
 
     if (this.bufferingEnabled) {
       this.bufferedAudioChunks.push(audioData);
-      console.log(`[TranscriptionPluginManager] Buffered audio chunk (${audioData.length} samples), total chunks: ${this.bufferedAudioChunks.length}`);
+      console.log(
+        `[TranscriptionPluginManager] Buffered audio chunk (${audioData.length} samples), total chunks: ${this.bufferedAudioChunks.length}`,
+      );
       return;
     }
 
@@ -657,7 +676,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     const plugins = this.getPlugins();
     const initId = `plugin:initialize:all:${Date.now()}`;
     promiseManager.start(initId);
-    
+
     // Use sequential initialization to avoid resource conflicts
     const initOperations = plugins.map((plugin) => async () => {
       try {
@@ -682,9 +701,8 @@ export class TranscriptionPluginManager extends EventEmitter {
     console.log(
       `Attempting to activate default plugin with fallback: ${defaultPluginName}`,
     );
-    const fallbackResult = await this.activatePluginWithFallback(
-      defaultPluginName,
-    );
+    const fallbackResult =
+      await this.activatePluginWithFallback(defaultPluginName);
 
     if (fallbackResult.success) {
       if (fallbackResult.pluginChanged) {
@@ -725,6 +743,54 @@ export class TranscriptionPluginManager extends EventEmitter {
   getPluginSchema(name: string): PluginSchemaItem[] | null {
     const plugin = this.getPlugin(name);
     return plugin ? plugin.getSchema() : null;
+  }
+
+  /**
+   * Check if the active plugin overrides AI transformation settings
+   * Returns true if the active plugin is an AI plugin in combined transcription+transformation mode
+   */
+  activePluginOverridesTransformation(): boolean {
+    if (!this.activePlugin) {
+      return false;
+    }
+    return this.activePlugin.overridesTransformationSettings();
+  }
+
+  /**
+   * Get AI capabilities of the active plugin
+   */
+  getActivePluginAiCapabilities(): {
+    isAiPlugin: boolean;
+    supportsCombinedMode: boolean;
+    processingMode?: "transcription_only" | "transcription_and_transformation";
+    transformationSettingsKeys?: string[];
+  } {
+    if (!this.activePlugin) {
+      return {
+        isAiPlugin: false,
+        supportsCombinedMode: false,
+      };
+    }
+    return this.activePlugin.getAiCapabilities();
+  }
+
+  /**
+   * Get AI capabilities of a specific plugin by name
+   */
+  getPluginAiCapabilities(name: string): {
+    isAiPlugin: boolean;
+    supportsCombinedMode: boolean;
+    processingMode?: "transcription_only" | "transcription_and_transformation";
+    transformationSettingsKeys?: string[];
+  } {
+    const plugin = this.getPlugin(name);
+    if (!plugin) {
+      return {
+        isAiPlugin: false,
+        supportsCombinedMode: false,
+      };
+    }
+    return plugin.getAiCapabilities();
   }
 
   /**
@@ -833,7 +899,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     const plugins = this.getPlugins();
     const clearId = `plugin:clear:all:${Date.now()}`;
     promiseManager.start(clearId);
-    
+
     // Use sequential clearing to avoid filesystem conflicts
     const clearOperations = plugins.map((plugin) => async () => {
       try {
@@ -983,7 +1049,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     // Use sequential execution to avoid filesystem conflicts
     const dataInfoId = `plugin:data-info:${Date.now()}`;
     promiseManager.start(dataInfoId);
-    
+
     const dataInfoOperations = plugins.map((plugin) => async () => {
       try {
         console.log(`Getting data size for plugin ${plugin.name}...`);
@@ -1013,7 +1079,7 @@ export class TranscriptionPluginManager extends EventEmitter {
 
     const dataInfo = await promiseManager.sequence(dataInfoOperations);
     promiseManager.resolve(dataInfoId);
-    
+
     console.log("Plugin data info result:", dataInfo);
     return dataInfo;
   }
@@ -1037,7 +1103,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     const plugins = this.getPlugins();
     const cleanupId = `plugin:cleanup:all:${Date.now()}`;
     promiseManager.start(cleanupId);
-    
+
     // Use sequential cleanup to avoid resource conflicts
     const cleanupOperations = plugins.map((plugin) => async () => {
       try {

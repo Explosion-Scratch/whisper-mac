@@ -23,7 +23,9 @@
         :pluginName="plugin.name"
         :option="option"
         :value="getOptionValue(option.key)"
+        :allValues="settings"
         @update:value="handleOptionChange"
+        @apiKeyValidated="handleApiKeyValidated"
       />
     </div>
   </div>
@@ -78,7 +80,7 @@ export default {
     },
   },
 
-  emits: ["optionChange", "clearData"],
+  emits: ["optionChange", "clearData", "apiKeyValidated"],
 
   methods: {
     getOptionValue(key) {
@@ -87,6 +89,10 @@ export default {
 
     handleOptionChange(payload) {
       this.$emit("optionChange", payload);
+    },
+
+    handleApiKeyValidated(payload) {
+      this.$emit("apiKeyValidated", payload);
     },
   },
 };

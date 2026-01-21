@@ -558,6 +558,86 @@ export class SettingsService {
       },
     );
 
+    // Get active plugin AI capabilities (for determining if transformation settings are overridden)
+    ipcMain.handle("settings:getActivePluginAiCapabilities", () => {
+      if (!this.transcriptionPluginManager) {
+        return {
+          isAiPlugin: false,
+          supportsCombinedMode: false,
+          processingMode: null,
+          transformationSettingsKeys: [],
+        };
+      }
+      return this.transcriptionPluginManager.getActivePluginAiCapabilities();
+    });
+
+    // Check if active plugin overrides transformation settings
+    ipcMain.handle("settings:activePluginOverridesTransformation", () => {
+      if (!this.transcriptionPluginManager) {
+        return false;
+      }
+      return this.transcriptionPluginManager.activePluginOverridesTransformation();
+    });
+
+    // Get AI capabilities for a specific plugin
+    ipcMain.handle(
+      "settings:getPluginAiCapabilities",
+      (_event, pluginName: string) => {
+        if (!this.transcriptionPluginManager) {
+          return {
+            isAiPlugin: false,
+            supportsCombinedMode: false,
+            processingMode: null,
+            transformationSettingsKeys: [],
+          };
+        }
+        return this.transcriptionPluginManager.getPluginAiCapabilities(
+          pluginName,
+        );
+      },
+    );
+
+    // Validate plugin API key
+    ipcMain.handle(
+      "settings:validatePluginApiKey",
+      async (event, payload: { pluginName: string; apiKey: string }) => {
+        try {
+          if (!this.transcriptionPluginManager) {
+            return { valid: false, error: "Plugin manager not available" };
+          }
+
+          const { pluginName, apiKey } = payload;
+          const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
+
+          if (!plugin) {
+            return { valid: false, error: `Plugin ${pluginName} not found` };
+          }
+
+          // Check if the plugin has a validateApiKey method
+          if (typeof (plugin as any).validateApiKey === "function") {
+            const result = await (plugin as any).validateApiKey(apiKey);
+
+            // If valid, store the API key securely
+            if (result.valid) {
+              await plugin.setSecureValue("api_key", apiKey);
+            }
+
+            return result;
+          }
+
+          // Fallback: just store the key if no validation method exists
+          await plugin.setSecureValue("api_key", apiKey);
+          return { valid: true };
+        } catch (error: any) {
+          console.error(
+            `Error validating API key for plugin ${payload?.pluginName}:`,
+            error,
+          );
+          return { valid: false, error: error.message || "Validation failed" };
+        }
+      },
+    );
+
     ipcMain.handle(
       "settings:setPluginOptions",
       async (event, pluginName: string, options: Record<string, any>) => {
@@ -1329,6 +1409,10 @@ export class SettingsService {
 
     ipcMain.removeHandler("settings:switchPlugin");
     ipcMain.removeHandler("settings:testPluginActivation");
+    ipcMain.removeHandler("settings:validatePluginApiKey");
+    ipcMain.removeHandler("settings:getActivePluginAiCapabilities");
+    ipcMain.removeHandler("settings:activePluginOverridesTransformation");
+    ipcMain.removeHandler("settings:getPluginAiCapabilities");
 
     ipcMain.removeHandler("plugins:getOptions");
     ipcMain.removeHandler("plugins:getActive");

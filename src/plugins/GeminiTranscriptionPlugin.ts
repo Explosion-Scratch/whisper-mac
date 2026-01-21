@@ -38,7 +38,23 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.config = config;
     this.tempDir = mkdtempSync(join(tmpdir(), "gemini-plugin-"));
     // Set activation criteria: runOnAll (gets all audio) + skipTransformation (handles both transcription and transformation)
-    this.setActivationCriteria({ runOnAll: true, skipTransformation: true });
+    this.setActivationCriteria({
+      runOnAll: true,
+      skipTransformation: true,
+      overridesTransformationSettings: true,
+    });
+    // Set AI plugin capabilities
+    this.setAiCapabilities({
+      isAiPlugin: true,
+      supportsCombinedMode: true,
+      processingMode: "transcription_and_transformation",
+      transformationSettingsKeys: [
+        "model",
+        "temperature",
+        "maxTokens",
+        "baseUrl",
+      ],
+    });
     // Initialize schema
     this.schema = this.getSchema();
   }
@@ -49,6 +65,50 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
    */
   getFallbackChain(): string[] {
     return ["whisper-cpp", "vosk", "yap"];
+  }
+
+  /**
+   * Validate an API key by making a simple API call to Gemini
+   * Returns success status and any error message
+   */
+  async validateApiKey(
+    apiKey: string,
+  ): Promise<{ valid: boolean; error?: string }> {
+    if (!apiKey || apiKey.trim() === "") {
+      return { valid: false, error: "API key is required" };
+    }
+
+    try {
+      // Use a simple models list call to validate the API key
+      const url = `${this.apiBase}/models?key=${encodeURIComponent(apiKey)}`;
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "");
+        if (
+          response.status === 400 ||
+          response.status === 401 ||
+          response.status === 403
+        ) {
+          return { valid: false, error: "Invalid API key" };
+        }
+        return {
+          valid: false,
+          error: `API error: ${response.status} ${errText}`,
+        };
+      }
+
+      // If we get a valid response, the key is valid
+      return { valid: true };
+    } catch (error: any) {
+      return {
+        valid: false,
+        error: error.message || "Failed to validate API key",
+      };
+    }
   }
 
   /**
@@ -183,13 +243,41 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     const savedState = await selectedTextService.getSelectedText();
     const windowInfo = await selectedTextService.getActiveWindowInfo();
 
-    // Read prompt files
-    const systemPrompt = this.readPromptFile("gemini_system_prompt.txt");
-    const messagePrompt = this.readPromptFile("gemini_message_prompt.txt");
+    // Determine which prompts to use based on processing mode
+    const isTranscriptionAndTransformation =
+      this.options.processing_mode !== "transcription_only";
+
+    let systemPromptSource: string;
+    let messagePromptSource: string;
+
+    if (isTranscriptionAndTransformation) {
+      // In combined mode, use prompts from AI Enhancement settings
+      // These are stored in config.ai.prompt and config.ai.messagePrompt
+      // Add transcription instructions prefix
+      const transcribeInstruction =
+        "You are receiving audio input. First, accurately transcribe the spoken content, then apply the following instructions to transform and enhance the text:\n\n";
+      systemPromptSource =
+        transcribeInstruction +
+        (this.config.ai?.prompt ||
+          this.readPromptFile("gemini_system_prompt.txt"));
+      messagePromptSource =
+        this.config.ai?.messagePrompt ||
+        this.readPromptFile("gemini_message_prompt.txt");
+    } else {
+      // In transcription-only mode, use plugin-specific prompts
+      const defaultSystemPrompt = this.readPromptFile(
+        "gemini_system_prompt.txt",
+      );
+      const defaultMessagePrompt = this.readPromptFile(
+        "gemini_message_prompt.txt",
+      );
+      systemPromptSource = this.options.system_prompt || defaultSystemPrompt;
+      messagePromptSource = this.options.message_prompt || defaultMessagePrompt;
+    }
 
     // Use TransformationService static methods for prompt processing
     const processedSystemPrompt = TransformationService.processPrompt({
-      prompt: this.options.system_prompt || systemPrompt,
+      prompt: systemPromptSource,
       savedState,
       windowInfo,
       text: undefined,
@@ -197,7 +285,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     });
 
     const processedMessagePrompt = TransformationService.processPrompt({
-      prompt: this.options.message_prompt || messagePrompt,
+      prompt: messagePromptSource,
       savedState,
       windowInfo,
       text: undefined,
@@ -303,8 +391,6 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     await this.stopTranscription();
   }
 
-
-
   configure(config: Record<string, any>): void {
     this.setOptions(config);
   }
@@ -316,11 +402,34 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     return [
       {
         key: "api_key",
-        type: "string",
+        type: "api-key",
         label: "API Key",
-        description: "Google Gemini API key",
+        description: "Enter your Google Gemini API key",
         default: "",
         required: true,
+        category: "basic",
+        secureStorageKey: "api_key",
+      },
+      {
+        key: "processing_mode",
+        type: "select",
+        label: "Processing Mode",
+        description: "How Gemini should process the audio",
+        default: "transcription_and_transformation",
+        options: [
+          {
+            value: "transcription_and_transformation",
+            label: "Transcription + Transformation",
+            description:
+              "Handle both transcription and text enhancement in a single AI call (recommended). Prompts are configured in the AI Enhancement section.",
+          },
+          {
+            value: "transcription_only",
+            label: "Transcription Only",
+            description:
+              "Only transcribe audio, use separate AI Enhancement for text transformation",
+          },
+        ],
         category: "basic",
       },
       {
@@ -363,42 +472,47 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
       },
       {
         key: "system_prompt",
-        type: "string",
+        type: "textarea",
         label: "System Prompt",
         description:
           "Custom system prompt with {selection}, {title}, {app} placeholders",
         default: systemPrompt,
         category: "advanced",
+        dependsOn: {
+          key: "processing_mode",
+          value: "transcription_and_transformation",
+          negate: true,
+        },
+        conditionalDescription: {
+          condition: {
+            key: "processing_mode",
+            value: "transcription_and_transformation",
+          },
+          description:
+            "When using Transcription + Transformation mode, prompts are configured in the AI Enhancement section.",
+        },
       },
       {
         key: "message_prompt",
-        type: "string",
+        type: "textarea",
         label: "Message Prompt",
         description:
-          "Custom message prompt for audio processing (handles both transcription and transformation)",
+          "Custom message prompt for audio processing with {selection}, {title}, {app}, {text} placeholders",
         default: messagePrompt,
         category: "advanced",
-      },
-      {
-        key: "processing_mode",
-        type: "select",
-        label: "Processing Mode",
-        description: "How Gemini should process the audio",
-        default: "transcription_and_transformation",
-        options: [
-          {
+        dependsOn: {
+          key: "processing_mode",
+          value: "transcription_and_transformation",
+          negate: true,
+        },
+        conditionalDescription: {
+          condition: {
+            key: "processing_mode",
             value: "transcription_and_transformation",
-            label: "Transcription + Transformation",
-            description:
-              "Handle both transcription and text enhancement (recommended)",
           },
-          {
-            value: "transcription_only",
-            label: "Transcription Only",
-            description: "Only transcribe, use existing transformation service",
-          },
-        ],
-        category: "advanced",
+          description:
+            "When using Transcription + Transformation mode, prompts are configured in the AI Enhancement section.",
+        },
       },
     ];
   }
@@ -528,14 +642,37 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
       }
     }
 
-    // Update activation criteria based on processing mode
-    if (options.processing_mode === "transcription_only") {
+    // Update activation criteria and AI capabilities based on processing mode
+    const isTranscriptionOnly =
+      options.processing_mode === "transcription_only";
+    if (isTranscriptionOnly) {
       this.setActivationCriteria({
         runOnAll: true,
         skipTransformation: false,
+        overridesTransformationSettings: false,
+      });
+      this.setAiCapabilities({
+        isAiPlugin: true,
+        supportsCombinedMode: true,
+        processingMode: "transcription_only",
       });
     } else {
-      this.setActivationCriteria({ runOnAll: true, skipTransformation: true });
+      this.setActivationCriteria({
+        runOnAll: true,
+        skipTransformation: true,
+        overridesTransformationSettings: true,
+      });
+      this.setAiCapabilities({
+        isAiPlugin: true,
+        supportsCombinedMode: true,
+        processingMode: "transcription_and_transformation",
+        transformationSettingsKeys: [
+          "model",
+          "temperature",
+          "maxTokens",
+          "baseUrl",
+        ],
+      });
     }
 
     uiFunctions?.showSuccess("Gemini configuration updated");

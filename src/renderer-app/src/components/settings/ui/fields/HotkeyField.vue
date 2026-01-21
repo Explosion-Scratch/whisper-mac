@@ -9,6 +9,7 @@
       @blur="handleBlur"
       :placeholder="placeholder || 'Press keys to set hotkey'"
       readonly
+      :disabled="disabled"
     />
     <button
       type="button"
@@ -16,6 +17,7 @@
       class="btn btn-default hotkey-clear-btn"
       v-if="modelValue"
       title="Clear hotkey"
+      :disabled="disabled"
     >
       <i class="ph-duotone ph-x"></i>
     </button>
@@ -46,6 +48,14 @@ export default {
     placeholder: {
       type: String,
       default: "",
+    },
+
+    /**
+     * Whether the field is disabled
+     */
+    disabled: {
+      type: Boolean,
+      default: false,
     },
   },
 
@@ -184,6 +194,11 @@ export default {
   gap: var(--spacing-sm, 8px);
   max-width: 400px;
   align-items: center;
+}
+
+.hotkey-container:has(input:disabled) {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .form-control {

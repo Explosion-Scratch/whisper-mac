@@ -29,7 +29,7 @@ export class IpcHandlerManager {
     private onFinishDictation: () => Promise<void>,
     private onCancelDictation: () => Promise<void>,
     private onOnboardingComplete?: () => void,
-  ) { }
+  ) {}
 
   setupIpcHandlers(): void {
     if (this.handlersSetup) {
@@ -71,6 +71,8 @@ export class IpcHandlerManager {
     ipcMain.removeHandler("onboarding:getPluginSchemas");
     ipcMain.removeHandler("onboarding:getPluginOptions");
     ipcMain.removeHandler("onboarding:getCurrentPluginInfo");
+    // Note: settings:getActivePluginAiCapabilities and settings:activePluginOverridesTransformation
+    // are cleaned up in SettingsService
     ipcMain.removeHandler("onboarding:checkAccessibility");
     ipcMain.removeHandler("onboarding:resetAccessibilityCache");
     ipcMain.removeHandler("onboarding:checkAccessibilityWithPrompt");
@@ -119,11 +121,14 @@ export class IpcHandlerManager {
     });
 
     // Set selected microphone in settings
-    ipcMain.handle("dictation:setSelectedMicrophone", async (_event, deviceId: string) => {
-      this.settingsManager.set("selectedMicrophone", deviceId);
-      this.settingsManager.saveSettings();
-      return { success: true };
-    });
+    ipcMain.handle(
+      "dictation:setSelectedMicrophone",
+      async (_event, deviceId: string) => {
+        this.settingsManager.set("selectedMicrophone", deviceId);
+        this.settingsManager.saveSettings();
+        return { success: true };
+      },
+    );
   }
 
   private setupModelDownloadHandlers(): void {
@@ -192,32 +197,50 @@ export class IpcHandlerManager {
 
   private setupPromiseManagerHandlers(): void {
     // PromiseManager coordination handlers
-    ipcMain.handle("promiseManager:waitFor", async (event, promiseName: string, timeout?: number) => {
-      return await promiseManager.waitFor(promiseName, timeout);
-    });
+    ipcMain.handle(
+      "promiseManager:waitFor",
+      async (event, promiseName: string, timeout?: number) => {
+        return await promiseManager.waitFor(promiseName, timeout);
+      },
+    );
 
-    ipcMain.handle("promiseManager:start", async (event, promiseName: string, data?: any) => {
-      promiseManager.start(promiseName, data);
-      return true;
-    });
+    ipcMain.handle(
+      "promiseManager:start",
+      async (event, promiseName: string, data?: any) => {
+        promiseManager.start(promiseName, data);
+        return true;
+      },
+    );
 
-    ipcMain.handle("promiseManager:resolve", async (event, promiseName: string, data?: any) => {
-      promiseManager.resolve(promiseName, data);
-      return true;
-    });
+    ipcMain.handle(
+      "promiseManager:resolve",
+      async (event, promiseName: string, data?: any) => {
+        promiseManager.resolve(promiseName, data);
+        return true;
+      },
+    );
 
-    ipcMain.handle("promiseManager:reject", async (event, promiseName: string, error?: any) => {
-      promiseManager.reject(promiseName, error);
-      return true;
-    });
+    ipcMain.handle(
+      "promiseManager:reject",
+      async (event, promiseName: string, error?: any) => {
+        promiseManager.reject(promiseName, error);
+        return true;
+      },
+    );
 
-    ipcMain.handle("promiseManager:cancel", async (event, promiseName: string) => {
-      return promiseManager.cancel(promiseName);
-    });
+    ipcMain.handle(
+      "promiseManager:cancel",
+      async (event, promiseName: string) => {
+        return promiseManager.cancel(promiseName);
+      },
+    );
 
-    ipcMain.handle("promiseManager:getStatus", async (event, promiseName: string) => {
-      return promiseManager.getPromiseStatus(promiseName);
-    });
+    ipcMain.handle(
+      "promiseManager:getStatus",
+      async (event, promiseName: string) => {
+        return promiseManager.getPromiseStatus(promiseName);
+      },
+    );
   }
 
   private setupPluginHandlers(): void {
@@ -333,6 +356,9 @@ export class IpcHandlerManager {
         displayName: activePlugin.displayName,
       };
     });
+
+    // Note: settings:getActivePluginAiCapabilities and settings:activePluginOverridesTransformation
+    // are now registered in SettingsService to ensure they're available before onboarding completes
   }
 
   private setupOnboardingActionHandlers(): void {
@@ -340,7 +366,8 @@ export class IpcHandlerManager {
       console.log("IPC:onboarding:checkAccessibility invoked");
       const startedAt = Date.now();
       try {
-        const result = await this.permissionsManager.checkAccessibilityPermissions();
+        const result =
+          await this.permissionsManager.checkAccessibilityPermissions();
         const durationMs = Date.now() - startedAt;
         console.log(
           "IPC:onboarding:checkAccessibility result",
@@ -369,33 +396,49 @@ export class IpcHandlerManager {
     ipcMain.handle("onboarding:checkAccessibilityWithPrompt", async () => {
       console.log("IPC:onboarding:checkAccessibilityWithPrompt invoked");
       try {
-        const result = await this.permissionsManager.checkAccessibilityPermissionsWithPrompt();
-        console.log(`IPC:onboarding:checkAccessibilityWithPrompt result: ${result.granted ? 'granted' : 'denied'}`);
+        const result =
+          await this.permissionsManager.checkAccessibilityPermissionsWithPrompt();
+        console.log(
+          `IPC:onboarding:checkAccessibilityWithPrompt result: ${result.granted ? "granted" : "denied"}`,
+        );
         return result.granted;
       } catch (error: any) {
-        console.error("IPC:onboarding:checkAccessibilityWithPrompt error", error);
+        console.error(
+          "IPC:onboarding:checkAccessibilityWithPrompt error",
+          error,
+        );
         throw error;
       }
     });
 
-    ipcMain.handle("onboarding:waitForAccessibility", async (_event, options?: { pollIntervalMs?: number; timeoutMs?: number }) => {
-      console.log("IPC:onboarding:waitForAccessibility invoked", options);
-      try {
-        const result = await this.permissionsManager.waitForAccessibilityPermission(
-          options?.pollIntervalMs ?? 1000,
-          options?.timeoutMs ?? 60000
-        );
-        console.log(`IPC:onboarding:waitForAccessibility result: ${result.granted ? 'granted' : 'denied'}`);
-        return result;
-      } catch (error: any) {
-        console.error("IPC:onboarding:waitForAccessibility error", error);
-        throw error;
-      }
-    });
+    ipcMain.handle(
+      "onboarding:waitForAccessibility",
+      async (
+        _event,
+        options?: { pollIntervalMs?: number; timeoutMs?: number },
+      ) => {
+        console.log("IPC:onboarding:waitForAccessibility invoked", options);
+        try {
+          const result =
+            await this.permissionsManager.waitForAccessibilityPermission(
+              options?.pollIntervalMs ?? 1000,
+              options?.timeoutMs ?? 60000,
+            );
+          console.log(
+            `IPC:onboarding:waitForAccessibility result: ${result.granted ? "granted" : "denied"}`,
+          );
+          return result;
+        } catch (error: any) {
+          console.error("IPC:onboarding:waitForAccessibility error", error);
+          throw error;
+        }
+      },
+    );
 
     ipcMain.handle("onboarding:checkMicrophone", async () => {
       try {
-        const result = await this.permissionsManager.ensureMicrophonePermissions();
+        const result =
+          await this.permissionsManager.ensureMicrophonePermissions();
         return result.granted;
       } catch (error: any) {
         console.error("IPC:onboarding:checkMicrophone error", error);
@@ -409,31 +452,37 @@ export class IpcHandlerManager {
       return true;
     });
 
-    ipcMain.handle("onboarding:openSettings", async (_event, section?: string) => {
-      try {
-        this.settingsService.openSettingsWindow(section);
-        return { success: true };
-      } catch (error: any) {
-        console.error("Failed to open settings:", error);
-        return { success: false, error: error.message };
-      }
-    });
-
-    ipcMain.handle("onboarding:openSystemPreferences", async (_event, type?: string) => {
-      try {
-        if (type === "accessibility") {
-          await this.permissionsManager.openAccessibilityPreferences();
-        } else if (type === "microphone") {
-          await this.permissionsManager.openMicrophonePreferences();
-        } else {
-          await this.permissionsManager.openSystemPreferences();
+    ipcMain.handle(
+      "onboarding:openSettings",
+      async (_event, section?: string) => {
+        try {
+          this.settingsService.openSettingsWindow(section);
+          return { success: true };
+        } catch (error: any) {
+          console.error("Failed to open settings:", error);
+          return { success: false, error: error.message };
         }
-        return { success: true };
-      } catch (error: any) {
-        console.error("Failed to open system preferences:", error);
-        return { success: false, error: error.message };
-      }
-    });
+      },
+    );
+
+    ipcMain.handle(
+      "onboarding:openSystemPreferences",
+      async (_event, type?: string) => {
+        try {
+          if (type === "accessibility") {
+            await this.permissionsManager.openAccessibilityPreferences();
+          } else if (type === "microphone") {
+            await this.permissionsManager.openMicrophonePreferences();
+          } else {
+            await this.permissionsManager.openSystemPreferences();
+          }
+          return { success: true };
+        } catch (error: any) {
+          console.error("Failed to open system preferences:", error);
+          return { success: false, error: error.message };
+        }
+      },
+    );
 
     // Legacy handlers removed - now using unified plugin system
 
@@ -444,7 +493,7 @@ export class IpcHandlerManager {
         payload: { pluginName: string; options?: Record<string, any> },
       ) => {
         const { pluginName, options = {} } = payload;
-        
+
         // Use SettingsManager to persist and apply config consistently
         const sm = this.settingsService.getSettingsManager();
         sm.set("transcriptionPlugin", pluginName);
@@ -485,9 +534,8 @@ export class IpcHandlerManager {
       }
 
       if (enabled) {
-        const { AiValidationService } = await import(
-          "../services/AiValidationService"
-        );
+        const { AiValidationService } =
+          await import("../services/AiValidationService");
         const validationService = new AiValidationService();
         const validationResult =
           await validationService.validateAiConfiguration(
@@ -512,9 +560,8 @@ export class IpcHandlerManager {
         const { baseUrl, model } = payload;
 
         if (this.config.ai.enabled) {
-          const { AiValidationService } = await import(
-            "../services/AiValidationService"
-          );
+          const { AiValidationService } =
+            await import("../services/AiValidationService");
           const validationService = new AiValidationService();
           const validationResult =
             await validationService.validateAiConfiguration(baseUrl, model);
@@ -537,9 +584,8 @@ export class IpcHandlerManager {
     ipcMain.handle(
       "onboarding:saveApiKey",
       async (_e, payload: { apiKey: string }) => {
-        const { SecureStorageService } = await import(
-          "../services/SecureStorageService"
-        );
+        const { SecureStorageService } =
+          await import("../services/SecureStorageService");
         const secure = new SecureStorageService();
         await secure.setSecureValue("ai_service", "api_key", payload.apiKey);
         return { success: true };

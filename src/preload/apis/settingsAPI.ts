@@ -66,6 +66,11 @@ export const settingsAPI = {
       pluginName,
       options,
     }),
+  validatePluginApiKey: (pluginName: string, apiKey: string) =>
+    ipcRenderer.invoke("settings:validatePluginApiKey", {
+      pluginName,
+      apiKey,
+    }),
   isUnifiedDownloading: () => ipcRenderer.invoke("unified:isDownloading"),
   getPluginSchemas: () => ipcRenderer.invoke("settings:getPluginSchemas"),
   getPluginSchema: (pluginName: string) =>
@@ -81,6 +86,11 @@ export const settingsAPI = {
   getActivePlugin: () => ipcRenderer.invoke("plugins:getActive"),
   updateActivePluginOptions: (options: Record<string, any>) =>
     ipcRenderer.invoke("plugins:updateActiveOptions", { options }),
+  // AI plugin capabilities (for transformation override detection)
+  getActivePluginAiCapabilities: () =>
+    ipcRenderer.invoke("settings:getActivePluginAiCapabilities"),
+  activePluginOverridesTransformation: () =>
+    ipcRenderer.invoke("settings:activePluginOverridesTransformation"),
   deleteInactivePlugin: (pluginName: string) =>
     ipcRenderer.invoke("plugins:deleteInactive", { pluginName }),
   getPluginDataInfo: () => ipcRenderer.invoke("settings:getPluginDataInfo"),

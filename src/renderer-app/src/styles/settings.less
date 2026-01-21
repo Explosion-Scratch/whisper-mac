@@ -278,6 +278,45 @@
     margin-bottom: var(--spacing-xl);
   }
 
+  /* Override Warning Banner */
+  .override-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    background: rgba(255, 149, 0, 0.08);
+    border: 1px solid rgba(255, 149, 0, 0.3);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+  }
+
+  .override-warning > .ph-duotone {
+    font-size: 20px;
+    color: var(--color-warning);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .override-warning-content {
+    flex: 1;
+  }
+
+  .override-warning-content strong {
+    display: block;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--spacing-xs);
+    color: var(--color-warning);
+  }
+
+  .override-warning-content p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+  }
+
   /* Section Headers */
   .section-header {
     margin-bottom: var(--spacing-lg);
@@ -311,7 +350,7 @@
   }
 
 
-  /* Note: Form field styles (form-group, form-control, checkbox, slider, etc.) 
+  /* Note: Form field styles (form-group, form-control, checkbox, slider, etc.)
      have been moved to their respective Vue components in components/settings/ui/ */
 
   /* Buttons */

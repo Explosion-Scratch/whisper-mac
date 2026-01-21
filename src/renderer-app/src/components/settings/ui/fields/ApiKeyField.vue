@@ -13,6 +13,7 @@
       @input="handleInput"
       @keyup="$emit('validate')"
       :placeholder="placeholder"
+      :disabled="disabled"
     />
   </div>
 </template>
@@ -66,6 +67,14 @@ export default {
       type: String,
       default: "apiKeyInput",
     },
+
+    /**
+     * Whether the field is disabled
+     */
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   emits: ["update:modelValue", "validate"],
@@ -85,6 +94,11 @@ export default {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--color-border-primary, #e0e0e0);
   border-radius: var(--radius-md, 6px);
+}
+
+.api-key-field:has(input:disabled) {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .api-key-field label {

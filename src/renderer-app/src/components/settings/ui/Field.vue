@@ -1,5 +1,8 @@
 <template>
-  <div class="form-group" :class="{ 'has-error': hasError }">
+  <div
+    class="form-group"
+    :class="{ 'has-error': hasError, 'is-disabled': disabled }"
+  >
     <template v-if="!isHiddenLabel">
       <label>
         <i class="ph-duotone" :class="fieldIcon"></i>
@@ -19,6 +22,7 @@
       :value="modelValue"
       @input="$emit('update:modelValue', $event.target.value)"
       :placeholder="field.placeholder"
+      :disabled="disabled"
     />
 
     <!-- AI Fields (baseUrl, model) -->
@@ -29,6 +33,7 @@
       :modelValue="modelValue"
       :apiKeyInput="apiKeyInput"
       :aiModelsState="aiModelsState"
+      :disabled="disabled"
       @update:modelValue="$emit('update:modelValue', $event)"
       @update:apiKeyInput="$emit('update:apiKeyInput', $event)"
       @validateApiKey="$emit('validateApiKey')"
@@ -45,6 +50,7 @@
       :min="field.min"
       :max="field.max"
       :step="field.step"
+      :disabled="disabled"
     />
 
     <!-- Boolean Checkbox -->
@@ -55,6 +61,7 @@
         :id="fieldId"
         :checked="modelValue"
         @change="$emit('update:modelValue', $event.target.checked)"
+        :disabled="disabled"
       />
       <label :for="fieldId">
         <i class="ph-duotone" :class="fieldIcon"></i>
@@ -68,8 +75,13 @@
       class="form-control"
       :value="modelValue"
       @change="$emit('update:modelValue', $event.target.value)"
+      :disabled="disabled"
     >
-      <option v-for="option in field.options" :key="option.value" :value="option.value">
+      <option
+        v-for="option in field.options"
+        :key="option.value"
+        :value="option.value"
+      >
         {{ option.label }}
       </option>
     </select>
@@ -82,10 +94,15 @@
       :value="modelValue"
       @input="$emit('update:modelValue', $event.target.value)"
       :placeholder="field.placeholder"
+      :disabled="disabled"
     ></textarea>
 
     <!-- Slider -->
-    <div v-if="field.type === 'slider'" class="slider-container">
+    <div
+      v-if="field.type === 'slider'"
+      class="slider-container"
+      :class="{ 'is-disabled': disabled }"
+    >
       <input
         type="range"
         class="slider"
@@ -94,14 +111,26 @@
         :min="field.min"
         :max="field.max"
         :step="field.step"
+        :disabled="disabled"
       />
       <span class="slider-value">{{ modelValue }}</span>
     </div>
 
     <!-- Directory Picker -->
     <div v-if="field.type === 'directory'" class="directory-container">
-      <input type="text" class="form-control directory-input" :value="modelValue" readonly />
-      <button type="button" @click="$emit('browseDirectory')" class="btn btn-default directory-browse-btn">
+      <input
+        type="text"
+        class="form-control directory-input"
+        :value="modelValue"
+        readonly
+        :disabled="disabled"
+      />
+      <button
+        type="button"
+        @click="$emit('browseDirectory')"
+        class="btn btn-default directory-browse-btn"
+        :disabled="disabled"
+      >
         <i class="ph-duotone ph-folder-open"></i> Browse
       </button>
     </div>
@@ -111,6 +140,7 @@
       v-if="field.type === 'hotkey'"
       :modelValue="modelValue"
       :placeholder="field.placeholder"
+      :disabled="disabled"
       @update:modelValue="$emit('update:modelValue', $event)"
       @clear="$emit('clearHotkey')"
       @hotkeyChanged="$emit('hotkeyChanged', $event)"
@@ -180,6 +210,14 @@ export default {
     aiModelsState: {
       type: Object,
       default: () => ({ loading: false, loadedForBaseUrl: null, models: [] }),
+    },
+
+    /**
+     * Whether the field is disabled (e.g., when overridden by plugin settings)
+     */
+    disabled: {
+      type: Boolean,
+      default: false,
     },
   },
 
@@ -310,6 +348,22 @@ export default {
   background: rgba(255, 255, 255, 0.06);
   color: var(--color-text-tertiary, #999999);
   cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Disabled state for entire form group */
+.form-group.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.form-group.is-disabled label {
+  color: var(--color-text-tertiary, #999999);
+}
+
+.slider-container.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .form-group.has-error .form-control {

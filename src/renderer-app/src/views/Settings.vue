@@ -73,6 +73,25 @@
               </div>
             </div>
 
+            <!-- AI Transformation Override Warning -->
+            <div
+              v-if="currentSectionId === 'ai' && aiTransformationOverridden"
+              class="override-warning"
+            >
+              <i class="ph-duotone ph-info"></i>
+              <div class="override-warning-content">
+                <strong
+                  >Settings overridden by {{ overridingPluginName }}</strong
+                >
+                <p>
+                  The active transcription plugin is configured to handle both
+                  transcription and transformation in a single AI call. The
+                  model, API URL, and generation settings below are managed by
+                  the plugin. Prompts and writing style are still used.
+                </p>
+              </div>
+            </div>
+
             <!-- REGULAR FIELDS RENDERER -->
             <template
               v-if="currentSectionId !== 'permissions'"
@@ -87,6 +106,7 @@
                 :validationErrors="validationErrors"
                 :apiKeyInput="apiKeyInput"
                 :aiModelsState="aiModelsState"
+                :disabled="isFieldOverriddenByPlugin(field.key)"
                 @update:modelValue="handleFieldUpdate(field.key, $event)"
                 @update:apiKeyInput="apiKeyInput = $event"
                 @validateApiKey="debouncedValidateApiKey"
@@ -1597,6 +1617,7 @@
               @optionChange="handleTranscriptionOptionChange"
               @modelChange="handleTranscriptionModelChange"
               @clearData="clearPluginData"
+              @apiKeyValidated="handlePluginApiKeyValidated"
             />
 
             <!-- DATA MANAGEMENT SECTION -->

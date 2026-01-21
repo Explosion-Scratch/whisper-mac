@@ -17,7 +17,14 @@ export interface ModelDownloadProgress {
 
 export interface PluginSchemaItem {
   key: string;
-  type: "string" | "number" | "boolean" | "select" | "model-select";
+  type:
+    | "string"
+    | "number"
+    | "boolean"
+    | "select"
+    | "model-select"
+    | "textarea"
+    | "api-key";
   label: string;
   description: string;
   default: any;
@@ -31,12 +38,45 @@ export interface PluginSchemaItem {
   max?: number;
   required?: boolean;
   category?: "basic" | "advanced" | "model";
+  /** Conditional visibility - only show this field when another field has a specific value */
+  dependsOn?: {
+    key: string;
+    value: any;
+    /** If true, show when value does NOT match */
+    negate?: boolean;
+  };
+  /** Dynamic description based on another field's value */
+  conditionalDescription?: {
+    condition: {
+      key: string;
+      value: any;
+    };
+    description: string;
+  };
+  /** Secure storage key for api-key type fields */
+  secureStorageKey?: string;
 }
 
 export interface PluginActivationCriteria {
   runOnAll?: boolean;
   skipTransformation?: boolean;
   skipAllTransforms?: boolean;
+  /** When true, this plugin's settings override AI transformation settings */
+  overridesTransformationSettings?: boolean;
+}
+
+/**
+ * Metadata about how an AI plugin handles transcription and transformation
+ */
+export interface AiPluginCapabilities {
+  /** Whether this is an AI-powered transcription plugin */
+  isAiPlugin: boolean;
+  /** Whether the plugin supports combined transcription + transformation mode */
+  supportsCombinedMode: boolean;
+  /** Current processing mode if applicable */
+  processingMode?: "transcription_only" | "transcription_and_transformation";
+  /** Settings that should be read from transformation config when in combined mode */
+  transformationSettingsKeys?: string[];
 }
 
 export interface PluginState {
@@ -54,8 +94,6 @@ export interface PluginUIFunctions {
   showSuccess: (message: string) => void;
   confirmAction: (message: string) => Promise<boolean>;
 }
-
-
 
 export interface PostProcessedTranscription {
   text: string;
@@ -80,6 +118,12 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
     null;
   protected secureStorage: SecureStorageService;
   protected pluginManager: any = null;
+
+  /** AI plugin capabilities - override in AI plugins */
+  protected aiCapabilities: AiPluginCapabilities = {
+    isAiPlugin: false,
+    supportsCombinedMode: false,
+  };
 
   abstract readonly name: string;
   abstract readonly displayName: string;
@@ -111,7 +155,6 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   finalizeBufferedAudio?(): Promise<void>;
   abstract stopTranscription(): Promise<void>;
   abstract cleanup(): Promise<void>;
-
 
   // Schema methods (for UI)
   abstract getSchema(): PluginSchemaItem[];
@@ -191,6 +234,36 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   }
   setActivationCriteria(criteria: PluginActivationCriteria) {
     this.activationCriteria = { ...criteria };
+  }
+
+  /**
+   * Get AI plugin capabilities
+   * Override in AI plugins to declare capabilities
+   */
+  getAiCapabilities(): AiPluginCapabilities {
+    return { ...this.aiCapabilities };
+  }
+
+  /**
+   * Set AI plugin capabilities
+   */
+  protected setAiCapabilities(
+    capabilities: Partial<AiPluginCapabilities>,
+  ): void {
+    this.aiCapabilities = { ...this.aiCapabilities, ...capabilities };
+  }
+
+  /**
+   * Check if this plugin currently overrides transformation settings
+   * Returns true if this is an AI plugin in combined transcription+transformation mode
+   */
+  overridesTransformationSettings(): boolean {
+    const caps = this.getAiCapabilities();
+    return (
+      caps.isAiPlugin &&
+      caps.supportsCombinedMode &&
+      caps.processingMode === "transcription_and_transformation"
+    );
   }
 
   /**
