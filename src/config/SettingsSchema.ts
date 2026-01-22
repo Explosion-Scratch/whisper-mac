@@ -4,6 +4,9 @@ import { app } from "electron";
 import { getDefaultActionsConfig } from "./DefaultActions";
 import { readFileSync } from "fs";
 
+// Default history settings
+const DEFAULT_HISTORY_MAX_RECORDINGS = 100;
+
 export interface SettingsField {
   key: string;
   type:
@@ -357,6 +360,30 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
     description: "Manage plugin data and storage usage",
     icon: "database",
     fields: [],
+  },
+  {
+    id: "history",
+    title: "Recording History",
+    description: "View and manage your recording history",
+    icon: "history",
+    fields: [
+      {
+        key: "history.enabled",
+        type: "boolean",
+        label: "Enable Recording History",
+        description: "Save recordings and transcriptions for later review",
+        defaultValue: true,
+      },
+      {
+        key: "history.maxRecordings",
+        type: "number",
+        label: "Maximum Recordings",
+        description: "Maximum number of recordings to keep in history",
+        defaultValue: DEFAULT_HISTORY_MAX_RECORDINGS,
+        min: 1,
+        max: 1000,
+      },
+    ],
   },
 ];
 

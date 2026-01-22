@@ -20,6 +20,7 @@ import { UnifiedModelDownloadService } from "./services/UnifiedModelDownloadServ
 import { TrayService } from "./services/TrayService";
 import { LoginItemService } from "./services/LoginItemService";
 import { AudioCaptureService } from "./services/AudioCaptureService";
+import { HistoryService } from "./services/HistoryService";
 import { DefaultActionsConfig } from "./types/ActionTypes";
 
 import {
@@ -52,7 +53,12 @@ class WhisperMacApp {
   private segmentManager!: SegmentManager;
   private settingsManager!: SettingsManager;
   private audioCaptureService!: AudioCaptureService;
+  private historyService!: HistoryService;
   private trayService: TrayService | null = null;
+
+  // Audio accumulation for history
+  private sessionAudioChunks: Float32Array[] = [];
+  private pendingRawText: string | null = null;
 
   private appStateManager!: AppStateManager;
   private windowManager!: WindowManager;
@@ -107,6 +113,7 @@ class WhisperMacApp {
     );
     this.settingsManager = this.settingsService.getSettingsManager();
     this.audioCaptureService = new AudioCaptureService(this.config);
+    this.historyService = HistoryService.getInstance(this.config);
 
     // ConfigurableActionsService is now stateless regarding segments, no setSegmentManager needed
   }
@@ -176,14 +183,29 @@ class WhisperMacApp {
     this.settingsService.setUnifiedModelDownloadService(
       this.unifiedModelDownloadService,
     );
+    this.settingsService.setHistoryService(this.historyService);
     this.shortcutManager.setTranscriptionPluginManager(
       this.transcriptionPluginManager,
     );
     this.shortcutManager.setDictationFlowManager(this.dictationFlowManager);
     this.shortcutManager.setSettingsManager(this.settingsManager);
+    this.shortcutManager.setHistoryService(this.historyService);
   }
 
   private setupEventListeners(): void {
+    // Clear audio chunks when a new recording session starts
+    this.audioCaptureService.on("recording-started", () => {
+      this.sessionAudioChunks = [];
+      this.pendingRawText = null;
+    });
+
+    // Capture audio chunks for history during recording
+    this.audioCaptureService.on("vad-segment", (audio: Float32Array) => {
+      // Clone the audio data since the buffer may be reused
+      const audioClone = new Float32Array(audio);
+      this.sessionAudioChunks.push(audioClone);
+    });
+
     this.segmentManager.on("actions-detected", async (actionMatches) => {
       if (!this.configurableActionsService) {
         return;
@@ -249,21 +271,75 @@ class WhisperMacApp {
 
     this.segmentManager.on(
       "transformed",
-      (result: { transformedText: string }) => {
+      async (result: { transformedText: string }) => {
         if (result.transformedText) {
-          this.shortcutManager.setLastTransformedResult(result.transformedText);
+          // Save to history with the raw text we captured
+          await this.saveRecordingToHistory(
+            this.pendingRawText || result.transformedText,
+            result.transformedText,
+          );
+          this.pendingRawText = null;
         }
       },
     );
 
     this.segmentManager.on("raw", (result: { rawText: string }) => {
       if (result.rawText) {
-        this.shortcutManager.setLastRawResult(result.rawText);
+        // Store raw text for when transformed event comes
+        this.pendingRawText = result.rawText;
       }
     });
   }
 
+  private async saveRecordingToHistory(
+    rawText: string,
+    transformedText: string,
+  ): Promise<void> {
+    if (this.sessionAudioChunks.length === 0) {
+      console.log("[Main] No audio chunks to save to history");
+      return;
+    }
+
+    try {
+      // Combine all audio chunks into a single Float32Array
+      const totalLength = this.sessionAudioChunks.reduce(
+        (sum, chunk) => sum + chunk.length,
+        0,
+      );
+      const combinedAudio = new Float32Array(totalLength);
+      let offset = 0;
+      for (const chunk of this.sessionAudioChunks) {
+        combinedAudio.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      // Get active plugin name
+      const activePlugin = this.transcriptionPluginManager.getActivePlugin();
+      const pluginName = activePlugin?.name || null;
+
+      // Save to history
+      await this.historyService.addRecording(
+        combinedAudio,
+        rawText,
+        transformedText,
+        pluginName,
+      );
+
+      console.log(
+        `[Main] Saved recording to history: ${combinedAudio.length} samples`,
+      );
+    } catch (error) {
+      console.error("[Main] Failed to save recording to history:", error);
+    } finally {
+      // Clear audio chunks for next session
+      this.sessionAudioChunks = [];
+    }
+  }
+
   async initialize(): Promise<void> {
+    // Initialize history service
+    await this.historyService.initialize();
+
     await app.whenReady();
     console.log("App is ready");
 
@@ -471,6 +547,9 @@ class WhisperMacApp {
   }
 
   async cleanup(): Promise<void> {
+    // Cleanup history service
+    await this.historyService.cleanup();
+
     console.log("=== WhisperMacApp cleanup starting ===");
 
     try {

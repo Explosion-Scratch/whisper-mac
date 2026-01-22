@@ -2,6 +2,7 @@ import { log, info, warn, error } from "../utils/logger";
 import SettingsField from "../components/settings/ui/Field.vue";
 import TranscriptionSection from "../components/settings/transcription/TranscriptionSection.vue";
 import PermissionsSection from "../components/settings/PermissionsSection.vue";
+import HistorySection from "../components/settings/HistorySection.vue";
 
 import {
   enumerateMicrophones,
@@ -79,6 +80,7 @@ export default {
     SettingsField,
     TranscriptionSection,
     PermissionsSection,
+    HistorySection,
   },
   data() {
     return {
@@ -383,6 +385,7 @@ export default {
         database: "ph-database",
         shield: "ph-shield",
         keyboard: "ph-keyboard",
+        history: "ph-clock-counter-clockwise",
       };
       return iconMap[iconName] || "ph-gear";
     },

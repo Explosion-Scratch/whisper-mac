@@ -2,7 +2,7 @@ import { globalShortcut, app } from "electron";
 import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManager";
 import { DictationFlowManager } from "./DictationFlowManager";
 import { SettingsManager } from "../config/SettingsManager";
-import { appStore } from "./AppStore";
+import { HistoryService } from "../services/HistoryService";
 
 export interface ShortcutActions {
   onToggleRecording: () => void;
@@ -19,6 +19,7 @@ export class ShortcutManager {
   private transcriptionPluginManager: TranscriptionPluginManager | null = null;
   private dictationFlowManager: DictationFlowManager | null = null;
   private settingsManager: SettingsManager | null = null;
+  private historyService: HistoryService | null = null;
 
   setTranscriptionPluginManager(manager: TranscriptionPluginManager): void {
     this.transcriptionPluginManager = manager;
@@ -30,54 +31,10 @@ export class ShortcutManager {
 
   setSettingsManager(manager: SettingsManager): void {
     this.settingsManager = manager;
-    this.loadLastTransformedResult();
-    this.loadLastRawResult();
   }
 
-  private loadLastTransformedResult(): void {
-    if (this.settingsManager) {
-      const savedResult = this.settingsManager.get("internal.lastTransformedResult");
-      if (savedResult && typeof savedResult === "string") {
-        appStore.setState({
-          dictation: { ...appStore.getState().dictation, lastTransformedText: savedResult },
-        });
-        console.log(`[ShortcutManager] Loaded last transformed result from storage: "${savedResult}"`);
-      }
-    }
-  }
-
-  private loadLastRawResult(): void {
-    if (this.settingsManager) {
-      const savedResult = this.settingsManager.get("internal.lastRawResult");
-      if (savedResult && typeof savedResult === "string") {
-        appStore.setState({
-          dictation: { ...appStore.getState().dictation, lastRawText: savedResult },
-        });
-        console.log(`[ShortcutManager] Loaded last raw result from storage: "${savedResult}"`);
-      }
-    }
-  }
-
-  setLastTransformedResult(result: string): void {
-    appStore.setState({
-      dictation: { ...appStore.getState().dictation, lastTransformedText: result },
-    });
-
-    if (this.settingsManager) {
-      this.settingsManager.set("internal.lastTransformedResult", result);
-      this.settingsManager.saveSettings();
-    }
-  }
-
-  setLastRawResult(result: string): void {
-    appStore.setState({
-      dictation: { ...appStore.getState().dictation, lastRawText: result },
-    });
-
-    if (this.settingsManager) {
-      this.settingsManager.set("internal.lastRawResult", result);
-      this.settingsManager.saveSettings();
-    }
+  setHistoryService(service: HistoryService): void {
+    this.historyService = service;
   }
 
   private registerDebounceTimeout: NodeJS.Timeout | null = null;
@@ -91,7 +48,7 @@ export class ShortcutManager {
     if (this.registerDebounceTimeout) {
       clearTimeout(this.registerDebounceTimeout);
     }
-    
+
     this.registerDebounceTimeout = setTimeout(() => {
       this.registerDebounceTimeout = null;
       this.doRegisterShortcuts(hotkeys, actions);
@@ -156,10 +113,10 @@ export class ShortcutManager {
   }
 
   private registerWithRetry(
-    key: string, 
-    handler: () => void, 
+    key: string,
+    handler: () => void,
     description: string,
-    retryCount = 0
+    retryCount = 0,
   ): boolean {
     if (globalShortcut.isRegistered(key)) {
       console.log(`Shortcut ${key} already registered, unregistering first`);
@@ -181,11 +138,15 @@ export class ShortcutManager {
     }
 
     if (retryCount < ShortcutManager.MAX_REGISTER_RETRIES) {
-      console.warn(`Failed to register ${key}, retrying (${retryCount + 1}/${ShortcutManager.MAX_REGISTER_RETRIES})...`);
+      console.warn(
+        `Failed to register ${key}, retrying (${retryCount + 1}/${ShortcutManager.MAX_REGISTER_RETRIES})...`,
+      );
       return this.registerWithRetry(key, handler, description, retryCount + 1);
     }
 
-    console.error(`Failed to register ${key} shortcut after ${ShortcutManager.MAX_REGISTER_RETRIES} retries (${description})`);
+    console.error(
+      `Failed to register ${key} shortcut after ${ShortcutManager.MAX_REGISTER_RETRIES} retries (${description})`,
+    );
     return false;
   }
 
@@ -235,16 +196,28 @@ export class ShortcutManager {
   }
 
   async injectLastResult(): Promise<void> {
-    const lastTransformedResult = appStore.select((s) => s.dictation.lastTransformedText);
+    if (!this.historyService) {
+      console.log("No history service available");
+      return;
+    }
+
+    const latestRecording = this.historyService.getLatestRecording();
+    const lastTransformedResult = latestRecording
+      ? latestRecording.transformedTranscription ||
+        latestRecording.rawTranscription
+      : null;
+
     if (!lastTransformedResult) {
       console.log("No last result available to inject");
 
       try {
-        const { NotificationService } = await import("../services/NotificationService");
+        const { NotificationService } =
+          await import("../services/NotificationService");
         const notificationService = new NotificationService();
         await notificationService.sendNotification({
           title: "No Last Result",
-          message: "No previous transcription result available to inject. Try dictating some text first.",
+          message:
+            "No previous transcription result available to inject. Try dictating some text first.",
         });
       } catch (error) {
         console.error("Failed to show notification:", error);
@@ -253,9 +226,8 @@ export class ShortcutManager {
     }
 
     try {
-      const { TextInjectionService } = await import(
-        "../services/TextInjectionService"
-      );
+      const { TextInjectionService } =
+        await import("../services/TextInjectionService");
       const injectionService = new TextInjectionService();
       await injectionService.insertText(lastTransformedResult);
       console.log(`Injected last result: "${lastTransformedResult}"`);
@@ -265,16 +237,27 @@ export class ShortcutManager {
   }
 
   async injectRawLastResult(): Promise<void> {
-    const lastRawResult = appStore.select((s) => s.dictation.lastRawText);
+    if (!this.historyService) {
+      console.log("No history service available");
+      return;
+    }
+
+    const latestRecording = this.historyService.getLatestRecording();
+    const lastRawResult = latestRecording
+      ? latestRecording.rawTranscription
+      : null;
+
     if (!lastRawResult) {
       console.log("No last raw result available to inject");
 
       try {
-        const { NotificationService } = await import("../services/NotificationService");
+        const { NotificationService } =
+          await import("../services/NotificationService");
         const notificationService = new NotificationService();
         await notificationService.sendNotification({
           title: "No Raw Last Result",
-          message: "No previous raw transcription result available to inject. Try dictating some text first.",
+          message:
+            "No previous raw transcription result available to inject. Try dictating some text first.",
         });
       } catch (error) {
         console.error("Failed to show notification:", error);
@@ -283,9 +266,8 @@ export class ShortcutManager {
     }
 
     try {
-      const { TextInjectionService } = await import(
-        "../services/TextInjectionService"
-      );
+      const { TextInjectionService } =
+        await import("../services/TextInjectionService");
       const injectionService = new TextInjectionService();
       await injectionService.insertText(lastRawResult);
       console.log(`Injected last raw result: "${lastRawResult}"`);

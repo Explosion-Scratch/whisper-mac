@@ -24,6 +24,8 @@ export class AudioSpeedProcessor {
       return audioData;
     }
 
+    console.log(`Speeding up audio by ${speedFactor}x`);
+
     // Clamp speed factor to reasonable range
     const clampedSpeed = Math.min(Math.max(speedFactor, 1.0), 3.0);
 

@@ -11,6 +11,7 @@ import { PermissionsManager } from "./PermissionsManager";
 import { TextInjectionService } from "./TextInjectionService";
 import { MicrophonePermissionService } from "./MicrophonePermissionService";
 import { LoginItemService } from "./LoginItemService";
+import { HistoryService } from "./HistoryService";
 
 export class SettingsService {
   private settingsWindow: BrowserWindow | null = null;
@@ -23,6 +24,7 @@ export class SettingsService {
     null;
   private permissionsManager: PermissionsManager | null = null;
   private loginItemService: LoginItemService;
+  private historyService: HistoryService | null = null;
 
   constructor(config: AppConfig) {
     this.config = config;
@@ -54,6 +56,14 @@ export class SettingsService {
 
   setUnifiedModelDownloadService(service: UnifiedModelDownloadService): void {
     this.unifiedModelDownloadService = service;
+  }
+
+  setHistoryService(service: HistoryService): void {
+    this.historyService = service;
+  }
+
+  getHistoryService(): HistoryService | null {
+    return this.historyService;
   }
 
   /**
@@ -1253,6 +1263,155 @@ export class SettingsService {
         }
       },
     );
+
+    // ===== History IPC Handlers =====
+
+    // Get all recordings
+    ipcMain.handle("history:getAll", async () => {
+      if (!this.historyService) {
+        return { recordings: [], error: "History service not initialized" };
+      }
+      try {
+        const recordings = this.historyService.getRecordings();
+        return { recordings };
+      } catch (error) {
+        console.error("Failed to get recordings:", error);
+        return { recordings: [], error: String(error) };
+      }
+    });
+
+    // Get a specific recording
+    ipcMain.handle("history:get", async (_event, id: string) => {
+      if (!this.historyService) {
+        return { recording: null, error: "History service not initialized" };
+      }
+      try {
+        const recording = this.historyService.getRecording(id);
+        return { recording };
+      } catch (error) {
+        console.error("Failed to get recording:", error);
+        return { recording: null, error: String(error) };
+      }
+    });
+
+    // Delete a specific recording
+    ipcMain.handle("history:delete", async (_event, id: string) => {
+      if (!this.historyService) {
+        return { success: false, error: "History service not initialized" };
+      }
+      try {
+        const success = await this.historyService.deleteRecording(id);
+        return { success };
+      } catch (error) {
+        console.error("Failed to delete recording:", error);
+        return { success: false, error: String(error) };
+      }
+    });
+
+    // Delete all recordings
+    ipcMain.handle("history:deleteAll", async () => {
+      if (!this.historyService) {
+        return {
+          success: false,
+          count: 0,
+          error: "History service not initialized",
+        };
+      }
+      try {
+        const count = await this.historyService.deleteAllRecordings();
+        return { success: true, count };
+      } catch (error) {
+        console.error("Failed to delete all recordings:", error);
+        return { success: false, count: 0, error: String(error) };
+      }
+    });
+
+    // Get audio path for a recording
+    ipcMain.handle("history:getAudioPath", async (_event, id: string) => {
+      if (!this.historyService) {
+        return { path: null, error: "History service not initialized" };
+      }
+      try {
+        const path = this.historyService.getAudioPath(id);
+        return { path };
+      } catch (error) {
+        console.error("Failed to get audio path:", error);
+        return { path: null, error: String(error) };
+      }
+    });
+
+    // Get history settings
+    ipcMain.handle("history:getSettings", async () => {
+      if (!this.historyService) {
+        return {
+          settings: { enabled: true, maxRecordings: 100 },
+          error: "History service not initialized",
+        };
+      }
+      try {
+        const settings = this.historyService.getSettings();
+        return { settings };
+      } catch (error) {
+        console.error("Failed to get history settings:", error);
+        return {
+          settings: { enabled: true, maxRecordings: 100 },
+          error: String(error),
+        };
+      }
+    });
+
+    // Update history settings
+    ipcMain.handle(
+      "history:updateSettings",
+      async (
+        _event,
+        settings: { enabled?: boolean; maxRecordings?: number },
+      ) => {
+        if (!this.historyService) {
+          return {
+            success: false,
+            settings: null,
+            error: "History service not initialized",
+          };
+        }
+        try {
+          const updatedSettings =
+            await this.historyService.updateSettings(settings);
+          return { success: true, settings: updatedSettings };
+        } catch (error) {
+          console.error("Failed to update history settings:", error);
+          return { success: false, settings: null, error: String(error) };
+        }
+      },
+    );
+
+    // Get history statistics
+    ipcMain.handle("history:getStats", async () => {
+      if (!this.historyService) {
+        return { stats: null, error: "History service not initialized" };
+      }
+      try {
+        const stats = await this.historyService.getStats();
+        return { stats };
+      } catch (error) {
+        console.error("Failed to get history stats:", error);
+        return { stats: null, error: String(error) };
+      }
+    });
+
+    // Check if audio file exists
+    ipcMain.handle("history:audioExists", async (_event, id: string) => {
+      if (!this.historyService) {
+        return { exists: false, error: "History service not initialized" };
+      }
+      try {
+        const exists = await this.historyService.audioExists(id);
+        return { exists };
+      } catch (error) {
+        console.error("Failed to check audio existence:", error);
+        return { exists: false, error: String(error) };
+      }
+    });
   }
 
   private broadcastSettingsUpdate(): void {
@@ -1447,6 +1606,17 @@ export class SettingsService {
     ipcMain.removeHandler("permissions:checkMicrophoneQuiet");
     ipcMain.removeHandler("permissions:openAccessibilitySettings");
     ipcMain.removeHandler("permissions:openMicrophoneSettings");
+
+    // History handlers
+    ipcMain.removeHandler("history:getAll");
+    ipcMain.removeHandler("history:get");
+    ipcMain.removeHandler("history:delete");
+    ipcMain.removeHandler("history:deleteAll");
+    ipcMain.removeHandler("history:getAudioPath");
+    ipcMain.removeHandler("history:getSettings");
+    ipcMain.removeHandler("history:updateSettings");
+    ipcMain.removeHandler("history:getStats");
+    ipcMain.removeHandler("history:audioExists");
 
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       this.settingsWindow.destroy();

@@ -43,8 +43,6 @@ export interface AppState {
     state: DictationState;
     sessionId: string | null;
     isAccumulatingMode: boolean;
-    lastTransformedText: string | null;
-    lastRawText: string | null;
     pushToTalkActive: boolean;
     pendingSkipTransformation: boolean;
   };
@@ -110,8 +108,6 @@ const initialState: AppState = {
     state: "idle",
     sessionId: null,
     isAccumulatingMode: false,
-    lastTransformedText: null,
-    lastRawText: null,
     pushToTalkActive: false,
     pendingSkipTransformation: false,
   },
@@ -175,13 +171,16 @@ export class AppStore extends EventEmitter {
     return this.deepClone(this.state);
   }
 
-  setState(partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)): void {
+  setState(
+    partial: Partial<AppState> | ((state: AppState) => Partial<AppState>),
+  ): void {
     const prevState = this.deepClone(this.state);
-    
-    const updates = typeof partial === "function" ? partial(this.state) : partial;
-    
+
+    const updates =
+      typeof partial === "function" ? partial(this.state) : partial;
+
     this.state = this.mergeDeep(this.state, updates);
-    
+
     this.notifySubscribers(prevState);
     this.emit("state-changed", { prev: prevState, next: this.getState() });
   }
@@ -189,7 +188,11 @@ export class AppStore extends EventEmitter {
   private mergeDeep(target: any, source: any): any {
     const result = { ...target };
     for (const key of Object.keys(source)) {
-      if (source[key] && typeof source[key] === "object" && !Array.isArray(source[key])) {
+      if (
+        source[key] &&
+        typeof source[key] === "object" &&
+        !Array.isArray(source[key])
+      ) {
         result[key] = this.mergeDeep(target[key] || {}, source[key]);
       } else {
         result[key] = source[key];
@@ -198,7 +201,10 @@ export class AppStore extends EventEmitter {
     return result;
   }
 
-  subscribe<T>(selector: StateSelector<T>, listener: StateListener<T>): UnsubscribeFn {
+  subscribe<T>(
+    selector: StateSelector<T>,
+    listener: StateListener<T>,
+  ): UnsubscribeFn {
     const id = ++this.subscriptionId;
     const subscription: Subscription<T> = {
       selector,
@@ -232,12 +238,12 @@ export class AppStore extends EventEmitter {
     if (typeof a !== typeof b) return false;
     if (typeof a !== "object" || a === null || b === null) return false;
     if (Array.isArray(a) !== Array.isArray(b)) return false;
-    
+
     if (Array.isArray(a)) {
       if (a.length !== b.length) return false;
       return a.every((val, idx) => val === b[idx]);
     }
-    
+
     const keysA = Object.keys(a);
     const keysB = Object.keys(b);
     if (keysA.length !== keysB.length) return false;
@@ -257,7 +263,7 @@ export class AppStore extends EventEmitter {
     while (this.mutexes.has(name)) {
       await this.mutexes.get(name);
     }
-    
+
     let resolver: () => void;
     const promise = new Promise<void>((resolve) => {
       resolver = resolve;
@@ -299,14 +305,17 @@ export class AppStore extends EventEmitter {
     });
   }
 
-  updatePluginState(pluginName: string, updates: Partial<PluginStateData>): void {
+  updatePluginState(
+    pluginName: string,
+    updates: Partial<PluginStateData>,
+  ): void {
     const currentPluginState = this.state.plugins.pluginStates[pluginName] || {
       isLoading: false,
       isRunning: false,
       isInitialized: false,
       isActive: false,
     };
-    
+
     this.setState({
       plugins: {
         ...this.state.plugins,
@@ -348,7 +357,10 @@ export class AppStore extends EventEmitter {
     });
   }
 
-  setPermission(type: "accessibility" | "microphone", status: PermissionStatus): void {
+  setPermission(
+    type: "accessibility" | "microphone",
+    status: PermissionStatus,
+  ): void {
     this.setState({
       permissions: {
         ...this.state.permissions,
@@ -362,7 +374,10 @@ export class AppStore extends EventEmitter {
     this.setState({ ui: { ...this.state.ui, ...updates } });
   }
 
-  setSetting<K extends keyof AppState["settings"]>(key: K, value: AppState["settings"][K]): void {
+  setSetting<K extends keyof AppState["settings"]>(
+    key: K,
+    value: AppState["settings"][K],
+  ): void {
     this.setState({
       settings: { ...this.state.settings, [key]: value },
     });
@@ -397,7 +412,8 @@ export const selectors = {
   segments: (state: AppState) => state.segments.items,
   completedSegments: (state: AppState) =>
     state.segments.items.filter(
-      (s): s is TranscribedSegment => s.type === "transcribed" && s.completed === true
+      (s): s is TranscribedSegment =>
+        s.type === "transcribed" && s.completed === true,
     ),
   permissions: (state: AppState) => state.permissions,
   trayIconState: (state: AppState) => state.ui.trayIconState,

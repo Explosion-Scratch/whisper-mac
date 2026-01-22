@@ -287,6 +287,22 @@ const settingsAPI = {
   checkMicrophonePermissions: () =>
     ipcRenderer.invoke("permissions:checkMicrophone"),
   resetPermissionCaches: () => ipcRenderer.invoke("permissions:resetCaches"),
+
+  // History management
+  historyGetAll: () => ipcRenderer.invoke("history:getAll"),
+  historyGet: (id: string) => ipcRenderer.invoke("history:get", id),
+  historyDelete: (id: string) => ipcRenderer.invoke("history:delete", id),
+  historyDeleteAll: () => ipcRenderer.invoke("history:deleteAll"),
+  historyGetAudioPath: (id: string) =>
+    ipcRenderer.invoke("history:getAudioPath", id),
+  historyGetSettings: () => ipcRenderer.invoke("history:getSettings"),
+  historyUpdateSettings: (settings: {
+    enabled?: boolean;
+    maxRecordings?: number;
+  }) => ipcRenderer.invoke("history:updateSettings", settings),
+  historyGetStats: () => ipcRenderer.invoke("history:getStats"),
+  historyAudioExists: (id: string) =>
+    ipcRenderer.invoke("history:audioExists", id),
 };
 
 // ============================================================================

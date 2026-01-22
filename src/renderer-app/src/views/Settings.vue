@@ -54,7 +54,10 @@
       <main class="settings-content" v-if="currentSection && settings">
         <form @submit.prevent="saveSettings">
           <div
-            v-if="currentSectionId !== 'permissions'"
+            v-if="
+              currentSectionId !== 'permissions' &&
+              currentSectionId !== 'history'
+            "
             class="settings-section"
           >
             <div class="section-header">
@@ -94,7 +97,10 @@
 
             <!-- REGULAR FIELDS RENDERER -->
             <template
-              v-if="currentSectionId !== 'permissions'"
+              v-if="
+                currentSectionId !== 'permissions' &&
+                currentSectionId !== 'history'
+              "
               v-for="field in currentSection.fields"
               :key="field.key"
             >
@@ -1785,7 +1791,13 @@
             </div>
           </div>
 
-          <div v-if="currentSectionId !== 'permissions'" class="form-actions">
+          <div
+            v-if="
+              currentSectionId !== 'permissions' &&
+              currentSectionId !== 'history'
+            "
+            class="form-actions"
+          >
             <button type="submit" class="btn btn-primary" :disabled="isSaving">
               <span v-if="isSaving" class="spinner"></span>
               <i v-if="!isSaving" class="ph-duotone ph-floppy-disk"></i>
@@ -1813,6 +1825,11 @@
         <!-- Permissions Content -->
         <div v-if="currentSectionId === 'permissions'" class="settings-section">
           <PermissionsSection @status="handlePermissionStatus" />
+        </div>
+
+        <!-- History Content -->
+        <div v-if="currentSectionId === 'history'" class="settings-section">
+          <HistorySection @status="handlePermissionStatus" />
         </div>
       </main>
 
