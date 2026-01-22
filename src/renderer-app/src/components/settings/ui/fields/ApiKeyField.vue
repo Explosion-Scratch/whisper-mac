@@ -151,4 +151,46 @@ export default {
   display: inline-block;
   animation: spin 0.9s linear infinite;
 }
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .api-key-field {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .api-key-field label {
+    color: #ececec;
+  }
+
+  .api-key-field label .ph-duotone {
+    color: #a2a2a7;
+  }
+
+  .form-control {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .form-control::placeholder {
+    color: #666666;
+  }
+
+  .form-control:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .form-control:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #007aff;
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
+  }
+
+  .spinner {
+    border-color: rgba(255, 255, 255, 0.3);
+    border-top-color: #007aff;
+  }
+}
 </style>

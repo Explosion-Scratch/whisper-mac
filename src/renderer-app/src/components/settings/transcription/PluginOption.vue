@@ -575,4 +575,90 @@ export default {
     transform: rotate(360deg);
   }
 }
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .plugin-option {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .plugin-option:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .plugin-option label {
+    color: #ececec;
+  }
+
+  .field-description {
+    color: #a2a2a7;
+  }
+
+  .form-control {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .form-control::placeholder {
+    color: #666666;
+  }
+
+  .form-control:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .form-control:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #007aff;
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
+  }
+
+  .form-control.textarea {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  select.form-control option {
+    background: #1c1c1e;
+    color: #ececec;
+  }
+
+  .checkbox {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .checkbox:hover {
+    border-color: #007aff;
+  }
+
+  .checkbox-container label {
+    color: #ececec;
+  }
+
+  .api-key-input-wrapper .ph-duotone.ph-key {
+    color: #a2a2a7;
+  }
+
+  .visibility-toggle {
+    color: #a2a2a7;
+  }
+
+  .visibility-toggle:hover {
+    color: #ececec;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .api-key-status.status-idle {
+    color: #666666;
+  }
+
+  .spinner-small {
+    border-color: rgba(0, 122, 255, 0.3);
+    border-top-color: #007aff;
+  }
+}
 </style>

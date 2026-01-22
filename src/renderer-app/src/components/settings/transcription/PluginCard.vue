@@ -187,4 +187,52 @@ export default {
 .btn .ph-duotone {
   font-size: var(--font-size-sm, 12px);
 }
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .plugin-card {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .plugin-card:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .plugin-card.active {
+    background: rgba(0, 122, 255, 0.06);
+    border-color: #007aff;
+  }
+
+  .plugin-info h4 {
+    color: #ececec;
+  }
+
+  .plugin-description {
+    color: #a2a2a7;
+  }
+
+  .btn {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .btn-negative {
+    background: #ff3b30;
+    color: #ffffff;
+    border-color: #ff3b30;
+  }
+
+  .btn-negative:hover {
+    background: #e62e24;
+    border-color: #e62e24;
+  }
+}
 </style>

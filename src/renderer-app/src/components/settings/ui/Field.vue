@@ -537,4 +537,114 @@ textarea.form-control {
   margin-right: var(--spacing-xs, 4px);
   font-size: var(--font-size-sm, 12px);
 }
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .form-group {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .form-group:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .form-group.has-error {
+    background: rgba(255, 59, 48, 0.05);
+    border-color: #ff3b30;
+  }
+
+  .form-group label {
+    color: #ececec;
+  }
+
+  .form-group label .ph-duotone {
+    color: #a2a2a7;
+  }
+
+  .field-description {
+    color: #a2a2a7;
+  }
+
+  .form-control {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .form-control::placeholder {
+    color: #666666;
+  }
+
+  .form-control:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .form-control:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #007aff;
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
+  }
+
+  .form-control:disabled {
+    background: rgba(255, 255, 255, 0.02);
+    color: #666666;
+  }
+
+  textarea.form-control {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .directory-input {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .directory-browse-btn {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .directory-browse-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .slider {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .slider::-webkit-slider-thumb {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .slider-value {
+    color: #a2a2a7;
+  }
+
+  .checkbox {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .checkbox:hover {
+    border-color: #007aff;
+  }
+
+  .checkbox-container label {
+    color: #ececec;
+  }
+
+  .btn {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+}
 </style>

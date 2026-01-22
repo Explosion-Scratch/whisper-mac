@@ -283,4 +283,49 @@ export default {
   font-size: 14px;
   margin: 0;
 }
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .form-control {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .hotkey-input {
+    background: rgba(255, 255, 255, 0.04);
+    color: #ececec;
+  }
+
+  .hotkey-input:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .hotkey-input:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #007aff;
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
+  }
+
+  .hotkey-input::placeholder {
+    color: #666666;
+  }
+
+  .btn {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .hotkey-clear-btn:hover {
+    background: rgba(255, 59, 48, 0.15);
+    color: #ff3b30;
+    border-color: #ff3b30;
+  }
+}
 </style>

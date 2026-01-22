@@ -4,6 +4,8 @@
 
   /* Design System Variables */
   .settings-root {
+    color-scheme: light dark;
+
     --color-primary: #007aff;
     --color-primary-hover: #0056cc;
     --color-primary-active: #004499;
@@ -2099,11 +2101,11 @@
 
   /* Dark mode */
   @media (prefers-color-scheme: dark) {
-    :root {
-      --color-bg-primary: #0b0b0c;
-      --color-bg-secondary: rgba(30, 30, 33, 0.4);
-      --color-bg-tertiary: rgba(22, 22, 24, 0.6);
-      --color-bg-sidebar: rgba(30, 30, 33, 0.28);
+    .settings-root {
+      --color-bg-primary: transparent;
+      --color-bg-secondary: rgba(255, 255, 255, 0.04);
+      --color-bg-tertiary: rgba(255, 255, 255, 0.06);
+      --color-bg-sidebar: transparent;
 
       --color-border-primary: rgba(255, 255, 255, 0.12);
       --color-border-secondary: rgba(255, 255, 255, 0.18);
@@ -2113,25 +2115,31 @@
       --color-text-secondary: #a2a2a7;
       --color-text-tertiary: #666666;
       --color-text-inverse: #ffffff;
+
+      color-scheme: dark;
+      color: var(--color-text-primary);
     }
 
     body {
       color-scheme: dark;
       color: var(--color-text-primary);
-      background: rgba(0, 0, 0, 0.04);
     }
 
     .window {
-      background: rgba(0, 0, 0, 0.02);
+      background: transparent;
     }
 
     .toolbar-header {
-      background: rgba(30, 30, 33, 0.25);
+      background: rgba(255, 255, 255, 0.02);
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
 
+    .toolbar-header .title {
+      color: var(--color-text-primary);
+    }
+
     .sidebar {
-      background: rgba(30, 30, 33, 0.28);
+      background: rgba(255, 255, 255, 0.02);
       border-right: 1px solid rgba(255, 255, 255, 0.08);
     }
 
@@ -2147,34 +2155,111 @@
       background: rgba(0, 122, 255, 0.2);
     }
 
+    .nav-group-item .icn {
+      color: var(--color-text-secondary);
+    }
+
+    .nav-group-item:hover .icn,
+    .nav-group-item.active .icn {
+      color: var(--color-primary);
+    }
+
     .settings-content {
-      background: var(--color-bg-primary);
+      background: transparent;
       border-left: 1px solid var(--color-border-primary);
     }
 
+    /* Section Headers */
+    .section-header {
+      border-bottom-color: var(--color-border-primary);
+    }
+
+    .section-title {
+      color: var(--color-text-primary);
+    }
+
+    .section-description {
+      color: var(--color-text-secondary);
+    }
+
+    /* Form Groups */
     .form-group {
       background: rgba(255, 255, 255, 0.02);
+      border-color: var(--color-border-primary);
     }
 
     .form-group:hover {
       background: rgba(255, 255, 255, 0.04);
+      border-color: var(--color-border-secondary);
     }
 
+    .form-group.has-error {
+      background: rgba(255, 59, 48, 0.05);
+      border-color: var(--color-error);
+    }
+
+    .form-group label {
+      color: var(--color-text-primary);
+    }
+
+    .form-group label .ph-duotone {
+      color: var(--color-text-secondary);
+    }
+
+    .field-description {
+      color: var(--color-text-secondary);
+    }
+
+    /* Form Controls */
     .form-control {
       background: rgba(255, 255, 255, 0.06);
       color: var(--color-text-primary);
       border-color: var(--color-border-primary);
     }
 
-    .form-control:focus {
-      border-color: var(--color-border-focus);
-    }
-
-    .form-control:disabled {
-      background: rgba(255, 255, 255, 0.03);
+    .form-control::placeholder {
       color: var(--color-text-tertiary);
     }
 
+    .form-control:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--color-border-secondary);
+    }
+
+    .form-control:focus {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--color-border-focus);
+      box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
+    }
+
+    .form-control:disabled {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--color-text-tertiary);
+      opacity: 0.6;
+    }
+
+    .form-control.is-valid {
+      border-color: var(--color-success);
+    }
+
+    .form-control.is-invalid {
+      border-color: var(--color-error);
+    }
+
+    textarea.form-control {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    select.form-control {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    select.form-control option {
+      background: #1c1c1e;
+      color: var(--color-text-primary);
+    }
+
+    /* Buttons */
     .btn {
       background: rgba(255, 255, 255, 0.06);
       color: var(--color-text-primary);
@@ -2186,6 +2271,43 @@
       border-color: var(--color-border-secondary);
     }
 
+    .btn:active {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .btn-primary {
+      background: var(--color-primary);
+      color: var(--color-text-inverse);
+      border-color: var(--color-primary);
+    }
+
+    .btn-primary:hover {
+      background: var(--color-primary-hover);
+      border-color: var(--color-primary-hover);
+    }
+
+    .btn-negative {
+      background: var(--color-error);
+      color: var(--color-text-inverse);
+      border-color: var(--color-error);
+    }
+
+    .btn-negative:hover {
+      background: #e62e24;
+      border-color: #e62e24;
+    }
+
+    .action-btn {
+      background: rgba(255, 255, 255, 0.06) !important;
+      color: var(--color-text-primary) !important;
+      border-color: var(--color-border-primary) !important;
+    }
+
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.12) !important;
+    }
+
+    /* Checkbox */
     .checkbox {
       background: rgba(255, 255, 255, 0.06);
       border-color: var(--color-border-primary);
@@ -2200,11 +2322,165 @@
       border-color: var(--color-border-focus);
     }
 
+    .checkbox-container label {
+      color: var(--color-text-primary);
+    }
+
+    /* Slider */
+    .slider {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .slider::-webkit-slider-thumb {
+      background: var(--color-primary);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .slider-value {
+      color: var(--color-text-secondary);
+    }
+
+    /* Directory Input */
+    .directory-input {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .directory-browse-btn {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--color-text-primary);
+      border-color: var(--color-border-primary);
+    }
+
+    .directory-browse-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    /* Hotkey Input */
+    .hotkey-input {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--color-text-primary);
+    }
+
+    .hotkey-input:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .hotkey-input:focus {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--color-primary);
+    }
+
+    .hotkey-clear-btn {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--color-text-primary);
+      border-color: var(--color-border-primary);
+    }
+
+    .hotkey-clear-btn:hover {
+      background: rgba(255, 59, 48, 0.15);
+      color: var(--color-error);
+      border-color: var(--color-error);
+    }
+
+    /* API Key Field */
+    .api-key-field {
+      background: rgba(255, 255, 255, 0.02);
+      border-color: var(--color-border-primary);
+    }
+
+    .api-key-field label {
+      color: var(--color-text-primary);
+    }
+
+    .api-key-field label .ph-duotone {
+      color: var(--color-text-secondary);
+    }
+
+    .api-key-input-wrapper .ph-duotone.ph-key {
+      color: var(--color-text-secondary);
+    }
+
+    .visibility-toggle {
+      color: var(--color-text-secondary);
+    }
+
+    .visibility-toggle:hover {
+      color: var(--color-text-primary);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .api-key-status.status-idle {
+      color: var(--color-text-tertiary);
+    }
+
+    /* Override Warning Banner */
+    .override-warning {
+      background: rgba(255, 149, 0, 0.1);
+      border-color: rgba(255, 149, 0, 0.25);
+    }
+
+    .override-warning-content strong {
+      color: var(--color-warning);
+    }
+
+    .override-warning-content p {
+      color: var(--color-text-secondary);
+    }
+
+    /* Plugin Card */
+    .plugin-card {
+      background: rgba(255, 255, 255, 0.02);
+      border-color: var(--color-border-primary);
+    }
+
+    .plugin-card:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--color-border-secondary);
+    }
+
+    .plugin-card.active {
+      background: rgba(0, 122, 255, 0.06);
+      border-color: var(--color-primary);
+    }
+
+    .plugin-header h4,
+    .plugin-info h4 {
+      color: var(--color-text-primary);
+    }
+
+    .plugin-description {
+      color: var(--color-text-secondary);
+    }
+
+    /* Plugin Option */
+    .plugin-option {
+      background: rgba(255, 255, 255, 0.02);
+      border-color: var(--color-border-primary);
+    }
+
+    .plugin-option:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--color-border-secondary);
+    }
+
+    .plugin-option label {
+      color: var(--color-text-primary);
+    }
+
+    /* Data Management */
     .total-data-usage-summary {
       background: linear-gradient(135deg,
           rgba(0, 122, 255, 0.12),
           rgba(0, 122, 255, 0.06));
       border-color: var(--color-border-primary);
+    }
+
+    .usage-label {
+      color: var(--color-text-secondary);
+    }
+
+    .usage-value {
+      color: var(--color-text-primary);
     }
 
     .plugin-config-section {
@@ -2219,18 +2495,46 @@
 
     .plugin-data-item:hover {
       background: rgba(255, 255, 255, 0.04);
+      border-color: var(--color-border-secondary);
     }
 
     .plugin-data-item.active {
       background: rgba(0, 122, 255, 0.08);
+      border-color: var(--color-primary);
+    }
+
+    .plugin-name {
+      color: var(--color-text-primary);
+    }
+
+    .plugin-data-details-summary {
+      color: var(--color-text-secondary);
     }
 
     .plugin-data-item-detail:hover {
       background: rgba(0, 122, 255, 0.08);
     }
 
+    .item-name {
+      color: var(--color-text-primary);
+    }
+
+    .item-size {
+      color: var(--color-text-tertiary);
+    }
+
+    .delete-item-btn {
+      color: var(--color-text-secondary);
+    }
+
+    .delete-item-btn:hover {
+      background: var(--color-error);
+      color: var(--color-text-inverse);
+    }
+
+    /* Actions Editor */
     .actions-editor-container {
-      background: var(--color-bg-secondary);
+      background: rgba(255, 255, 255, 0.03);
       border-color: var(--color-border-primary);
     }
 
@@ -2239,79 +2543,360 @@
       border-bottom-color: var(--color-border-primary);
     }
 
+    .empty-actions-state {
+      color: var(--color-text-secondary);
+    }
+
+    .empty-actions-state i {
+      opacity: 0.5;
+    }
+
     .action-card {
-      background: var(--color-bg-primary);
-      border-bottom-color: var(--color-border-primary);
+      background: rgba(255, 255, 255, 0.02);
+      border-color: var(--color-border-primary);
     }
 
     .action-card:hover {
       background: rgba(0, 122, 255, 0.04);
     }
 
+    .action-name {
+      color: var(--color-text-primary);
+    }
+
+    .action-description {
+      color: var(--color-text-secondary);
+    }
+
     .action-card-body {
-      background: rgba(0, 0, 0, 0.1);
+      background: rgba(255, 255, 255, 0.02);
       border-top-color: var(--color-border-primary);
     }
 
+    .action-form-group label {
+      color: var(--color-text-primary);
+    }
+
+    .section-header-small {
+      border-bottom-color: var(--color-border-primary);
+    }
+
+    .section-header-small h5 {
+      color: var(--color-text-primary);
+    }
+
+    /* Patterns and Handlers */
     .pattern-item,
     .handler-item {
-      background: var(--color-bg-primary);
-      border-color: var(--color-border-primary);
-    }
-
-    .form-actions {
       background: rgba(255, 255, 255, 0.02);
-    }
-
-    .slider {
-      background: var(--color-border-primary);
-    }
-
-    .item-count {
-      background: var(--color-bg-secondary);
-    }
-
-    .plugin-details-btn {
-      background: var(--color-bg-tertiary);
       border-color: var(--color-border-primary);
     }
 
-    .plugin-details-btn:hover {
-      background: var(--color-bg-secondary);
+    .pattern-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--color-border-primary);
+    }
+
+    .pattern-pill:hover {
+      background: rgba(0, 122, 255, 0.08);
+      border-color: var(--color-primary);
+    }
+
+    .pattern-pill.editing {
+      background: rgba(0, 122, 255, 0.1);
+      border-color: var(--color-primary);
+    }
+
+    .pill-badge {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .pill-text {
+      color: var(--color-text-primary);
+    }
+
+    .handler-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--color-border-primary);
+    }
+
+    .handler-pill:hover {
+      background: rgba(0, 122, 255, 0.08);
+      border-color: var(--color-primary);
+    }
+
+    .handler-pill.expanded {
+      background: rgba(0, 122, 255, 0.1);
+      border-color: var(--color-primary);
+    }
+
+    .handler-type {
+      color: var(--color-text-primary);
+    }
+
+    .handler-summary {
+      color: var(--color-text-secondary);
+    }
+
+    .handler-config-panel {
+      background: rgba(255, 255, 255, 0.02);
+      border-color: var(--color-border-primary);
+    }
+
+    .handler-type-selector label {
+      color: var(--color-text-primary);
+    }
+
+    .inline-edit-form {
+      background: rgba(0, 122, 255, 0.08);
+      border-color: var(--color-primary);
+    }
+
+    /* Config Sections */
+    .config-section {
+      background: rgba(255, 255, 255, 0.02);
+      border-color: var(--color-border-primary);
+    }
+
+    .config-section:hover {
       border-color: var(--color-border-secondary);
     }
 
-    ::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.05);
+    .config-section-header {
+      background: rgba(255, 255, 255, 0.02);
     }
 
-    ::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.2);
+    .config-section-header:hover {
+      background: rgba(0, 122, 255, 0.06);
     }
 
-    ::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.3);
+    .config-section-header span {
+      color: var(--color-text-primary);
     }
 
-    .about-content {
-      background: linear-gradient(135deg,
-          rgba(0, 122, 255, 0.08),
-          rgba(0, 122, 255, 0.04));
+    .config-field label {
+      color: var(--color-text-secondary);
     }
 
-    .about-container {
-      background: rgba(255, 255, 255, 0.5);
+    .field-help {
+      color: var(--color-text-tertiary);
+    }
+
+    /* Rules Editor */
+    .rules-editor-container {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .empty-rules-state {
+      color: var(--color-text-secondary);
+    }
+
+    .rule-card {
+      background: rgba(255, 255, 255, 0.02);
       border-color: var(--color-border-primary);
     }
 
-    .about-action-btn {
+    .rule-card:hover {
+      background: rgba(0, 122, 255, 0.04);
+    }
+
+    .rule-card.expanded {
+      border-color: var(--color-primary);
+    }
+
+    .rule-name {
+      color: var(--color-text-primary);
+    }
+
+    .rule-description {
+      color: var(--color-text-tertiary);
+    }
+
+    .rule-card-body {
+      background: rgba(255, 255, 255, 0.02);
+      border-top-color: var(--color-border-primary);
+    }
+
+    .rule-form-group label {
+      color: var(--color-text-secondary);
+    }
+
+    .condition-checkbox {
+      background: rgba(255, 255, 255, 0.02);
+      border-color: var(--color-border-primary);
+      color: var(--color-text-secondary);
+    }
+
+    .condition-checkbox:hover {
+      background: rgba(0, 122, 255, 0.06);
+      border-color: var(--color-primary);
+    }
+
+    .condition-checkbox.active {
+      background: rgba(0, 122, 255, 0.12);
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+
+    .example-item {
+      background: rgba(255, 255, 255, 0.02);
+      border-color: var(--color-border-primary);
+    }
+
+    .example-column label {
+      color: var(--color-text-secondary);
+    }
+
+    .rule-move-btn {
+      color: var(--color-text-secondary);
+    }
+
+    .rule-move-btn:hover:not(.disabled) {
+      color: var(--color-primary);
+      background: rgba(0, 122, 255, 0.1);
+    }
+
+    /* Action Badges */
+    .action-badge {
+      background: rgba(0, 122, 255, 0.12);
+      color: var(--color-text-secondary);
+    }
+
+    .action-badge:hover {
+      background: rgba(0, 122, 255, 0.18);
+    }
+
+    /* Status Messages and Progress */
+    .status-message {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    .progress-overlay {
+      background: rgba(0, 122, 255, 0.95);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    .progress-bar-container {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Permissions Section */
+    .form-group.permission-granted {
+      background: rgba(52, 199, 89, 0.06);
+      border-color: var(--color-success);
+    }
+
+    .status-badge.granted {
+      background: rgba(52, 199, 89, 0.2);
+      color: var(--color-success);
+    }
+
+    .status-badge.denied {
+      background: rgba(255, 59, 48, 0.2);
+      color: var(--color-error);
+    }
+
+    .status-badge.unknown {
+      background: rgba(255, 149, 0, 0.2);
+      color: var(--color-warning);
+    }
+
+    .form-group.info-group {
+      background: rgba(0, 122, 255, 0.06);
+      border-color: rgba(0, 122, 255, 0.15);
+    }
+
+    /* Form Actions */
+    .form-actions {
+      background: rgba(255, 255, 255, 0.02);
+      border-top-color: var(--color-border-primary);
+    }
+
+    .item-count {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--color-text-tertiary);
+    }
+
+    .plugin-details-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: var(--color-border-primary);
+      color: var(--color-text-primary);
+    }
+
+    .plugin-details-btn:hover {
       background: rgba(255, 255, 255, 0.1);
+      border-color: var(--color-border-secondary);
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* About Section */
+    .about-content {
+      background: transparent;
+    }
+
+    .about-container {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--color-border-primary);
+      backdrop-filter: blur(20px);
+    }
+
+    .about-container:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .about-app-name {
+      color: var(--color-text-primary);
+    }
+
+    .about-app-name:hover {
+      color: var(--color-primary);
+    }
+
+    .about-app-description {
+      color: var(--color-text-secondary);
+    }
+
+    .about-app-description:hover {
+      color: var(--color-text-primary);
+    }
+
+    .about-app-author {
+      color: var(--color-text-tertiary);
+    }
+
+    .about-action-btn {
+      background: rgba(255, 255, 255, 0.08);
       color: var(--color-text-primary);
       border-color: var(--color-border-primary);
     }
 
     .about-action-btn:hover {
       background: rgba(255, 255, 255, 0.15);
+      border-color: var(--color-border-secondary);
+    }
+
+    .about-footer {
+      border-top-color: var(--color-border-primary);
+    }
+
+    .about-footer-text {
+      color: var(--color-text-tertiary);
+    }
+
+    .about-footer:hover .about-footer-text {
+      color: var(--color-text-secondary);
     }
 
     .about-footer-details {
@@ -2324,6 +2909,59 @@
 
     .about-footer-link:hover {
       color: var(--color-primary-hover);
+    }
+
+    /* Loading and Error States */
+    .loading-indicator {
+      color: var(--color-text-secondary);
+    }
+
+    .error-message {
+      color: var(--color-error);
+    }
+
+    .no-data-message {
+      color: var(--color-text-tertiary);
+    }
+
+    .empty-state {
+      color: var(--color-text-secondary);
+    }
+
+    /* Validation Error */
+    .validation-error {
+      color: var(--color-error);
+    }
+
+    /* Spinner */
+    .spinner {
+      border-color: rgba(255, 255, 255, 0.3);
+      border-top-color: var(--color-primary);
+    }
+
+    .spinner-small {
+      border-color: rgba(0, 122, 255, 0.3);
+      border-top-color: var(--color-primary);
+    }
+
+    /* Transcription Section specific */
+    .active-badge {
+      background: var(--color-success);
+      color: var(--color-text-inverse);
+    }
+
+    /* Transformation hints and labels */
+    .transformation-hint {
+      color: var(--color-text-secondary);
+    }
+
+    .transformation-header-row .checkbox-label {
+      color: var(--color-text-primary);
+    }
+
+    /* Case sensitive labels */
+    .case-sensitive-label {
+      color: var(--color-text-secondary);
     }
   }
 

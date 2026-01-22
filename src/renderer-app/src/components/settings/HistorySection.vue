@@ -1207,4 +1207,211 @@ export default {
     transform: rotate(360deg);
   }
 }
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .section-header > .ph-duotone {
+    color: #007aff;
+  }
+
+  .section-title {
+    color: #ececec;
+  }
+
+  .section-description {
+    color: #a2a2a7;
+  }
+
+  .settings-card {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .toggle-label {
+    color: #ececec;
+  }
+
+  .number-input {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .number-input:focus {
+    border-color: #007aff;
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
+  }
+
+  .btn-save {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .btn-save:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .btn-save.dirty {
+    background: #007aff;
+    color: #ffffff;
+    border-color: #007aff;
+  }
+
+  .stats-row {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .stat-item {
+    color: #a2a2a7;
+  }
+
+  .btn-sm {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .btn-sm:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .btn-sm.btn-danger {
+    background: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
+    border-color: rgba(255, 59, 48, 0.3);
+  }
+
+  .btn-sm.btn-danger:hover:not(:disabled) {
+    background: #ff3b30;
+    color: #ffffff;
+  }
+
+  .recording-card {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .recording-card:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .recording-card.playing {
+    border-color: #007aff;
+    background: rgba(0, 122, 255, 0.06);
+  }
+
+  .recording-date {
+    color: #ececec;
+  }
+
+  .recording-duration,
+  .recording-plugin {
+    color: #a2a2a7;
+  }
+
+  .btn-icon {
+    color: #a2a2a7;
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .btn-icon:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ececec;
+  }
+
+  .btn-delete:hover {
+    background: rgba(255, 59, 48, 0.15);
+    color: #ff3b30;
+    border-color: #ff3b30;
+  }
+
+  .audio-player {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .waveform-container {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .player-time {
+    color: #a2a2a7;
+  }
+
+  .btn-load-audio {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #a2a2a7;
+  }
+
+  .btn-load-audio:hover {
+    background: rgba(0, 122, 255, 0.08);
+    border-color: #007aff;
+    color: #007aff;
+  }
+
+  .transcription-block {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .transcription-block:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .transcription-block.polished {
+    border-color: rgba(52, 199, 89, 0.3);
+  }
+
+  .transcription-label {
+    color: #a2a2a7;
+  }
+
+  .polished-label {
+    color: #34c759;
+  }
+
+  .transcription-text {
+    color: #ececec;
+  }
+
+  .empty-state,
+  .loading-state {
+    color: #a2a2a7;
+  }
+
+  .modal-overlay {
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .modal-content {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .modal-header h3 {
+    color: #ececec;
+  }
+
+  .modal-body {
+    color: #a2a2a7;
+  }
+
+  .btn-default {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #ececec;
+  }
+
+  .btn-default:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
 </style>

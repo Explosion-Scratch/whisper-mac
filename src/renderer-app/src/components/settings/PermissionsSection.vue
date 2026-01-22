@@ -766,4 +766,142 @@ export default {
     margin-top: var(--spacing-sm, 8px);
   }
 }
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .section-header > .ph-duotone {
+    color: #007aff;
+  }
+
+  .section-title {
+    color: #ececec;
+  }
+
+  .section-description {
+    color: #a2a2a7;
+  }
+
+  .permission-card {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .permission-card:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .permission-card.granted {
+    background: rgba(52, 199, 89, 0.06);
+    border-color: rgba(52, 199, 89, 0.3);
+  }
+
+  .permission-card.granted:hover {
+    background: rgba(52, 199, 89, 0.08);
+  }
+
+  .permission-icon-wrapper {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .permission-icon-wrapper.accessibility {
+    color: #007aff;
+  }
+
+  .permission-icon-wrapper.microphone {
+    color: #ff9500;
+  }
+
+  .permission-card.granted .permission-icon-wrapper {
+    background: rgba(52, 199, 89, 0.15);
+    color: #34c759;
+  }
+
+  .permission-title {
+    color: #ececec;
+  }
+
+  .permission-description {
+    color: #a2a2a7;
+  }
+
+  .status-indicator.granted {
+    background: rgba(52, 199, 89, 0.15);
+    color: #34c759;
+  }
+
+  .status-indicator.denied {
+    background: rgba(255, 59, 48, 0.15);
+    color: #ff3b30;
+  }
+
+  .status-indicator.unknown {
+    background: rgba(255, 149, 0, 0.15);
+    color: #ff9500;
+  }
+
+  .permission-error {
+    color: #ff3b30;
+  }
+
+  .quick-actions-card {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .quick-actions-title {
+    color: #ececec;
+  }
+
+  .quick-actions-description {
+    color: #a2a2a7;
+  }
+
+  .info-card {
+    background: rgba(0, 122, 255, 0.06);
+    border-color: rgba(0, 122, 255, 0.15);
+  }
+
+  .info-card-header .ph-duotone {
+    color: #007aff;
+  }
+
+  .info-card-header span {
+    color: #ececec;
+  }
+
+  .info-item {
+    color: #a2a2a7;
+  }
+
+  .info-item .ph-duotone {
+    color: #666666;
+  }
+
+  .btn {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .btn-primary {
+    background: #007aff;
+    color: #ffffff;
+    border-color: #007aff;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #0056cc;
+    border-color: #0056cc;
+  }
+
+  .btn-default {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
 </style>

@@ -27,7 +27,7 @@ export default {
 </script>
 
 <style>
-/* 
+/*
  * Global form-group styles - NOT scoped so they apply to slotted content.
  * These styles cascade to all form elements inside the FormGroup component.
  */
@@ -164,5 +164,74 @@ export default {
   color: var(--color-error, #ff3b30);
   font-size: var(--font-size-sm, 12px);
   margin-top: var(--spacing-xs, 4px);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .form-group {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .form-group:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .form-group.has-error {
+    background: rgba(255, 59, 48, 0.05);
+    border-color: #ff3b30;
+  }
+
+  .form-group label {
+    color: #ececec;
+  }
+
+  .form-group label .ph-duotone {
+    color: #a2a2a7;
+  }
+
+  .form-group .field-description {
+    color: #a2a2a7;
+  }
+
+  .form-group .form-control {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ececec;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .form-group .form-control::placeholder {
+    color: #666666;
+  }
+
+  .form-group .form-control:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .form-group .form-control:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #007aff;
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
+  }
+
+  .form-group .form-control:disabled {
+    background: rgba(255, 255, 255, 0.02);
+    color: #666666;
+  }
+
+  .form-group .checkbox {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .form-group .checkbox:hover {
+    border-color: #007aff;
+  }
+
+  .form-group .checkbox-container label {
+    color: #ececec;
+  }
 }
 </style>
