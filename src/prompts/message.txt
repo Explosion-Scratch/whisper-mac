@@ -6,9 +6,11 @@ Operate based on the selection. E.g. make any changes requested, or if the user 
 </SELECTION>
 </sel>
 
+<rough_transcription>
 <ROUGH_TRANSCRIPTION>
 {text}
 </ROUGH_TRANSCRIPTION>
+</rough_transcription>
 
 <context>
 Use the following only for context. The transcription may or may not relate in any way.

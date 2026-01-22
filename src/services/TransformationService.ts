@@ -101,13 +101,29 @@ export class TransformationService {
       return text;
     };
 
+    const hasRoughTranscription = !!(text && text.trim().length > 0);
+
     processed = repTagIf("sel", savedState.hasSelection, processed);
     processed = repTagIf("no_sel", !savedState.hasSelection, processed);
     processed = repTagIf("context", context.hasContext, processed);
-    processed = repTagIf("no_context", context.hasContext, processed);
+    processed = repTagIf("no_context", !context.hasContext, processed);
     processed = repTagIf("rules", !!rules.length, processed);
-    processed = repTagIf("writing_style", !!rules.length, processed);
-    processed = repTagIf("instruct-transcribe", !!includeTranscriptionInstructions, processed);
+    processed = repTagIf("writing_style", !!writingStyle, processed);
+    processed = repTagIf(
+      "instruct-transcribe",
+      !!includeTranscriptionInstructions,
+      processed,
+    );
+    processed = repTagIf(
+      "rough_transcription",
+      hasRoughTranscription,
+      processed,
+    );
+    processed = repTagIf(
+      "no_rough_transcription",
+      !hasRoughTranscription,
+      processed,
+    );
 
     return processed;
   }
@@ -304,13 +320,13 @@ export class TransformationService {
       { text: systemPrompt + "\n\n" + messagePrompt },
       ...(screenshotBase64
         ? [
-          {
-            inlineData: {
-              mimeType: "image/png",
-              data: screenshotBase64,
+            {
+              inlineData: {
+                mimeType: "image/png",
+                data: screenshotBase64,
+              },
             },
-          },
-        ]
+          ]
         : []),
       {
         inlineData: {
@@ -349,6 +365,16 @@ export class TransformationService {
         .join(" ");
 
       console.log("Combined text before transformation:", combinedText);
+
+      // Early return if no text to transform - avoids wasteful AI API calls
+      if (!combinedText.trim()) {
+        console.log("No text to transform, returning empty result");
+        return {
+          transformedText: "",
+          segmentsProcessed: transcribedSegments.length,
+          success: true,
+        };
+      }
 
       const transformedText = await this.transformText(
         combinedText,
@@ -443,8 +469,9 @@ export class TransformationService {
     let apiKey: string | undefined;
     try {
       const secure = new SecureStorageService();
-      apiKey = (await secure.getSecureValue("ai_service", "api_key")) || undefined;
-    } catch (e) { }
+      apiKey =
+        (await secure.getSecureValue("ai_service", "api_key")) || undefined;
+    } catch (e) {}
     if (!apiKey) apiKey = process.env["AI_API_KEY"];
     if (!apiKey)
       throw new Error(
@@ -518,9 +545,7 @@ export class TransformationService {
     if (!content) {
       throw new Error("Invalid AI API response format");
     }
-    let transformed = TransformationService.removeThink(
-      content,
-    );
+    let transformed = TransformationService.removeThink(content);
     transformed = await TransformationService.removeChanged(transformed);
     console.log("AI transformed text:", transformed);
     return transformed;

@@ -1,15 +1,6 @@
 import { resolve } from "path";
 import { readFileSync, existsSync } from "fs";
 
-const DEFAULT_TRANSCRIPTION_INSTRUCTIONS = `You are receiving audio input. First, accurately transcribe the spoken content, then apply the following instructions to transform and enhance the text.
-
-When transcribing:
-- Listen carefully to the audio and capture all spoken words accurately
-- Be aware that some words may sound similar to others - use context to disambiguate
-- Handle repetitions as self-corrections
-- Technical terms and proper nouns should be resolved using context clues
-- Don't make mindless changes, preserve the user's intent`;
-
 export class PromptManager {
   private static promptCache: Map<string, string> = new Map();
 
@@ -35,8 +26,7 @@ export class PromptManager {
   }
 
   static getTranscriptionInstructions(): string {
-    const content = this.readPromptFile("transcription_instructions.txt");
-    return content || DEFAULT_TRANSCRIPTION_INSTRUCTIONS;
+    return this.readPromptFile("transcription_instructions.txt");
   }
 
   static getDefaultSystemPrompt(): string {

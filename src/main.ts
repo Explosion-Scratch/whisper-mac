@@ -241,14 +241,11 @@ class WhisperMacApp {
     );
 
     // Listen for audio speed multiplier setting changes
-    this.settingsManager.on(
-      "setting-changed",
-      (event: { key: string; value: any }) => {
-        if (event.key === "audioSpeedMultiplier") {
-          this.transcriptionPluginManager.setAudioSpeedMultiplier(event.value);
-        }
-      },
-    );
+    this.settingsManager.on("setting-changed", (key: string, value: any) => {
+      if (key === "audioSpeedMultiplier") {
+        this.transcriptionPluginManager.setAudioSpeedMultiplier(value);
+      }
+    });
 
     this.segmentManager.on(
       "transformed",
