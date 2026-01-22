@@ -6,99 +6,83 @@
       <div>
         <h2 class="section-title">Recording History</h2>
         <p class="section-description">
-          View and manage your past recordings, transcriptions, and
-          transformations.
+          View and manage your past recordings and transcriptions.
         </p>
       </div>
     </div>
 
     <!-- Settings Card -->
     <div class="settings-card">
-      <div class="settings-card-header">
-        <i class="ph-duotone ph-gear"></i>
-        <div>
-          <h4>History Settings</h4>
-          <p class="settings-description">
-            Configure how recordings are saved
-          </p>
+      <div class="settings-row">
+        <label class="toggle-label">
+          <input
+            type="checkbox"
+            v-model="localSettings.enabled"
+            @change="markSettingsDirty"
+          />
+          <span class="toggle-text">Enable History</span>
+        </label>
+        <div class="max-recordings-input">
+          <label>Max:</label>
+          <input
+            type="number"
+            v-model.number="localSettings.maxRecordings"
+            min="1"
+            max="1000"
+            @input="markSettingsDirty"
+            class="number-input"
+          />
         </div>
-      </div>
-      <div class="settings-card-content">
-        <div class="setting-row">
-          <label class="toggle-label">
-            <input
-              type="checkbox"
-              v-model="historySettings.enabled"
-              @change="updateSettings"
-            />
-            <span class="toggle-text">Enable Recording History</span>
-          </label>
-          <p class="setting-hint">Save audio and transcriptions for review</p>
-        </div>
-        <div class="setting-row">
-          <label class="input-label">Maximum Recordings</label>
-          <div class="input-with-hint">
-            <input
-              type="number"
-              v-model.number="historySettings.maxRecordings"
-              min="1"
-              max="1000"
-              @change="updateSettings"
-              class="number-input"
-            />
-            <p class="setting-hint">
-              Older recordings will be automatically deleted
-            </p>
-          </div>
-        </div>
+        <button
+          type="button"
+          class="btn-save"
+          :class="{ dirty: settingsDirty }"
+          @click="saveSettings"
+          :disabled="!settingsDirty || isSavingSettings"
+        >
+          <i
+            class="ph-duotone"
+            :class="isSavingSettings ? 'ph-spinner spinning' : 'ph-floppy-disk'"
+          ></i>
+          Save
+        </button>
       </div>
     </div>
 
-    <!-- Stats Card -->
-    <div class="stats-card" v-if="stats">
-      <div class="stat-item">
-        <i class="ph-duotone ph-microphone"></i>
-        <div class="stat-content">
-          <span class="stat-value">{{ stats.totalRecordings }}</span>
-          <span class="stat-label">Recordings</span>
-        </div>
+    <!-- Stats Row -->
+    <div class="stats-row" v-if="stats">
+      <span class="stat-item">
+        <i class="ph ph-microphone"></i>
+        {{ stats.totalRecordings }}
+      </span>
+      <span class="stat-item">
+        <i class="ph ph-timer"></i>
+        {{ formatDuration(stats.totalDuration) }}
+      </span>
+      <span class="stat-item">
+        <i class="ph ph-hard-drives"></i>
+        {{ formatBytes(stats.storageUsed) }}
+      </span>
+      <div class="stat-actions">
+        <button
+          type="button"
+          class="btn-sm"
+          @click="loadRecordings"
+          :disabled="isLoading"
+          title="Refresh"
+        >
+          <i class="ph ph-arrow-clockwise" :class="{ spinning: isLoading }"></i>
+        </button>
+        <button
+          type="button"
+          class="btn-sm btn-danger"
+          @click="confirmDeleteAll"
+          :disabled="recordings.length === 0 || isDeleting"
+          title="Delete All"
+        >
+          <i class="ph ph-trash"></i>
+        </button>
       </div>
-      <div class="stat-item">
-        <i class="ph-duotone ph-timer"></i>
-        <div class="stat-content">
-          <span class="stat-value">{{ formatDuration(stats.totalDuration) }}</span>
-          <span class="stat-label">Total Duration</span>
-        </div>
-      </div>
-      <div class="stat-item">
-        <i class="ph-duotone ph-hard-drives"></i>
-        <div class="stat-content">
-          <span class="stat-value">{{ formatBytes(stats.storageUsed) }}</span>
-          <span class="stat-label">Storage Used</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Actions Bar -->
-    <div class="actions-bar">
-      <button
-        type="button"
-        class="btn btn-default"
-        @click="loadRecordings"
-        :disabled="isLoading"
-      >
-        <i class="ph-duotone ph-arrow-clockwise" :class="{ spinning: isLoading }"></i>
-        Refresh
-      </button>
-      <button
-        type="button"
-        class="btn btn-negative"
-        @click="confirmDeleteAll"
-        :disabled="recordings.length === 0 || isDeleting"
-      >
-        <i class="ph-duotone ph-trash"></i>
-        Delete All
-      </button>
     </div>
 
     <!-- Recordings List -->
@@ -111,86 +95,137 @@
       >
         <div class="recording-header">
           <div class="recording-meta">
-            <span class="recording-date">{{ formatDate(recording.timestamp) }}</span>
-            <span class="recording-duration">{{ formatDuration(recording.duration) }}</span>
-            <span class="recording-plugin" v-if="recording.pluginUsed">
-              <i class="ph-duotone ph-plug"></i>
-              {{ recording.pluginUsed }}
-            </span>
+            <span class="recording-date">{{
+              formatDate(recording.timestamp)
+            }}</span>
+            <span class="recording-duration">{{
+              formatDuration(recording.duration)
+            }}</span>
+            <span class="recording-plugin" v-if="recording.pluginUsed">{{
+              recording.pluginUsed
+            }}</span>
           </div>
-          <div class="recording-actions">
+          <button
+            type="button"
+            class="btn-icon btn-delete"
+            @click="deleteRecording(recording.id)"
+            title="Delete"
+          >
+            <i class="ph ph-x"></i>
+          </button>
+        </div>
+
+        <!-- Audio Player -->
+        <div
+          class="audio-player"
+          v-if="playingId === recording.id || waveformData[recording.id]"
+        >
+          <div class="player-controls">
             <button
               type="button"
-              class="btn btn-icon"
-              @click="togglePlay(recording)"
-              :title="playingId === recording.id ? 'Stop' : 'Play'"
+              class="btn-icon btn-play"
+              @click="togglePlayPause(recording)"
+              :title="
+                playingId === recording.id && !isPaused ? 'Pause' : 'Play'
+              "
             >
               <i
-                class="ph-duotone"
-                :class="playingId === recording.id ? 'ph-stop' : 'ph-play'"
+                class="ph"
+                :class="
+                  playingId === recording.id && !isPaused
+                    ? 'ph-pause'
+                    : 'ph-play'
+                "
               ></i>
             </button>
             <button
+              v-if="playingId === recording.id"
               type="button"
-              class="btn btn-icon"
-              @click="deleteRecording(recording.id)"
-              title="Delete recording"
+              class="btn-icon btn-stop"
+              @click="stopAudio"
+              title="Stop"
             >
-              <i class="ph-duotone ph-trash"></i>
+              <i class="ph ph-stop"></i>
             </button>
           </div>
-        </div>
-
-        <!-- Audio Progress Bar -->
-        <div class="audio-progress" v-if="playingId === recording.id">
-          <div class="progress-bar">
+          <div
+            class="waveform-container"
+            @click="seekAudio($event, recording)"
+            @mousedown="startSeeking"
+            @mousemove="handleSeekDrag($event, recording)"
+            @mouseup="stopSeeking"
+            @mouseleave="stopSeeking"
+          >
+            <canvas
+              :ref="(el) => setCanvasRef(el, recording.id)"
+              class="waveform-canvas"
+            ></canvas>
             <div
-              class="progress-fill"
-              :style="{ width: audioProgress + '%' }"
+              class="waveform-progress"
+              :style="{
+                width: (playingId === recording.id ? audioProgress : 0) + '%',
+              }"
+            ></div>
+            <div
+              class="waveform-cursor"
+              v-if="playingId === recording.id"
+              :style="{ left: audioProgress + '%' }"
             ></div>
           </div>
-          <span class="progress-time">{{ formatTime(audioCurrentTime) }} / {{ formatTime(recording.duration) }}</span>
+          <span class="player-time">{{
+            formatTime(playingId === recording.id ? audioCurrentTime : 0)
+          }}</span>
         </div>
 
-        <!-- Transcriptions -->
+        <!-- Play button for recordings without waveform loaded -->
+        <button
+          v-else
+          type="button"
+          class="btn-load-audio"
+          @click="loadAndPlay(recording)"
+        >
+          <i class="ph ph-play"></i>
+          <span>Play Audio</span>
+        </button>
+
+        <!-- Transcriptions - Click to Copy -->
         <div class="transcriptions">
-          <div class="transcription-block">
+          <div
+            class="transcription-block"
+            @click="copyToClipboard(recording.rawTranscription, 'Raw')"
+            title="Click to copy"
+          >
             <div class="transcription-header">
               <span class="transcription-label">
-                <i class="ph-duotone ph-text-aa"></i>
-                Raw Transcription
+                <i class="ph ph-text-aa"></i>
+                Raw
               </span>
-              <button
-                type="button"
-                class="btn btn-copy"
-                @click="copyToClipboard(recording.rawTranscription, 'raw')"
-                title="Copy raw transcription"
-              >
-                <i class="ph-duotone ph-copy"></i>
-              </button>
             </div>
-            <p class="transcription-text">{{ recording.rawTranscription || '(empty)' }}</p>
+            <p class="transcription-text">
+              {{ recording.rawTranscription || "(empty)" }}
+            </p>
           </div>
 
           <div
             class="transcription-block polished"
-            v-if="recording.transformedTranscription && recording.transformedTranscription !== recording.rawTranscription"
+            v-if="
+              recording.transformedTranscription &&
+              recording.transformedTranscription !== recording.rawTranscription
+            "
+            @click="
+              copyToClipboard(recording.transformedTranscription, 'Enhanced')
+            "
+            title="Click to copy"
           >
             <div class="transcription-header">
-              <span class="transcription-label">
-                <i class="ph-duotone ph-sparkle"></i>
-                AI Enhanced
+              <span class="transcription-label polished-label">
+                <i class="ph ph-sparkle"></i>
+                Enhanced
               </span>
-              <button
-                type="button"
-                class="btn btn-copy"
-                @click="copyToClipboard(recording.transformedTranscription, 'polished')"
-                title="Copy enhanced transcription"
-              >
-                <i class="ph-duotone ph-copy"></i>
-              </button>
             </div>
-            <p class="transcription-text">{{ recording.transformedTranscription }}</p>
+            <p class="transcription-text">
+              {{ recording.transformedTranscription }}
+            </p>
           </div>
         </div>
       </div>
@@ -198,27 +233,28 @@
 
     <!-- Empty State -->
     <div class="empty-state" v-else-if="!isLoading">
-      <i class="ph-duotone ph-microphone-slash"></i>
-      <h3>No Recordings Yet</h3>
-      <p>Your recording history will appear here after you make some dictations.</p>
+      <i class="ph ph-microphone-slash"></i>
+      <p>No recordings yet</p>
     </div>
 
     <!-- Loading State -->
     <div class="loading-state" v-if="isLoading">
-      <i class="ph-duotone ph-spinner spinning"></i>
-      <p>Loading recordings...</p>
+      <i class="ph ph-spinner spinning"></i>
     </div>
 
     <!-- Delete Confirmation Modal -->
-    <div class="modal-overlay" v-if="showDeleteConfirm" @click.self="showDeleteConfirm = false">
+    <div
+      class="modal-overlay"
+      v-if="showDeleteConfirm"
+      @click.self="showDeleteConfirm = false"
+    >
       <div class="modal-content">
         <div class="modal-header">
-          <i class="ph-duotone ph-warning"></i>
-          <h3>Delete All Recordings?</h3>
+          <i class="ph ph-warning"></i>
+          <h3>Delete All?</h3>
         </div>
         <p class="modal-body">
-          This will permanently delete all {{ recordings.length }} recordings and their audio files.
-          This action cannot be undone.
+          Delete all {{ recordings.length }} recordings? This cannot be undone.
         </p>
         <div class="modal-actions">
           <button
@@ -230,21 +266,14 @@
           </button>
           <button
             type="button"
-            class="btn btn-negative"
+            class="btn btn-danger"
             @click="deleteAllRecordings"
             :disabled="isDeleting"
           >
-            <i class="ph-duotone ph-trash"></i>
             Delete All
           </button>
         </div>
       </div>
-    </div>
-
-    <!-- Copy Toast -->
-    <div class="copy-toast" :class="{ show: showCopyToast }">
-      <i class="ph-duotone ph-check-circle"></i>
-      {{ copyToastMessage }}
     </div>
   </div>
 </template>
@@ -258,20 +287,24 @@ export default {
   data() {
     return {
       recordings: [],
-      historySettings: {
+      localSettings: {
         enabled: true,
         maxRecordings: 100,
       },
+      settingsDirty: false,
+      isSavingSettings: false,
       stats: null,
       isLoading: false,
       isDeleting: false,
       showDeleteConfirm: false,
       playingId: null,
+      isPaused: false,
       audioElement: null,
       audioProgress: 0,
       audioCurrentTime: 0,
-      showCopyToast: false,
-      copyToastMessage: "",
+      waveformData: {},
+      canvasRefs: {},
+      isSeeking: false,
     };
   },
 
@@ -286,6 +319,15 @@ export default {
   },
 
   methods: {
+    setCanvasRef(el, id) {
+      if (el) {
+        this.canvasRefs[id] = el;
+        if (this.waveformData[id]) {
+          this.$nextTick(() => this.drawWaveform(id));
+        }
+      }
+    },
+
     emitStatus(message, type = "success") {
       this.$emit("status", { message, type });
     },
@@ -294,21 +336,42 @@ export default {
       try {
         const result = await window.electronAPI.historyGetSettings();
         if (result.settings) {
-          this.historySettings = result.settings;
+          this.localSettings = {
+            enabled: result.settings.enabled,
+            maxRecordings: result.settings.maxRecordings,
+          };
+          this.settingsDirty = false;
         }
       } catch (error) {
         console.error("Failed to load history settings:", error);
       }
     },
 
-    async updateSettings() {
+    markSettingsDirty() {
+      this.settingsDirty = true;
+    },
+
+    async saveSettings() {
+      if (!this.settingsDirty) return;
+
+      this.isSavingSettings = true;
       try {
-        await window.electronAPI.historyUpdateSettings(this.historySettings);
-        this.emitStatus("History settings updated", "success");
-        await this.loadStats();
+        const result = await window.electronAPI.historyUpdateSettings({
+          enabled: this.localSettings.enabled,
+          maxRecordings: this.localSettings.maxRecordings,
+        });
+        if (result.success) {
+          this.settingsDirty = false;
+          this.emitStatus("History settings saved", "success");
+          await this.loadStats();
+        } else {
+          this.emitStatus("Failed to save settings", "error");
+        }
       } catch (error) {
         console.error("Failed to update history settings:", error);
-        this.emitStatus("Failed to update settings", "error");
+        this.emitStatus("Failed to save settings", "error");
+      } finally {
+        this.isSavingSettings = false;
       }
     },
 
@@ -318,9 +381,6 @@ export default {
         const result = await window.electronAPI.historyGetAll();
         if (result.recordings) {
           this.recordings = result.recordings;
-        }
-        if (result.error) {
-          console.error("Error loading recordings:", result.error);
         }
       } catch (error) {
         console.error("Failed to load recordings:", error);
@@ -349,14 +409,14 @@ export default {
         const result = await window.electronAPI.historyDelete(id);
         if (result.success) {
           this.recordings = this.recordings.filter((r) => r.id !== id);
+          delete this.waveformData[id];
+          delete this.canvasRefs[id];
           await this.loadStats();
           this.emitStatus("Recording deleted", "success");
-        } else {
-          this.emitStatus("Failed to delete recording", "error");
         }
       } catch (error) {
         console.error("Failed to delete recording:", error);
-        this.emitStatus("Failed to delete recording", "error");
+        this.emitStatus("Failed to delete", "error");
       }
     },
 
@@ -371,30 +431,104 @@ export default {
         const result = await window.electronAPI.historyDeleteAll();
         if (result.success) {
           this.recordings = [];
+          this.waveformData = {};
+          this.canvasRefs = {};
           await this.loadStats();
           this.emitStatus(`Deleted ${result.count} recordings`, "success");
-        } else {
-          this.emitStatus("Failed to delete recordings", "error");
         }
       } catch (error) {
         console.error("Failed to delete all recordings:", error);
-        this.emitStatus("Failed to delete recordings", "error");
+        this.emitStatus("Failed to delete", "error");
       } finally {
         this.isDeleting = false;
         this.showDeleteConfirm = false;
       }
     },
 
-    async togglePlay(recording) {
-      if (this.playingId === recording.id) {
-        this.stopAudio();
-        return;
-      }
+    async loadAndPlay(recording) {
+      await this.loadAudioAndWaveform(recording);
+      this.playAudio(recording);
+    },
 
-      this.stopAudio();
-
+    async loadAudioAndWaveform(recording) {
       try {
-        const result = await window.electronAPI.historyGetAudioPath(recording.id);
+        const result = await window.electronAPI.historyGetAudioPath(
+          recording.id,
+        );
+        if (!result.path) {
+          this.emitStatus("Audio file not found", "error");
+          return;
+        }
+
+        // Fetch and decode audio for waveform
+        const response = await fetch(`file://${result.path}`);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioContext = new (
+          window.AudioContext || window.webkitAudioContext
+        )();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+        // Generate waveform data
+        const rawData = audioBuffer.getChannelData(0);
+        const samples = 100;
+        const blockSize = Math.floor(rawData.length / samples);
+        const waveform = [];
+
+        for (let i = 0; i < samples; i++) {
+          let sum = 0;
+          for (let j = 0; j < blockSize; j++) {
+            sum += Math.abs(rawData[i * blockSize + j]);
+          }
+          waveform.push(sum / blockSize);
+        }
+
+        // Normalize
+        const max = Math.max(...waveform);
+        this.waveformData[recording.id] = waveform.map((v) => v / max);
+
+        await this.$nextTick();
+        this.drawWaveform(recording.id);
+
+        audioContext.close();
+      } catch (error) {
+        console.error("Failed to load audio:", error);
+      }
+    },
+
+    drawWaveform(recordingId) {
+      const canvas = this.canvasRefs[recordingId];
+      const data = this.waveformData[recordingId];
+
+      if (!canvas || !data) return;
+
+      const ctx = canvas.getContext("2d");
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+
+      const width = rect.width;
+      const height = rect.height;
+      const barWidth = width / data.length;
+      const halfHeight = height / 2;
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "rgba(0, 122, 255, 0.4)";
+
+      data.forEach((value, index) => {
+        const barHeight = value * halfHeight * 0.9;
+        const x = index * barWidth;
+        ctx.fillRect(x, halfHeight - barHeight, barWidth - 1, barHeight * 2);
+      });
+    },
+
+    async playAudio(recording) {
+      try {
+        const result = await window.electronAPI.historyGetAudioPath(
+          recording.id,
+        );
         if (!result.path) {
           this.emitStatus("Audio file not found", "error");
           return;
@@ -407,27 +541,46 @@ export default {
 
         await this.audioElement.play();
         this.playingId = recording.id;
+        this.isPaused = false;
       } catch (error) {
         console.error("Failed to play audio:", error);
-        this.emitStatus("Failed to play audio", "error");
+        this.emitStatus("Failed to play", "error");
+      }
+    },
+
+    togglePlayPause(recording) {
+      if (this.playingId !== recording.id) {
+        this.stopAudio();
+        this.loadAndPlay(recording);
+        return;
+      }
+
+      if (this.isPaused) {
+        this.audioElement?.play();
+        this.isPaused = false;
+      } else {
+        this.audioElement?.pause();
+        this.isPaused = true;
       }
     },
 
     stopAudio() {
       if (this.audioElement) {
         this.audioElement.pause();
+        this.audioElement.currentTime = 0;
         this.audioElement.removeEventListener("timeupdate", this.onTimeUpdate);
         this.audioElement.removeEventListener("ended", this.onAudioEnded);
         this.audioElement.removeEventListener("error", this.onAudioError);
         this.audioElement = null;
       }
       this.playingId = null;
+      this.isPaused = false;
       this.audioProgress = 0;
       this.audioCurrentTime = 0;
     },
 
     onTimeUpdate() {
-      if (this.audioElement) {
+      if (this.audioElement && !this.isSeeking) {
         this.audioCurrentTime = this.audioElement.currentTime;
         this.audioProgress =
           (this.audioElement.currentTime / this.audioElement.duration) * 100;
@@ -440,24 +593,44 @@ export default {
 
     onAudioError(e) {
       console.error("Audio playback error:", e);
-      this.emitStatus("Audio playback error", "error");
+      this.emitStatus("Playback error", "error");
       this.stopAudio();
     },
 
-    async copyToClipboard(text, type) {
+    startSeeking() {
+      this.isSeeking = true;
+    },
+
+    stopSeeking() {
+      this.isSeeking = false;
+    },
+
+    handleSeekDrag(event, recording) {
+      if (this.isSeeking && this.playingId === recording.id) {
+        this.seekAudio(event, recording);
+      }
+    },
+
+    seekAudio(event, recording) {
+      if (this.playingId !== recording.id || !this.audioElement) return;
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const percent = Math.max(0, Math.min(1, x / rect.width));
+
+      this.audioElement.currentTime = percent * this.audioElement.duration;
+      this.audioProgress = percent * 100;
+      this.audioCurrentTime = this.audioElement.currentTime;
+    },
+
+    async copyToClipboard(text, label) {
+      if (!text) return;
       try {
         await navigator.clipboard.writeText(text);
-        this.copyToastMessage =
-          type === "raw"
-            ? "Raw transcription copied!"
-            : "Enhanced transcription copied!";
-        this.showCopyToast = true;
-        setTimeout(() => {
-          this.showCopyToast = false;
-        }, 2000);
+        this.emitStatus(`${label} copied to clipboard`, "success");
       } catch (error) {
-        console.error("Failed to copy to clipboard:", error);
-        this.emitStatus("Failed to copy to clipboard", "error");
+        console.error("Failed to copy:", error);
+        this.emitStatus("Failed to copy", "error");
       }
     },
 
@@ -467,40 +640,28 @@ export default {
       const diff = now.getTime() - date.getTime();
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-      if (days === 0) {
-        return (
-          "Today, " +
-          date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        );
-      } else if (days === 1) {
-        return (
-          "Yesterday, " +
-          date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        );
-      } else if (days < 7) {
-        return (
-          date.toLocaleDateString([], { weekday: "long" }) +
-          ", " +
-          date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        );
-      }
+      const time = date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      if (days === 0) return `Today ${time}`;
+      if (days === 1) return `Yesterday ${time}`;
+      if (days < 7)
+        return `${date.toLocaleDateString([], { weekday: "short" })} ${time}`;
+
       return (
-        date.toLocaleDateString([], {
-          month: "short",
-          day: "numeric",
-          year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
-        }) +
-        ", " +
-        date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        date.toLocaleDateString([], { month: "short", day: "numeric" }) +
+        ` ${time}`
       );
     },
 
     formatDuration(seconds) {
-      if (!seconds || seconds < 1) return "< 1s";
+      if (!seconds || seconds < 1) return "<1s";
       const mins = Math.floor(seconds / 60);
       const secs = Math.floor(seconds % 60);
       if (mins === 0) return `${secs}s`;
-      return `${mins}m ${secs}s`;
+      return `${mins}m${secs}s`;
     },
 
     formatTime(seconds) {
@@ -528,417 +689,432 @@ export default {
 .history-section-container {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg, 24px);
+  gap: 10px;
 }
 
 .section-header {
   display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-md, 16px);
+  align-items: center;
+  gap: 10px;
 }
 
 .section-header > .ph-duotone {
-  font-size: 28px;
+  font-size: 24px;
   color: var(--color-primary, #007aff);
-  flex-shrink: 0;
 }
 
 .section-title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
-  color: var(--color-text-primary, #333);
-  margin: 0 0 4px 0;
+  margin: 0;
 }
 
 .section-description {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--color-text-secondary, #666);
-  margin: 0;
-  line-height: 1.4;
+  margin: 2px 0 0 0;
 }
 
 /* Settings Card */
 .settings-card {
   background: var(--color-bg-secondary, #f8f8f8);
   border: 1px solid var(--color-border-primary, #e0e0e0);
-  border-radius: var(--radius-lg, 8px);
-  padding: var(--spacing-md, 16px);
+  border-radius: 6px;
+  padding: 8px 12px;
 }
 
-.settings-card-header {
+.settings-row {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm, 8px);
-  margin-bottom: var(--spacing-md, 16px);
-}
-
-.settings-card-header .ph-duotone {
-  font-size: 20px;
-  color: var(--color-text-secondary, #666);
-}
-
-.settings-card-header h4 {
-  font-size: 14px;
-  font-weight: 600;
-  margin: 0;
-  color: var(--color-text-primary, #333);
-}
-
-.settings-description {
-  font-size: 12px;
-  color: var(--color-text-tertiary, #999);
-  margin: 2px 0 0 0;
-}
-
-.settings-card-content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md, 16px);
-}
-
-.setting-row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs, 4px);
+  gap: 12px;
 }
 
 .toggle-label {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm, 8px);
+  gap: 6px;
   cursor: pointer;
+  font-size: 13px;
 }
 
-.toggle-text {
-  font-size: 13px;
-  color: var(--color-text-primary, #333);
-}
-
-.input-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-text-primary, #333);
+.max-recordings-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary, #666);
 }
 
 .number-input {
-  width: 100px;
-  padding: 6px 10px;
+  width: 60px;
+  padding: 4px 6px;
   border: 1px solid var(--color-border-primary, #e0e0e0);
-  border-radius: var(--radius-sm, 4px);
-  font-size: 13px;
+  border-radius: 4px;
+  font-size: 12px;
 }
 
-.setting-hint {
+.btn-save {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--color-border-primary, #e0e0e0);
+  border-radius: 4px;
+  background: var(--color-bg-primary, #fff);
+  color: var(--color-text-secondary, #888);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-save:hover:not(:disabled) {
+  background: var(--color-bg-tertiary, #f0f0f0);
+}
+
+.btn-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-save.dirty {
+  color: var(--color-primary, #007aff);
+  border-color: var(--color-primary, #007aff);
+}
+
+.btn-save.dirty:hover:not(:disabled) {
+  background: rgba(0, 122, 255, 0.1);
+}
+
+/* Stats Row */
+.stats-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
   font-size: 11px;
   color: var(--color-text-tertiary, #999);
-  margin: 2px 0 0 0;
-}
-
-/* Stats Card */
-.stats-card {
-  display: flex;
-  gap: var(--spacing-md, 16px);
-  padding: var(--spacing-md, 16px);
-  background: linear-gradient(135deg, #f0f4ff 0%, #f8f0ff 100%);
-  border-radius: var(--radius-lg, 8px);
-  border: 1px solid var(--color-border-primary, #e0e0e0);
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm, 8px);
-  flex: 1;
+  gap: 3px;
 }
 
-.stat-item .ph-duotone {
-  font-size: 24px;
-  color: var(--color-primary, #007aff);
+.stat-item .ph {
+  font-size: 12px;
 }
 
-.stat-content {
+.stat-actions {
+  margin-left: auto;
   display: flex;
-  flex-direction: column;
+  gap: 4px;
 }
 
-.stat-value {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-text-primary, #333);
-}
-
-.stat-label {
-  font-size: 11px;
-  color: var(--color-text-tertiary, #999);
-}
-
-/* Actions Bar */
-.actions-bar {
+.btn-sm {
   display: flex;
-  gap: var(--spacing-sm, 8px);
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--color-border-primary, #e0e0e0);
+  border-radius: 4px;
+  background: var(--color-bg-primary, #fff);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 12px;
+}
+
+.btn-sm:hover:not(:disabled) {
+  background: var(--color-bg-secondary, #f8f8f8);
+}
+
+.btn-sm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-sm.btn-danger {
+  color: var(--color-text-inverse, #fff);
+}
+
+.btn-sm.btn-danger:hover {
+  color: var(--color-error, #ff3b30);
+}
+
+.btn-sm.btn-danger:hover:not(:disabled) {
+  background: rgba(255, 59, 48, 0.1);
 }
 
 /* Recordings List */
 .recordings-list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md, 16px);
+  gap: 6px;
 }
 
 .recording-card {
   background: var(--color-bg-primary, #fff);
   border: 1px solid var(--color-border-primary, #e0e0e0);
-  border-radius: var(--radius-lg, 8px);
-  padding: var(--spacing-md, 16px);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  border-radius: 6px;
+  padding: 8px 10px;
+  transition: border-color 0.2s;
 }
 
 .recording-card:hover {
-  box-shadow: var(--shadow-md, 0 2px 4px rgba(0, 0, 0, 0.1));
+  border-color: var(--color-border-secondary, #ccc);
 }
 
 .recording-card.playing {
   border-color: var(--color-primary, #007aff);
-  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.15);
 }
 
 .recording-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-sm, 8px);
+  margin-bottom: 6px;
 }
 
 .recording-meta {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md, 16px);
-  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
 }
 
 .recording-date {
-  font-size: 13px;
   font-weight: 500;
   color: var(--color-text-primary, #333);
 }
 
 .recording-duration {
-  font-size: 12px;
   color: var(--color-text-tertiary, #999);
   background: var(--color-bg-tertiary, #f0f0f0);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm, 4px);
+  padding: 1px 5px;
+  border-radius: 3px;
 }
 
 .recording-plugin {
-  font-size: 11px;
   color: var(--color-text-tertiary, #999);
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  font-size: 10px;
 }
 
-.recording-actions {
-  display: flex;
-  gap: var(--spacing-xs, 4px);
-}
-
-/* Audio Progress */
-.audio-progress {
+.btn-icon {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm, 8px);
-  margin-bottom: var(--spacing-sm, 8px);
-  padding: var(--spacing-sm, 8px);
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--color-text-secondary, #666);
+  font-size: 12px;
+}
+
+.btn-icon:hover {
   background: var(--color-bg-tertiary, #f0f0f0);
-  border-radius: var(--radius-sm, 4px);
 }
 
-.progress-bar {
+.btn-delete:hover {
+  color: var(--color-error, #ff3b30);
+  background: rgba(255, 59, 48, 0.1);
+}
+
+/* Audio Player */
+.audio-player {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--color-bg-tertiary, #f0f0f0);
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.player-controls {
+  display: flex;
+  gap: 2px;
+}
+
+.btn-play {
+  color: var(--color-primary, #007aff);
+}
+
+.btn-play:hover {
+  background: rgba(0, 122, 255, 0.1);
+}
+
+.btn-stop {
+  color: var(--color-error, #ff3b30);
+}
+
+.btn-stop:hover {
+  background: rgba(255, 59, 48, 0.1);
+}
+
+.waveform-container {
   flex: 1;
-  height: 4px;
-  background: var(--color-border-primary, #e0e0e0);
-  border-radius: 2px;
+  height: 24px;
+  position: relative;
+  cursor: pointer;
+  border-radius: 3px;
   overflow: hidden;
+  background: rgba(0, 0, 0, 0.03);
 }
 
-.progress-fill {
+.waveform-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.waveform-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(0, 122, 255, 0.2);
+  pointer-events: none;
+}
+
+.waveform-cursor {
+  position: absolute;
+  top: 0;
+  width: 2px;
   height: 100%;
   background: var(--color-primary, #007aff);
-  border-radius: 2px;
-  transition: width 0.1s linear;
+  pointer-events: none;
 }
 
-.progress-time {
-  font-size: 11px;
-  color: var(--color-text-tertiary, #999);
+.player-time {
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
-  min-width: 70px;
+  color: var(--color-text-tertiary, #999);
+  min-width: 32px;
   text-align: right;
 }
 
-/* Transcriptions */
+.btn-load-audio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px;
+  margin-bottom: 6px;
+  border: 1px dashed var(--color-border-primary, #e0e0e0);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--color-text-secondary, #666);
+  transition: all 0.15s;
+}
+
+.btn-load-audio:hover {
+  border-color: var(--color-primary, #007aff);
+  color: var(--color-primary, #007aff);
+  background: rgba(0, 122, 255, 0.05);
+}
+
+.btn-load-audio .ph {
+  font-size: 14px;
+}
+
+/* Transcriptions - Click to Copy */
 .transcriptions {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm, 8px);
+  gap: 4px;
 }
 
 .transcription-block {
   background: var(--color-bg-secondary, #f8f8f8);
-  border-radius: var(--radius-md, 6px);
-  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  border-radius: 4px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.transcription-block:hover {
+  background: var(--color-bg-tertiary, #f0f0f0);
+}
+
+.transcription-block:active {
+  background: #e8e8e8;
 }
 
 .transcription-block.polished {
-  background: linear-gradient(135deg, #f8f0ff 0%, #f0f4ff 100%);
-  border: 1px solid rgba(138, 43, 226, 0.1);
+  border-left: 2px solid #8a2be2;
 }
 
 .transcription-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-xs, 4px);
+  margin-bottom: 2px;
 }
 
 .transcription-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--color-text-tertiary, #999);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs, 4px);
+  gap: 3px;
 }
 
-.transcription-label .ph-duotone {
-  font-size: 14px;
+.transcription-label .ph {
+  font-size: 11px;
 }
 
-.transcription-block.polished .transcription-label {
+.polished-label {
   color: #8a2be2;
 }
 
 .transcription-text {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--color-text-primary, #333);
-  line-height: 1.5;
+  line-height: 1.4;
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-/* Buttons */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-xs, 4px);
-  padding: 8px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  border: 1px solid var(--color-border-primary, #e0e0e0);
-  border-radius: var(--radius-md, 6px);
-  background: var(--color-bg-primary, #fff);
-  color: var(--color-text-primary, #333);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn:hover:not(:disabled) {
-  background: var(--color-bg-secondary, #f8f8f8);
-  border-color: var(--color-border-secondary, #d0d0d0);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-negative {
-  color: var(--color-error, #ff3b30);
-  border-color: rgba(255, 59, 48, 0.3);
-}
-
-.btn-negative:hover:not(:disabled) {
-  background: rgba(255, 59, 48, 0.1);
-  border-color: var(--color-error, #ff3b30);
-}
-
-.btn-icon {
-  padding: 6px;
-  min-width: 32px;
-  min-height: 32px;
-}
-
-.btn-icon .ph-duotone {
-  font-size: 16px;
-}
-
-.btn-copy {
-  padding: 4px 8px;
-  font-size: 12px;
-  background: transparent;
-  border: none;
-  color: var(--color-text-tertiary, #999);
-}
-
-.btn-copy:hover {
-  color: var(--color-primary, #007aff);
-  background: transparent;
-}
-
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-xl, 32px);
-  text-align: center;
-  color: var(--color-text-tertiary, #999);
-}
-
-.empty-state .ph-duotone {
-  font-size: 48px;
-  margin-bottom: var(--spacing-md, 16px);
-  opacity: 0.5;
-}
-
-.empty-state h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-text-secondary, #666);
-  margin: 0 0 var(--spacing-sm, 8px) 0;
-}
-
-.empty-state p {
-  font-size: 13px;
-  margin: 0;
-}
-
-/* Loading State */
+/* Empty & Loading States */
+.empty-state,
 .loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-xl, 32px);
+  padding: 20px;
   color: var(--color-text-tertiary, #999);
 }
 
-.loading-state .ph-duotone {
-  font-size: 32px;
-  margin-bottom: var(--spacing-sm, 8px);
+.empty-state .ph,
+.loading-state .ph {
+  font-size: 28px;
+  margin-bottom: 6px;
+  opacity: 0.5;
+}
+
+.empty-state p,
+.loading-state p {
+  font-size: 12px;
+  margin: 0;
 }
 
 /* Modal */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -947,70 +1123,75 @@ export default {
 
 .modal-content {
   background: var(--color-bg-primary, #fff);
-  border-radius: var(--radius-lg, 8px);
-  padding: var(--spacing-lg, 24px);
-  max-width: 400px;
+  border-radius: 8px;
+  padding: 16px;
+  max-width: 300px;
   width: 90%;
-  box-shadow: var(--shadow-lg, 0 4px 8px rgba(0, 0, 0, 0.15));
 }
 
 .modal-header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm, 8px);
-  margin-bottom: var(--spacing-md, 16px);
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
-.modal-header .ph-duotone {
-  font-size: 24px;
+.modal-header .ph {
+  font-size: 20px;
   color: var(--color-warning, #ff9500);
 }
 
 .modal-header h3 {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   margin: 0;
 }
 
 .modal-body {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--color-text-secondary, #666);
-  line-height: 1.5;
-  margin: 0 0 var(--spacing-lg, 24px) 0;
+  line-height: 1.4;
+  margin: 0 0 14px 0;
 }
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--spacing-sm, 8px);
+  gap: 8px;
 }
 
-/* Copy Toast */
-.copy-toast {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%) translateY(100px);
-  background: var(--color-text-primary, #333);
-  color: var(--color-text-inverse, #fff);
-  padding: 10px 20px;
-  border-radius: var(--radius-lg, 8px);
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm, 8px);
-  opacity: 0;
-  transition: all 0.3s ease;
-  z-index: 1001;
+.btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
 }
 
-.copy-toast.show {
-  transform: translateX(-50%) translateY(0);
-  opacity: 1;
+.btn-default {
+  background: var(--color-bg-secondary, #f8f8f8);
+  border: 1px solid var(--color-border-primary, #e0e0e0);
+  color: var(--color-text-primary, #333);
 }
 
-.copy-toast .ph-duotone {
-  color: var(--color-success, #34c759);
+.btn-default:hover {
+  background: var(--color-bg-tertiary, #f0f0f0);
+}
+
+.btn-danger {
+  background: var(--color-error, #ff3b30);
+  border: 1px solid var(--color-error, #ff3b30);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #e0352b;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Animations */
@@ -1024,19 +1205,6 @@ export default {
   }
   to {
     transform: rotate(360deg);
-  }
-}
-
-/* Responsive */
-@media (max-width: 600px) {
-  .stats-card {
-    flex-direction: column;
-  }
-
-  .recording-meta {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--spacing-xs, 4px);
   }
 }
 </style>

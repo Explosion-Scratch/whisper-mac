@@ -1350,7 +1350,13 @@ export class SettingsService {
       }
       try {
         const settings = this.historyService.getSettings();
-        return { settings };
+        // Return plain object to avoid IPC cloning issues
+        return {
+          settings: {
+            enabled: settings.enabled,
+            maxRecordings: settings.maxRecordings,
+          },
+        };
       } catch (error) {
         console.error("Failed to get history settings:", error);
         return {
@@ -1375,9 +1381,18 @@ export class SettingsService {
           };
         }
         try {
-          const updatedSettings =
-            await this.historyService.updateSettings(settings);
-          return { success: true, settings: updatedSettings };
+          const updatedSettings = await this.historyService.updateSettings({
+            enabled: settings.enabled,
+            maxRecordings: settings.maxRecordings,
+          });
+          // Return plain object to avoid IPC cloning issues
+          return {
+            success: true,
+            settings: {
+              enabled: updatedSettings.enabled,
+              maxRecordings: updatedSettings.maxRecordings,
+            },
+          };
         } catch (error) {
           console.error("Failed to update history settings:", error);
           return { success: false, settings: null, error: String(error) };
