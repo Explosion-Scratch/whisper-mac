@@ -238,12 +238,10 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     audioWavBase64: string,
     screenshotBase64?: string,
   ): Promise<string> {
-    // Get context using existing services
     const selectedTextService = new SelectedTextService();
     const savedState = await selectedTextService.getSelectedText();
     const windowInfo = await selectedTextService.getActiveWindowInfo();
 
-    // Determine which prompts to use based on processing mode
     const isTranscriptionAndTransformation =
       this.options.processing_mode !== "transcription_only";
 
@@ -251,20 +249,13 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     let messagePromptSource: string;
 
     if (isTranscriptionAndTransformation) {
-      // In combined mode, use prompts from AI Enhancement settings
-      // These are stored in config.ai.prompt and config.ai.messagePrompt
-      // Add transcription instructions prefix
-      const transcribeInstruction =
-        "You are receiving audio input. First, accurately transcribe the spoken content, then apply the following instructions to transform and enhance the text:\n\n";
       systemPromptSource =
-        transcribeInstruction +
-        (this.config.ai?.prompt ||
-          this.readPromptFile("gemini_system_prompt.txt"));
+        this.config.ai?.prompt ||
+        this.readPromptFile("gemini_system_prompt.txt");
       messagePromptSource =
         this.config.ai?.messagePrompt ||
         this.readPromptFile("gemini_message_prompt.txt");
     } else {
-      // In transcription-only mode, use plugin-specific prompts
       const defaultSystemPrompt = this.readPromptFile(
         "gemini_system_prompt.txt",
       );
@@ -275,13 +266,13 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
       messagePromptSource = this.options.message_prompt || defaultMessagePrompt;
     }
 
-    // Use TransformationService static methods for prompt processing
     const processedSystemPrompt = TransformationService.processPrompt({
       prompt: systemPromptSource,
       savedState,
       windowInfo,
       text: undefined,
       config: this.config,
+      includeTranscriptionInstructions: isTranscriptionAndTransformation,
     });
 
     const processedMessagePrompt = TransformationService.processPrompt({
@@ -290,6 +281,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
       windowInfo,
       text: undefined,
       config: this.config,
+      includeTranscriptionInstructions: isTranscriptionAndTransformation,
     });
 
     // Make Gemini API request for both transcription and transformation
@@ -332,7 +324,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
       screenshotBase64,
       savedState,
     );
-
+    console.log("Gemni: ", { systemPrompt, messagePrompt });
     const body = {
       contents: [{ role: "user", parts }],
       generationConfig: {
@@ -440,14 +432,24 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
         default: "gemini-2.5-flash",
         options: [
           {
-            value: "gemini-2.5-flash",
-            label: "Gemini 2.5 Flash",
-            description: "Fast and efficient",
+            value: "gemini-3-pro-preview",
+            label: "Gemini 3 Pro Preview",
+            description: "Most capable Gemini 3 model",
           },
           {
-            value: "gemini-2.0-flash-exp",
-            label: "Gemini 2.0 Flash Exp",
-            description: "Experimental features",
+            value: "gemini-3-flash-preview",
+            label: "Gemini 3 Flash Preview",
+            description: "Fastest Gemini 3 model",
+          },
+          {
+            value: "gemini-2.5-flash",
+            label: "Gemini 2.5 Flash",
+            description: "Latest stable Flash model",
+          },
+          {
+            value: "gemini-2.5-flash-lite",
+            label: "Gemini 2.5 Flash Lite",
+            description: "Efficient and lightweight",
           },
         ],
         category: "basic",

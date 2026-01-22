@@ -25,7 +25,15 @@ export default defineConfig({
           dest: './vad'
         },
         {
-          src: 'node_modules/onnxruntime-web/dist/*',
+          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
+          dest: './'
+        },
+        {
+          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
+          dest: './'
+        },
+        {
+          src: 'node_modules/onnxruntime-web/dist/ort.min.mjs',
           dest: './'
         }
       ]

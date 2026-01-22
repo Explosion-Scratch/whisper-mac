@@ -4,6 +4,7 @@ import { SelectedTextResult } from "./SelectedTextService";
 import { AiValidationService } from "./AiValidationService";
 import { SecureStorageService } from "./SecureStorageService";
 import { SelectedTextService } from "./SelectedTextService";
+import { PromptManager } from "./PromptManager";
 
 export interface AiTransformationConfig {
   enabled: boolean;
@@ -38,6 +39,7 @@ export class TransformationService {
    * @param windowInfo Active window information
    * @param text Additional text to include in the prompt
    * @param config AppConfig instance to get rules from
+   * @param includeTranscriptionInstructions When true, includes transcription instructions via {instruct-transcribe}
    * @returns Processed prompt with all placeholders replaced
    */
   static processPrompt({
@@ -47,6 +49,7 @@ export class TransformationService {
     text,
     config,
     writingStyle,
+    includeTranscriptionInstructions,
   }: {
     prompt: string;
     savedState: SelectedTextResult;
@@ -54,6 +57,7 @@ export class TransformationService {
     text?: string;
     config?: AppConfig;
     writingStyle?: string;
+    includeTranscriptionInstructions?: boolean;
   }): string {
     const context = this.prototype.createContext(
       windowInfo.title || "",
@@ -62,10 +66,15 @@ export class TransformationService {
 
     const rules = config?.getRules() || [];
 
+    const transcriptionInstructions = includeTranscriptionInstructions
+      ? this.getTranscriptionInstructions()
+      : "";
+
     let processed = prompt
       .replace(/{selection}/g, savedState.text || "")
       .replace(/{context}/g, context.text)
       .replace(/{text}/g, text || "")
+      .replace(/{instruct-transcribe}/g, transcriptionInstructions)
       .replace(
         /{rules}/g,
         this.prototype.createRuleText(rules, {
@@ -98,8 +107,13 @@ export class TransformationService {
     processed = repTagIf("no_context", context.hasContext, processed);
     processed = repTagIf("rules", !!rules.length, processed);
     processed = repTagIf("writing_style", !!rules.length, processed);
+    processed = repTagIf("instruct-transcribe", !!includeTranscriptionInstructions, processed);
 
     return processed;
+  }
+
+  private static getTranscriptionInstructions(): string {
+    return PromptManager.getTranscriptionInstructions();
   }
 
   /**

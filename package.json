@@ -15,7 +15,7 @@
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never",
     "setup:plugins": "node scripts/setup-plugins.js",
-    "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js && bun scripts/download-photon.js && node scripts/build-get-selection.js && bun run build:native && bun run build:parakeet && bun run build:cli",
+    "prep": "bun run setup:plugins && node scripts/prep-vad-assets.js && bun scripts/download-photon.js && node scripts/build-get-selection.js && bun run build:native && bun run build:parakeet && bun run build:cli && bun run icons",
     "build:native": "cd native/mac-input && bunx node-gyp rebuild && cd ../audio-capture && bunx node-gyp rebuild",
     "build:parakeet": "cd native/parakeet-backend && cargo build --release",
     "postinstall": "bun run prep",
@@ -23,14 +23,16 @@
     "bundleid": "mdls -name kMDItemCFBundleIdentifier -r release/mac-arm64/WhisperMac.app || mdls -name kMDItemCFBundleIdentifier -r release/mac-x64/WhisperMac.app",
     "removequarantine": "xattr -cr release/mac-arm64/WhisperMac.app && xattr -cr release/mac-x64/WhisperMac.app",
     "resetperms": "tccutil reset All com.whispermac.app",
-    "build:mac": "bun run build && electron-builder --publish=never",
-    "build:mac:arm64": "bun run build && electron-builder --arm64 --publish=never",
-    "build:mac:x64": "bun run build && electron-builder --x64 --publish=never",
+    "strip:release": "chmod +x scripts/strip-release.sh && ./scripts/strip-release.sh",
+    "build:mac": "bun run build && bun run strip:release && electron-builder --publish=never",
+    "build:mac:arm64": "bun run build && bun run strip:release && electron-builder --arm64 --publish=never",
+    "build:mac:x64": "bun run build && bun run strip:release && electron-builder --x64 --publish=never",
     "install:app": "bun scripts/install-app.ts",
     "build:dev": "rm -rf /Applications/WhisperMac.app && bun run build:mac && bun run removequarantine && bun run resetperms && rs release/mac-arm64/WhisperMac.app /Applications && osascript -e 'tell application \"WhisperMac\" to activate' && tail -f ~/Library/Logs/whispermac/main.log",
     "pack:prod": "NODE_ENV=production bun install && electron-builder --dir",
     "start:prod": "rm -rf release && rm -rf /Applications/WhisperMac.app && bun run killothers && bun run build:mac && rs release/mac-arm64/WhisperMac.app /Applications && osascript -e 'tell application \"WhisperMac\" to activate' && tail -f ~/Library/Logs/whispermac/main.log",
-    "build:cli": "bun build ./src/cli/index.ts --compile --outfile bin/whisper-mac-cli"
+    "build:cli": "bun build ./src/cli/index.ts --compile --outfile bin/whisper-mac-cli",
+    "test:cli": "bun test src/cli/cli.test.ts"
   },
   "repository": {
     "type": "git",
@@ -70,12 +72,31 @@
     "files": [
       "dist/**/*",
       "assets/**/*",
-      "package.json"
+      "package.json",
+      "!**/*.map",
+      "!**/*.map.js",
+      "!**/onnxruntime-web/**",
+      "!**/onnxruntime-node/bin/napi-v6/linux/**",
+      "!**/onnxruntime-node/bin/napi-v6/win32/**",
+      "!dist/renderer-app/ort.all.*",
+      "!dist/renderer-app/ort.bundle.*",
+      "!dist/renderer-app/ort.js",
+      "!dist/renderer-app/ort.mjs",
+      "!dist/renderer-app/ort.node.*",
+      "!dist/renderer-app/ort.wasm.bundle.*",
+      "!dist/renderer-app/ort.wasm.js",
+      "!dist/renderer-app/ort.wasm.mjs",
+      "!dist/renderer-app/ort.webgl.*",
+      "!dist/renderer-app/ort.webgpu.*",
+      "!dist/renderer-app/ort-wasm-simd-threaded.asyncify.*",
+      "!dist/renderer-app/ort-wasm-simd-threaded.jsep.*"
     ],
     "asar": true,
     "asarUnpack": [
-      "dist/native/*.node"
+      "dist/native/*.node",
+      "node_modules/onnxruntime-node/**/*.node"
     ],
+    "afterPack": "./scripts/afterPack.js",
     "compression": "maximum",
     "extraResources": [
       {
@@ -89,7 +110,8 @@
         "from": "vendor/whisper-cpp",
         "to": "whisper-cpp",
         "filter": [
-          "whisper-cli"
+          "whisper-cli",
+          "whisper-cli-metal"
         ]
       },
       {
@@ -102,10 +124,6 @@
       {
         "from": "native/parakeet-backend/target/release/parakeet-backend",
         "to": "parakeet-backend"
-      },
-      {
-        "from": "bin/whisper-mac-cli",
-        "to": "whisper-mac-cli"
       }
     ],
     "extraFiles": [

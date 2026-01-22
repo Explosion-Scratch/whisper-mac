@@ -256,14 +256,11 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
       throw new Error("Mistral API key not configured");
     }
 
-    // Read audio file and encode as base64
     const audioBuffer = fs.readFileSync(audioPath);
     const audioBase64 = audioBuffer.toString("base64");
 
-    // Get model from options or use default
     const model = this.options.model || "voxtral-mini-latest";
 
-    // Determine which prompts to use based on processing mode
     const isTranscriptionAndTransformation =
       this.options.processing_mode !== "transcription_only";
 
@@ -271,18 +268,13 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
     let messagePromptText: string;
 
     if (isTranscriptionAndTransformation) {
-      // In combined mode, use prompts from AI Enhancement settings
-      const transcribeInstruction =
-        "You are receiving audio input. First, accurately transcribe the spoken content, then apply the following instructions to transform and enhance the text:\n\n";
       systemPromptText =
-        transcribeInstruction +
-        (this.config.ai?.prompt ||
-          "You are a transcription assistant. Accurately transcribe the audio provided.");
+        this.config.ai?.prompt ||
+        "You are a transcription assistant. Accurately transcribe the audio provided.";
       messagePromptText =
         this.config.ai?.messagePrompt ||
         "Please transcribe and transform this audio accurately.";
     } else {
-      // In transcription-only mode, use plugin-specific prompts
       systemPromptText =
         this.options.system_prompt ||
         "You are a transcription assistant. Accurately transcribe the audio provided.";
@@ -291,18 +283,17 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
         "Please transcribe this audio accurately.";
     }
 
-    // Get context for prompt processing
     const selectedTextService = new SelectedTextService();
     const savedState = await selectedTextService.getSelectedText();
     const windowInfo = await selectedTextService.getActiveWindowInfo();
 
-    // Process prompts with placeholders
     const processedSystemPrompt = TransformationService.processPrompt({
       prompt: systemPromptText,
       savedState,
       windowInfo,
       text: undefined,
       config: this.config,
+      includeTranscriptionInstructions: isTranscriptionAndTransformation,
     });
 
     const processedMessagePrompt = TransformationService.processPrompt({
@@ -311,6 +302,7 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
       windowInfo,
       text: undefined,
       config: this.config,
+      includeTranscriptionInstructions: isTranscriptionAndTransformation,
     });
 
     // Prepare request payload with system prompt

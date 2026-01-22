@@ -102,6 +102,15 @@ export interface PostProcessedTranscription {
   confidence?: number;
 }
 
+export interface PluginHealthStatus {
+  healthy: boolean;
+  lastSuccessfulTranscription: number | null;
+  errorCount: number;
+  consecutiveErrors: number;
+  lastError: string | null;
+  uptime: number;
+}
+
 /**
  * Base class for transcription plugins with unified lifecycle management
  */
@@ -110,8 +119,8 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   protected isInitialized = false;
   protected isActive = false;
   protected currentState: PluginState = { isLoading: false };
-  protected options: Record<string, any> = {}; // Actual option values
-  protected schema: PluginSchemaItem[] = []; // Schema definition
+  protected options: Record<string, any> = {};
+  protected schema: PluginSchemaItem[] = [];
 
   protected activationCriteria: PluginActivationCriteria = {};
   protected onTranscriptionCallback: ((update: SegmentUpdate) => void) | null =
@@ -119,11 +128,16 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   protected secureStorage: SecureStorageService;
   protected pluginManager: any = null;
 
-  /** AI plugin capabilities - override in AI plugins */
   protected aiCapabilities: AiPluginCapabilities = {
     isAiPlugin: false,
     supportsCombinedMode: false,
   };
+
+  protected lastTranscriptionAt: number | null = null;
+  protected errorCount: number = 0;
+  protected consecutiveErrors: number = 0;
+  protected lastError: string | null = null;
+  protected pluginStartTime: number = Date.now();
 
   abstract readonly name: string;
   abstract readonly displayName: string;
@@ -360,6 +374,37 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
    */
   protected setActive(active: boolean): void {
     this.isActive = active;
+  }
+
+  protected recordSuccess(): void {
+    this.lastTranscriptionAt = Date.now();
+    this.consecutiveErrors = 0;
+  }
+
+  protected recordError(error: Error): void {
+    this.errorCount++;
+    this.consecutiveErrors++;
+    this.lastError = error.message;
+    this.emit("error", error);
+  }
+
+  getHealthStatus(): PluginHealthStatus {
+    const maxConsecutiveErrors = 5;
+    return {
+      healthy: this.consecutiveErrors < maxConsecutiveErrors && this.isInitialized,
+      lastSuccessfulTranscription: this.lastTranscriptionAt,
+      errorCount: this.errorCount,
+      consecutiveErrors: this.consecutiveErrors,
+      lastError: this.lastError,
+      uptime: Date.now() - this.pluginStartTime,
+    };
+  }
+
+  resetHealthCounters(): void {
+    this.errorCount = 0;
+    this.consecutiveErrors = 0;
+    this.lastError = null;
+    this.pluginStartTime = Date.now();
   }
 
   // Plugin secure storage methods

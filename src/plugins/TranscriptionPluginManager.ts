@@ -5,12 +5,14 @@ import {
   PluginSchemaItem,
   PluginState,
   PluginUIFunctions,
+  PluginHealthStatus,
 } from "./TranscriptionPlugin";
 import { SegmentUpdate } from "../types/SegmentTypes";
 import { AppConfig } from "../config/AppConfig";
 import { appEventBus } from "../services/AppEventBus";
 import { promiseManager } from "../core/PromiseManager";
 import { appStore } from "../core/AppStore";
+import { AudioSpeedProcessor } from "../helpers/AudioSpeedProcessor";
 
 export class TranscriptionPluginManager extends EventEmitter {
   private plugins: Map<string, BaseTranscriptionPlugin> = new Map();
@@ -19,6 +21,7 @@ export class TranscriptionPluginManager extends EventEmitter {
   private bufferingEnabled: boolean = false;
   private bufferingOverride: boolean | null = null;
   private bufferedAudioChunks: Float32Array[] = [];
+  private audioSpeedMultiplier: number = 1.0;
 
   constructor(config: AppConfig) {
     super();
@@ -271,6 +274,27 @@ export class TranscriptionPluginManager extends EventEmitter {
   }
 
   /**
+   * Set the audio speed multiplier for pre-transcription processing
+   * @param speed - Speed multiplier (1.0 = no change, 2.0 = 2x speed, etc.)
+   */
+  setAudioSpeedMultiplier(speed: number): void {
+    const validatedSpeed = AudioSpeedProcessor.validateSpeedFactor(speed);
+    if (this.audioSpeedMultiplier !== validatedSpeed) {
+      console.log(
+        `[TranscriptionPluginManager] Audio speed multiplier set to: ${validatedSpeed}`,
+      );
+    }
+    this.audioSpeedMultiplier = validatedSpeed;
+  }
+
+  /**
+   * Get the current audio speed multiplier
+   */
+  getAudioSpeedMultiplier(): number {
+    return this.audioSpeedMultiplier;
+  }
+
+  /**
    * Get the name of the active transcription plugin
    */
   getActivePluginName(): string | null {
@@ -408,7 +432,7 @@ export class TranscriptionPluginManager extends EventEmitter {
     }
 
     // Fallback to combining chunks and calling processAudioSegment
-    const combined = new Float32Array(total);
+    let combined = new Float32Array(total);
     let offset = 0;
     for (const chunk of this.bufferedAudioChunks) {
       combined.set(chunk, offset);
@@ -416,6 +440,19 @@ export class TranscriptionPluginManager extends EventEmitter {
     }
     // Clear buffer before processing to avoid recursion capturing
     this.bufferedAudioChunks = [];
+
+    // Apply audio speed-up if configured
+    if (AudioSpeedProcessor.shouldProcess(this.audioSpeedMultiplier)) {
+      const originalLength = combined.length;
+      combined = AudioSpeedProcessor.speedUp(
+        combined,
+        this.audioSpeedMultiplier,
+      );
+      console.log(
+        `[TranscriptionPluginManager] Buffered audio sped up ${this.audioSpeedMultiplier}x: ${originalLength} -> ${combined.length} samples`,
+      );
+    }
+
     // Bypass manager buffering and call plugin directly
     try {
       console.log(
@@ -453,7 +490,19 @@ export class TranscriptionPluginManager extends EventEmitter {
       return;
     }
 
-    await this.activePlugin.processAudioSegment(audioData);
+    // Apply audio speed-up if configured
+    let processedAudio = audioData;
+    if (AudioSpeedProcessor.shouldProcess(this.audioSpeedMultiplier)) {
+      processedAudio = AudioSpeedProcessor.speedUp(
+        audioData,
+        this.audioSpeedMultiplier,
+      );
+      console.log(
+        `[TranscriptionPluginManager] Audio sped up ${this.audioSpeedMultiplier}x: ${audioData.length} -> ${processedAudio.length} samples`,
+      );
+    }
+
+    await this.activePlugin.processAudioSegment(processedAudio);
   }
 
   /**
@@ -1121,5 +1170,107 @@ export class TranscriptionPluginManager extends EventEmitter {
 
     this.activePlugin = null;
     this.plugins.clear();
+  }
+
+  async checkPluginHealth(
+    pluginName: string,
+  ): Promise<PluginHealthStatus & { error?: string }> {
+    const plugin = this.getPlugin(pluginName);
+    if (!plugin) {
+      return {
+        healthy: false,
+        lastSuccessfulTranscription: null,
+        errorCount: 0,
+        consecutiveErrors: 0,
+        lastError: null,
+        uptime: 0,
+        error: `Plugin ${pluginName} not found`,
+      };
+    }
+
+    try {
+      const healthStatus = plugin.getHealthStatus();
+      const isAvailable = await plugin.isAvailable();
+
+      return {
+        ...healthStatus,
+        healthy: healthStatus.healthy && isAvailable,
+      };
+    } catch (error: any) {
+      return {
+        healthy: false,
+        lastSuccessfulTranscription: null,
+        errorCount: 0,
+        consecutiveErrors: 0,
+        lastError: error.message || String(error),
+        uptime: 0,
+        error: error.message || String(error),
+      };
+    }
+  }
+
+  async getAllPluginHealthStatuses(): Promise<
+    Record<string, PluginHealthStatus & { error?: string }>
+  > {
+    const statuses: Record<string, PluginHealthStatus & { error?: string }> =
+      {};
+    const plugins = this.getPlugins();
+
+    for (const plugin of plugins) {
+      statuses[plugin.name] = await this.checkPluginHealth(plugin.name);
+    }
+
+    return statuses;
+  }
+
+  async shutdownAllPlugins(): Promise<void> {
+    console.log("Gracefully shutting down all plugins...");
+
+    if (this.activePlugin) {
+      try {
+        if (this.activePlugin.isTranscribing()) {
+          console.log(
+            `Stopping active transcription on ${this.activePlugin.name}...`,
+          );
+          await this.activePlugin.stopTranscription();
+        }
+        await this.activePlugin.onDeactivate();
+      } catch (error) {
+        this.logPluginError(
+          this.activePlugin.name,
+          "deactivation during shutdown",
+          error as Error,
+        );
+      }
+    }
+
+    const plugins = this.getPlugins();
+    for (const plugin of plugins) {
+      try {
+        console.log(`Shutting down plugin: ${plugin.displayName}...`);
+        await plugin.cleanup();
+        await plugin.destroy();
+        console.log(`Plugin ${plugin.displayName} shut down successfully`);
+      } catch (error) {
+        this.logPluginError(plugin.name, "shutdown", error as Error);
+      }
+    }
+
+    this.activePlugin = null;
+    console.log("All plugins shut down");
+  }
+
+  private logPluginError(
+    plugin: string,
+    operation: string,
+    error: Error,
+  ): void {
+    console.error(`[PluginManager] Error in ${plugin} during ${operation}:`, {
+      pluginName: plugin,
+      operation,
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+    });
   }
 }

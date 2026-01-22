@@ -9,3 +9,53 @@ scripts/
 *.ts
 *.map
 .whispermac-data
+
+# Development configuration files
+.prettierrc
+.gitignore
+.aiignore
+.dir2md.json
+.sisyphus/
+docs/
+
+# Test files
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+plugins-setup/
+todo.md
+CLAUDE.md
+Makefile
+tsconfig.json
+package.json.tmp
+
+# Rust build artifacts (parakeet-backend)
+native/parakeet-backend/target/debug
+native/parakeet-backend/target/release/deps
+native/parakeet-backend/target/release/build
+native/parakeet-backend/target/release/.fingerprint
+native/parakeet-backend/target/release/incremental
+native/parakeet-backend/target/release/examples
+native/parakeet-backend/target/release/*.d
+native/parakeet-backend/target/.cargo-lock
+native/parakeet-backend/src
+native/parakeet-backend/Cargo.toml
+native/parakeet-backend/Cargo.lock
+native/parakeet-backend/.gitignore
+
+# Vendor source files (keep only binaries)
+vendor/whisper-cpp/src
+vendor/whisper-cpp/models
+vendor/whisper-cpp/*.h
+vendor/whisper-cpp/*.cpp
+vendor/whisper-cpp/Makefile
+vendor/whisper-cpp/CMakeLists.txt
+
+# Native module build artifacts
+native/mac-input/build
+native/mac-input/*.gyp
+native/mac-input/src
+native/audio-capture/build
+native/audio-capture/*.gyp
+native/audio-capture/src
