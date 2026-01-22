@@ -79,14 +79,7 @@
                   @click="openSystemPreferences('accessibility')"
                   style="font-size: 11px"
                 >
-                  Open System Preferences
-                </button>
-                <button
-                  class="btn"
-                  @click="openSettings('permissions')"
-                  style="font-size: 11px"
-                >
-                  Open Settings
+                  Open System Settings
                 </button>
               </div>
             </div>
@@ -143,14 +136,7 @@
                   @click="openSystemPreferences('microphone')"
                   style="font-size: 11px"
                 >
-                  Open System Preferences
-                </button>
-                <button
-                  class="btn"
-                  @click="openSettings('permissions')"
-                  style="font-size: 11px"
-                >
-                  Open Settings
+                  Open System Settings
                 </button>
               </div>
             </div>

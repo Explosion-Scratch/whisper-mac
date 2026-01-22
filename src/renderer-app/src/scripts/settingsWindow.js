@@ -88,6 +88,7 @@ export default {
       settings: {},
       originalSettings: {},
       currentSectionId: null,
+      pendingSectionId: null, // Section to navigate to after init
       validationErrors: {},
       pluginData: { plugins: [], schemas: {} },
       activePlugin: null,
@@ -204,6 +205,9 @@ export default {
 
     async init() {
       try {
+        // Setup IPC listeners early to catch navigation events during init
+        this.setupIpcListeners();
+
         this.schema = deepClone(await window.electronAPI.getSettingsSchema());
         this.settings = deepClone(await window.electronAPI.getSettings());
         this.originalSettings = deepClone(this.settings);
@@ -243,11 +247,13 @@ export default {
           this.packageInfo = null;
         }
 
-        if (this.schema.length > 0) {
+        // Navigate to pending section if set by IPC listener, otherwise default to first section
+        if (this.pendingSectionId) {
+          this.showSection(this.pendingSectionId);
+          this.pendingSectionId = null;
+        } else if (this.schema.length > 0) {
           this.showSection(this.schema[0].id);
         }
-
-        this.setupIpcListeners();
       } catch (error) {
         window.error("Failed to initialize settings window:", error);
         this.showStatus("Failed to load settings", "error");
@@ -293,7 +299,12 @@ export default {
 
       // Listen for navigation to specific sections
       window.electronAPI.onNavigateToSection((sectionId) => {
-        this.showSection(sectionId);
+        // If schema is loaded, navigate immediately; otherwise store for later
+        if (this.schema && this.schema.length > 0) {
+          this.showSection(sectionId);
+        } else {
+          this.pendingSectionId = sectionId;
+        }
       });
 
       // Listen for settings updates from main process (e.g., when hotkeys change)

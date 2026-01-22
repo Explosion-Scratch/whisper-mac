@@ -59,8 +59,8 @@
             class="btn btn-primary btn-sm"
             @click="openAccessibilitySettings"
           >
-            <i class="ph-duotone ph-gear"></i>
-            Open Settings
+            <i class="ph-duotone ph-gear-six"></i>
+            Open System Settings
           </button>
           <button
             type="button"
@@ -120,8 +120,8 @@
             class="btn btn-primary btn-sm"
             @click="openMicrophoneSettings"
           >
-            <i class="ph-duotone ph-gear"></i>
-            Open Settings
+            <i class="ph-duotone ph-gear-six"></i>
+            Open System Settings
           </button>
           <button
             type="button"

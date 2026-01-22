@@ -117,15 +117,15 @@ Napi::Value CheckPermissions(const Napi::CallbackInfo &info) {
 
 Napi::Value CheckPermissionsWithPrompt(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
-  
+
   bool shouldPrompt = info.Length() > 0 && info[0].IsBoolean() && info[0].As<Napi::Boolean>().Value();
-  
+
   @autoreleasepool {
     NSDictionary *options = @{};
     if (shouldPrompt) {
       options = @{(__bridge NSString *)kAXTrustedCheckOptionPrompt: @YES};
     }
-    
+
     Boolean trusted = AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
     return Napi::Boolean::New(env, trusted ? true : false);
   }
@@ -279,9 +279,13 @@ static CFRunLoopRef g_runLoop = nullptr;
 static CGKeyCode g_targetKeyCode = (CGKeyCode)0;
 static std::vector<NSEventModifierFlags> g_allowedModifierMasks;
 static Napi::ThreadSafeFunction g_hotkeyCallback;
-static std::atomic<bool> g_keyIsPressed(false);
-static std::atomic<NSEventModifierFlags> g_expectedModifiers(0);
-static std::atomic<bool> g_waitingForKeyUp(false);
+
+// PTT state tracking: session is active when combo was triggered
+static std::atomic<bool> g_pttSessionActive(false);
+// Track if the main key is currently physically pressed
+static std::atomic<bool> g_mainKeyDown(false);
+// Track the modifier flags that were active when session started
+static std::atomic<NSEventModifierFlags> g_sessionModifiers(0);
 
 static NSEventModifierFlags stripIrrelevantModifiers(NSEventModifierFlags flags) {
   const NSEventModifierFlags onlyRelevant = (NSEventModifierFlags)(
@@ -308,27 +312,52 @@ static bool modifiersMatch(CGEventRef event) {
   return false;
 }
 
-static void triggerRelease() {
-  if (!g_keyIsPressed.load() && !g_waitingForKeyUp.load()) return;
-  g_keyIsPressed.store(false);
-  g_expectedModifiers.store(0);
-  g_waitingForKeyUp.store(true);
+static void notifyJS(bool isDown) {
   if (g_hotkeyCallback) {
-    bool isDown = false;
-    napi_status s = g_hotkeyCallback.BlockingCall(new bool(isDown), [](Napi::Env env, Napi::Function cb, bool *isDownPtr) {
+    bool *isDownPtr = new bool(isDown);
+    napi_status s = g_hotkeyCallback.BlockingCall(isDownPtr, [](Napi::Env env, Napi::Function cb, bool *ptr) {
       Napi::Object evt = Napi::Object::New(env);
-      evt.Set("type", *isDownPtr ? Napi::String::New(env, "down") : Napi::String::New(env, "up"));
+      evt.Set("type", *ptr ? Napi::String::New(env, "down") : Napi::String::New(env, "up"));
       cb.Call({ evt });
-      delete isDownPtr;
+      delete ptr;
     });
     (void)s;
   }
 }
 
+static void startPttSession(NSEventModifierFlags modifiers) {
+  if (g_pttSessionActive.load()) return;
+  g_pttSessionActive.store(true);
+  g_sessionModifiers.store(modifiers);
+  NSLog(@"[mac_input] PTT session started (modifiers=0x%lx)", (unsigned long)modifiers);
+  notifyJS(true);
+}
+
+static void endPttSession() {
+  if (!g_pttSessionActive.load()) return;
+  g_pttSessionActive.store(false);
+  g_sessionModifiers.store(0);
+  g_mainKeyDown.store(false);
+  NSLog(@"[mac_input] PTT session ended");
+  notifyJS(false);
+}
+
+// Check if ALL keys in the combo are released (both main key and all modifiers)
+static bool allKeysReleased(NSEventModifierFlags currentModifiers) {
+  // If main key is still down, not all released
+  if (g_mainKeyDown.load()) return false;
+
+  // Check if any of the session modifiers are still held
+  NSEventModifierFlags sessionMods = g_sessionModifiers.load();
+  NSEventModifierFlags stillHeld = stripIrrelevantModifiers(currentModifiers) & sessionMods;
+
+  return stillHeld == 0;
+}
+
 static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *refcon) {
   (void)proxy;
   (void)refcon;
-  
+
   // Handle event tap being disabled by system - re-enable it for reliability
   if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
     if (g_eventTap && g_hotkeyActive.load()) {
@@ -337,71 +366,64 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
     }
     return event;
   }
-  
+
   if (!g_hotkeyActive.load()) return event;
 
-  // Monitor modifier flag changes when combo is active
-  if (type == kCGEventFlagsChanged && g_keyIsPressed.load()) {
-    NSEventModifierFlags currentFlags = stripIrrelevantModifiers(
+  NSEventModifierFlags currentModifiers = stripIrrelevantModifiers(
       (NSEventModifierFlags)CGEventGetFlags(event));
-    NSEventModifierFlags expectedFlags = g_expectedModifiers.load();
-    
-    // If modifiers no longer match expected, trigger release
-    if (currentFlags != expectedFlags) {
-      triggerRelease();
-      return nullptr; // Consume the modifier change event
+
+  // Handle modifier flag changes
+  if (type == kCGEventFlagsChanged) {
+    // If session is active, check if all keys are now released
+    if (g_pttSessionActive.load()) {
+      if (allKeysReleased(currentModifiers)) {
+        endPttSession();
+      }
     }
+    // Don't consume modifier events - let them pass through
     return event;
   }
 
   if (type != kCGEventKeyDown && type != kCGEventKeyUp) return event;
 
   CGKeyCode key = (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
-  
-  // Handle repeat keydowns while pressed - consume them to prevent typing
-  if (g_keyIsPressed.load() && key == g_targetKeyCode && type == kCGEventKeyDown) {
-    return nullptr; // Consume repeat keydowns
-  }
-  
-  // Handle stray keyups after modifier-triggered release (e.g., user releases Alt before /)
-  // Only consume keyups, NOT keydowns - this was the bug causing alternating failures
-  if (g_waitingForKeyUp.load() && key == g_targetKeyCode) {
-    if (type == kCGEventKeyUp) {
-      g_waitingForKeyUp.store(false);
-      return nullptr; // Consume the stray keyup
-    }
-    // For keydown while waiting: clear the flag and let it proceed to be handled as new press
-    g_waitingForKeyUp.store(false);
-  }
 
+  // Only care about our target key
   if (key != g_targetKeyCode) return event;
 
-  // For keydown: require modifier match
   if (type == kCGEventKeyDown) {
-    if (!modifiersMatch(event)) return event;
-    NSEventModifierFlags currentFlags = stripIrrelevantModifiers(
-      (NSEventModifierFlags)CGEventGetFlags(event));
-    g_expectedModifiers.store(currentFlags);
-    g_keyIsPressed.store(true);
-    g_waitingForKeyUp.store(false); // Clear stale flag from previous release to allow new press
-  } else { // kCGEventKeyUp
-    if (!g_keyIsPressed.load()) return event;
-    triggerRelease();
-    return nullptr;
-  }
+    // If session already active, consume repeat keydowns
+    if (g_pttSessionActive.load()) {
+      return nullptr;
+    }
 
-  // Notify JS and consume this event to prevent it from being typed
-  if (g_hotkeyCallback) {
-    bool isDown = (type == kCGEventKeyDown);
-    napi_status s = g_hotkeyCallback.BlockingCall(new bool(isDown), [](Napi::Env env, Napi::Function cb, bool *isDownPtr) {
-      Napi::Object evt = Napi::Object::New(env);
-      evt.Set("type", *isDownPtr ? Napi::String::New(env, "down") : Napi::String::New(env, "up"));
-      cb.Call({ evt });
-      delete isDownPtr;
-    });
-    (void)s;
+    // Check if modifiers match to start a new session
+    if (!modifiersMatch(event)) {
+      // Modifiers don't match - let the event through
+      return event;
+    }
+
+    // Start PTT session - both key and modifiers are pressed
+    g_mainKeyDown.store(true);
+    startPttSession(currentModifiers);
+    return nullptr; // Consume the keydown
+
+  } else { // kCGEventKeyUp
+    // Main key released
+    g_mainKeyDown.store(false);
+
+    // If session is active, check if all keys are now released
+    if (g_pttSessionActive.load()) {
+      if (allKeysReleased(currentModifiers)) {
+        endPttSession();
+      }
+      // Always consume keyup during/after session to prevent typing
+      return nullptr;
+    }
+
+    // No active session, let the event through
+    return event;
   }
-  return nullptr; // Consume the event to prevent it from being typed
 }
 
 Napi::Value RegisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
@@ -420,9 +442,9 @@ Napi::Value RegisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
     if (g_runLoopSource) { CFRelease(g_runLoopSource); g_runLoopSource = nullptr; }
     if (g_eventTap) { CFMachPortInvalidate(g_eventTap); CFRelease(g_eventTap); g_eventTap = nullptr; }
     g_hotkeyActive.store(false);
-    g_keyIsPressed.store(false);
-    g_expectedModifiers.store(0);
-    g_waitingForKeyUp.store(false);
+    g_pttSessionActive.store(false);
+    g_mainKeyDown.store(false);
+    g_sessionModifiers.store(0);
     if (g_hotkeyCallback) {
       g_hotkeyCallback.Release();
     }
@@ -430,9 +452,9 @@ Napi::Value RegisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
 
   g_targetKeyCode = (CGKeyCode)info[0].As<Napi::Number>().Uint32Value();
   g_allowedModifierMasks.clear();
-  g_keyIsPressed.store(false);
-  g_expectedModifiers.store(0);
-  g_waitingForKeyUp.store(false);
+  g_pttSessionActive.store(false);
+  g_mainKeyDown.store(false);
+  g_sessionModifiers.store(0);
 
   auto parseModifierMask = [](uint32_t value) {
     return stripIrrelevantModifiers((NSEventModifierFlags)value);
@@ -524,9 +546,9 @@ Napi::Value UnregisterPushToTalkHotkey(const Napi::CallbackInfo &info) {
     g_hotkeyCallback.Release();
   }
   g_allowedModifierMasks.clear();
-  g_keyIsPressed.store(false);
-  g_expectedModifiers.store(0);
-  g_waitingForKeyUp.store(false);
+  g_pttSessionActive.store(false);
+  g_mainKeyDown.store(false);
+  g_sessionModifiers.store(0);
   return env.Undefined();
 }
 
@@ -537,12 +559,12 @@ Napi::Value GetKeyCode(const Napi::CallbackInfo &info) {
         .ThrowAsJavaScriptException();
     return env.Null();
   }
-  
+
   std::string keyName = info[0].As<Napi::String>().Utf8Value();
   std::transform(keyName.begin(), keyName.end(), keyName.begin(), ::toupper);
-  
+
   CGKeyCode keyCode = 0;
-  
+
   if (keyName.length() == 1) {
     char c = keyName[0];
     if (c >= 'A' && c <= 'Z') {
@@ -628,7 +650,7 @@ Napi::Value GetKeyCode(const Napi::CallbackInfo &info) {
       return env.Null();
     }
   }
-  
+
   return Napi::Number::New(env, (uint32_t)keyCode);
 }
 
