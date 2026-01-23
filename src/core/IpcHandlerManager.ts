@@ -296,10 +296,17 @@ export class IpcHandlerManager {
       const pluginOptions =
         this.transcriptionPluginManager.getPluginOptions(activePlugin) || {};
 
+      // Get current hotkey settings
+      const hotkeys = {
+        startStopDictation: this.config.get("hotkeys.startStopDictation") || "",
+        pushToTalk: this.config.get("hotkeys.pushToTalk") || "",
+      };
+
       return {
         ai: this.config.ai,
         plugin: activePlugin,
         pluginOptions: JSON.parse(JSON.stringify(pluginOptions)),
+        hotkeys,
       };
     });
 

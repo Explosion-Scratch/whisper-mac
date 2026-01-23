@@ -561,13 +561,22 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
     uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
     const modelDir = join(this.config.getModelsDir(), modelName);
+    console.log(`[parakeet] downloadModel called for: ${modelName}`);
+    console.log(`[parakeet] Model directory: ${modelDir}`);
+
     if (!existsSync(modelDir)) {
+      console.log(`[parakeet] Creating model directory`);
       mkdirSync(modelDir, { recursive: true });
     }
 
     // Get the correct HuggingFace repo for this model version
     const hfRepo = this.getHfRepoForModel(modelName);
     const displayName = this.modelConfigs[modelName]?.displayName || modelName;
+
+    console.log(`[parakeet] HuggingFace repo: ${hfRepo}`);
+    console.log(
+      `[parakeet] Files to download: ${this.modelFiles.map((f) => f.local).join(", ")}`,
+    );
 
     this.setLoadingState(true, `Downloading ${displayName}...`);
 
@@ -579,9 +588,28 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
         const url = `https://huggingface.co/${hfRepo}/resolve/main/${file.remote}`;
         const destPath = join(modelDir, file.local);
 
-        if (existsSync(destPath)) {
-          completedFiles++;
-          continue;
+        const fileExists = existsSync(destPath);
+        if (fileExists) {
+          // Check file size - if it's 0 or very small, it's probably a failed download
+          const stats = statSync(destPath);
+          console.log(
+            `[parakeet] File ${file.local} exists, size: ${stats.size} bytes`,
+          );
+          if (stats.size > 1000) {
+            // File exists and has content, skip
+            completedFiles++;
+            continue;
+          } else {
+            console.log(
+              `[parakeet] File ${file.local} is too small, re-downloading`,
+            );
+            // Delete the incomplete file
+            unlinkSync(destPath);
+          }
+        } else {
+          console.log(
+            `[parakeet] File ${file.local} does not exist, will download`,
+          );
         }
 
         if (uiFunctions) {
@@ -591,6 +619,9 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
           );
         }
 
+        console.log(`[parakeet] Starting download: ${url}`);
+        console.log(`[parakeet] Destination: ${destPath}`);
+
         await this.downloadFileWithProgress(
           url,
           destPath,
@@ -599,6 +630,11 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
             const totalPercent = Math.round(
               ((completedFiles + percent / 100) / totalFiles) * 100,
             );
+            if (percent % 10 === 0) {
+              console.log(
+                `[parakeet] Download progress for ${file.local}: ${percent.toFixed(0)}%`,
+              );
+            }
             uiFunctions?.showProgress(
               `Downloading ${file.local}... ${percent}%`,
               totalPercent,
@@ -606,9 +642,13 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
           },
         );
 
+        console.log(`[parakeet] Completed download: ${file.local}`);
         completedFiles++;
       }
 
+      console.log(
+        `[parakeet] All downloads complete. Downloaded ${completedFiles} files.`,
+      );
       if (uiFunctions) {
         uiFunctions.showSuccess(`Model ${modelName} downloaded successfully`);
         uiFunctions.hideProgress();
@@ -634,27 +674,45 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
     const modelName = options.model || "parakeet-tdt-0.6b-v2-onnx";
     const modelDir = join(this.config.getModelsDir(), modelName);
 
-    // Check if all files exist
-    const allFilesExist = this.modelFiles.every((file) =>
-      existsSync(join(modelDir, file.local)),
+    console.log(
+      `[parakeet] ensureModelAvailable called with model: ${modelName}`,
     );
+    console.log(`[parakeet] Checking model directory: ${modelDir}`);
+
+    // Check if all files exist
+    const missingFiles = this.modelFiles.filter(
+      (file) => !existsSync(join(modelDir, file.local)),
+    );
+    const allFilesExist = missingFiles.length === 0;
 
     if (allFilesExist) {
+      console.log(`[parakeet] All model files exist, skipping download`);
       onLog?.(`Parakeet model ${modelName} already available`);
       return true;
     }
+
+    console.log(
+      `[parakeet] Missing files: ${missingFiles.map((f) => f.local).join(", ")}`,
+    );
+    console.log(`[parakeet] Starting download...`);
 
     try {
       await this.downloadModel(modelName, {
         showProgress: (message: string, percent: number) => {
           onProgress?.({
             message,
+            progress: percent,
             percent,
             status: percent >= 100 ? "complete" : "downloading",
           });
         },
         showDownloadProgress: (downloadProgress: any) => {
-          onProgress?.(downloadProgress);
+          // Normalize the progress field name
+          onProgress?.({
+            ...downloadProgress,
+            progress:
+              downloadProgress.percent ?? downloadProgress.progress ?? 0,
+          });
         },
         hideProgress: () => {},
         showError: (error: string) => {
@@ -665,8 +723,10 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
         },
         confirmAction: async () => true,
       });
+      console.log(`[parakeet] Download completed successfully`);
       return true;
     } catch (error: any) {
+      console.error(`[parakeet] Download failed: ${error.message}`);
       onLog?.(`Failed to download model ${modelName}: ${error.message}`);
       throw error;
     }

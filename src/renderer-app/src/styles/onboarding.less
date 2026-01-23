@@ -46,6 +46,40 @@
     justify-content: center;
     border-bottom: 1px solid rgba(0, 0, 0, 0.06);
     -webkit-app-region: drag;
+    position: relative;
+  }
+
+  .import-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.12s ease;
+    -webkit-app-region: no-drag;
+
+    i {
+      font-size: 16px;
+    }
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.06);
+      color: var(--fg);
+    }
+
+    &:active {
+      transform: translateY(-50%) scale(0.95);
+    }
   }
 
   main {
@@ -362,6 +396,139 @@
     }
   }
 
+  // Hotkey Mode Cards
+  .hotkey-mode-cards {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .hotkey-mode-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 16px;
+    background: var(--card-bg);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+
+    &:hover {
+      border-color: rgba(0, 122, 255, 0.3);
+      background: rgba(0, 122, 255, 0.04);
+    }
+
+    &.active {
+      border-color: var(--accent);
+      background: rgba(0, 122, 255, 0.08);
+    }
+
+    .mode-icon {
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 122, 255, 0.1);
+      border-radius: 50%;
+      color: var(--accent);
+      font-size: 28px;
+      transition: all 0.2s ease;
+    }
+
+    &.active .mode-icon {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .mode-content {
+      text-align: center;
+
+      h3 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--fg);
+      }
+
+      p {
+        margin: 4px 0 0;
+        font-size: 11px;
+        color: var(--muted);
+      }
+    }
+
+    .mode-check {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      color: var(--accent);
+      font-size: 20px;
+    }
+  }
+
+  // Hotkey Configuration Section
+  .hotkey-config-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    margin-top: 16px;
+    padding: 20px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  .hotkey-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--fg);
+
+    i {
+      font-size: 16px;
+      color: var(--accent);
+    }
+  }
+
+  .hotkey-suggestion {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+
+    .suggestion-label {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .suggestion-btn {
+      padding: 4px 10px;
+      background: rgba(0, 122, 255, 0.1);
+      border: 1px solid rgba(0, 122, 255, 0.2);
+      border-radius: 4px;
+      color: var(--accent);
+      font-family: "SF Mono", Monaco, monospace;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+
+      &:hover {
+        background: rgba(0, 122, 255, 0.2);
+        border-color: rgba(0, 122, 255, 0.4);
+      }
+    }
+  }
+
   @media (prefers-color-scheme: dark) {
     --bg: #0b0b0c;
     --fg: #ececec;
@@ -399,6 +566,42 @@
     .plugin-config-section {
       background: rgba(255, 255, 255, 0.1);
       border-color: var(--border);
+    }
+
+    .import-btn {
+      color: var(--muted);
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--fg);
+      }
+    }
+
+    .hotkey-mode-card {
+      &:hover {
+        background: rgba(0, 122, 255, 0.08);
+      }
+
+      &.active {
+        background: rgba(0, 122, 255, 0.12);
+      }
+
+      .mode-icon {
+        background: rgba(0, 122, 255, 0.15);
+      }
+    }
+
+    .hotkey-config-section {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .hotkey-suggestion .suggestion-btn {
+      background: rgba(0, 122, 255, 0.15);
+      border-color: rgba(0, 122, 255, 0.25);
+
+      &:hover {
+        background: rgba(0, 122, 255, 0.25);
+      }
     }
   }
 }

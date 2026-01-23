@@ -15,14 +15,14 @@
           class="btn btn-default btn-icn-only action-btn"
           title="Import settings from file"
         >
-          <i class="ph ph-download-simple"></i>
+          <i class="ph ph-upload-simple"></i>
         </button>
         <button
           @click="exportSettings"
           class="btn btn-default btn-icn-only action-btn"
           title="Export settings to file"
         >
-          <i class="ph ph-upload-simple"></i>
+          <i class="ph ph-download-simple"></i>
         </button>
       </div>
     </header>
@@ -120,6 +120,7 @@
                 @browseDirectory="browseDirectory(field.key)"
                 @clearHotkey="clearHotkey(field.key)"
                 @hotkeyChanged="handleHotkeyChanged(field.key, $event)"
+                @previewSound="previewSound"
               />
 
               <!-- Actions Editor -->
@@ -1948,6 +1949,19 @@
         ></div>
       </div>
     </div>
+
+    <!-- Import Progress Modal -->
+    <ImportProgressModal
+      :visible="importProgress.visible"
+      :stage="importProgress.stage"
+      :message="importProgress.message"
+      :percent="importProgress.percent"
+      :currentStep="importProgress.currentStep"
+      :totalSteps="importProgress.totalSteps"
+      :modelProgress="importProgress.modelProgress"
+      @cancel="cancelImport"
+      @done="onImportDone"
+    />
   </div>
 </template>
 <script>

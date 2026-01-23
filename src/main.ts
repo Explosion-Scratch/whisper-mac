@@ -21,6 +21,7 @@ import { TrayService } from "./services/TrayService";
 import { LoginItemService } from "./services/LoginItemService";
 import { AudioCaptureService } from "./services/AudioCaptureService";
 import { HistoryService } from "./services/HistoryService";
+import { SoundService } from "./services/SoundService";
 import { DefaultActionsConfig } from "./types/ActionTypes";
 
 import {
@@ -54,6 +55,7 @@ class WhisperMacApp {
   private settingsManager!: SettingsManager;
   private audioCaptureService!: AudioCaptureService;
   private historyService!: HistoryService;
+  private soundService!: SoundService;
   private trayService: TrayService | null = null;
 
   // Audio accumulation for history
@@ -114,6 +116,8 @@ class WhisperMacApp {
     this.settingsManager = this.settingsService.getSettingsManager();
     this.audioCaptureService = new AudioCaptureService(this.config);
     this.historyService = HistoryService.getInstance(this.config);
+    this.soundService = new SoundService(this.settingsManager);
+    this.settingsService.setSoundService(this.soundService);
 
     // ConfigurableActionsService is now stateless regarding segments, no setSegmentManager needed
   }
@@ -132,6 +136,7 @@ class WhisperMacApp {
       this.errorManager,
       this.audioCaptureService,
     );
+    this.dictationFlowManager.setSoundService(this.soundService);
     this.ipcHandlerManager = new IpcHandlerManager(
       this.transcriptionPluginManager,
       this.unifiedModelDownloadService,

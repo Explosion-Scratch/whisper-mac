@@ -4,6 +4,7 @@ import {
   AudioCaptureService,
   ChunkReadyEvent,
 } from "../services/AudioCaptureService";
+import { SoundService } from "../services/SoundService";
 import { SegmentManager } from "../services/SegmentManager";
 import { TrayService } from "../services/TrayService";
 import { SegmentUpdate } from "../types/SegmentTypes";
@@ -17,6 +18,7 @@ export { DictationState } from "./AppStore";
 export class DictationFlowManager {
   private finishingTimeout: NodeJS.Timeout | null = null;
   private eventCleanupFns: Array<() => void> = [];
+  private soundService: SoundService | null = null;
 
   private get state(): DictationState {
     return appStore.select((s) => s.dictation.state);
@@ -36,6 +38,11 @@ export class DictationFlowManager {
   ) {
     this.setupEventListeners();
   }
+
+  setSoundService(soundService: SoundService | null): void {
+    this.soundService = soundService;
+  }
+
 
   private setupEventListeners(): void {
     const onVadSegment = (
@@ -254,6 +261,7 @@ export class DictationFlowManager {
       console.log(
         `=== Finishing current dictation with ${skipTransformation ? "raw injection" : "transform+inject"} ===`,
       );
+      this.soundService?.playSound("stop");
       this.dictationWindowService.stopRecording(); // UI update
 
       // Stop audio capture - fallback audio is already emitted as vad-segment event
@@ -336,6 +344,10 @@ export class DictationFlowManager {
         console.log(
           `Successfully transformed and injected ${transformResult.segmentsProcessed} segments`,
         );
+        // Play transform complete sound if transformation was actually performed
+        if (!skipTransformation && !skipAllTransforms) {
+          this.soundService?.playSound("transformComplete");
+        }
         this.dictationWindowService.completeDictation(
           transformResult.transformedText,
         );
@@ -632,6 +644,7 @@ export class DictationFlowManager {
   }
 
   private async startRecording(): Promise<void> {
+    this.soundService?.playSound("start");
     this.trayService?.updateTrayIcon("recording");
     this.dictationWindowService.startRecording();
     await this.audioCaptureService.startCapture();

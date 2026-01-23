@@ -3,6 +3,20 @@ import SettingsField from "../components/settings/ui/Field.vue";
 import TranscriptionSection from "../components/settings/transcription/TranscriptionSection.vue";
 import PermissionsSection from "../components/settings/PermissionsSection.vue";
 import HistorySection from "../components/settings/HistorySection.vue";
+import ImportProgressModal from "../components/settings/ImportProgressModal.vue";
+
+import {
+  analyzeSettingsFile,
+  exportSettings as exportSettingsToFile,
+  importSettingsWithProgress,
+  cancelImport as cancelSettingsImport,
+  onImportProgress,
+  showImportDialog,
+  showExportDialog,
+  createInitialImportProgressState,
+  formatModelNames,
+  formatImportResultMessage,
+} from "../utils/settings-export-import";
 
 import {
   enumerateMicrophones,
@@ -81,6 +95,7 @@ export default {
     TranscriptionSection,
     PermissionsSection,
     HistorySection,
+    ImportProgressModal,
   },
   data() {
     return {
@@ -103,6 +118,7 @@ export default {
       aiModelsState: { loading: false, loadedForBaseUrl: null, models: [] },
       status: { visible: false, message: "", type: "success" },
       progress: { visible: false, message: "", percent: 0 },
+      importProgress: createInitialImportProgressState(),
       isSaving: false,
       isClearingAll: false,
       apiKeyInput: "",
@@ -397,6 +413,7 @@ export default {
         shield: "ph-shield",
         keyboard: "ph-keyboard",
         history: "ph-clock-counter-clockwise",
+        "speaker-high": "ph-speaker-high",
       };
       return iconMap[iconName] || "ph-gear";
     },
@@ -622,24 +639,94 @@ export default {
     },
 
     async importSettings() {
-      const result = await window.electronAPI.showOpenDialog({
-        filters: [{ name: "JSON Files", extensions: ["json"] }],
-      });
+      const result = await showImportDialog();
       if (!result.canceled && result.filePaths.length > 0) {
-        this.settings = await window.electronAPI.importSettings(
-          result.filePaths[0],
-        );
-        this.showStatus("Settings imported successfully", "success");
+        const filePath = result.filePaths[0];
+
+        try {
+          // Analyze the import file first
+          const analysis = await analyzeSettingsFile(filePath);
+          if (!analysis.valid) {
+            this.showStatus(
+              `Invalid settings file: ${analysis.message}`,
+              "error",
+            );
+            return;
+          }
+
+          // Show import progress modal
+          this.importProgress = {
+            ...createInitialImportProgressState(),
+            visible: true,
+            stage: "validating",
+            message: "Preparing import...",
+            totalSteps: 4,
+          };
+
+          // If there are models to download, inform the user
+          if (analysis.missingModels && analysis.missingModels.length > 0) {
+            this.importProgress.message = `Will download required models: ${formatModelNames(analysis.missingModels)}`;
+          }
+
+          // Perform the import with progress
+          const importResult = await importSettingsWithProgress(filePath);
+
+          if (importResult.success) {
+            // Update local settings with the imported ones
+            if (importResult.appliedSettings) {
+              this.settings = importResult.appliedSettings;
+              ensurePluginSettingsObjects(this.settings, this.pluginData);
+            }
+
+            // Show result message
+            const resultMessage = formatImportResultMessage(importResult);
+            this.showStatus(resultMessage.message, resultMessage.type);
+
+            if (importResult.warnings?.length > 0) {
+              console.warn("Import warnings:", importResult.warnings);
+            }
+
+            // Refresh plugin data
+            this.pluginData = await getPluginSchemas();
+            await this.loadPluginDataInfo();
+          } else {
+            this.showStatus(`Import failed: ${importResult.message}`, "error");
+            if (importResult.errors) {
+              console.error("Import errors:", importResult.errors);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to import settings:", err);
+          this.showStatus(`Import failed: ${err.message}`, "error");
+          this.importProgress.visible = false;
+        }
       }
     },
 
+    async cancelImport() {
+      await cancelSettingsImport();
+      this.importProgress.visible = false;
+      this.showStatus("Import cancelled", "info");
+    },
+
+    onImportDone() {
+      this.importProgress.visible = false;
+    },
+
     async exportSettings() {
-      const result = await window.electronAPI.showSaveDialog({
-        defaultPath: "whispermac-settings.json",
-      });
-      if (!result.canceled) {
-        await window.electronAPI.exportSettings(result.filePath, this.settings);
-        this.showStatus("Settings exported successfully", "success");
+      const result = await showExportDialog();
+      if (!result.canceled && result.filePath) {
+        try {
+          const exportResult = await exportSettingsToFile(result.filePath);
+          if (exportResult.success) {
+            this.showStatus("Settings exported successfully", "success");
+          } else {
+            this.showStatus(`Export failed: ${exportResult.message}`, "error");
+          }
+        } catch (err) {
+          console.error("Failed to export settings:", err);
+          this.showStatus(`Export failed: ${err.message}`, "error");
+        }
       }
     },
 
@@ -1230,8 +1317,37 @@ export default {
     async exportAllSettings() {
       await this.exportSettings();
     },
+
+    // --- SOUND PREVIEW ---
+    /**
+     * Preview a sound with the current volume setting
+     * @param {string} soundName - Name of the sound to preview
+     */
+    async previewSound(soundName) {
+      if (!soundName || soundName === "none") return;
+      const volume = this.settings["sounds.volume"] ?? 0.5;
+      try {
+        await window.electronAPI.previewSound(soundName, volume);
+      } catch (err) {
+        console.error("Failed to preview sound:", err);
+      }
+    },
   },
   mounted() {
     this.init();
+
+    // Set up import progress listener using utility
+    onImportProgress((progress) => {
+      this.importProgress = {
+        visible: true,
+        stage: progress.stage,
+        message: progress.message,
+        percent: progress.percent,
+        currentStep: progress.currentStep || 0,
+        totalSteps: progress.totalSteps || 0,
+        modelProgress: progress.modelProgress || null,
+      };
+      // User clicks Done button to dismiss - no auto-hide
+    });
   },
 };

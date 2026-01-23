@@ -2,6 +2,14 @@
   <div class="onboarding-root">
     <header>
       <div class="title">Welcome</div>
+      <button
+        v-if="idx === 0"
+        class="import-btn"
+        @click="importSettings"
+        title="Import settings from file"
+      >
+        <i class="ph-duotone ph-upload-simple"></i>
+      </button>
     </header>
     <main>
       <div id="slides" class="slides">
@@ -353,7 +361,81 @@
           </div>
         </section>
 
-        <section class="slide" data-step="setup" v-if="idx === 5">
+        <section class="slide" data-step="hotkey" v-if="idx === 5">
+          <div class="content">
+            <div class="step-header">
+              <span class="step-icn"
+                ><i class="ph-duotone ph-keyboard"></i
+              ></span>
+              <h1>Set your hotkey</h1>
+            </div>
+            <p class="micro">
+              Choose how you want to trigger dictation. You can change this
+              later in Settings.
+            </p>
+
+            <!-- Mode Selection Cards -->
+            <div class="hotkey-mode-cards">
+              <div
+                class="hotkey-mode-card"
+                :class="{ active: hotkeyMode === 'toggle' }"
+                @click="hotkeyMode = 'toggle'"
+              >
+                <div class="mode-icon">
+                  <i class="ph-duotone ph-play-pause"></i>
+                </div>
+                <div class="mode-content">
+                  <h3>Start / Stop</h3>
+                  <p>Press once to start, press again to stop</p>
+                </div>
+                <div class="mode-check" v-if="hotkeyMode === 'toggle'">
+                  <i class="ph-fill ph-check-circle"></i>
+                </div>
+              </div>
+
+              <div
+                class="hotkey-mode-card"
+                :class="{ active: hotkeyMode === 'push' }"
+                @click="hotkeyMode = 'push'"
+              >
+                <div class="mode-icon">
+                  <i class="ph-duotone ph-hand-pointing"></i>
+                </div>
+                <div class="mode-content">
+                  <h3>Push to Talk</h3>
+                  <p>Hold to record, release to stop</p>
+                </div>
+                <div class="mode-check" v-if="hotkeyMode === 'push'">
+                  <i class="ph-fill ph-check-circle"></i>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hotkey Input -->
+            <div class="hotkey-config-section">
+              <div class="hotkey-label">
+                <i class="ph-duotone ph-command"></i>
+                <span>{{
+                  hotkeyMode === "toggle" ? "Toggle Hotkey" : "Push to Talk Key"
+                }}</span>
+              </div>
+              <OnboardingHotkeyInput
+                v-model="currentHotkey"
+                :placeholder="
+                  hotkeyMode === 'toggle' ? 'e.g. ⌘ D' : 'e.g. Right ⌘'
+                "
+              />
+              <div class="hotkey-suggestion" v-if="!currentHotkey">
+                <span class="suggestion-label">Suggestion:</span>
+                <button class="suggestion-btn" @click="applySuggestedHotkey">
+                  {{ hotkeyMode === "toggle" ? "⌃ D" : "Right ⌥" }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="slide" data-step="setup" v-if="idx === 6">
           <div class="content">
             <div class="step-header">
               <span class="step-icn"
@@ -417,6 +499,19 @@
         </div>
       </div>
     </main>
+
+    <!-- Import Progress Modal -->
+    <ImportProgressModal
+      :visible="importProgress.visible"
+      :stage="importProgress.stage"
+      :message="importProgress.message"
+      :percent="importProgress.percent"
+      :currentStep="importProgress.currentStep"
+      :totalSteps="importProgress.totalSteps"
+      :modelProgress="importProgress.modelProgress"
+      @cancel="cancelImport"
+      @done="onImportDone"
+    />
   </div>
 </template>
 

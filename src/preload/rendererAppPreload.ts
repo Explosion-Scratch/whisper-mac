@@ -135,6 +135,8 @@ const settingsAPI = {
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings: Record<string, any>) =>
     ipcRenderer.invoke("settings:save", settings),
+  previewSound: (soundName: string, volume: number) =>
+    ipcRenderer.invoke("sounds:preview", soundName, volume),
   resetAllSettings: () => ipcRenderer.invoke("settings:resetAll"),
   resetSettingsSection: (sectionId: string) =>
     ipcRenderer.invoke("settings:resetSection", sectionId),
@@ -144,6 +146,20 @@ const settingsAPI = {
     ipcRenderer.invoke("settings:import", filePath),
   exportSettings: (filePath: string, settings: Record<string, any>) =>
     ipcRenderer.invoke("settings:export", filePath, settings),
+  // Enhanced Import/Export with progress and model downloading
+  exportSettingsEnhanced: (filePath: string) =>
+    ipcRenderer.invoke("settings:exportEnhanced", filePath),
+  analyzeImport: (filePath: string) =>
+    ipcRenderer.invoke("settings:analyzeImport", filePath),
+  importSettingsWithProgress: (filePath: string) =>
+    ipcRenderer.invoke("settings:importWithProgress", filePath),
+  cancelImport: () => ipcRenderer.invoke("settings:cancelImport"),
+  isImportInProgress: () => ipcRenderer.invoke("settings:isImportInProgress"),
+  onImportProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on("settings:importProgress", (_event, progress) =>
+      callback(progress),
+    );
+  },
   showOpenDialog: (options: any) =>
     ipcRenderer.invoke("dialog:showOpenDialog", options),
   showSaveDialog: (options: any) =>
@@ -387,6 +403,24 @@ const onboardingAPI = {
   },
   onPluginSwitchLog: (callback: (payload: any) => void) => {
     ipcRenderer.on("plugin:switchLog", (_event, payload) => callback(payload));
+  },
+  // Hotkey capture support
+  suspendShortcuts: () => ipcRenderer.invoke("shortcuts:suspend"),
+  resumeShortcuts: () => ipcRenderer.invoke("shortcuts:resume"),
+  updateHotkey: (key: string, value: string) =>
+    ipcRenderer.invoke("settings:updateHotkey", { key, value }),
+  // Import settings support
+  showOpenDialog: (options: any) =>
+    ipcRenderer.invoke("dialog:showOpenDialog", options),
+  analyzeImport: (filePath: string) =>
+    ipcRenderer.invoke("settings:analyzeImport", filePath),
+  importSettingsWithProgress: (filePath: string) =>
+    ipcRenderer.invoke("settings:importWithProgress", filePath),
+  cancelImport: () => ipcRenderer.invoke("settings:cancelImport"),
+  onImportProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on("settings:importProgress", (_event, progress) =>
+      callback(progress),
+    );
   },
 };
 

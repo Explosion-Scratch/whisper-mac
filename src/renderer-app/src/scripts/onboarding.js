@@ -24,7 +24,15 @@ import {
   setAiProvider,
 } from "../utils/ai-provider";
 
+import OnboardingHotkeyInput from "../components/onboarding/OnboardingHotkeyInput.vue";
+import ImportProgressModal from "../components/settings/ImportProgressModal.vue";
+
 export default {
+  components: {
+    OnboardingHotkeyInput,
+    ImportProgressModal,
+  },
+
   setup() {
     const idx = ref(0);
     const accessStatus = ref("Not checked yet");
@@ -52,8 +60,28 @@ export default {
     const setupDone = ref(false);
     const completionError = ref("");
 
+    // Hotkey configuration state
+    const hotkeyMode = ref("toggle"); // 'toggle' or 'push'
+    const currentHotkey = ref("");
+
+    // Import settings state
+    const importProgress = ref({
+      visible: false,
+      stage: "",
+      message: "",
+      percent: 0,
+      currentStep: 0,
+      totalSteps: 0,
+      modelProgress: null,
+    });
+
+    // Total steps: 0=intro, 1=accessibility, 2=microphone, 3=model, 4=ai, 5=hotkey, 6=setup
+    const TOTAL_STEPS = 7;
+    const SETUP_STEP = 6;
+    const HOTKEY_STEP = 5;
+
     const nextLabel = computed(() =>
-      idx.value === 5
+      idx.value === SETUP_STEP
         ? completionError.value
           ? "Plugin unavailable – back to plugins"
           : "Finish"
@@ -75,8 +103,12 @@ export default {
           return false;
         }
       }
-      // On setup step (idx === 5), check if setup is done
-      if (idx.value === 5) {
+      // On hotkey step (idx === 5), always allow proceeding (hotkey is optional)
+      if (idx.value === HOTKEY_STEP) {
+        return true;
+      }
+      // On setup step (idx === 6), check if setup is done
+      if (idx.value === SETUP_STEP) {
         return completionError.value ? true : setupDone.value;
       }
       // All other steps can proceed
@@ -107,6 +139,17 @@ export default {
       aiModel.value = initState.ai.model || "";
       aiEnabled.value = !!initState.ai.enabled;
       pluginSelect.value = initState.plugin || pluginSelect.value;
+
+      // Initialize hotkey from settings if available
+      if (initState.hotkeys) {
+        if (initState.hotkeys.startStopDictation) {
+          currentHotkey.value = initState.hotkeys.startStopDictation;
+          hotkeyMode.value = "toggle";
+        } else if (initState.hotkeys.pushToTalk) {
+          currentHotkey.value = initState.hotkeys.pushToTalk;
+          hotkeyMode.value = "push";
+        }
+      }
 
       try {
         const pluginData = await getPluginSchemas();
@@ -160,7 +203,7 @@ export default {
     const prev = () => {
       if (setupStarted.value) return;
       if (idx.value > 0) idx.value -= 1;
-      if (idx.value < 5) {
+      if (idx.value < SETUP_STEP) {
         completionError.value = "";
       }
     };
@@ -222,6 +265,35 @@ export default {
       return true;
     };
 
+    const handleHotkeyStep = async () => {
+      // Save the hotkey configuration
+      if (currentHotkey.value) {
+        try {
+          if (hotkeyMode.value === "toggle") {
+            await window.onboardingAPI.updateHotkey(
+              "hotkeys.startStopDictation",
+              currentHotkey.value,
+            );
+            // Clear push to talk if using toggle mode
+            await window.onboardingAPI.updateHotkey("hotkeys.pushToTalk", "");
+          } else {
+            await window.onboardingAPI.updateHotkey(
+              "hotkeys.pushToTalk",
+              currentHotkey.value,
+            );
+            // Keep default toggle hotkey
+          }
+          console.log(
+            `[Onboarding] Hotkey saved: ${hotkeyMode.value} = ${currentHotkey.value}`,
+          );
+        } catch (error) {
+          console.error("Failed to save hotkey:", error);
+          // Don't block progression, hotkey can be configured later
+        }
+      }
+      return true;
+    };
+
     const handleComplete = async () => {
       try {
         const result = await window.onboardingAPI.complete();
@@ -247,15 +319,16 @@ export default {
     const next = async () => {
       if (idx.value === 1 && !(await handleAccessibilityStep())) return;
       if (idx.value === 2 && !(await handleMicrophoneStep())) return;
-      if (idx.value === 5 && !setupDone.value) return;
-      if (idx.value === 5 && completionError.value) {
+      if (idx.value === SETUP_STEP && !setupDone.value) return;
+      if (idx.value === SETUP_STEP && completionError.value) {
         resetSetupState();
         idx.value = 3;
         return;
       }
       if (idx.value === 3) await handlePluginStep();
       if (idx.value === 4 && !(await handleAiStep())) return;
-      if (idx.value < 5) {
+      if (idx.value === HOTKEY_STEP) await handleHotkeyStep();
+      if (idx.value < SETUP_STEP) {
         idx.value += 1;
       } else {
         await handleComplete();
@@ -376,6 +449,91 @@ export default {
       }
     };
 
+    // Apply suggested hotkey based on mode
+    const applySuggestedHotkey = () => {
+      if (hotkeyMode.value === "toggle") {
+        currentHotkey.value = "Control+D";
+      } else {
+        currentHotkey.value = "Alt+Right";
+      }
+    };
+
+    // Import settings functionality
+    const importSettings = async () => {
+      try {
+        const result = await window.onboardingAPI.showOpenDialog({
+          filters: [{ name: "JSON Files", extensions: ["json"] }],
+          properties: ["openFile"],
+          title: "Import Settings",
+        });
+
+        if (result.canceled || !result.filePaths?.length) {
+          return;
+        }
+
+        const filePath = result.filePaths[0];
+
+        // Analyze the import file first
+        const analysis = await window.onboardingAPI.analyzeImport(filePath);
+        if (!analysis.valid) {
+          console.error("Invalid settings file:", analysis.message);
+          return;
+        }
+
+        // Show import progress modal
+        importProgress.value = {
+          visible: true,
+          stage: "validating",
+          message: "Preparing import...",
+          percent: 0,
+          currentStep: 0,
+          totalSteps: 4,
+          modelProgress: null,
+        };
+
+        // Perform the import with progress
+        const importResult =
+          await window.onboardingAPI.importSettingsWithProgress(filePath);
+
+        if (importResult.success) {
+          importProgress.value.stage = "complete";
+          importProgress.value.message = "Settings imported successfully!";
+          importProgress.value.percent = 100;
+
+          // Reinitialize with imported settings
+          setTimeout(async () => {
+            importProgress.value.visible = false;
+            await init();
+          }, 1500);
+        } else {
+          importProgress.value.stage = "error";
+          importProgress.value.message = `Import failed: ${importResult.message}`;
+        }
+      } catch (error) {
+        console.error("Failed to import settings:", error);
+        importProgress.value.stage = "error";
+        importProgress.value.message = `Import failed: ${error.message}`;
+      }
+    };
+
+    const cancelImport = async () => {
+      try {
+        await window.onboardingAPI.cancelImport();
+      } catch (e) {
+        console.error("Failed to cancel import:", e);
+      }
+      importProgress.value.visible = false;
+    };
+
+    const onImportDone = async () => {
+      const wasSuccessful = importProgress.value.stage === "complete";
+      importProgress.value.visible = false;
+      if (wasSuccessful) {
+        // Complete onboarding since settings were successfully imported
+        await handleComplete();
+      }
+    };
+
     const setupIpcListeners = () => {
       window.onboardingAPI.onProgress((p) => {
         progressText.value = p.message || p.status || "";
@@ -404,6 +562,30 @@ export default {
           if (el) el.scrollTop = el.scrollHeight;
         });
       });
+
+      // Listen for import progress updates
+      if (window.onboardingAPI.onImportProgress) {
+        window.onboardingAPI.onImportProgress((progress) => {
+          if (progress.stage) {
+            importProgress.value.stage = progress.stage;
+          }
+          if (progress.message) {
+            importProgress.value.message = progress.message;
+          }
+          if (progress.percent !== undefined) {
+            importProgress.value.percent = progress.percent;
+          }
+          if (progress.currentStep !== undefined) {
+            importProgress.value.currentStep = progress.currentStep;
+          }
+          if (progress.totalSteps !== undefined) {
+            importProgress.value.totalSteps = progress.totalSteps;
+          }
+          if (progress.modelProgress !== undefined) {
+            importProgress.value.modelProgress = progress.modelProgress;
+          }
+        });
+      }
     };
 
     onMounted(() => {
@@ -440,6 +622,16 @@ export default {
       completionError,
       nextLabel,
       canProceed,
+      // Hotkey state
+      hotkeyMode,
+      currentHotkey,
+      applySuggestedHotkey,
+      // Import state
+      importProgress,
+      importSettings,
+      cancelImport,
+      onImportDone,
+      // Methods
       prev,
       next,
       onPluginChange,

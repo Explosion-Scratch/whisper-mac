@@ -98,13 +98,6 @@
         <i class="ph-duotone ph-x"></i>
       </button>
     </div>
-    <!-- Audio elements for sound feedback -->
-    <audio id="startSound" preload="auto">
-      <source src="/assets/start.mp3" type="audio/mpeg" />
-    </audio>
-    <audio id="endSound" preload="auto">
-      <source src="/assets/end.mp3" type="audio/mpeg" />
-    </audio>
   </div>
 </template>
 <script>

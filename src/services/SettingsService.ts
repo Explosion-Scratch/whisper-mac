@@ -12,6 +12,13 @@ import { TextInjectionService } from "./TextInjectionService";
 import { MicrophonePermissionService } from "./MicrophonePermissionService";
 import { LoginItemService } from "./LoginItemService";
 import { HistoryService } from "./HistoryService";
+import { SoundService } from "./SoundService";
+import {
+  SettingsExportImportService,
+  ImportProgress,
+  ImportResult,
+  ExportedSettings,
+} from "./SettingsExportImportService";
 
 export class SettingsService {
   private settingsWindow: BrowserWindow | null = null;
@@ -25,10 +32,16 @@ export class SettingsService {
   private permissionsManager: PermissionsManager | null = null;
   private loginItemService: LoginItemService;
   private historyService: HistoryService | null = null;
+  private soundService: SoundService | null = null;
+  private settingsExportImportService: SettingsExportImportService;
 
   constructor(config: AppConfig) {
     this.config = config;
     this.settingsManager = new SettingsManager(config);
+    this.settingsExportImportService = new SettingsExportImportService(
+      config,
+      this.settingsManager,
+    );
     this.loginItemService = LoginItemService.getInstance();
     this.setupIpcHandlers();
 
@@ -52,10 +65,12 @@ export class SettingsService {
    */
   setTranscriptionPluginManager(manager: TranscriptionPluginManager): void {
     this.transcriptionPluginManager = manager;
+    this.settingsExportImportService.setTranscriptionPluginManager(manager);
   }
 
   setUnifiedModelDownloadService(service: UnifiedModelDownloadService): void {
     this.unifiedModelDownloadService = service;
+    this.settingsExportImportService.setUnifiedModelDownloadService(service);
   }
 
   setHistoryService(service: HistoryService): void {
@@ -64,6 +79,10 @@ export class SettingsService {
 
   getHistoryService(): HistoryService | null {
     return this.historyService;
+  }
+
+  setSoundService(service: SoundService): void {
+    this.soundService = service;
   }
 
   /**
@@ -84,6 +103,17 @@ export class SettingsService {
       try {
         console.log("Getting settings schema...");
 
+        const availableSounds = this.soundService
+          ? this.soundService.getAvailableSounds()
+          : [];
+        const soundOptions = [
+          { value: "none", label: "None" },
+          ...availableSounds.map((s) => ({
+            value: s,
+            label: s.charAt(0).toUpperCase() + s.slice(1),
+          })),
+        ];
+
         // Strip out validation functions since they can't be serialized through IPC
         // Also hide internal sections such as onboarding from the UI
         const serializableSchema = SETTINGS_SCHEMA.filter(
@@ -92,6 +122,18 @@ export class SettingsService {
           ...section,
           fields: section.fields.map((field) => {
             const { validation, ...serializableField } = field;
+
+            // Set dynamic sound options if available
+            if (
+              field.key === "sounds.startSound" ||
+              field.key === "sounds.stopSound" ||
+              field.key === "sounds.transformCompleteSound"
+            ) {
+              return {
+                ...serializableField,
+                options: soundOptions,
+              };
+            }
 
             // Set default microphone options - will be populated by frontend
             if (field.key === "selectedMicrophone") {
@@ -107,7 +149,7 @@ export class SettingsService {
         return serializableSchema;
       } catch (error) {
         console.error("Failed to get settings schema:", error);
-        // Fallback to schema without microphone options
+        // Fallback to schema without dynamic options
         const serializableSchema = SETTINGS_SCHEMA.filter(
           (section) => section.id !== "onboarding",
         ).map((section) => ({
@@ -120,6 +162,30 @@ export class SettingsService {
         return serializableSchema;
       }
     });
+
+    // Refresh available sounds
+    ipcMain.handle("sounds:refreshAvailable", async () => {
+      if (this.soundService) {
+        this.soundService.refreshAvailableSounds();
+        return {
+          success: true,
+          sounds: this.soundService.getAvailableSounds(),
+        };
+      }
+      return { success: false, error: "Sound Service not available" };
+    });
+
+    // Preview a sound
+    ipcMain.handle(
+      "sounds:preview",
+      async (_event, soundName: string, volume: number) => {
+        if (this.soundService) {
+          this.soundService.playSoundPreview(soundName, volume);
+          return { success: true };
+        }
+        return { success: false, error: "Sound Service not available" };
+      },
+    );
 
     // Get current settings
     ipcMain.handle("settings:get", () => {
@@ -229,7 +295,7 @@ export class SettingsService {
       },
     );
 
-    // Import settings
+    // Import settings (legacy - kept for backwards compatibility)
     ipcMain.handle("settings:import", async (_event, filePath: string) => {
       try {
         const data = readFileSync(filePath, "utf8");
@@ -246,7 +312,7 @@ export class SettingsService {
       }
     });
 
-    // Export settings
+    // Export settings (legacy - kept for backwards compatibility)
     ipcMain.handle(
       "settings:export",
       async (_event, filePath: string, settings: Record<string, any>) => {
@@ -260,6 +326,80 @@ export class SettingsService {
         }
       },
     );
+
+    // Enhanced export with metadata and model requirements
+    ipcMain.handle(
+      "settings:exportEnhanced",
+      async (_event, filePath: string) => {
+        try {
+          const result =
+            await this.settingsExportImportService.exportToFile(filePath);
+          return result;
+        } catch (error: any) {
+          console.error("Failed to export settings:", error);
+          return { success: false, message: error.message };
+        }
+      },
+    );
+
+    // Analyze import file without applying changes
+    ipcMain.handle(
+      "settings:analyzeImport",
+      async (_event, filePath: string) => {
+        try {
+          const data = readFileSync(filePath, "utf8");
+          return this.settingsExportImportService.analyzeImport(data);
+        } catch (error: any) {
+          console.error("Failed to analyze import:", error);
+          return { valid: false, message: error.message };
+        }
+      },
+    );
+
+    // Enhanced import with progress reporting and model downloads
+    ipcMain.handle(
+      "settings:importWithProgress",
+      async (event, filePath: string) => {
+        try {
+          const data = readFileSync(filePath, "utf8");
+
+          const result = await this.settingsExportImportService.importSettings(
+            data,
+            (progress: ImportProgress) => {
+              // Send progress updates to the window that initiated the import
+              // This works for both settings window and onboarding window
+              if (event.sender && !event.sender.isDestroyed()) {
+                event.sender.send("settings:importProgress", progress);
+              }
+            },
+          );
+
+          if (result.success) {
+            this.broadcastSettingsUpdate();
+          }
+
+          return result;
+        } catch (error: any) {
+          console.error("Failed to import settings:", error);
+          return {
+            success: false,
+            message: error.message,
+            errors: [error.message],
+          };
+        }
+      },
+    );
+
+    // Cancel an in-progress import
+    ipcMain.handle("settings:cancelImport", async () => {
+      this.settingsExportImportService.cancelImport();
+      return { success: true };
+    });
+
+    // Check if import is in progress
+    ipcMain.handle("settings:isImportInProgress", async () => {
+      return this.settingsExportImportService.isImportInProgress();
+    });
 
     // File dialogs
     ipcMain.handle("dialog:showOpenDialog", async (_event, options) => {
@@ -1565,6 +1705,11 @@ export class SettingsService {
     ipcMain.removeHandler("settings:resetSection");
     ipcMain.removeHandler("settings:import");
     ipcMain.removeHandler("settings:export");
+    ipcMain.removeHandler("settings:exportEnhanced");
+    ipcMain.removeHandler("settings:analyzeImport");
+    ipcMain.removeHandler("settings:importWithProgress");
+    ipcMain.removeHandler("settings:cancelImport");
+    ipcMain.removeHandler("settings:isImportInProgress");
     ipcMain.removeHandler("settings:closeWindow");
     ipcMain.removeHandler("settings:saveApiKey");
     ipcMain.removeHandler("settings:getApiKey");
@@ -1632,6 +1777,10 @@ export class SettingsService {
     ipcMain.removeHandler("history:updateSettings");
     ipcMain.removeHandler("history:getStats");
     ipcMain.removeHandler("history:audioExists");
+
+    // Sounds handlers
+    ipcMain.removeHandler("sounds:refreshAvailable");
+    ipcMain.removeHandler("sounds:preview");
 
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       this.settingsWindow.destroy();

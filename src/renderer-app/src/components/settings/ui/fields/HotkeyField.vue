@@ -4,7 +4,7 @@
       type="text"
       class="form-control hotkey-input"
       :value="modelValue"
-      @keydown="captureHotkey"
+      @keydown="captureHotkeyEvent"
       @focus="handleFocus"
       @blur="handleBlur"
       :placeholder="placeholder || 'Press keys to set hotkey'"
@@ -25,9 +25,17 @@
 </template>
 
 <script>
+import {
+  captureHotkey,
+  isModifierKey,
+  normalizeKey,
+  buildModifierParts,
+} from "../../../../utils/hotkey.js";
+
 /**
  * HotkeyField Component
  * Handles keyboard shortcut capture and display
+ * Uses shared hotkey utilities for consistent behavior across the app
  * @component
  */
 export default {
@@ -64,45 +72,6 @@ export default {
   data() {
     return {
       isFocused: false,
-      modifierKeys: ["Control", "Alt", "Shift", "Meta", "Command", "AltGraph"],
-      keyMap: {
-        " ": "Space",
-        ArrowUp: "Up",
-        ArrowDown: "Down",
-        ArrowLeft: "Left",
-        ArrowRight: "Right",
-        Backspace: "BackSpace",
-        Delete: "Delete",
-        Enter: "Return",
-        Tab: "Tab",
-        Escape: "Escape",
-        F1: "F1",
-        F2: "F2",
-        F3: "F3",
-        F4: "F4",
-        F5: "F5",
-        F6: "F6",
-        F7: "F7",
-        F8: "F8",
-        F9: "F9",
-        F10: "F10",
-        F11: "F11",
-        F12: "F12",
-      },
-      codeToKeyMap: {
-        Slash: "/",
-        Backslash: "\\",
-        BracketLeft: "[",
-        BracketRight: "]",
-        Semicolon: ";",
-        Quote: "'",
-        Comma: ",",
-        Period: ".",
-        Minus: "-",
-        Equal: "=",
-        Backquote: "`",
-        IntlBackslash: "\\",
-      },
     };
   },
 
@@ -140,45 +109,13 @@ export default {
     },
 
     /**
-     * Captures a hotkey from keyboard event
+     * Captures a hotkey from keyboard event using shared utility
      * @param {KeyboardEvent} event - The keyboard event
      */
-    captureHotkey(event) {
-      event.preventDefault();
-      event.stopPropagation();
+    captureHotkeyEvent(event) {
+      const hotkeyString = captureHotkey(event);
 
-      if (this.modifierKeys.includes(event.key)) {
-        return;
-      }
-
-      const parts = [];
-
-      if (event.ctrlKey && !event.metaKey) parts.push("Control");
-      if (event.metaKey) parts.push("CommandOrControl");
-      if (event.altKey) parts.push("Alt");
-      if (event.shiftKey) parts.push("Shift");
-
-      let keyToUse = event.key;
-
-      if (event.altKey) {
-        if (event.code.startsWith("Key")) {
-          keyToUse = event.code.replace("Key", "");
-        } else if (event.code.startsWith("Digit")) {
-          keyToUse = event.code.replace("Digit", "");
-        } else if (this.codeToKeyMap[event.code]) {
-          keyToUse = this.codeToKeyMap[event.code];
-        }
-      }
-
-      const normalizedKey = this.keyMap[keyToUse] || keyToUse;
-
-      if (!this.modifierKeys.includes(normalizedKey)) {
-        parts.push(normalizedKey);
-      }
-
-      const hotkeyString = parts.join("+");
-
-      if (hotkeyString && parts.length > 0) {
+      if (hotkeyString) {
         this.$emit("update:modelValue", hotkeyString);
         // Emit hotkeyChanged for immediate backend sync with conflict detection
         this.$emit("hotkeyChanged", hotkeyString);

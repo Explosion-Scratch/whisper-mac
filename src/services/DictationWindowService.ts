@@ -374,8 +374,6 @@ export class DictationWindowService extends EventEmitter {
 
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       console.log("Hiding dictation window...");
-      // Send message to play end sound before hiding
-      this.dictationWindow.webContents.send("play-end-sound");
       this.dictationWindow.hide();
       console.log("Hide command sent to window");
     } else {
@@ -399,8 +397,6 @@ export class DictationWindowService extends EventEmitter {
 
     if (this.dictationWindow && !this.dictationWindow.isDestroyed()) {
       console.log("Hiding dictation window...");
-      // Send message to play end sound before hiding
-      this.dictationWindow.webContents.send("play-end-sound");
       this.dictationWindow.hide();
 
       // Clear current state

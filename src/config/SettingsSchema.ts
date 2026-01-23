@@ -238,6 +238,76 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
   },
 
   {
+    id: "sounds",
+    title: "Sounds",
+    description: "Configure audio feedback sounds for dictation events",
+    icon: "speaker-high",
+    fields: [
+      {
+        key: "sounds.enabled",
+        type: "boolean",
+        label: "Enable Sounds",
+        description: "Play audio feedback when starting and stopping dictation",
+        defaultValue: true,
+      },
+      {
+        key: "sounds.volume",
+        type: "slider",
+        label: "Volume",
+        description: "Volume level for feedback sounds",
+        defaultValue: 0.5,
+        min: 0,
+        max: 1,
+        step: 0.1,
+      },
+      {
+        key: "sounds.startSound",
+        type: "select",
+        label: "Start Recording Sound",
+        description: "Sound to play when starting dictation",
+        defaultValue: "start",
+        options: [
+          { value: "none", label: "None" },
+          { value: "start", label: "Start" },
+          { value: "end", label: "End" },
+        ],
+      },
+      {
+        key: "sounds.stopSound",
+        type: "select",
+        label: "Stop Recording Sound",
+        description: "Sound to play when stopping dictation",
+        defaultValue: "end",
+        options: [
+          { value: "none", label: "None" },
+          { value: "start", label: "Start" },
+          { value: "end", label: "End" },
+        ],
+      },
+      {
+        key: "sounds.playTransformCompleteSound",
+        type: "boolean",
+        label: "Play Transformation Complete Sound",
+        description:
+          "Play a sound when AI text transformation completes (only when transformation is used)",
+        defaultValue: false,
+      },
+      {
+        key: "sounds.transformCompleteSound",
+        type: "select",
+        label: "Transformation Complete Sound",
+        description: "Sound to play when text transformation completes",
+        defaultValue: "end",
+        options: [
+          { value: "none", label: "None" },
+          { value: "start", label: "Start" },
+          { value: "end", label: "End" },
+        ],
+      },
+    ],
+  },
+
+  {
     id: "hotkeys",
     title: "Hotkeys",
     description: "Configure keyboard shortcuts for app functions",

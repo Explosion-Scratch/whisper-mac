@@ -70,21 +70,36 @@
     </div>
 
     <!-- Select Dropdown -->
-    <select
+    <div
       v-if="field.type === 'select' && !isAiField"
-      class="form-control"
-      :value="modelValue"
-      @change="$emit('update:modelValue', $event.target.value)"
-      :disabled="disabled"
+      class="select-container"
+      :class="{ 'with-preview': isSoundSelectField }"
     >
-      <option
-        v-for="option in field.options"
-        :key="option.value"
-        :value="option.value"
+      <select
+        class="form-control"
+        :value="modelValue"
+        @change="$emit('update:modelValue', $event.target.value)"
+        :disabled="disabled"
       >
-        {{ option.label }}
-      </option>
-    </select>
+        <option
+          v-for="option in field.options"
+          :key="option.value"
+          :value="option.value"
+        >
+          {{ option.label }}
+        </option>
+      </select>
+      <button
+        v-if="isSoundSelectField"
+        type="button"
+        class="btn btn-preview"
+        :disabled="disabled || !modelValue || modelValue === 'none'"
+        @click="$emit('previewSound', modelValue)"
+        title="Preview sound"
+      >
+        <i class="ph-duotone ph-play"></i>
+      </button>
+    </div>
 
     <!-- Textarea -->
     <textarea
@@ -229,6 +244,7 @@ export default {
     "browseDirectory",
     "clearHotkey",
     "hotkeyChanged",
+    "previewSound",
   ],
 
   computed: {
@@ -273,6 +289,16 @@ export default {
       };
 
       return iconMap[this.field.type] || "ph-gear";
+    },
+
+    isSoundSelectField() {
+      return (
+        this.field.type === "select" &&
+        this.field.key &&
+        (this.field.key === "sounds.startSound" ||
+          this.field.key === "sounds.stopSound" ||
+          this.field.key === "sounds.transformCompleteSound")
+      );
     },
   },
 };
@@ -398,6 +424,51 @@ textarea.form-control {
 .directory-browse-btn {
   flex-shrink: 0;
   min-width: 80px;
+}
+
+/* Select with Preview Button */
+.select-container {
+  display: flex;
+  gap: var(--spacing-sm, 8px);
+  max-width: 400px;
+  align-items: center;
+}
+
+.select-container.with-preview .form-control {
+  flex: 1;
+}
+
+.btn-preview {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm, 4px);
+  background: var(--color-primary, #007aff);
+  border: none;
+  color: white;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s ease);
+}
+
+.btn-preview:hover:not(:disabled) {
+  background: var(--color-primary-hover, #0056cc);
+  transform: scale(1.05);
+}
+
+.btn-preview:disabled {
+  background: rgba(128, 128, 128, 0.3);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.btn-preview .ph-duotone {
+  font-size: 14px;
+  margin: 0;
 }
 
 /* Slider */

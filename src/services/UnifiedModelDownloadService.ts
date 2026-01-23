@@ -55,9 +55,16 @@ export class UnifiedModelDownloadService extends EventEmitter {
 
     this.activeDownload = { plugin: pluginName, model: modelName };
 
+    console.log(
+      `[UnifiedModelDownload] ensureModelForPlugin called: plugin=${pluginName}, model=${modelName}`,
+    );
+
     try {
       const wrappedProgress = onProgress
         ? (progress: ModelDownloadProgress) => {
+            console.log(
+              `[UnifiedModelDownload] Progress update: status=${progress.status}, progress=${progress.progress}`,
+            );
             onProgress({ ...progress, pluginType: pluginName as any });
           }
         : undefined;
@@ -87,18 +94,33 @@ export class UnifiedModelDownloadService extends EventEmitter {
 
       // Use the plugin's ensureModelAvailable method if available, otherwise downloadModel
       if (plugin.ensureModelAvailable) {
+        console.log(
+          `[UnifiedModelDownload] Calling plugin.ensureModelAvailable for ${pluginName}`,
+        );
         await plugin.ensureModelAvailable(
           { model: modelName },
           wrappedProgress,
           onLog,
         );
+        console.log(
+          `[UnifiedModelDownload] plugin.ensureModelAvailable completed for ${pluginName}`,
+        );
       } else if ((plugin as any).downloadModel) {
+        console.log(
+          `[UnifiedModelDownload] Calling plugin.downloadModel for ${pluginName}`,
+        );
         await (plugin as any).downloadModel(modelName, uiFunctions);
+        console.log(
+          `[UnifiedModelDownload] plugin.downloadModel completed for ${pluginName}`,
+        );
       } else {
         throw new Error(
           `Plugin ${pluginName} does not support model downloads`,
         );
       }
+      console.log(
+        `[UnifiedModelDownload] ensureModelForPlugin completed successfully for ${pluginName}`,
+      );
       return true;
     } finally {
       this.activeDownload = null;

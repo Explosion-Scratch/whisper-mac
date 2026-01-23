@@ -14,6 +14,20 @@ export const settingsAPI = {
     ipcRenderer.invoke("settings:import", filePath),
   exportSettings: (filePath: string, settings: Record<string, any>) =>
     ipcRenderer.invoke("settings:export", filePath, settings),
+  // Enhanced Import/Export with progress and model downloading
+  exportSettingsEnhanced: (filePath: string) =>
+    ipcRenderer.invoke("settings:exportEnhanced", filePath),
+  analyzeImport: (filePath: string) =>
+    ipcRenderer.invoke("settings:analyzeImport", filePath),
+  importSettingsWithProgress: (filePath: string) =>
+    ipcRenderer.invoke("settings:importWithProgress", filePath),
+  cancelImport: () => ipcRenderer.invoke("settings:cancelImport"),
+  isImportInProgress: () => ipcRenderer.invoke("settings:isImportInProgress"),
+  onImportProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on("settings:importProgress", (_event, progress) =>
+      callback(progress),
+    );
+  },
   showOpenDialog: (options: any) =>
     ipcRenderer.invoke("dialog:showOpenDialog", options),
   showSaveDialog: (options: any) =>
