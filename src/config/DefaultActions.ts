@@ -273,7 +273,8 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
   {
     id: "no-punctuation-lowercase-next-action",
     name: "Lowercase Next After No Punctuation",
-    description: "When a segment doesn't end with punctuation, lowercase the first character of the next segment",
+    description:
+      "When a segment doesn't end with punctuation, lowercase the first character of the next segment",
     enabled: true,
     order: 9,
     closesTranscription: false,
@@ -419,7 +420,8 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
   {
     id: "trim-punctuation-action",
     name: "Auto-Trim Punctuation",
-    description: "Automatically remove trailing punctuation from short phrases (≤ 50 characters)",
+    description:
+      "Automatically remove trailing punctuation from short phrases (≤ 50 characters)",
     enabled: false,
     order: 20,
     closesTranscription: false,
@@ -455,7 +457,8 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
   {
     id: "lowercase-short-response-action",
     name: "Smart Lowercase Short",
-    description: "Lowercase short responses (≤ 50 chars) that have no internal punctuation and don't end in ? or !",
+    description:
+      "Lowercase short responses (≤ 50 chars) that have no internal punctuation and don't end in ? or !",
     enabled: true,
     order: 21,
     closesTranscription: false,
@@ -534,7 +537,8 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
   {
     id: "merge-single-words",
     name: "Merge Single Word Segments",
-    description: "Merge single word segments ending in a period into the previous segment",
+    description:
+      "Merge single word segments ending in a period into the previous segment",
     enabled: true,
     order: 14,
     closesTranscription: false,
@@ -583,7 +587,8 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
         id: "url-pattern",
         type: "regex",
         // Broad pattern to capture potential URLs for cleaning.
-        pattern: "(?:https?|ftp|file|h[tbd][bpt][sp]?|w{3}|[a-z0-9.-]+\\.(?:com|org|net|io|co|uk|us|gov|edu))[^\\s]*",
+        pattern:
+          "(?:https?|ftp|file|h[tbd][bpt][sp]?|w{3}|[a-z0-9.-]+\\.(?:com|org|net|io|co|uk|us|gov|edu))[^\\s]*",
         caseSensitive: false,
       },
     ],
@@ -637,7 +642,8 @@ export const DEFAULT_ACTIONS: ActionHandler[] = [
   {
     id: "merge-standalone-punctuation",
     name: "Merge Standalone Punctuation",
-    description: "Merge segments consisting only of punctuation into the previous segment",
+    description:
+      "Merge segments consisting only of punctuation into the previous segment",
     enabled: true,
     order: 17,
     closesTranscription: false,

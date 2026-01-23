@@ -5,7 +5,7 @@ const activeListeners: ListenerCleanupFn[] = [];
 
 function createListenerWithCleanup<T>(
   channel: string,
-  callback: (data: T) => void
+  callback: (data: T) => void,
 ): ListenerCleanupFn {
   const handler = (_event: IpcRendererEvent, data: T) => callback(data);
   ipcRenderer.on(channel, handler);
@@ -16,7 +16,7 @@ function createListenerWithCleanup<T>(
 
 function createSimpleListenerWithCleanup(
   channel: string,
-  callback: () => void
+  callback: () => void,
 ): ListenerCleanupFn {
   const handler = () => callback();
   ipcRenderer.on(channel, handler);
@@ -33,13 +33,22 @@ export const dictationAPI = {
     return createListenerWithCleanup("initialize-dictation", callback);
   },
   onStartRecording: (callback: () => void) => {
-    return createSimpleListenerWithCleanup("dictation-start-recording", callback);
+    return createSimpleListenerWithCleanup(
+      "dictation-start-recording",
+      callback,
+    );
   },
   onStopRecording: (callback: () => void) => {
-    return createSimpleListenerWithCleanup("dictation-stop-recording", callback);
+    return createSimpleListenerWithCleanup(
+      "dictation-stop-recording",
+      callback,
+    );
   },
   onTranscriptionUpdate: (callback: (update: any) => void) => {
-    return createListenerWithCleanup("dictation-transcription-update", callback);
+    return createListenerWithCleanup(
+      "dictation-transcription-update",
+      callback,
+    );
   },
   onDictationComplete: (callback: (finalText: string) => void) => {
     return createListenerWithCleanup("dictation-complete", callback);
@@ -57,7 +66,10 @@ export const dictationAPI = {
     return createSimpleListenerWithCleanup("window-hidden", callback);
   },
   onFlushPendingAudio: (callback: () => void) => {
-    return createSimpleListenerWithCleanup("dictation-flush-pending-audio", callback);
+    return createSimpleListenerWithCleanup(
+      "dictation-flush-pending-audio",
+      callback,
+    );
   },
   onError: (callback: (payload: any) => void) => {
     return createListenerWithCleanup("error:data", callback);

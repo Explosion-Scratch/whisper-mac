@@ -77,18 +77,18 @@ export class ErrorWindowService {
         if (action === "quit") {
           try {
             app.quit();
-          } catch { }
+          } catch {}
         }
         if (action === "ok" || action === "later") {
           try {
             this.window?.hide();
-          } catch { }
+          } catch {}
         }
         if (action === "settings") {
           try {
             this.window?.hide();
             this.onSettingsAction?.();
-          } catch { }
+          } catch {}
         }
       }
     });

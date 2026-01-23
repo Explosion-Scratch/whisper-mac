@@ -2,7 +2,7 @@
  * Creates a console method wrapper that attempts to deep-clone arguments
  * using JSON.stringify/JSON.parse before delegating to the underlying
  * console method. Falls back to original arguments on failure.
- * 
+ *
  * This is useful for logging reactive Vue objects and Electron IPC data
  * without proxy/circular reference issues.
  */

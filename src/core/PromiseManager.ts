@@ -373,13 +373,20 @@ export class PromiseManager extends EventEmitter {
    * Execute a function with a named lock (mutex)
    * Prevents concurrent execution of the same named operation
    */
-  async withLock<T>(name: string, fn: () => Promise<T> | T, timeout?: number): Promise<T> {
+  async withLock<T>(
+    name: string,
+    fn: () => Promise<T> | T,
+    timeout?: number,
+  ): Promise<T> {
     const lockName = `lock:${name}`;
-    
-    while (this.promises.has(lockName) && this.getPromiseStatus(lockName) === "pending") {
+
+    while (
+      this.promises.has(lockName) &&
+      this.getPromiseStatus(lockName) === "pending"
+    ) {
       await this.waitFor(lockName, timeout).catch(() => {});
     }
-    
+
     this.start(lockName);
     try {
       const result = await fn();
@@ -397,21 +404,24 @@ export class PromiseManager extends EventEmitter {
   async transact<T>(
     name: string,
     fn: () => Promise<T> | T,
-    options: { timeout?: number; retries?: number } = {}
+    options: { timeout?: number; retries?: number } = {},
   ): Promise<T> {
     const { timeout = 30000, retries = 0 } = options;
     const transactName = `transact:${name}:${Date.now()}`;
-    
+
     let attempt = 0;
     let lastError: any;
-    
+
     while (attempt <= retries) {
       this.start(transactName);
       try {
         const result = await Promise.race([
           Promise.resolve(fn()),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`Transaction '${name}' timed out`)), timeout)
+            setTimeout(
+              () => reject(new Error(`Transaction '${name}' timed out`)),
+              timeout,
+            ),
           ),
         ]);
         this.resolve(transactName, result);
@@ -420,7 +430,9 @@ export class PromiseManager extends EventEmitter {
         lastError = error;
         attempt++;
         if (attempt <= retries) {
-          console.log(`[PromiseManager] Retrying transaction '${name}' (attempt ${attempt + 1})`);
+          console.log(
+            `[PromiseManager] Retrying transaction '${name}' (attempt ${attempt + 1})`,
+          );
           this.clearPromise(transactName);
           await new Promise((r) => setTimeout(r, 100 * attempt));
         } else {
@@ -428,7 +440,7 @@ export class PromiseManager extends EventEmitter {
         }
       }
     }
-    
+
     throw lastError;
   }
 
@@ -437,10 +449,10 @@ export class PromiseManager extends EventEmitter {
    */
   debounce<T extends (...args: any[]) => any>(
     fn: T,
-    delay: number
+    delay: number,
   ): (...args: Parameters<T>) => void {
     let timeoutId: NodeJS.Timeout | null = null;
-    
+
     return (...args: Parameters<T>) => {
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -458,11 +470,14 @@ export class PromiseManager extends EventEmitter {
   singleton<T>(name: string, fn: () => Promise<T>): () => Promise<T> {
     return async () => {
       const singletonName = `singleton:${name}`;
-      
-      if (this.hasPromise(singletonName) && this.getPromiseStatus(singletonName) === "pending") {
+
+      if (
+        this.hasPromise(singletonName) &&
+        this.getPromiseStatus(singletonName) === "pending"
+      ) {
         return this.waitFor(singletonName) as Promise<T>;
       }
-      
+
       this.start(singletonName);
       try {
         const result = await fn();
@@ -478,4 +493,3 @@ export class PromiseManager extends EventEmitter {
 
 // Export singleton instance
 export const promiseManager = PromiseManager.getInstance();
-

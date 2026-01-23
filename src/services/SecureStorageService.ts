@@ -2,8 +2,6 @@ import * as keytar from "keytar";
 
 const SERVICE_NAME = "WhisperMac";
 
-
-
 export class SecureStorageService {
   // Plugin secure storage methods
   async setSecureValue(

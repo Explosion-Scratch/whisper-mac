@@ -7,24 +7,24 @@ import { appStore } from "../core/AppStore";
 const execAsync = promisify(exec);
 
 export interface PermissionStatus {
-    granted: boolean;
-    checked: boolean;
-    error?: string;
+  granted: boolean;
+  checked: boolean;
+  error?: string;
 }
 
 export interface AllPermissionsStatus {
-    accessibility: PermissionStatus;
-    microphone: PermissionStatus;
+  accessibility: PermissionStatus;
+  microphone: PermissionStatus;
 }
 
 /**
  * Lightweight coordinator for existing permission services.
- * 
+ *
  * This class follows the Single Responsibility Principle by acting as a facade
  * for existing permission services rather than duplicating their logic.
  * It provides a unified interface while delegating actual permission checks
  * to specialized services that already exist in the codebase.
- * 
+ *
  * @example
  * ```typescript
  * const manager = new PermissionsManager(textInjector, microphoneService);
@@ -34,290 +34,397 @@ export interface AllPermissionsStatus {
  * ```
  */
 export class PermissionsManager {
-    /**
-     * @param textInjector - Service that handles accessibility permissions
-     * @param microphoneService - Service that handles microphone permissions
-     */
-    constructor(
-        private textInjector: TextInjectionService,
-        private microphoneService: MicrophonePermissionService,
-    ) { }
+  /**
+   * @param textInjector - Service that handles accessibility permissions
+   * @param microphoneService - Service that handles microphone permissions
+   */
+  constructor(
+    private textInjector: TextInjectionService,
+    private microphoneService: MicrophonePermissionService,
+  ) {}
 
-    /**
-     * Check accessibility permissions using existing service
-     */
-    async checkAccessibilityPermissions(): Promise<PermissionStatus> {
-        console.log("PermissionsManager.checkAccessibilityPermissions: Starting accessibility permission check");
+  /**
+   * Check accessibility permissions using existing service
+   */
+  async checkAccessibilityPermissions(): Promise<PermissionStatus> {
+    console.log(
+      "PermissionsManager.checkAccessibilityPermissions: Starting accessibility permission check",
+    );
+    try {
+      const granted = await this.textInjector.checkAccessibilityPermissions();
+      console.log(
+        `PermissionsManager.checkAccessibilityPermissions: Accessibility permission ${granted ? "granted" : "denied"}`,
+      );
+      const status = { granted, checked: true };
+      appStore.setPermission("accessibility", status);
+      return status;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(
+        `PermissionsManager.checkAccessibilityPermissions: Error checking accessibility permissions: ${errorMessage}`,
+      );
+      const status = {
+        granted: false,
+        checked: true,
+        error: errorMessage,
+      };
+      appStore.setPermission("accessibility", status);
+      return status;
+    }
+  }
+
+  /**
+   * Check accessibility permissions and prompt user if not granted
+   * Uses macOS AXIsProcessTrustedWithOptions to show the system accessibility dialog
+   */
+  async checkAccessibilityPermissionsWithPrompt(): Promise<PermissionStatus> {
+    console.log(
+      "PermissionsManager.checkAccessibilityPermissionsWithPrompt: Checking with prompt",
+    );
+    try {
+      this.textInjector.resetAccessibilityCache();
+      const granted =
+        await this.textInjector.checkAccessibilityPermissionsWithPrompt();
+      console.log(
+        `PermissionsManager.checkAccessibilityPermissionsWithPrompt: Accessibility permission ${granted ? "granted" : "denied"}`,
+      );
+      const status = { granted, checked: true };
+      appStore.setPermission("accessibility", status);
+      return status;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(
+        `PermissionsManager.checkAccessibilityPermissionsWithPrompt: Error: ${errorMessage}`,
+      );
+      const status = {
+        granted: false,
+        checked: true,
+        error: errorMessage,
+      };
+      appStore.setPermission("accessibility", status);
+      return status;
+    }
+  }
+
+  /**
+   * Check accessibility permissions without prompting user
+   */
+  async checkAccessibilityPermissionsQuiet(): Promise<PermissionStatus> {
+    console.log(
+      "PermissionsManager.checkAccessibilityPermissionsQuiet: Starting quiet accessibility permission check",
+    );
+    try {
+      this.textInjector.resetAccessibilityCache();
+      const granted = await this.textInjector.checkAccessibilityPermissions({
+        forceCheck: true,
+      });
+      console.log(
+        `PermissionsManager.checkAccessibilityPermissionsQuiet: Accessibility permission ${granted ? "granted" : "denied"} (quiet check)`,
+      );
+      return { granted, checked: true };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(
+        `PermissionsManager.checkAccessibilityPermissionsQuiet: Error checking accessibility permissions (quiet): ${errorMessage}`,
+      );
+      return {
+        granted: false,
+        checked: true,
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * Poll for accessibility permission with a timeout
+   * Useful during onboarding when waiting for user to grant permissions
+   * @param pollIntervalMs - How often to check (default 1000ms)
+   * @param timeoutMs - Maximum time to wait (default 60000ms = 1 minute)
+   * @returns Promise that resolves when granted or rejects on timeout
+   */
+  async waitForAccessibilityPermission(
+    pollIntervalMs: number = 1000,
+    timeoutMs: number = 60000,
+  ): Promise<PermissionStatus> {
+    console.log(
+      `PermissionsManager.waitForAccessibilityPermission: Polling every ${pollIntervalMs}ms, timeout ${timeoutMs}ms`,
+    );
+
+    const startTime = Date.now();
+
+    return new Promise((resolve, reject) => {
+      const checkPermission = async () => {
+        const elapsed = Date.now() - startTime;
+
+        if (elapsed >= timeoutMs) {
+          console.log(
+            "PermissionsManager.waitForAccessibilityPermission: Timeout waiting for permission",
+          );
+          resolve({
+            granted: false,
+            checked: true,
+            error: "Timeout waiting for accessibility permission",
+          });
+          return;
+        }
+
         try {
-            const granted = await this.textInjector.checkAccessibilityPermissions();
-            console.log(`PermissionsManager.checkAccessibilityPermissions: Accessibility permission ${granted ? 'granted' : 'denied'}`);
-            const status = { granted, checked: true };
+          this.textInjector.resetAccessibilityCache();
+          const granted = await this.textInjector.checkAccessibilityPermissions(
+            { forceCheck: true },
+          );
+
+          if (granted) {
+            console.log(
+              "PermissionsManager.waitForAccessibilityPermission: Permission granted!",
+            );
+            const status = { granted: true, checked: true };
             appStore.setPermission("accessibility", status);
-            return status;
+            resolve(status);
+            return;
+          }
+
+          console.log(
+            `PermissionsManager.waitForAccessibilityPermission: Still waiting... (${Math.round(elapsed / 1000)}s)`,
+          );
+          setTimeout(checkPermission, pollIntervalMs);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`PermissionsManager.checkAccessibilityPermissions: Error checking accessibility permissions: ${errorMessage}`);
-            const status = {
-                granted: false,
-                checked: true,
-                error: errorMessage,
-            };
-            appStore.setPermission("accessibility", status);
-            return status;
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          console.error(
+            `PermissionsManager.waitForAccessibilityPermission: Error: ${errorMessage}`,
+          );
+          setTimeout(checkPermission, pollIntervalMs);
         }
+      };
+
+      checkPermission();
+    });
+  }
+
+  /**
+   * Check microphone permissions using existing service
+   */
+  async checkMicrophonePermissions(): Promise<PermissionStatus> {
+    console.log(
+      "PermissionsManager.checkMicrophonePermissions: Starting microphone permission check",
+    );
+    try {
+      const granted = await this.microphoneService.checkMicrophonePermissions();
+      console.log(
+        `PermissionsManager.checkMicrophonePermissions: Microphone permission ${granted ? "granted" : "denied"}`,
+      );
+      const status = { granted, checked: true };
+      appStore.setPermission("microphone", status);
+      return status;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(
+        `PermissionsManager.checkMicrophonePermissions: Error checking microphone permissions: ${errorMessage}`,
+      );
+      const status = {
+        granted: false,
+        checked: true,
+        error: errorMessage,
+      };
+      appStore.setPermission("microphone", status);
+      return status;
     }
+  }
 
-    /**
-     * Check accessibility permissions and prompt user if not granted
-     * Uses macOS AXIsProcessTrustedWithOptions to show the system accessibility dialog
-     */
-    async checkAccessibilityPermissionsWithPrompt(): Promise<PermissionStatus> {
-        console.log("PermissionsManager.checkAccessibilityPermissionsWithPrompt: Checking with prompt");
-        try {
-            this.textInjector.resetAccessibilityCache();
-            const granted = await this.textInjector.checkAccessibilityPermissionsWithPrompt();
-            console.log(`PermissionsManager.checkAccessibilityPermissionsWithPrompt: Accessibility permission ${granted ? 'granted' : 'denied'}`);
-            const status = { granted, checked: true };
-            appStore.setPermission("accessibility", status);
-            return status;
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`PermissionsManager.checkAccessibilityPermissionsWithPrompt: Error: ${errorMessage}`);
-            const status = {
-                granted: false,
-                checked: true,
-                error: errorMessage,
-            };
-            appStore.setPermission("accessibility", status);
-            return status;
-        }
+  /**
+   * Check microphone permissions without prompting user
+   */
+  async checkMicrophonePermissionsQuiet(): Promise<PermissionStatus> {
+    console.log(
+      "PermissionsManager.checkMicrophonePermissionsQuiet: Starting quiet microphone permission check",
+    );
+    try {
+      // Reset cache to ensure fresh check for quiet operations
+      console.log(
+        "PermissionsManager.checkMicrophonePermissionsQuiet: Resetting microphone cache for fresh check",
+      );
+      this.microphoneService.resetMicrophoneCache();
+      const granted = await this.microphoneService.checkMicrophonePermissions();
+      console.log(
+        `PermissionsManager.checkMicrophonePermissionsQuiet: Microphone permission ${granted ? "granted" : "denied"} (quiet check)`,
+      );
+      return { granted, checked: true };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(
+        `PermissionsManager.checkMicrophonePermissionsQuiet: Error checking microphone permissions (quiet): ${errorMessage}`,
+      );
+      return {
+        granted: false,
+        checked: true,
+        error: errorMessage,
+      };
     }
+  }
 
-    /**
-     * Check accessibility permissions without prompting user
-     */
-    async checkAccessibilityPermissionsQuiet(): Promise<PermissionStatus> {
-        console.log("PermissionsManager.checkAccessibilityPermissionsQuiet: Starting quiet accessibility permission check");
-        try {
-            this.textInjector.resetAccessibilityCache();
-            const granted = await this.textInjector.checkAccessibilityPermissions({ forceCheck: true });
-            console.log(`PermissionsManager.checkAccessibilityPermissionsQuiet: Accessibility permission ${granted ? 'granted' : 'denied'} (quiet check)`);
-            return { granted, checked: true };
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`PermissionsManager.checkAccessibilityPermissionsQuiet: Error checking accessibility permissions (quiet): ${errorMessage}`);
-            return {
-                granted: false,
-                checked: true,
-                error: errorMessage,
-            };
-        }
+  /**
+   * Ensure microphone permissions are granted, requesting them if needed
+   */
+  async ensureMicrophonePermissions(): Promise<PermissionStatus> {
+    console.log(
+      "PermissionsManager.ensureMicrophonePermissions: Ensuring microphone permissions are granted",
+    );
+    try {
+      const granted =
+        await this.microphoneService.ensureMicrophonePermissions();
+      console.log(
+        `PermissionsManager.ensureMicrophonePermissions: Microphone permission ${granted ? "granted" : "denied"} after ensure`,
+      );
+      return { granted, checked: true };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(
+        `PermissionsManager.ensureMicrophonePermissions: Error ensuring microphone permissions: ${errorMessage}`,
+      );
+      return {
+        granted: false,
+        checked: true,
+        error: errorMessage,
+      };
     }
+  }
 
-    /**
-     * Poll for accessibility permission with a timeout
-     * Useful during onboarding when waiting for user to grant permissions
-     * @param pollIntervalMs - How often to check (default 1000ms)
-     * @param timeoutMs - Maximum time to wait (default 60000ms = 1 minute)
-     * @returns Promise that resolves when granted or rejects on timeout
-     */
-    async waitForAccessibilityPermission(
-        pollIntervalMs: number = 1000,
-        timeoutMs: number = 60000
-    ): Promise<PermissionStatus> {
-        console.log(`PermissionsManager.waitForAccessibilityPermission: Polling every ${pollIntervalMs}ms, timeout ${timeoutMs}ms`);
-        
-        const startTime = Date.now();
-        
-        return new Promise((resolve, reject) => {
-            const checkPermission = async () => {
-                const elapsed = Date.now() - startTime;
-                
-                if (elapsed >= timeoutMs) {
-                    console.log("PermissionsManager.waitForAccessibilityPermission: Timeout waiting for permission");
-                    resolve({ granted: false, checked: true, error: "Timeout waiting for accessibility permission" });
-                    return;
-                }
-                
-                try {
-                    this.textInjector.resetAccessibilityCache();
-                    const granted = await this.textInjector.checkAccessibilityPermissions({ forceCheck: true });
-                    
-                    if (granted) {
-                        console.log("PermissionsManager.waitForAccessibilityPermission: Permission granted!");
-                        const status = { granted: true, checked: true };
-                        appStore.setPermission("accessibility", status);
-                        resolve(status);
-                        return;
-                    }
-                    
-                    console.log(`PermissionsManager.waitForAccessibilityPermission: Still waiting... (${Math.round(elapsed / 1000)}s)`);
-                    setTimeout(checkPermission, pollIntervalMs);
-                } catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-                    console.error(`PermissionsManager.waitForAccessibilityPermission: Error: ${errorMessage}`);
-                    setTimeout(checkPermission, pollIntervalMs);
-                }
-            };
-            
-            checkPermission();
-        });
+  /**
+   * Get all permission statuses in parallel
+   */
+  async getAllPermissions(): Promise<AllPermissionsStatus> {
+    console.log(
+      "PermissionsManager.getAllPermissions: Starting comprehensive permission check",
+    );
+    const [accessibility, microphone] = await Promise.all([
+      this.checkAccessibilityPermissions(),
+      this.checkMicrophonePermissions(),
+    ]);
+
+    console.log(
+      `PermissionsManager.getAllPermissions: Results - Accessibility: ${accessibility.granted ? "granted" : "denied"}, Microphone: ${microphone.granted ? "granted" : "denied"}`,
+    );
+    return { accessibility, microphone };
+  }
+
+  /**
+   * Get all permission statuses without prompting user
+   */
+  async getAllPermissionsQuiet(): Promise<AllPermissionsStatus> {
+    console.log(
+      "PermissionsManager.getAllPermissionsQuiet: Starting comprehensive quiet permission check",
+    );
+    const [accessibility, microphone] = await Promise.all([
+      this.checkAccessibilityPermissionsQuiet(),
+      this.checkMicrophonePermissionsQuiet(),
+    ]);
+
+    console.log(
+      `PermissionsManager.getAllPermissionsQuiet: Results - Accessibility: ${accessibility.granted ? "granted" : "denied"}, Microphone: ${microphone.granted ? "granted" : "denied"} (quiet check)`,
+    );
+    return { accessibility, microphone };
+  }
+
+  /**
+   * Reset permission caches in existing services
+   * This ensures fresh permission checks and eliminates restart requirements
+   */
+  resetCaches(): void {
+    console.log(
+      "PermissionsManager.resetCaches: Resetting all permission caches",
+    );
+    try {
+      this.textInjector.resetAccessibilityCache();
+      this.microphoneService.resetMicrophoneCache();
+      console.log(
+        "PermissionsManager.resetCaches: All permission caches reset successfully",
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.warn(
+        `PermissionsManager.resetCaches: Failed to reset permission caches: ${errorMessage}`,
+      );
+      // Non-critical error, continue execution
     }
+  }
 
-    /**
-     * Check microphone permissions using existing service
-     */
-    async checkMicrophonePermissions(): Promise<PermissionStatus> {
-        console.log("PermissionsManager.checkMicrophonePermissions: Starting microphone permission check");
-        try {
-            const granted = await this.microphoneService.checkMicrophonePermissions();
-            console.log(`PermissionsManager.checkMicrophonePermissions: Microphone permission ${granted ? 'granted' : 'denied'}`);
-            const status = { granted, checked: true };
-            appStore.setPermission("microphone", status);
-            return status;
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`PermissionsManager.checkMicrophonePermissions: Error checking microphone permissions: ${errorMessage}`);
-            const status = {
-                granted: false,
-                checked: true,
-                error: errorMessage,
-            };
-            appStore.setPermission("microphone", status);
-            return status;
-        }
+  /**
+   * Open System Preferences to Privacy & Security
+   */
+  async openSystemPreferences(): Promise<void> {
+    console.log(
+      "PermissionsManager.openSystemPreferences: Opening System Preferences to Privacy & Security",
+    );
+    try {
+      await execAsync(
+        'open "x-apple.systempreferences:com.apple.preference.security"',
+      );
+      console.log(
+        "PermissionsManager.openSystemPreferences: System Preferences opened successfully",
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(
+        `PermissionsManager.openSystemPreferences: Failed to open System Preferences: ${errorMessage}`,
+      );
+      throw new Error("Failed to open System Preferences");
     }
+  }
 
-    /**
-     * Check microphone permissions without prompting user
-     */
-    async checkMicrophonePermissionsQuiet(): Promise<PermissionStatus> {
-        console.log("PermissionsManager.checkMicrophonePermissionsQuiet: Starting quiet microphone permission check");
-        try {
-            // Reset cache to ensure fresh check for quiet operations
-            console.log("PermissionsManager.checkMicrophonePermissionsQuiet: Resetting microphone cache for fresh check");
-            this.microphoneService.resetMicrophoneCache();
-            const granted = await this.microphoneService.checkMicrophonePermissions();
-            console.log(`PermissionsManager.checkMicrophonePermissionsQuiet: Microphone permission ${granted ? 'granted' : 'denied'} (quiet check)`);
-            return { granted, checked: true };
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`PermissionsManager.checkMicrophonePermissionsQuiet: Error checking microphone permissions (quiet): ${errorMessage}`);
-            return {
-                granted: false,
-                checked: true,
-                error: errorMessage,
-            };
-        }
+  /**
+   * Open System Preferences to Accessibility permissions
+   */
+  async openAccessibilityPreferences(): Promise<void> {
+    console.log(
+      "PermissionsManager.openAccessibilityPreferences: Opening System Preferences to Accessibility permissions",
+    );
+    try {
+      await execAsync(
+        'open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"',
+      );
+      console.log(
+        "PermissionsManager.openAccessibilityPreferences: Accessibility preferences opened successfully",
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(
+        `PermissionsManager.openAccessibilityPreferences: Failed to open Accessibility preferences: ${errorMessage}`,
+      );
+      throw new Error("Failed to open Accessibility preferences");
     }
+  }
 
-    /**
-     * Ensure microphone permissions are granted, requesting them if needed
-     */
-    async ensureMicrophonePermissions(): Promise<PermissionStatus> {
-        console.log("PermissionsManager.ensureMicrophonePermissions: Ensuring microphone permissions are granted");
-        try {
-            const granted = await this.microphoneService.ensureMicrophonePermissions();
-            console.log(`PermissionsManager.ensureMicrophonePermissions: Microphone permission ${granted ? 'granted' : 'denied'} after ensure`);
-            return { granted, checked: true };
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`PermissionsManager.ensureMicrophonePermissions: Error ensuring microphone permissions: ${errorMessage}`);
-            return {
-                granted: false,
-                checked: true,
-                error: errorMessage,
-            };
-        }
+  /**
+   * Open System Preferences to Microphone permissions
+   */
+  async openMicrophonePreferences(): Promise<void> {
+    console.log(
+      "PermissionsManager.openMicrophonePreferences: Opening System Preferences to Microphone permissions",
+    );
+    try {
+      await execAsync(
+        'open "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"',
+      );
+      console.log(
+        "PermissionsManager.openMicrophonePreferences: Microphone preferences opened successfully",
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(
+        `PermissionsManager.openMicrophonePreferences: Failed to open Microphone preferences: ${errorMessage}`,
+      );
+      throw new Error("Failed to open Microphone preferences");
     }
-
-    /**
-     * Get all permission statuses in parallel
-     */
-    async getAllPermissions(): Promise<AllPermissionsStatus> {
-        console.log("PermissionsManager.getAllPermissions: Starting comprehensive permission check");
-        const [accessibility, microphone] = await Promise.all([
-            this.checkAccessibilityPermissions(),
-            this.checkMicrophonePermissions(),
-        ]);
-
-        console.log(`PermissionsManager.getAllPermissions: Results - Accessibility: ${accessibility.granted ? 'granted' : 'denied'}, Microphone: ${microphone.granted ? 'granted' : 'denied'}`);
-        return { accessibility, microphone };
-    }
-
-    /**
-     * Get all permission statuses without prompting user
-     */
-    async getAllPermissionsQuiet(): Promise<AllPermissionsStatus> {
-        console.log("PermissionsManager.getAllPermissionsQuiet: Starting comprehensive quiet permission check");
-        const [accessibility, microphone] = await Promise.all([
-            this.checkAccessibilityPermissionsQuiet(),
-            this.checkMicrophonePermissionsQuiet(),
-        ]);
-
-        console.log(`PermissionsManager.getAllPermissionsQuiet: Results - Accessibility: ${accessibility.granted ? 'granted' : 'denied'}, Microphone: ${microphone.granted ? 'granted' : 'denied'} (quiet check)`);
-        return { accessibility, microphone };
-    }
-
-    /**
-     * Reset permission caches in existing services
-     * This ensures fresh permission checks and eliminates restart requirements
-     */
-    resetCaches(): void {
-        console.log("PermissionsManager.resetCaches: Resetting all permission caches");
-        try {
-            this.textInjector.resetAccessibilityCache();
-            this.microphoneService.resetMicrophoneCache();
-            console.log("PermissionsManager.resetCaches: All permission caches reset successfully");
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.warn(`PermissionsManager.resetCaches: Failed to reset permission caches: ${errorMessage}`);
-            // Non-critical error, continue execution
-        }
-    }
-
-    /**
-     * Open System Preferences to Privacy & Security
-     */
-    async openSystemPreferences(): Promise<void> {
-        console.log("PermissionsManager.openSystemPreferences: Opening System Preferences to Privacy & Security");
-        try {
-            await execAsync('open "x-apple.systempreferences:com.apple.preference.security"');
-            console.log("PermissionsManager.openSystemPreferences: System Preferences opened successfully");
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`PermissionsManager.openSystemPreferences: Failed to open System Preferences: ${errorMessage}`);
-            throw new Error("Failed to open System Preferences");
-        }
-    }
-
-    /**
-     * Open System Preferences to Accessibility permissions
-     */
-    async openAccessibilityPreferences(): Promise<void> {
-        console.log("PermissionsManager.openAccessibilityPreferences: Opening System Preferences to Accessibility permissions");
-        try {
-            await execAsync('open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"');
-            console.log("PermissionsManager.openAccessibilityPreferences: Accessibility preferences opened successfully");
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`PermissionsManager.openAccessibilityPreferences: Failed to open Accessibility preferences: ${errorMessage}`);
-            throw new Error("Failed to open Accessibility preferences");
-        }
-    }
-
-    /**
-     * Open System Preferences to Microphone permissions
-     */
-    async openMicrophonePreferences(): Promise<void> {
-        console.log("PermissionsManager.openMicrophonePreferences: Opening System Preferences to Microphone permissions");
-        try {
-            await execAsync('open "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"');
-            console.log("PermissionsManager.openMicrophonePreferences: Microphone preferences opened successfully");
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`PermissionsManager.openMicrophonePreferences: Failed to open Microphone preferences: ${errorMessage}`);
-            throw new Error("Failed to open Microphone preferences");
-        }
-    }
+  }
 }

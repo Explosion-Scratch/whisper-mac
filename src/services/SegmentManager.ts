@@ -6,12 +6,16 @@ import {
   TranscribedSegment,
   FlushResult,
 } from "../types/SegmentTypes";
-import { ActionHandler, ActionHandlerConfig, ActionMatch } from "../types/ActionTypes";
+import {
+  ActionHandler,
+  ActionHandlerConfig,
+  ActionMatch,
+} from "../types/ActionTypes";
 import { TransformationService } from "./TransformationService";
 import { TextInjectionService } from "./TextInjectionService";
 import { SelectedTextResult, SelectedTextService } from "./SelectedTextService";
 import { ConfigurableActionsService } from "./ConfigurableActionsService";
-import { appStore } from "../core/AppStore";
+import { appStore, selectors } from "../core/AppStore";
 
 export class SegmentManager extends EventEmitter {
   private segments: Segment[] = [];
@@ -44,7 +48,12 @@ export class SegmentManager extends EventEmitter {
 
   setAccumulatingMode(enabled: boolean): void {
     this.isAccumulatingMode = enabled;
-    appStore.setState({ dictation: { ...appStore.getState().dictation, isAccumulatingMode: enabled } });
+    appStore.setState({
+      dictation: {
+        ...appStore.getState().dictation,
+        isAccumulatingMode: enabled,
+      },
+    });
     console.log(`[SegmentManager] Accumulating mode set to: ${enabled}`);
   }
 
@@ -63,7 +72,10 @@ export class SegmentManager extends EventEmitter {
     for (const segment of this.segments) {
       if (segment.type === "transcribed") {
         const transcribedSegment = segment as TranscribedSegment;
-        if (transcribedSegment.start !== undefined && transcribedSegment.end !== undefined) {
+        if (
+          transcribedSegment.start !== undefined &&
+          transcribedSegment.end !== undefined
+        ) {
           const key = `${transcribedSegment.start}-${transcribedSegment.end}-${transcribedSegment.text.trim()}`;
           if (!seen.has(key)) {
             seen.add(key);
@@ -92,7 +104,9 @@ export class SegmentManager extends EventEmitter {
     );
 
     if (completed && this.ignoreNextCompleted) {
-      console.log("[SegmentManager] Ignoring next completed segment post-flush");
+      console.log(
+        "[SegmentManager] Ignoring next completed segment post-flush",
+      );
       this.ignoreNextCompleted = false;
       return {
         segment: {
@@ -140,7 +154,7 @@ export class SegmentManager extends EventEmitter {
     appStore.setSegments([...this.segments]);
 
     // Re-find the added segment if it survived deduplication, or use the last one
-    const foundSegment = this.segments.find(s => s.id === segment.id);
+    const foundSegment = this.segments.find((s) => s.id === segment.id);
     if (foundSegment) {
       segment = foundSegment as TranscribedSegment;
       this.emit("segment-added", segment);
@@ -153,8 +167,14 @@ export class SegmentManager extends EventEmitter {
     }
 
     // === Process Queued Handlers First ===
-    if (completed && this.queuedHandlers.length > 0 && this.configurableActionsService) {
-      console.log(`[SegmentManager] Processing ${this.queuedHandlers.length} queued handlers`);
+    if (
+      completed &&
+      this.queuedHandlers.length > 0 &&
+      this.configurableActionsService
+    ) {
+      console.log(
+        `[SegmentManager] Processing ${this.queuedHandlers.length} queued handlers`,
+      );
 
       // Work on transcribed segments only
       let transcribedSegments = this.getTranscribedSegments();
@@ -176,7 +196,11 @@ export class SegmentManager extends EventEmitter {
           handlers: [handler],
         };
 
-        const result = this.configurableActionsService.runHandler(handler, mockMatch, transcribedSegments);
+        const result = this.configurableActionsService.runHandler(
+          handler,
+          mockMatch,
+          transcribedSegments,
+        );
 
         if (result.success) {
           transcribedSegments = result.segments;
@@ -197,7 +221,9 @@ export class SegmentManager extends EventEmitter {
     // === Execute Detected Actions ===
     if (completed && this.configurableActionsService) {
       // Detect actions on the *current state* of the text
-      const actionMatches = this.configurableActionsService.detectActions(segment.text);
+      const actionMatches = this.configurableActionsService.detectActions(
+        segment.text,
+      );
 
       if (actionMatches.length > 0) {
         const transcribedSegments = this.getTranscribedSegments();
@@ -226,10 +252,15 @@ export class SegmentManager extends EventEmitter {
         };
 
         // Emit event for non-segment actions
-        const hasNonSegmentHandlers = actionMatches.some(match =>
-          match.handlers.some(h =>
-            ["openUrl", "openApplication", "quitApplication", "executeShell"].includes(h.type)
-          )
+        const hasNonSegmentHandlers = actionMatches.some((match) =>
+          match.handlers.some((h) =>
+            [
+              "openUrl",
+              "openApplication",
+              "quitApplication",
+              "executeShell",
+            ].includes(h.type),
+          ),
         );
 
         if (hasNonSegmentHandlers) {
@@ -245,13 +276,19 @@ export class SegmentManager extends EventEmitter {
 
   // Helper to get only transcribed segments for action processing
   private getTranscribedSegments(): TranscribedSegment[] {
-    return this.segments.filter(s => s.type === "transcribed") as TranscribedSegment[];
+    return this.segments.filter(
+      (s) => s.type === "transcribed",
+    ) as TranscribedSegment[];
   }
 
   // Helper to update main segments list from modified transcribed list
-  private updateSegmentsFromTranscribed(transcribed: TranscribedSegment[]): void {
+  private updateSegmentsFromTranscribed(
+    transcribed: TranscribedSegment[],
+  ): void {
     // Keep non-transcribed segments (like selected text placeholders if any)
-    const nonTranscribed = this.segments.filter(s => s.type !== "transcribed");
+    const nonTranscribed = this.segments.filter(
+      (s) => s.type !== "transcribed",
+    );
     this.segments = [...nonTranscribed, ...transcribed];
   }
 
@@ -277,11 +314,18 @@ export class SegmentManager extends EventEmitter {
     }
 
     try {
-      const shouldSkipAllTransforms = options?.skipAllTransforms || this.lastExecutedAction?.skipsAllTransforms;
-      const shouldSkipTransformation = options?.skipTransformation || this.lastExecutedAction?.skipsTransformation;
+      const shouldSkipAllTransforms =
+        options?.skipAllTransforms ||
+        this.lastExecutedAction?.skipsAllTransforms;
+      const shouldSkipTransformation =
+        options?.skipTransformation ||
+        this.lastExecutedAction?.skipsTransformation;
 
       if (shouldSkipAllTransforms) {
-        const originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+        const originalText = segmentsToProcess
+          .map((s) => s.text.trim())
+          .filter((t) => t.length)
+          .join(" ");
         if (originalText) {
           options.onInjecting?.();
           await this.textInjectionService.insertText(originalText);
@@ -290,14 +334,23 @@ export class SegmentManager extends EventEmitter {
         }
         this.clearCompletedSegmentsOnly();
         this.lastExecutedAction = null;
-        return { transformedText: originalText, segmentsProcessed: segmentsToProcess.length, success: true };
+        return {
+          transformedText: originalText,
+          segmentsProcessed: segmentsToProcess.length,
+          success: true,
+        };
       }
 
       if (shouldSkipTransformation) {
         if (this.configurableActionsService) {
-          await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+          await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(
+            segmentsToProcess,
+          );
         }
-        let currentText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+        let currentText = segmentsToProcess
+          .map((s) => s.text.trim())
+          .filter((t) => t.length)
+          .join(" ");
 
         if (this.configurableActionsService && currentText.length > 0) {
           const tempSegment: TranscribedSegment = {
@@ -307,11 +360,15 @@ export class SegmentManager extends EventEmitter {
             completed: true,
             timestamp: Date.now(),
           };
-          await this.configurableActionsService.executeAllSegmentsActionsAfterAI([tempSegment]);
+          await this.configurableActionsService.executeAllSegmentsActionsAfterAI(
+            [tempSegment],
+          );
           currentText = tempSegment.text;
         }
 
-        const finalText = currentText ? this.transformationService.finalizeText(currentText) : currentText;
+        const finalText = currentText
+          ? this.transformationService.finalizeText(currentText)
+          : currentText;
 
         if (finalText) {
           options.onInjecting?.();
@@ -321,14 +378,23 @@ export class SegmentManager extends EventEmitter {
         }
         this.clearCompletedSegmentsOnly();
         this.lastExecutedAction = null;
-        return { transformedText: finalText, segmentsProcessed: segmentsToProcess.length, success: true };
+        return {
+          transformedText: finalText,
+          segmentsProcessed: segmentsToProcess.length,
+          success: true,
+        };
       }
 
       if (this.configurableActionsService) {
-        await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+        await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(
+          segmentsToProcess,
+        );
       }
 
-      let originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+      let originalText = segmentsToProcess
+        .map((s) => s.text.trim())
+        .filter((t) => t.length)
+        .join(" ");
 
       if (this.configurableActionsService && originalText.length > 0) {
         const tempSegment: TranscribedSegment = {
@@ -338,16 +404,23 @@ export class SegmentManager extends EventEmitter {
           completed: true,
           timestamp: Date.now(),
         };
-        await this.configurableActionsService.executeAllSegmentsActionsAfterAI([tempSegment]);
+        await this.configurableActionsService.executeAllSegmentsActionsAfterAI([
+          tempSegment,
+        ]);
         originalText = tempSegment.text;
       }
 
-      const transformResult = await this.transformationService.transformSegments(
-        segmentsToProcess,
-        await this.selectedTextService.getSelectedText(),
-      );
+      const transformResult =
+        await this.transformationService.transformSegments(
+          segmentsToProcess,
+          await this.selectedTextService.getSelectedText(),
+        );
 
-      if (transformResult.success && transformResult.transformedText && this.configurableActionsService) {
+      if (
+        transformResult.success &&
+        transformResult.transformedText &&
+        this.configurableActionsService
+      ) {
         const transformedSegment: TranscribedSegment = {
           id: uuidv4(),
           type: "transcribed",
@@ -355,7 +428,9 @@ export class SegmentManager extends EventEmitter {
           completed: true,
           timestamp: Date.now(),
         };
-        await this.configurableActionsService.executeAllSegmentsActionsAfterAI([transformedSegment]);
+        await this.configurableActionsService.executeAllSegmentsActionsAfterAI([
+          transformedSegment,
+        ]);
         transformResult.transformedText = transformedSegment.text;
       }
 
@@ -377,8 +452,11 @@ export class SegmentManager extends EventEmitter {
 
       this.clearCompletedSegmentsOnly();
       this.lastExecutedAction = null;
-      return { transformedText, segmentsProcessed: transformResult.segmentsProcessed, success: true };
-
+      return {
+        transformedText,
+        segmentsProcessed: transformResult.segmentsProcessed,
+        success: true,
+      };
     } catch (error) {
       return await this.handleTransformationFallbackForContinuous(
         segmentsToProcess,
@@ -394,10 +472,17 @@ export class SegmentManager extends EventEmitter {
     onInjecting?: () => void,
   ): Promise<FlushResult> {
     if (this.configurableActionsService) {
-      await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+      await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(
+        segmentsToProcess,
+      );
     }
-    const originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
-    const finalText = originalText ? this.transformationService.finalizeText(originalText) : originalText;
+    const originalText = segmentsToProcess
+      .map((s) => s.text.trim())
+      .filter((t) => t.length)
+      .join(" ");
+    const finalText = originalText
+      ? this.transformationService.finalizeText(originalText)
+      : originalText;
 
     if (finalText) {
       onInjecting?.();
@@ -406,7 +491,12 @@ export class SegmentManager extends EventEmitter {
       this.emit("transformed", { transformedText: finalText });
     }
     this.clearCompletedSegmentsOnly();
-    return { transformedText: finalText, segmentsProcessed: segmentsToProcess.length, success: true, error };
+    return {
+      transformedText: finalText,
+      segmentsProcessed: segmentsToProcess.length,
+      success: true,
+      error,
+    };
   }
 
   async transformAndInjectAllSegmentsInternal(options: {
@@ -421,11 +511,18 @@ export class SegmentManager extends EventEmitter {
     }
 
     try {
-      const shouldSkipAllTransforms = options?.skipAllTransforms || this.lastExecutedAction?.skipsAllTransforms;
-      const shouldSkipTransformation = options?.skipTransformation || this.lastExecutedAction?.skipsTransformation;
+      const shouldSkipAllTransforms =
+        options?.skipAllTransforms ||
+        this.lastExecutedAction?.skipsAllTransforms;
+      const shouldSkipTransformation =
+        options?.skipTransformation ||
+        this.lastExecutedAction?.skipsTransformation;
 
       if (shouldSkipAllTransforms) {
-        const originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+        const originalText = segmentsToProcess
+          .map((s) => s.text.trim())
+          .filter((t) => t.length)
+          .join(" ");
         if (originalText) {
           options.onInjecting?.();
           await this.textInjectionService.insertText(originalText);
@@ -434,14 +531,23 @@ export class SegmentManager extends EventEmitter {
         }
         this.clearAllSegments();
         this.lastExecutedAction = null;
-        return { transformedText: originalText, segmentsProcessed: segmentsToProcess.length, success: true };
+        return {
+          transformedText: originalText,
+          segmentsProcessed: segmentsToProcess.length,
+          success: true,
+        };
       }
 
       if (shouldSkipTransformation) {
         if (this.configurableActionsService) {
-          await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+          await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(
+            segmentsToProcess,
+          );
         }
-        let currentText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+        let currentText = segmentsToProcess
+          .map((s) => s.text.trim())
+          .filter((t) => t.length)
+          .join(" ");
 
         // Execute after_ai actions even if skipping AI (e.g. auto-trim punctuation)
         if (this.configurableActionsService && currentText.length > 0) {
@@ -452,11 +558,15 @@ export class SegmentManager extends EventEmitter {
             completed: true,
             timestamp: Date.now(),
           };
-          await this.configurableActionsService.executeAllSegmentsActionsAfterAI([tempSegment]);
+          await this.configurableActionsService.executeAllSegmentsActionsAfterAI(
+            [tempSegment],
+          );
           currentText = tempSegment.text;
         }
 
-        const finalText = currentText ? this.transformationService.finalizeText(currentText) : currentText;
+        const finalText = currentText
+          ? this.transformationService.finalizeText(currentText)
+          : currentText;
 
         if (finalText) {
           options.onInjecting?.();
@@ -466,14 +576,23 @@ export class SegmentManager extends EventEmitter {
         }
         this.clearAllSegments();
         this.lastExecutedAction = null;
-        return { transformedText: finalText, segmentsProcessed: segmentsToProcess.length, success: true };
+        return {
+          transformedText: finalText,
+          segmentsProcessed: segmentsToProcess.length,
+          success: true,
+        };
       }
 
       if (this.configurableActionsService) {
-        await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+        await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(
+          segmentsToProcess,
+        );
       }
 
-      let originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
+      let originalText = segmentsToProcess
+        .map((s) => s.text.trim())
+        .filter((t) => t.length)
+        .join(" ");
 
       // Apply after_ai actions to the raw text as well (for injectRawLastResult)
       if (this.configurableActionsService && originalText.length > 0) {
@@ -484,18 +603,45 @@ export class SegmentManager extends EventEmitter {
           completed: true,
           timestamp: Date.now(),
         };
-        // We use a copy of the actions service logic or just re-run it on this temp segment
-        // Note: This might duplicate side effects if actions have them, but typically after_ai actions are pure text transforms
-        await this.configurableActionsService.executeAllSegmentsActionsAfterAI([tempSegment]);
+        await this.configurableActionsService.executeAllSegmentsActionsAfterAI([
+          tempSegment,
+        ]);
         originalText = tempSegment.text;
       }
 
-      const transformResult = await this.transformationService.transformSegments(
-        segmentsToProcess,
-        await this.selectedTextService.getSelectedText(),
-      );
+      // === Prepend accumulated chunks as context for full transcription ===
+      const accumulatedChunks = appStore.select(selectors.accumulatedChunks);
+      let fullTranscriptionText = originalText;
+      if (accumulatedChunks.length > 0) {
+        const chunkPrefix = accumulatedChunks.join(" ");
+        fullTranscriptionText = chunkPrefix + " " + originalText;
+        console.log(
+          `[SegmentManager] Including ${accumulatedChunks.length} accumulated chunks (${chunkPrefix.length} chars) as context prefix`,
+        );
+      }
 
-      if (transformResult.success && transformResult.transformedText && this.configurableActionsService) {
+      // Create a virtual segment list that includes the full context for transformation
+      const fullContextSegments: TranscribedSegment[] = [
+        {
+          id: "full-context",
+          type: "transcribed",
+          text: fullTranscriptionText,
+          completed: true,
+          timestamp: Date.now(),
+        },
+      ];
+
+      const transformResult =
+        await this.transformationService.transformSegments(
+          fullContextSegments,
+          await this.selectedTextService.getSelectedText(),
+        );
+
+      if (
+        transformResult.success &&
+        transformResult.transformedText &&
+        this.configurableActionsService
+      ) {
         const transformedSegment: TranscribedSegment = {
           id: uuidv4(),
           type: "transcribed",
@@ -503,7 +649,9 @@ export class SegmentManager extends EventEmitter {
           completed: true,
           timestamp: Date.now(),
         };
-        await this.configurableActionsService.executeAllSegmentsActionsAfterAI([transformedSegment]);
+        await this.configurableActionsService.executeAllSegmentsActionsAfterAI([
+          transformedSegment,
+        ]);
         transformResult.transformedText = transformedSegment.text;
       }
 
@@ -525,8 +673,11 @@ export class SegmentManager extends EventEmitter {
 
       this.clearAllSegments();
       this.lastExecutedAction = null;
-      return { transformedText, segmentsProcessed: transformResult.segmentsProcessed, success: true };
-
+      return {
+        transformedText,
+        segmentsProcessed: transformResult.segmentsProcessed,
+        success: true,
+      };
     } catch (error) {
       return await this.handleTransformationFallback(
         segmentsToProcess,
@@ -549,10 +700,17 @@ export class SegmentManager extends EventEmitter {
     onInjecting?: () => void,
   ): Promise<FlushResult> {
     if (this.configurableActionsService) {
-      await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(segmentsToProcess);
+      await this.configurableActionsService.executeAllSegmentsActionsBeforeAI(
+        segmentsToProcess,
+      );
     }
-    const originalText = segmentsToProcess.map(s => s.text.trim()).filter(t => t.length).join(" ");
-    const finalText = originalText ? this.transformationService.finalizeText(originalText) : originalText;
+    const originalText = segmentsToProcess
+      .map((s) => s.text.trim())
+      .filter((t) => t.length)
+      .join(" ");
+    const finalText = originalText
+      ? this.transformationService.finalizeText(originalText)
+      : originalText;
 
     if (finalText) {
       onInjecting?.();
@@ -561,7 +719,12 @@ export class SegmentManager extends EventEmitter {
       this.emit("transformed", { transformedText: finalText });
     }
     this.clearAllSegments();
-    return { transformedText: finalText, segmentsProcessed: segmentsToProcess.length, success: true, error };
+    return {
+      transformedText: finalText,
+      segmentsProcessed: segmentsToProcess.length,
+      success: true,
+      error,
+    };
   }
 
   clearAllSegments(): void {
@@ -569,18 +732,20 @@ export class SegmentManager extends EventEmitter {
     this.initialSelectedText = null;
     this.isAccumulatingMode = false;
     this.queuedHandlers = [];
+    this.lastExecutedAction = null;
     appStore.clearSegments();
+    appStore.clearAudioCaptureState();
     this.emit("segments-cleared");
   }
 
   clearCompletedSegmentsOnly(): void {
     const inProgress = this.segments.filter(
-      (s) => s.type === "transcribed" && !s.completed
+      (s) => s.type === "transcribed" && !s.completed,
     );
     this.segments = inProgress;
     appStore.setSegments([...this.segments]);
     console.log(
-      `[SegmentManager] Cleared completed segments, kept ${inProgress.length} in-progress`
+      `[SegmentManager] Cleared completed segments, kept ${inProgress.length} in-progress`,
     );
   }
 
@@ -598,7 +763,11 @@ export class SegmentManager extends EventEmitter {
     const lastSegment = this.segments[this.segments.length - 1];
     const oldContent = lastSegment.text;
     lastSegment.text = newContent.trim();
-    this.emit("segment-content-replaced", { segment: lastSegment, oldContent, newContent });
+    this.emit("segment-content-replaced", {
+      segment: lastSegment,
+      oldContent,
+      newContent,
+    });
     return true;
   }
 
@@ -611,7 +780,9 @@ export class SegmentManager extends EventEmitter {
   }
 
   getLastSegment(): Segment | null {
-    return this.segments.length > 0 ? this.segments[this.segments.length - 1] : null;
+    return this.segments.length > 0
+      ? this.segments[this.segments.length - 1]
+      : null;
   }
 
   getAllSegments(): Segment[] {
@@ -619,11 +790,15 @@ export class SegmentManager extends EventEmitter {
   }
 
   getCompletedTranscribedSegments(): TranscribedSegment[] {
-    return this.segments.filter(s => s.type === "transcribed" && s.completed) as TranscribedSegment[];
+    return this.segments.filter(
+      (s) => s.type === "transcribed" && s.completed,
+    ) as TranscribedSegment[];
   }
 
   getInProgressTranscribedSegments(): TranscribedSegment[] {
-    return this.segments.filter(s => s.type === "transcribed" && !s.completed) as TranscribedSegment[];
+    return this.segments.filter(
+      (s) => s.type === "transcribed" && !s.completed,
+    ) as TranscribedSegment[];
   }
 
   updateSegment(id: string, updates: Partial<Segment>): boolean {
@@ -636,9 +811,15 @@ export class SegmentManager extends EventEmitter {
   }
 
   getStats() {
-    const transcribed = this.segments.filter(s => s.type === "transcribed").length;
-    const completed = this.segments.filter(s => s.type === "transcribed" && s.completed).length;
-    const inProgress = this.segments.filter(s => s.type === "transcribed" && !s.completed).length;
+    const transcribed = this.segments.filter(
+      (s) => s.type === "transcribed",
+    ).length;
+    const completed = this.segments.filter(
+      (s) => s.type === "transcribed" && s.completed,
+    ).length;
+    const inProgress = this.segments.filter(
+      (s) => s.type === "transcribed" && !s.completed,
+    ).length;
     return { total: this.segments.length, transcribed, completed, inProgress };
   }
 

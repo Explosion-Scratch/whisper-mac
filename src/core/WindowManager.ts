@@ -34,7 +34,7 @@ export class WindowManager {
 
     this.onboardingWindow.loadFile(
       join(__dirname, "../renderer-app/index.html"),
-      { hash: "/onboarding" }
+      { hash: "/onboarding" },
     );
 
     this.onboardingWindow.once("ready-to-show", () => {

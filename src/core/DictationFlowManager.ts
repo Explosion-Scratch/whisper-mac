@@ -1,17 +1,22 @@
 import { TranscriptionPluginManager } from "../plugins";
 import { DictationWindowService } from "../services/DictationWindowService";
-import { AudioCaptureService } from "../services/AudioCaptureService";
+import {
+  AudioCaptureService,
+  ChunkReadyEvent,
+} from "../services/AudioCaptureService";
 import { SegmentManager } from "../services/SegmentManager";
 import { TrayService } from "../services/TrayService";
 import { SegmentUpdate } from "../types/SegmentTypes";
 import { ErrorManager } from "./ErrorManager";
 import { promiseManager } from "./PromiseManager";
-import { appStore, DictationState } from "./AppStore";
+import { appStore, DictationState, selectors } from "./AppStore";
+import { DICTATION_CONFIG } from "../config/Constants";
 
 export { DictationState } from "./AppStore";
 
 export class DictationFlowManager {
   private finishingTimeout: NodeJS.Timeout | null = null;
+  private eventCleanupFns: Array<() => void> = [];
 
   private get state(): DictationState {
     return appStore.select((s) => s.dictation.state);
@@ -29,29 +34,99 @@ export class DictationFlowManager {
     private errorManager: ErrorManager,
     private audioCaptureService: AudioCaptureService,
   ) {
-    this.audioCaptureService.on("vad-segment", (audio: Float32Array) => {
-        console.log(`[DictationFlowManager] Received vad-segment event (${audio.length} samples), state=${this.state}`);
-        this.processVadAudioSegment(audio);
-    });
-    
-    this.audioCaptureService.on("audio-level", (level: number) => {
-         this.dictationWindowService.sendAudioLevel(level);
-    });
+    this.setupEventListeners();
+  }
 
-    this.audioCaptureService.on("speech-start", () => {
-         this.dictationWindowService.sendSpeechStart();
-    });
+  private setupEventListeners(): void {
+    const onVadSegment = (
+      audio: Float32Array,
+      meta?: Partial<ChunkReadyEvent>,
+    ) => {
+      console.log(
+        `[DictationFlowManager] Received vad-segment event (${audio.length} samples), state=${this.state}`,
+      );
+      this.processVadAudioSegment(audio);
+    };
 
-    this.audioCaptureService.on("speech-end", () => {
-         this.dictationWindowService.sendSpeechEnd();
-    });
+    const onChunkReady = async (event: ChunkReadyEvent) => {
+      console.log(
+        `[DictationFlowManager] Chunk ready (${event.audio.length} samples, accumulateOnly=${event.accumulateOnly})`,
+      );
+      await this.handleChunkReady(event);
+    };
 
-    this.dictationWindowService.on("window-hidden", async () => {
+    const onAudioLevel = (level: number) => {
+      this.dictationWindowService.sendAudioLevel(level);
+    };
+
+    const onSpeechStart = () => {
+      this.dictationWindowService.sendSpeechStart();
+    };
+
+    const onSpeechEnd = () => {
+      this.dictationWindowService.sendSpeechEnd();
+    };
+
+    const onWindowHidden = async () => {
       if (this.state === "recording") {
         console.log("Window hidden while recording - cancelling dictation");
         await this.cancelDictationFlow();
       }
-    });
+    };
+
+    this.audioCaptureService.on("vad-segment", onVadSegment);
+    this.audioCaptureService.on("chunk-ready", onChunkReady);
+    this.audioCaptureService.on("audio-level", onAudioLevel);
+    this.audioCaptureService.on("speech-start", onSpeechStart);
+    this.audioCaptureService.on("speech-end", onSpeechEnd);
+    this.dictationWindowService.on("window-hidden", onWindowHidden);
+
+    this.eventCleanupFns.push(
+      () => this.audioCaptureService.off("vad-segment", onVadSegment),
+      () => this.audioCaptureService.off("chunk-ready", onChunkReady),
+      () => this.audioCaptureService.off("audio-level", onAudioLevel),
+      () => this.audioCaptureService.off("speech-start", onSpeechStart),
+      () => this.audioCaptureService.off("speech-end", onSpeechEnd),
+      () => this.dictationWindowService.off("window-hidden", onWindowHidden),
+    );
+  }
+
+  private async handleChunkReady(event: ChunkReadyEvent): Promise<void> {
+    if (this.state !== "recording") return;
+
+    try {
+      console.log(
+        `[DictationFlowManager] Processing chunk for accumulation (${event.audio.length} samples)`,
+      );
+      await this.transcriptionPluginManager.processAudioSegment(event.audio);
+
+      const waitSucceeded = await this.waitForCompletedSegmentsStateOnly(
+        DICTATION_CONFIG.SEGMENT_COMPLETION_TIMEOUT_MS,
+      );
+      if (!waitSucceeded) {
+        console.log(
+          "[DictationFlowManager] Chunk transcription timed out, storing partial",
+        );
+      }
+
+      const completedSegments =
+        this.segmentManager.getCompletedTranscribedSegments();
+      if (completedSegments.length > 0) {
+        const chunkText = completedSegments
+          .map((s) => s.text.trim())
+          .filter((t) => t.length)
+          .join(" ");
+        if (chunkText) {
+          appStore.addAccumulatedChunk(chunkText);
+          console.log(
+            `[DictationFlowManager] Accumulated chunk: "${chunkText.substring(0, 50)}..."`,
+          );
+        }
+        this.segmentManager.clearCompletedSegmentsOnly();
+      }
+    } catch (error) {
+      console.error("[DictationFlowManager] Failed to process chunk:", error);
+    }
   }
 
   setTrayService(trayService: TrayService | null): void {
@@ -97,10 +172,10 @@ export class DictationFlowManager {
       const runOnAllSession =
         !!criteria?.runOnAll ||
         this.transcriptionPluginManager.willBufferNextSession();
-      
+
       // Start recording immediately
       await this.startRecording();
-      
+
       await this.dictationWindowService.showDictationWindow(runOnAllSession);
       const windowEndTime = Date.now();
       console.log(`Window display: ${windowEndTime - windowStartTime}ms`);
@@ -132,28 +207,40 @@ export class DictationFlowManager {
     await this.cancelDictationFlow();
   }
 
-  async finishCurrentDictation(options: { skipTransformation?: boolean } = {}): Promise<void> {
+  async finishCurrentDictation(
+    options: { skipTransformation?: boolean } = {},
+  ): Promise<void> {
     if (this.state !== "recording") return;
 
     try {
       appStore.setDictationState("finishing");
-      
-      const pendingSkipTransformation = appStore.select(s => s.dictation.pendingSkipTransformation);
+
+      const pendingSkipTransformation = appStore.select(
+        (s) => s.dictation.pendingSkipTransformation,
+      );
       if (pendingSkipTransformation) {
         appStore.setState({
-          dictation: { ...appStore.getState().dictation, pendingSkipTransformation: false },
+          dictation: {
+            ...appStore.getState().dictation,
+            pendingSkipTransformation: false,
+          },
         });
-        console.log("Using pending skipTransformation flag from paste raw dictation");
+        console.log(
+          "Using pending skipTransformation flag from paste raw dictation",
+        );
       }
-      
+
       const criteria =
         this.transcriptionPluginManager.getActivePluginActivationCriteria();
       const bufferingEnabled =
         this.transcriptionPluginManager.isBufferingEnabledForActivePlugin();
-      const hasBufferedAudio = this.transcriptionPluginManager.hasBufferedAudio();
+      const hasBufferedAudio =
+        this.transcriptionPluginManager.hasBufferedAudio();
       const skipAllTransforms = !!criteria?.skipAllTransforms;
       const skipTransformation =
-        !!options.skipTransformation || pendingSkipTransformation || !!criteria?.skipTransformation;
+        !!options.skipTransformation ||
+        pendingSkipTransformation ||
+        !!criteria?.skipTransformation;
 
       // Diagnostic logging for intermittent no-transcription bug
       console.log(`[DictationFlowManager] finishCurrentDictation state:`, {
@@ -168,22 +255,24 @@ export class DictationFlowManager {
         `=== Finishing current dictation with ${skipTransformation ? "raw injection" : "transform+inject"} ===`,
       );
       this.dictationWindowService.stopRecording(); // UI update
-      
+
       // Stop audio capture - fallback audio is already emitted as vad-segment event
       // and processed by the event listener, so we don't need to process the return value
       await this.audioCaptureService.stopCapture();
-      
-      // Coordinate audio stop
+
+      // Wait for any in-flight processing using state-based approach
+      const audioStopWait = this.waitForAudioProcessingComplete();
       if (this.currentSessionId) {
         promiseManager.start(`dictation:audio:stop:${this.currentSessionId}`);
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await audioStopWait;
         promiseManager.resolve(`dictation:audio:stop:${this.currentSessionId}`);
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await audioStopWait;
       }
 
       // Re-check buffered audio state after 300ms wait (it may have changed)
-      const hasBufferedAudioAfterWait = this.transcriptionPluginManager.hasBufferedAudio();
+      const hasBufferedAudioAfterWait =
+        this.transcriptionPluginManager.hasBufferedAudio();
       const segmentsAfterWait = this.segmentManager.getAllSegments().length;
       console.log(`[DictationFlowManager] After 300ms wait:`, {
         hasBufferedAudioAfterWait,
@@ -198,14 +287,17 @@ export class DictationFlowManager {
             this.transcriptionPluginManager.hasBufferedAudio()
           )
         ) {
-          console.log(`[DictationFlowManager] CANCELLING: No segments found. bufferingEnabled=${bufferingEnabled}, hasBufferedAudio=${this.transcriptionPluginManager.hasBufferedAudio()}`);
+          console.log(
+            `[DictationFlowManager] CANCELLING: No segments found. bufferingEnabled=${bufferingEnabled}, hasBufferedAudio=${this.transcriptionPluginManager.hasBufferedAudio()}`,
+          );
           await this.cancelDictationFlow();
           return;
         }
       }
 
       console.log(
-        `Found ${this.segmentManager.getAllSegments().length
+        `Found ${
+          this.segmentManager.getAllSegments().length
         } segments to transform and inject`,
       );
 
@@ -229,7 +321,7 @@ export class DictationFlowManager {
       const waitSucceeded = await this.waitForCompletedSegments(8000);
       console.log("Wait for completed segments:", waitSucceeded);
 
-console.log(
+      console.log(
         "=== Transforming and injecting all accumulated segments ===",
       );
       this.dictationWindowService.setStatus("transforming");
@@ -261,7 +353,9 @@ console.log(
         promiseManager.start(`dictation:window:hide:${this.currentSessionId}`);
         await new Promise((resolve) => setTimeout(resolve, 500));
         this.dictationWindowService.hideWindow();
-        promiseManager.resolve(`dictation:window:hide:${this.currentSessionId}`);
+        promiseManager.resolve(
+          `dictation:window:hide:${this.currentSessionId}`,
+        );
       } else {
         await new Promise((resolve) => setTimeout(resolve, 500));
         this.dictationWindowService.hideWindow();
@@ -288,10 +382,12 @@ console.log(
     }
   }
 
-  async flushSegmentsWhileContinuing(options: { skipTransformation?: boolean } = {}): Promise<void> {
+  async flushSegmentsWhileContinuing(
+    options: { skipTransformation?: boolean } = {},
+  ): Promise<void> {
     const flushId = `flush:${Date.now()}`;
     promiseManager.start(flushId);
-    
+
     try {
       console.log("=== Flushing segments while continuing recording ===");
 
@@ -303,7 +399,10 @@ console.log(
       const bufferingEnabled =
         this.transcriptionPluginManager.isBufferingEnabledForActivePlugin();
 
-      if (bufferingEnabled && this.transcriptionPluginManager.hasBufferedAudio()) {
+      if (
+        bufferingEnabled &&
+        this.transcriptionPluginManager.hasBufferedAudio()
+      ) {
         console.log("=== Finalizing buffered audio before flush ===");
         try {
           await this.transcriptionPluginManager.finalizeBufferedAudio();
@@ -312,35 +411,53 @@ console.log(
         }
       }
 
-      const completedSegments = this.segmentManager.getCompletedTranscribedSegments();
-      const inProgressSegments = this.segmentManager.getInProgressTranscribedSegments();
-      
+      const completedSegments =
+        this.segmentManager.getCompletedTranscribedSegments();
+      const inProgressSegments =
+        this.segmentManager.getInProgressTranscribedSegments();
+
       if (completedSegments.length === 0 && inProgressSegments.length === 0) {
-        console.log("No segments to inject - user pressed before any speech detected, continuing recording");
+        console.log(
+          "No segments to inject - user pressed before any speech detected, continuing recording",
+        );
         this.dictationWindowService.setStatus("recording");
-        promiseManager.resolve(flushId, { skipped: true, reason: "no-segments" });
+        promiseManager.resolve(flushId, {
+          skipped: true,
+          reason: "no-segments",
+        });
         return;
       }
 
       if (completedSegments.length === 0 && inProgressSegments.length > 0) {
-        console.log(`Found ${inProgressSegments.length} in-progress segments - waiting for transcription completion via state`);
-        
+        console.log(
+          `Found ${inProgressSegments.length} in-progress segments - waiting for transcription completion via state`,
+        );
+
         const gotCompleted = await this.waitForSegmentCompletion();
-        
+
         if (!gotCompleted) {
-          console.log("No segments completed after waiting - continuing recording");
+          console.log(
+            "No segments completed after waiting - continuing recording",
+          );
           this.dictationWindowService.setStatus("recording");
-          promiseManager.resolve(flushId, { skipped: true, reason: "no-completed-segments" });
+          promiseManager.resolve(flushId, {
+            skipped: true,
+            reason: "no-completed-segments",
+          });
           return;
         }
       }
 
-      const finalCompletedSegments = this.segmentManager.getCompletedTranscribedSegments();
-      
+      const finalCompletedSegments =
+        this.segmentManager.getCompletedTranscribedSegments();
+
       if (finalCompletedSegments.length === 0) {
         console.log("Still no completed segments - continuing recording");
         this.dictationWindowService.setStatus("recording");
-        promiseManager.resolve(flushId, { skipped: true, reason: "no-completed-segments" });
+        promiseManager.resolve(flushId, {
+          skipped: true,
+          reason: "no-completed-segments",
+        });
         return;
       }
 
@@ -351,13 +468,16 @@ console.log(
 
       const skipTransformation = !!options.skipTransformation;
       if (skipTransformation) {
-        console.log("[DictationFlowManager] Skipping transformation during flush");
+        console.log(
+          "[DictationFlowManager] Skipping transformation during flush",
+        );
       }
 
-      const result = await this.segmentManager.transformAndInjectCompletedSegments({
-        skipTransformation,
-        onInjecting: () => this.dictationWindowService.setStatus("injecting"),
-      });
+      const result =
+        await this.segmentManager.transformAndInjectCompletedSegments({
+          skipTransformation,
+          onInjecting: () => this.dictationWindowService.setStatus("injecting"),
+        });
 
       if (result.success) {
         console.log(
@@ -380,7 +500,7 @@ console.log(
       this.dictationWindowService.setStatus("recording");
       this.dictationWindowService.startRecording();
       await this.audioCaptureService.startCapture();
-      
+
       promiseManager.resolve(flushId, result);
     } catch (error) {
       console.error("Failed to flush segments while continuing:", error);
@@ -408,30 +528,30 @@ console.log(
         (state) => state.segments.items,
         (segments) => {
           if (resolved) return;
-          
+
           const nowCompleted = segments.filter(
-            (s) => s.type === "transcribed" && (s as any).completed === true
+            (s) => s.type === "transcribed" && (s as any).completed === true,
           );
           if (nowCompleted.length > 0) {
             resolved = true;
             unsubscribe();
             resolve(true);
           }
-        }
+        },
       );
 
       const checkDictationState = appStore.subscribe(
         (state) => state.dictation.state,
         (dictationState) => {
           if (resolved) return;
-          
+
           if (dictationState === "idle") {
             resolved = true;
             unsubscribe();
             checkDictationState();
             resolve(false);
           }
-        }
+        },
       );
     });
   }
@@ -442,7 +562,7 @@ console.log(
     this.clearFinishingTimeout();
     const wasRecording = this.state !== "idle";
     const sessionId = this.currentSessionId;
-    
+
     appStore.setState({
       dictation: {
         ...appStore.getState().dictation,
@@ -495,7 +615,8 @@ console.log(
 
       const transcriptionEndTime = Date.now();
       console.log(
-        `Transcription setup: ${transcriptionEndTime - transcriptionStartTime
+        `Transcription setup: ${
+          transcriptionEndTime - transcriptionStartTime
         }ms`,
       );
     } catch (error: any) {
@@ -615,7 +736,8 @@ console.log(
 
       const inProgress = this.segmentManager.getInProgressTranscribedSegments();
       if (inProgress.length === 0 && completed.length === 0) {
-        const bufferingEnabled = this.transcriptionPluginManager.isBufferingEnabledForActivePlugin();
+        const bufferingEnabled =
+          this.transcriptionPluginManager.isBufferingEnabledForActivePlugin();
         const hasBuffered = this.transcriptionPluginManager.hasBufferedAudio();
         if (!bufferingEnabled || !hasBuffered) {
           resolve(false);
@@ -635,20 +757,94 @@ console.log(
         (state) => state.segments.items,
         (segments) => {
           const nowCompleted = segments.filter(
-            (s) => s.type === "transcribed" && (s as any).completed === true
+            (s) => s.type === "transcribed" && (s as any).completed === true,
           );
           if (nowCompleted.length > 0) {
             cleanup();
             resolve(true);
           }
-        }
+        },
       );
 
       timeoutId = setTimeout(() => {
         cleanup();
-        const finalCompleted = this.segmentManager.getCompletedTranscribedSegments();
+        const finalCompleted =
+          this.segmentManager.getCompletedTranscribedSegments();
         resolve(finalCompleted.length > 0);
       }, timeoutMs);
     });
+  }
+
+  private waitForCompletedSegmentsStateOnly(
+    timeoutMs: number,
+  ): Promise<boolean> {
+    return new Promise((resolve) => {
+      const completed = this.segmentManager.getCompletedTranscribedSegments();
+      if (completed.length > 0) {
+        resolve(true);
+        return;
+      }
+
+      let resolved = false;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+      const unsubscribe = appStore.subscribe(
+        selectors.completedSegments,
+        (segments) => {
+          if (resolved) return;
+          if (segments.length > 0) {
+            resolved = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            unsubscribe();
+            resolve(true);
+          }
+        },
+      );
+
+      timeoutId = setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        unsubscribe();
+        resolve(
+          this.segmentManager.getCompletedTranscribedSegments().length > 0,
+        );
+      }, timeoutMs);
+    });
+  }
+
+  private waitForAudioProcessingComplete(): Promise<void> {
+    return new Promise((resolve) => {
+      const isCapturing = appStore.select(selectors.isCapturing);
+      if (!isCapturing) {
+        resolve();
+        return;
+      }
+
+      let resolved = false;
+      const unsubscribe = appStore.subscribe(
+        selectors.isCapturing,
+        (capturing) => {
+          if (resolved) return;
+          if (!capturing) {
+            resolved = true;
+            unsubscribe();
+            resolve();
+          }
+        },
+      );
+
+      const checkNow = appStore.select(selectors.isCapturing);
+      if (!checkNow && !resolved) {
+        resolved = true;
+        unsubscribe();
+        resolve();
+      }
+    });
+  }
+
+  cleanup(): void {
+    this.eventCleanupFns.forEach((fn) => fn());
+    this.eventCleanupFns = [];
+    this.clearFinishingTimeout();
   }
 }

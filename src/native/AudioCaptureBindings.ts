@@ -1,4 +1,3 @@
-
 // Runtime-safe loader for the native audio capture module
 // Handles loading from different paths for dev/prod environments
 
@@ -15,24 +14,31 @@ try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     nativeBinding = require("../../native/audio-capture/build/Release/audio_capture.node");
   } catch (err) {
-
     console.error(
       "CRITICAL: audio_capture native module could not be loaded. Native audio features will be disabled.",
       err,
       "\nTraversed paths:",
       [
-          "./audio_capture.node",
-          "../../native/audio-capture/build/Release/audio_capture.node"
-      ]
+        "./audio_capture.node",
+        "../../native/audio-capture/build/Release/audio_capture.node",
+      ],
     );
     nativeBinding = {};
   }
 }
 
 export interface AudioCaptureBinding {
-  start: (options: { sampleRate: number; bufferSize: number }, callback: (data: Float32Array) => void) => boolean;
+  start: (
+    options: { sampleRate: number; bufferSize: number },
+    callback: (data: Float32Array) => void,
+  ) => boolean;
   stop: () => boolean;
-  checkMicrophonePermission: () => "authorized" | "denied" | "restricted" | "not_determined" | "unknown";
+  checkMicrophonePermission: () =>
+    | "authorized"
+    | "denied"
+    | "restricted"
+    | "not_determined"
+    | "unknown";
   requestMicrophonePermission: () => Promise<boolean>;
   getAudioLevel: () => number;
   isFallback?: boolean;
@@ -46,23 +52,26 @@ export class AudioCaptureNative {
     if (nativeBinding.AudioCapture) {
       this.instance = new nativeBinding.AudioCapture();
     } else {
-        // Fallback or error
-        this.instance = {
-            start: () => false,
-            stop: () => false,
-            checkMicrophonePermission: () => "unknown",
-            requestMicrophonePermission: async () => false,
-            getAudioLevel: () => 0,
-            isFallback: true
-        };
+      // Fallback or error
+      this.instance = {
+        start: () => false,
+        stop: () => false,
+        checkMicrophonePermission: () => "unknown",
+        requestMicrophonePermission: async () => false,
+        getAudioLevel: () => 0,
+        isFallback: true,
+      };
     }
   }
 
   isFallback(): boolean {
-      return (this.instance as any).isFallback === true;
+    return (this.instance as any).isFallback === true;
   }
 
-  start(options: { sampleRate: number; bufferSize: number }, callback: (data: Float32Array) => void): boolean {
+  start(
+    options: { sampleRate: number; bufferSize: number },
+    callback: (data: Float32Array) => void,
+  ): boolean {
     return this.instance.start(options, callback);
   }
 
@@ -70,15 +79,20 @@ export class AudioCaptureNative {
     return this.instance.stop();
   }
 
-  checkMicrophonePermission(): "authorized" | "denied" | "restricted" | "not_determined" | "unknown" {
+  checkMicrophonePermission():
+    | "authorized"
+    | "denied"
+    | "restricted"
+    | "not_determined"
+    | "unknown" {
     return this.instance.checkMicrophonePermission();
   }
 
   requestMicrophonePermission(): Promise<boolean> {
     return this.instance.requestMicrophonePermission();
   }
-  
+
   getAudioLevel(): number {
-      return this.instance.getAudioLevel();
+    return this.instance.getAudioLevel();
   }
 }

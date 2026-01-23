@@ -33,7 +33,7 @@ const activeListeners: ListenerCleanupFn[] = [];
 
 function createListenerWithCleanup<T>(
   channel: string,
-  callback: (data: T) => void
+  callback: (data: T) => void,
 ): ListenerCleanupFn {
   const handler = (_event: IpcRendererEvent, data: T) => callback(data);
   ipcRenderer.on(channel, handler);
@@ -44,7 +44,7 @@ function createListenerWithCleanup<T>(
 
 function createSimpleListenerWithCleanup(
   channel: string,
-  callback: () => void
+  callback: () => void,
 ): ListenerCleanupFn {
   const handler = () => callback();
   ipcRenderer.on(channel, handler);
@@ -63,15 +63,24 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
 
   onDictationStartRecording: (callback: () => void) => {
-    return createSimpleListenerWithCleanup("dictation-start-recording", callback);
+    return createSimpleListenerWithCleanup(
+      "dictation-start-recording",
+      callback,
+    );
   },
 
   onDictationStopRecording: (callback: () => void) => {
-    return createSimpleListenerWithCleanup("dictation-stop-recording", callback);
+    return createSimpleListenerWithCleanup(
+      "dictation-stop-recording",
+      callback,
+    );
   },
 
   onTranscriptionUpdate: (callback: (update: TranscriptionUpdate) => void) => {
-    return createListenerWithCleanup("dictation-transcription-update", callback);
+    return createListenerWithCleanup(
+      "dictation-transcription-update",
+      callback,
+    );
   },
 
   onDictationComplete: (callback: (finalText: string) => void) => {
@@ -99,7 +108,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
 
   onFlushPendingAudio: (callback: () => void) => {
-    return createSimpleListenerWithCleanup("dictation-flush-pending-audio", callback);
+    return createSimpleListenerWithCleanup(
+      "dictation-flush-pending-audio",
+      callback,
+    );
   },
 
   onError: (callback: (payload: any) => void) => {
@@ -148,17 +160,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
 });
 
-
-
 declare global {
   interface Window {
     electronAPI: {
       onAnimateIn: (callback: () => void) => () => void;
-      onInitializeDictation: (callback: (data: DictationInitData) => void) => () => void;
+      onInitializeDictation: (
+        callback: (data: DictationInitData) => void,
+      ) => () => void;
       onDictationStartRecording: (callback: () => void) => () => void;
       onDictationStopRecording: (callback: () => void) => () => void;
-      onTranscriptionUpdate: (callback: (update: TranscriptionUpdate) => void) => () => void;
-      onDictationComplete: (callback: (finalText: string) => void) => () => void;
+      onTranscriptionUpdate: (
+        callback: (update: TranscriptionUpdate) => void,
+      ) => () => void;
+      onDictationComplete: (
+        callback: (finalText: string) => void,
+      ) => () => void;
       onDictationClear: (callback: () => void) => () => void;
       onDictationStatus: (callback: (status: string) => void) => () => void;
       onAudioLevel: (callback: (level: number) => void) => () => void;
@@ -173,7 +189,9 @@ declare global {
       sendAudioSegment: (audioData: Float32Array) => void;
       sendDictationWindowReady: () => void;
       getSelectedMicrophone: () => Promise<string>;
-      setSelectedMicrophone: (deviceId: string) => Promise<{ success: boolean }>;
+      setSelectedMicrophone: (
+        deviceId: string,
+      ) => Promise<{ success: boolean }>;
       cleanup: () => void;
     };
   }

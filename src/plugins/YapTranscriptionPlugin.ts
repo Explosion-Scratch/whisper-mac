@@ -76,7 +76,9 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   async isAvailable(): Promise<boolean> {
-    if (FAKE_UNAVAIL){return Promise.resolve(false);}
+    if (FAKE_UNAVAIL) {
+      return Promise.resolve(false);
+    }
     try {
       // Check if YAP binary exists and is executable
       return new Promise((resolve) => {
@@ -116,7 +118,9 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
     onProgress?: (progress: any) => void,
     onLog?: (line: string) => void,
   ): Promise<boolean> {
-    if (FAKE_UNAVAIL){return Promise.resolve(false);}
+    if (FAKE_UNAVAIL) {
+      return Promise.resolve(false);
+    }
     onLog?.("YAP plugin doesn't require model downloads");
     onProgress?.({
       status: "complete",
@@ -282,8 +286,6 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
       console.warn("Failed to clean temp directory:", err);
     }
   }
-
-
 
   /**
    * Convert Float32Array audio data to WAV file for YAP

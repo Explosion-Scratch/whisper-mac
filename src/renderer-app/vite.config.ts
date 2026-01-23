@@ -1,7 +1,7 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import { viteStaticCopy } from 'vite-plugin-static-copy'
-import { resolve } from 'path'
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+import { viteStaticCopy } from "vite-plugin-static-copy";
+import { resolve } from "path";
 
 export default defineConfig({
   plugins: [
@@ -21,40 +21,40 @@ export default defineConfig({
         //   dest: './'
         // },
         {
-          src: 'node_modules/@ricky0123/vad-web/dist/*',
-          dest: './vad'
+          src: "node_modules/@ricky0123/vad-web/dist/*",
+          dest: "./vad",
         },
         {
-          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
-          dest: './'
+          src: "node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm",
+          dest: "./",
         },
         {
-          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
-          dest: './'
+          src: "node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs",
+          dest: "./",
         },
         {
-          src: 'node_modules/onnxruntime-web/dist/ort.min.mjs',
-          dest: './'
-        }
-      ]
-    })
+          src: "node_modules/onnxruntime-web/dist/ort.min.mjs",
+          dest: "./",
+        },
+      ],
+    }),
   ],
-  base: './',
+  base: "./",
   build: {
-    outDir: '../../dist/renderer-app',
+    outDir: "../../dist/renderer-app",
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html')
-      }
-    }
+        main: resolve(__dirname, "index.html"),
+      },
+    },
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
-    }
+      "@": resolve(__dirname, "src"),
+    },
   },
   optimizeDeps: {
-    exclude: ['onnxruntime-web']
-  }
-})
+    exclude: ["onnxruntime-web"],
+  },
+});

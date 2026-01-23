@@ -50,7 +50,9 @@ export class LoginItemService {
       const currentSettings = this.getCurrentSettings();
       this.currentEnabledState = currentSettings.openAtLogin;
 
-      log.info(`Launch at login set successfully. Current state: ${this.currentEnabledState}`);
+      log.info(
+        `Launch at login set successfully. Current state: ${this.currentEnabledState}`,
+      );
       return this.currentEnabledState === enabled;
     } catch (error) {
       log.error("Failed to set launch at login:", error);
@@ -71,7 +73,9 @@ export class LoginItemService {
   private updateCurrentState(): void {
     const settings = this.getCurrentSettings();
     this.currentEnabledState = settings.openAtLogin;
-    log.info(`Login item service initialized. Current state: ${this.currentEnabledState}`);
+    log.info(
+      `Login item service initialized. Current state: ${this.currentEnabledState}`,
+    );
   }
 
   /**

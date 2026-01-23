@@ -47,6 +47,15 @@ export interface AppState {
     pendingSkipTransformation: boolean;
   };
 
+  audioCapture: {
+    isCapturing: boolean;
+    vadReady: boolean;
+    chunkStartTime: number | null;
+    accumulatedChunks: string[];
+    processedSampleCount: number;
+    lastSegmentEndSample: number;
+  };
+
   plugins: {
     activePlugin: string | null;
     pluginStates: Record<string, PluginStateData>;
@@ -110,6 +119,14 @@ const initialState: AppState = {
     isAccumulatingMode: false,
     pushToTalkActive: false,
     pendingSkipTransformation: false,
+  },
+  audioCapture: {
+    isCapturing: false,
+    vadReady: false,
+    chunkStartTime: null,
+    accumulatedChunks: [],
+    processedSampleCount: 0,
+    lastSegmentEndSample: 0,
   },
   plugins: {
     activePlugin: null,
@@ -383,6 +400,37 @@ export class AppStore extends EventEmitter {
     });
   }
 
+  setAudioCaptureState(updates: Partial<AppState["audioCapture"]>): void {
+    this.setState({
+      audioCapture: { ...this.state.audioCapture, ...updates },
+    });
+  }
+
+  addAccumulatedChunk(chunk: string): void {
+    this.setState({
+      audioCapture: {
+        ...this.state.audioCapture,
+        accumulatedChunks: [
+          ...this.state.audioCapture.accumulatedChunks,
+          chunk,
+        ],
+      },
+    });
+  }
+
+  clearAudioCaptureState(): void {
+    this.setState({
+      audioCapture: {
+        isCapturing: false,
+        vadReady: false,
+        chunkStartTime: null,
+        accumulatedChunks: [],
+        processedSampleCount: 0,
+        lastSegmentEndSample: 0,
+      },
+    });
+  }
+
   getSerializableState(): AppState {
     return this.getState();
   }
@@ -419,4 +467,8 @@ export const selectors = {
   trayIconState: (state: AppState) => state.ui.trayIconState,
   isAccumulatingMode: (state: AppState) => state.dictation.isAccumulatingMode,
   bufferingEnabled: (state: AppState) => state.plugins.bufferingEnabled,
+  isCapturing: (state: AppState) => state.audioCapture.isCapturing,
+  vadReady: (state: AppState) => state.audioCapture.vadReady,
+  accumulatedChunks: (state: AppState) => state.audioCapture.accumulatedChunks,
+  chunkStartTime: (state: AppState) => state.audioCapture.chunkStartTime,
 };

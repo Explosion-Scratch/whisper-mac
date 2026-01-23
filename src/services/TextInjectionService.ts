@@ -60,7 +60,8 @@ export class TextInjectionService {
     } catch (error) {
       console.error("Text insertion failed:", error);
       throw new Error(
-        `Failed to insert text: ${error instanceof Error ? error.message : String(error)
+        `Failed to insert text: ${
+          error instanceof Error ? error.message : String(error)
         }`,
       );
     }
@@ -71,16 +72,18 @@ export class TextInjectionService {
     try {
       const copied = await this.copyToClipboard(text);
       if (!copied) throw new Error("Failed to copy to clipboard");
-      
+
       // Small delay to ensure clipboard is updated
       await this.delay(200);
-      
+
       const current = await this.readClipboard();
       // Basic verification
       if (current !== text) {
-          console.warn("Clipboard content verification failed, attempting paste anyway");
+        console.warn(
+          "Clipboard content verification failed, attempting paste anyway",
+        );
       }
-      
+
       macInput.pasteCommandV?.();
       await this.delay(300);
     } finally {
@@ -97,21 +100,23 @@ export class TextInjectionService {
           return;
         }
       }
-    } catch { }
-    
+    } catch {}
+
     // Fallback to Electron clipboard
     clipboard.writeText(text);
     await this.notificationService.sendClipboardNotification();
   }
 
-  async checkAccessibilityPermissions(options: { forceCheck?: boolean } = {}): Promise<boolean> {
+  async checkAccessibilityPermissions(
+    options: { forceCheck?: boolean } = {},
+  ): Promise<boolean> {
     const { forceCheck = false } = options;
-    
-    console.log(
-      "TextInjectionService.checkAccessibilityPermissions:",
-      { cache: this.accessibilityEnabled, forceCheck },
-    );
-    
+
+    console.log("TextInjectionService.checkAccessibilityPermissions:", {
+      cache: this.accessibilityEnabled,
+      forceCheck,
+    });
+
     if (!forceCheck && this.accessibilityEnabled !== null) {
       return this.accessibilityEnabled;
     }
@@ -119,13 +124,13 @@ export class TextInjectionService {
     try {
       const startedAt = Date.now();
       let enabled: boolean;
-      
+
       if (macInput?.checkPermissions) {
         enabled = macInput.checkPermissions();
       } else {
         enabled = systemPreferences.isTrustedAccessibilityClient(false);
       }
-      
+
       const durationMs = Date.now() - startedAt;
       this.accessibilityEnabled = Boolean(enabled);
       console.log(
@@ -144,18 +149,20 @@ export class TextInjectionService {
   }
 
   async checkAccessibilityPermissionsWithPrompt(): Promise<boolean> {
-    console.log("TextInjectionService.checkAccessibilityPermissionsWithPrompt: prompting user");
-    
+    console.log(
+      "TextInjectionService.checkAccessibilityPermissionsWithPrompt: prompting user",
+    );
+
     try {
       const startedAt = Date.now();
       let enabled: boolean;
-      
+
       if (macInput?.checkPermissionsWithPrompt) {
         enabled = macInput.checkPermissionsWithPrompt(true);
       } else {
         enabled = systemPreferences.isTrustedAccessibilityClient(true);
       }
-      
+
       const durationMs = Date.now() - startedAt;
       this.accessibilityEnabled = Boolean(enabled);
       console.log(
@@ -294,7 +301,7 @@ The app will automatically detect when permissions are enabled." buttons {"Open 
       } else {
         clipboard.writeText(backup);
       }
-    } catch { }
+    } catch {}
   }
 
   private async copyToClipboard(text: string): Promise<boolean> {

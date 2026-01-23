@@ -42,7 +42,7 @@ export class IpcStateBridge {
 
     ipcMain.handle("state:subscribe", (event, path: StatePath) => {
       const subscriptionId = `${event.sender.id}:${path}:${Date.now()}`;
-      
+
       const selector = this.createSelectorFromPath(path);
       const unsubscribe = appStore.subscribe(selector, (value) => {
         try {
@@ -113,7 +113,10 @@ export class IpcStateBridge {
     }
   }
 
-  private handleAction(action: string, payload?: any): { success: boolean; error?: string; result?: any } {
+  private handleAction(
+    action: string,
+    payload?: any,
+  ): { success: boolean; error?: string; result?: any } {
     try {
       switch (action) {
         case "setDictationState":
@@ -160,11 +163,17 @@ export class IpcStateBridge {
   }
 
   broadcastState(slice?: StateSlice): void {
-    const state = slice ? { [slice]: appStore.getState()[slice] } : appStore.getSerializableState();
-    
+    const state = slice
+      ? { [slice]: appStore.getState()[slice] }
+      : appStore.getSerializableState();
+
     for (const win of BrowserWindow.getAllWindows()) {
       try {
-        if (!win.isDestroyed() && win.webContents && !win.webContents.isDestroyed()) {
+        if (
+          !win.isDestroyed() &&
+          win.webContents &&
+          !win.webContents.isDestroyed()
+        ) {
           win.webContents.send("state:broadcast", state);
         }
       } catch {}
@@ -184,14 +193,14 @@ export class IpcStateBridge {
       this.removeSubscription(id);
     }
     this.subscriptions.clear();
-    
+
     ipcMain.removeHandler("state:get");
     ipcMain.removeHandler("state:set");
     ipcMain.removeHandler("state:subscribe");
     ipcMain.removeHandler("state:unsubscribe");
     ipcMain.removeHandler("state:action");
     ipcMain.removeAllListeners("state:sync-request");
-    
+
     this.isInitialized = false;
   }
 }

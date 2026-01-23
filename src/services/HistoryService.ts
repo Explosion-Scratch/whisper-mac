@@ -70,7 +70,11 @@ export class HistoryService extends EventEmitter {
       // Load existing history data
       await this.loadHistory();
       this.initialized = true;
-      console.log("[HistoryService] Initialized with", this.historyData.recordings.length, "recordings");
+      console.log(
+        "[HistoryService] Initialized with",
+        this.historyData.recordings.length,
+        "recordings",
+      );
     } catch (error) {
       console.error("[HistoryService] Failed to initialize:", error);
       throw error;
@@ -114,7 +118,7 @@ export class HistoryService extends EventEmitter {
         await fs.writeFile(
           this.historyFilePath,
           JSON.stringify(this.historyData, null, 2),
-          "utf-8"
+          "utf-8",
         );
       } catch (error) {
         console.error("[HistoryService] Failed to save history:", error);
@@ -132,7 +136,7 @@ export class HistoryService extends EventEmitter {
       await fs.writeFile(
         this.historyFilePath,
         JSON.stringify(this.historyData, null, 2),
-        "utf-8"
+        "utf-8",
       );
     } catch (error) {
       console.error("[HistoryService] Failed to save history:", error);
@@ -142,7 +146,10 @@ export class HistoryService extends EventEmitter {
   /**
    * Convert Float32Array audio data to WAV format
    */
-  private createWavBuffer(audioData: Float32Array, sampleRate: number = 16000): Buffer {
+  private createWavBuffer(
+    audioData: Float32Array,
+    sampleRate: number = 16000,
+  ): Buffer {
     const numChannels = 1;
     const bitsPerSample = 16;
     const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
@@ -185,7 +192,10 @@ export class HistoryService extends EventEmitter {
   /**
    * Calculate audio duration from Float32Array
    */
-  private calculateDuration(audioData: Float32Array, sampleRate: number = 16000): number {
+  private calculateDuration(
+    audioData: Float32Array,
+    sampleRate: number = 16000,
+  ): number {
     return audioData.length / sampleRate;
   }
 
@@ -196,7 +206,7 @@ export class HistoryService extends EventEmitter {
     audioData: Float32Array,
     rawTranscription: string,
     transformedTranscription: string | null,
-    pluginUsed: string | null = null
+    pluginUsed: string | null = null,
   ): Promise<RecordingEntry | null> {
     if (!this.historyData.settings.enabled) {
       return null;
@@ -233,7 +243,9 @@ export class HistoryService extends EventEmitter {
       await this.saveHistory();
 
       this.emit("recording-added", entry);
-      console.log(`[HistoryService] Added recording ${id}, duration: ${duration.toFixed(2)}s`);
+      console.log(
+        `[HistoryService] Added recording ${id}, duration: ${duration.toFixed(2)}s`,
+      );
 
       return entry;
     } catch (error) {
@@ -373,7 +385,9 @@ export class HistoryService extends EventEmitter {
   /**
    * Update history settings
    */
-  async updateSettings(settings: Partial<HistorySettings>): Promise<HistorySettings> {
+  async updateSettings(
+    settings: Partial<HistorySettings>,
+  ): Promise<HistorySettings> {
     const prevMaxRecordings = this.historyData.settings.maxRecordings;
 
     this.historyData.settings = {
@@ -382,7 +396,10 @@ export class HistoryService extends EventEmitter {
     };
 
     // If max recordings decreased, enforce the new limit
-    if (settings.maxRecordings !== undefined && settings.maxRecordings < prevMaxRecordings) {
+    if (
+      settings.maxRecordings !== undefined &&
+      settings.maxRecordings < prevMaxRecordings
+    ) {
       await this.enforceLimit();
     }
 
@@ -429,7 +446,10 @@ export class HistoryService extends EventEmitter {
       totalRecordings: recordings.length,
       totalDuration,
       storageUsed,
-      oldestRecording: recordings.length > 0 ? recordings[recordings.length - 1].timestamp : null,
+      oldestRecording:
+        recordings.length > 0
+          ? recordings[recordings.length - 1].timestamp
+          : null,
       newestRecording: recordings.length > 0 ? recordings[0].timestamp : null,
     };
   }
@@ -437,7 +457,10 @@ export class HistoryService extends EventEmitter {
   /**
    * Update the transformed transcription for a recording
    */
-  async updateTransformedTranscription(id: string, transformedText: string): Promise<boolean> {
+  async updateTransformedTranscription(
+    id: string,
+    transformedText: string,
+  ): Promise<boolean> {
     const recording = this.getRecording(id);
     if (!recording) return false;
 

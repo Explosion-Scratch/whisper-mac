@@ -31,7 +31,10 @@
  */
 export async function validateApiKeyAndListModels(baseUrl, apiKey) {
   try {
-    return await window.electronAPI.validateApiKeyAndListModels(baseUrl, apiKey);
+    return await window.electronAPI.validateApiKeyAndListModels(
+      baseUrl,
+      apiKey,
+    );
   } catch (error) {
     console.error("Error validating API key:", error);
     return { success: false, error: error.message };
@@ -47,7 +50,11 @@ export async function validateApiKeyAndListModels(baseUrl, apiKey) {
  */
 export async function validateAiConfiguration(baseUrl, model, apiKey) {
   try {
-    return await window.electronAPI.validateAiConfiguration(baseUrl, model, apiKey);
+    return await window.electronAPI.validateAiConfiguration(
+      baseUrl,
+      model,
+      apiKey,
+    );
   } catch (error) {
     console.error("Error validating AI configuration:", error);
     return { isValid: false, error: error.message };
@@ -93,7 +100,7 @@ export async function loadAiModelsIfConfigured(settings) {
     if (apiKey && settings?.ai?.baseUrl) {
       const validationResult = await validateApiKeyAndListModels(
         settings.ai.baseUrl,
-        apiKey
+        apiKey,
       );
       if (validationResult.success && validationResult.models?.length > 0) {
         result.models = validationResult.models;

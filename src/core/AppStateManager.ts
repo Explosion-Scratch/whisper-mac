@@ -15,7 +15,7 @@ export class AppStateManager {
       (state) => state.app.status,
       (status) => {
         this.trayService?.updateTrayMenu(status as TraySetupStatus);
-      }
+      },
     );
   }
 
@@ -34,7 +34,7 @@ export class AppStateManager {
   onSetupStatusChange(callback: (status: SetupStatus) => void): () => void {
     return appStore.subscribe(
       (state) => state.app.status,
-      (status) => callback(status)
+      (status) => callback(status),
     );
   }
 

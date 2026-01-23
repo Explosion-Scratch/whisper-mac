@@ -25,13 +25,13 @@ export interface MatchPattern {
 export interface ActionHandlerConfig {
   id: string;
   type:
-  | "openUrl"
-  | "openApplication"
-  | "quitApplication"
-  | "executeShell"
-  | "segmentAction"
-  | "transformText"
-  | "cleanUrl";
+    | "openUrl"
+    | "openApplication"
+    | "quitApplication"
+    | "executeShell"
+    | "segmentAction"
+    | "transformText"
+    | "cleanUrl";
   config: HandlerConfig;
   order: number;
   applyToNextSegment?: boolean; // If true, queue this handler for next segment
@@ -84,15 +84,15 @@ export interface ExecuteShellConfig {
 
 export interface SegmentActionConfig {
   action:
-  | "clear"
-  | "undo"
-  | "replace"
-  | "deleteLastN"
-  | "lowercaseFirstChar"
-  | "uppercaseFirstChar"
-  | "capitalizeFirstWord"
-  | "removePattern"
-  | "mergeWithPrevious";
+    | "clear"
+    | "undo"
+    | "replace"
+    | "deleteLastN"
+    | "lowercaseFirstChar"
+    | "uppercaseFirstChar"
+    | "capitalizeFirstWord"
+    | "removePattern"
+    | "mergeWithPrevious";
   // For 'replace' action
   replacementText?: string; // Can use {match}, {argument}, etc.
   // For 'deleteLastN' action

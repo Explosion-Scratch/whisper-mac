@@ -745,8 +745,6 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
   }
 
-
-
   /**
    * Convert Float32Array audio data to WAV file for Vosk
    */

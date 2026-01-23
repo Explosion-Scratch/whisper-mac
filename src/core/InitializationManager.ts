@@ -22,7 +22,7 @@ export class InitializationManager {
     private ipcHandlerManager: IpcHandlerManager,
     private onInitializationComplete: () => void,
     private onOnboardingComplete?: () => void,
-  ) { }
+  ) {}
 
   async initialize(): Promise<void> {
     await this.setupDataDirectories();
@@ -86,7 +86,7 @@ export class InitializationManager {
     await Promise.allSettled(initTasks);
 
     this.setupPluginErrorHandling();
-    
+
     try {
       this.onInitializationComplete();
     } catch (error) {
@@ -95,7 +95,7 @@ export class InitializationManager {
       this.errorManager.showError({
         title: "Initialization Warning",
         description: error instanceof Error ? error.message : String(error),
-        actions: ["ok"]
+        actions: ["ok"],
       });
     } finally {
       // Always transition to idle state so the app is usable even if some non-critical init parts failed

@@ -391,7 +391,8 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   getHealthStatus(): PluginHealthStatus {
     const maxConsecutiveErrors = 5;
     return {
-      healthy: this.consecutiveErrors < maxConsecutiveErrors && this.isInitialized,
+      healthy:
+        this.consecutiveErrors < maxConsecutiveErrors && this.isInitialized,
       lastSuccessfulTranscription: this.lastTranscriptionAt,
       errorCount: this.errorCount,
       consecutiveErrors: this.consecutiveErrors,

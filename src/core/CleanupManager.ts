@@ -40,7 +40,7 @@ export class CleanupManager {
 
   async cleanup(): Promise<void> {
     console.log("=== Starting app cleanup ===");
-    
+
     const cleanupId = `app:cleanup:${Date.now()}`;
     promiseManager.start(cleanupId);
 
@@ -85,7 +85,7 @@ export class CleanupManager {
         },
         async () => {
           console.log("Step 7: Waiting for graceful shutdown...");
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
           return { step: "graceful-wait", success: true };
         },
         async () => {
@@ -97,7 +97,7 @@ export class CleanupManager {
           console.log("Step 9: Final cleanup...");
           await this.finalCleanup();
           return { step: "final", success: true };
-        }
+        },
       ]);
 
       console.log("=== App cleanup completed successfully ===");
@@ -170,7 +170,7 @@ export class CleanupManager {
       // Its cleanup is handled by its own cleanup() method
 
       // Force garbage collection if available
-      if (typeof global !== 'undefined' && global.gc) {
+      if (typeof global !== "undefined" && global.gc) {
         global.gc();
       }
 

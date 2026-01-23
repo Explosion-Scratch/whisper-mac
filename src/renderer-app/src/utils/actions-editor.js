@@ -166,7 +166,9 @@ export function getHandlerSummary(handler) {
       return config.applicationName || "No app set";
     case "executeShell": {
       const cmd = config.command || "";
-      return cmd.length > 50 ? cmd.substring(0, 50) + "..." : cmd || "No command set";
+      return cmd.length > 50
+        ? cmd.substring(0, 50) + "..."
+        : cmd || "No command set";
     }
     case "segmentAction":
       return config.action || "No action set";
@@ -238,7 +240,8 @@ export function addAction(settings) {
   const action = createNewAction();
   action.order = (settings.actions.actions.length || 0) + 1;
   action.matchPatterns[0].pattern = "trigger word ";
-  action.handlers[0].config.urlTemplate = "https://www.google.com/search?q={argument}";
+  action.handlers[0].config.urlTemplate =
+    "https://www.google.com/search?q={argument}";
   settings.actions.actions.push(action);
 }
 

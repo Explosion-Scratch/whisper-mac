@@ -27,11 +27,12 @@ export class MicrophonePermissionService {
       console.log("Native Microphone permission status:", status);
 
       this.microphoneEnabled = status === "authorized";
-      
+
       // Fallback to Electron check if native module fails or returns unknown
       if (status === "unknown") {
-        const electronStatus = systemPreferences.getMediaAccessStatus('microphone');
-        this.microphoneEnabled = electronStatus === 'granted';
+        const electronStatus =
+          systemPreferences.getMediaAccessStatus("microphone");
+        this.microphoneEnabled = electronStatus === "granted";
       }
 
       return this.microphoneEnabled;
@@ -47,8 +48,8 @@ export class MicrophonePermissionService {
    * @deprecated UI handling moved to main process
    */
   async showMicrophoneInstructions(): Promise<void> {
-      // Deprecated, keeping empty implementation or reusing old logic if needed for fallback
-      // For now, we rely on ensureMicrophonePermissions to trigger system prompt
+    // Deprecated, keeping empty implementation or reusing old logic if needed for fallback
+    // For now, we rely on ensureMicrophonePermissions to trigger system prompt
   }
 
   /**
@@ -73,7 +74,7 @@ export class MicrophonePermissionService {
         console.log("Requesting native microphone access...");
         // This triggers the macOS system dialog
         await this.nativeAudio.requestMicrophonePermission();
-        
+
         // Check status again
         const newStatus = this.nativeAudio.checkMicrophonePermission();
         console.log("Native microphone status after request:", newStatus);
@@ -85,8 +86,8 @@ export class MicrophonePermissionService {
         return false;
       }
     } catch (error) {
-       console.error("Error in ensureMicrophonePermissions:", error);
-       return false;
+      console.error("Error in ensureMicrophonePermissions:", error);
+      return false;
     }
   }
 

@@ -12,7 +12,10 @@ export { PushToTalkManager } from "./PushToTalkManager";
 export { promiseManager } from "./PromiseManager";
 export { IpcStateBridge, ipcStateBridge } from "./IpcStateBridge";
 
-export type { SetupStatus, DictationState, AppState, PermissionStatus as StorePermissionStatus } from "./AppStore";
+export type {
+  SetupStatus,
+  DictationState,
+  AppState,
+  PermissionStatus as StorePermissionStatus,
+} from "./AppStore";
 export type { ShortcutActions } from "./ShortcutManager";
-
-

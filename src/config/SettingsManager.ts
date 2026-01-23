@@ -187,8 +187,15 @@ export class SettingsManager extends EventEmitter {
   /**
    * Compare old and new settings and emit setting-changed events for changed values
    */
-  private emitChangedSettings(oldSettings: Record<string, any>, newSettings: Record<string, any>, prefix = ""): void {
-    const allKeys = new Set([...Object.keys(oldSettings), ...Object.keys(newSettings)]);
+  private emitChangedSettings(
+    oldSettings: Record<string, any>,
+    newSettings: Record<string, any>,
+    prefix = "",
+  ): void {
+    const allKeys = new Set([
+      ...Object.keys(oldSettings),
+      ...Object.keys(newSettings),
+    ]);
 
     for (const key of allKeys) {
       const fullKey = prefix ? `${prefix}.${key}` : key;
@@ -258,7 +265,7 @@ export class SettingsManager extends EventEmitter {
 
     if (JSON.stringify(oldValue) !== JSON.stringify(value)) {
       this.emit("setting-changed", key, value);
-      
+
       if (this.doesSettingRequireRestart(key)) {
         this.emit("setting-changed-requires-restart", key, value);
       }

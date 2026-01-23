@@ -18,7 +18,6 @@ export class MicrophoneService {
     // No IPC handlers needed - microphone enumeration moved to settings window
   }
 
-
   /**
    * Get audio constraints using stored microphone settings
    */
@@ -30,7 +29,7 @@ export class MicrophoneService {
       noiseSuppression: true,
     };
 
-    if (selectedDeviceId && selectedDeviceId !== 'default') {
+    if (selectedDeviceId && selectedDeviceId !== "default") {
       audioConstraints.deviceId = { exact: selectedDeviceId };
     }
 

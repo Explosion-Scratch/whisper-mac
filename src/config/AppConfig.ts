@@ -62,22 +62,25 @@ export class AppConfig {
 
     // Use Electron's user data directory if available, otherwise default to standard location
     if (app && !process.env.USE_LOCAL_DATA_DIR) {
-        this.dataDir = app.getPath("userData");
+      this.dataDir = app.getPath("userData");
     } else {
-        // Fallback for CLI/Node environment to match Electron's default
-        const platform = process.platform;
-        if (platform === 'darwin') {
-            this.dataDir = resolve(homedir(), "Library/Application Support/WhisperMac");
-        } else if (platform === 'win32') {
-            this.dataDir = resolve(homedir(), "AppData/Roaming/WhisperMac");
-        } else {
-            this.dataDir = resolve(homedir(), ".config/WhisperMac");
-        }
-        
-        // Allow override via env var (useful for dev/testing)
-        if (process.env.WHISPER_MAC_DATA_DIR) {
-            this.dataDir = process.env.WHISPER_MAC_DATA_DIR;
-        }
+      // Fallback for CLI/Node environment to match Electron's default
+      const platform = process.platform;
+      if (platform === "darwin") {
+        this.dataDir = resolve(
+          homedir(),
+          "Library/Application Support/WhisperMac",
+        );
+      } else if (platform === "win32") {
+        this.dataDir = resolve(homedir(), "AppData/Roaming/WhisperMac");
+      } else {
+        this.dataDir = resolve(homedir(), ".config/WhisperMac");
+      }
+
+      // Allow override via env var (useful for dev/testing)
+      if (process.env.WHISPER_MAC_DATA_DIR) {
+        this.dataDir = process.env.WHISPER_MAC_DATA_DIR;
+      }
     }
 
     // Dictation window defaults
@@ -198,7 +201,9 @@ export class AppConfig {
     }
 
     this.nonAiTransformations = {
-      rules: config.rules.map((rule, index) => this.normalizeNonAiRule(rule, index)),
+      rules: config.rules.map((rule, index) =>
+        this.normalizeNonAiRule(rule, index),
+      ),
     };
   }
 
@@ -220,8 +225,7 @@ export class AppConfig {
       matchFlags: sanitizedFlags(rule.matchFlags),
       replacePattern: rule.replacePattern || "",
       replaceFlags: sanitizedFlags(rule.replaceFlags) || "g",
-      replacement:
-        rule.replacement !== undefined ? rule.replacement : "",
+      replacement: rule.replacement !== undefined ? rule.replacement : "",
       replacementMode: rule.replacementMode || "literal",
       enabledForTranscription: Boolean(rule.enabledForTranscription),
       enabledForActions: Boolean(rule.enabledForActions),

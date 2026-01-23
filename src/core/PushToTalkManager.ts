@@ -17,11 +17,7 @@ interface HotkeyMatcher {
   source: string;
 }
 
-type PushToTalkState =
-  | "idle"
-  | "starting"
-  | "active"
-  | "stopping";
+type PushToTalkState = "idle" | "starting" | "active" | "stopping";
 
 const dedupeModifierCombos = (combos: ModifierCombo[]): ModifierCombo[] => {
   const seen = new Set<string>();
@@ -74,10 +70,12 @@ export class PushToTalkManager {
       (state) => state.dictation.state,
       (dictationState) => {
         if (dictationState === "idle" && this.pttState !== "idle") {
-          console.log(`[PushToTalkManager] Dictation became idle, syncing PTT state from ${this.pttState} to idle`);
+          console.log(
+            `[PushToTalkManager] Dictation became idle, syncing PTT state from ${this.pttState} to idle`,
+          );
           this.transitionTo("idle");
         }
-      }
+      },
     );
   }
 
@@ -110,7 +108,9 @@ export class PushToTalkManager {
     const prevState = this.pttState;
     if (prevState === newState) return;
 
-    console.log(`[PushToTalkManager] State transition: ${prevState} -> ${newState}`);
+    console.log(
+      `[PushToTalkManager] State transition: ${prevState} -> ${newState}`,
+    );
     this.pttState = newState;
     this.lastStateChangeTime = Date.now();
 
@@ -135,26 +135,42 @@ export class PushToTalkManager {
       );
       return;
     }
-    const modifierMasks = this.hotkeyMatcher.combos.map((c) => this.modifiersToMask(c));
-    const modifierArgument = modifierMasks.length <= 1 ? (modifierMasks[0] ?? 0) : modifierMasks;
+    const modifierMasks = this.hotkeyMatcher.combos.map((c) =>
+      this.modifiersToMask(c),
+    );
+    const modifierArgument =
+      modifierMasks.length <= 1 ? (modifierMasks[0] ?? 0) : modifierMasks;
 
-    console.log(`[PushToTalkManager] Registering hotkey: keyCode=${keyCode}, modifierMasks=${JSON.stringify(modifierMasks)}`);
+    console.log(
+      `[PushToTalkManager] Registering hotkey: keyCode=${keyCode}, modifierMasks=${JSON.stringify(modifierMasks)}`,
+    );
 
     try {
-      macInput.registerPushToTalkHotkey(keyCode, modifierArgument, (evt: { type: "down" | "up" }) => {
-        console.log(`[PushToTalkManager] Native callback: type=${evt?.type}, pttState=${this.pttState}`);
-        
-        if (evt?.type === "down") {
-          this.handleHotkeyPress();
-        } else if (evt?.type === "up") {
-          this.handleHotkeyRelease();
-        } else {
-          console.warn(`[PushToTalkManager] Unknown event type: ${evt?.type}`);
-        }
-      });
+      macInput.registerPushToTalkHotkey(
+        keyCode,
+        modifierArgument,
+        (evt: { type: "down" | "up" }) => {
+          console.log(
+            `[PushToTalkManager] Native callback: type=${evt?.type}, pttState=${this.pttState}`,
+          );
+
+          if (evt?.type === "down") {
+            this.handleHotkeyPress();
+          } else if (evt?.type === "up") {
+            this.handleHotkeyRelease();
+          } else {
+            console.warn(
+              `[PushToTalkManager] Unknown event type: ${evt?.type}`,
+            );
+          }
+        },
+      );
       this.registeredWithMacInput = true;
     } catch (error) {
-      console.warn("[PushToTalkManager] Failed to register native hotkey:", error);
+      console.warn(
+        "[PushToTalkManager] Failed to register native hotkey:",
+        error,
+      );
       this.registeredWithMacInput = false;
     }
   }
@@ -162,13 +178,17 @@ export class PushToTalkManager {
   private unregisterFromMacInput(): void {
     if (!this.registeredWithMacInput) return;
     if (macInput?.unregisterPushToTalkHotkey) {
-      try { macInput.unregisterPushToTalkHotkey(); } catch (_) {}
+      try {
+        macInput.unregisterPushToTalkHotkey();
+      } catch (_) {}
     }
     this.registeredWithMacInput = false;
   }
 
   private getConfiguredHotkey(): string {
-    return (this.settingsManager.get<string>("hotkeys.pushToTalk", "") || "").trim();
+    return (
+      this.settingsManager.get<string>("hotkeys.pushToTalk", "") || ""
+    ).trim();
   }
 
   private configureHotkey(hotkey: string): void {
@@ -201,18 +221,25 @@ export class PushToTalkManager {
       return;
     }
 
-    console.log(`[PushToTalkManager] Parsed hotkey "${normalized}": combos=${JSON.stringify(matcher.combos)}`);
+    console.log(
+      `[PushToTalkManager] Parsed hotkey "${normalized}": combos=${JSON.stringify(matcher.combos)}`,
+    );
 
     this.hotkeyMatcher = matcher;
     this.transitionTo("idle");
     this.currentHotkey = normalized;
     this.unregisterFromMacInput();
     this.registerWithMacInput();
-    console.log(`[PushToTalkManager] Registered push-to-talk hotkey: ${normalized}`);
+    console.log(
+      `[PushToTalkManager] Registered push-to-talk hotkey: ${normalized}`,
+    );
   }
 
   private parseHotkey(hotkey: string): HotkeyMatcher | null {
-    const tokens = hotkey.split("+").map((token) => token.trim()).filter(Boolean);
+    const tokens = hotkey
+      .split("+")
+      .map((token) => token.trim())
+      .filter(Boolean);
     if (tokens.length === 0) {
       return null;
     }
@@ -294,7 +321,7 @@ export class PushToTalkManager {
       if (combo.meta) mask |= flags.command;
       return mask;
     }
-    
+
     const SHIFT = 1 << 17;
     const CTRL = 1 << 18;
     const ALT = 1 << 19;
@@ -309,7 +336,9 @@ export class PushToTalkManager {
 
   private lookupMacKeycode(hotkeySource: string): number | null {
     if (!macInput?.getKeyCode) {
-      console.warn("[PushToTalkManager] Native getKeyCode function not available");
+      console.warn(
+        "[PushToTalkManager] Native getKeyCode function not available",
+      );
       return null;
     }
 
@@ -325,7 +354,9 @@ export class PushToTalkManager {
     if (this.disposed) return;
 
     if (this.pttState !== "idle") {
-      console.log(`[PushToTalkManager] Ignoring press; current state is ${this.pttState}`);
+      console.log(
+        `[PushToTalkManager] Ignoring press; current state is ${this.pttState}`,
+      );
       return;
     }
 
@@ -354,7 +385,9 @@ export class PushToTalkManager {
           console.log("[PushToTalkManager] Dictation started successfully");
           this.transitionTo("active");
         } else {
-          console.log(`[PushToTalkManager] Dictation started but state already changed to ${this.pttState}`);
+          console.log(
+            `[PushToTalkManager] Dictation started but state already changed to ${this.pttState}`,
+          );
         }
       })
       .catch((error) => {
@@ -366,15 +399,19 @@ export class PushToTalkManager {
         this.startPromise = null;
       })
       .finally(() => {
-        this.transcriptionPluginManager.setBufferingOverrideForNextSession(null);
+        this.transcriptionPluginManager.setBufferingOverrideForNextSession(
+          null,
+        );
       });
   }
 
   private handleHotkeyRelease(): void {
     if (this.disposed) return;
-    
+
     if (this.pttState !== "starting" && this.pttState !== "active") {
-      console.log(`[PushToTalkManager] Ignoring release; current state is ${this.pttState}`);
+      console.log(
+        `[PushToTalkManager] Ignoring release; current state is ${this.pttState}`,
+      );
       return;
     }
 
@@ -384,7 +421,10 @@ export class PushToTalkManager {
     const waitForStart = this.startPromise ?? Promise.resolve();
     waitForStart
       .catch((error) => {
-        console.warn("[PushToTalkManager] Waiting for start failed (ignoring for stop):", error);
+        console.warn(
+          "[PushToTalkManager] Waiting for start failed (ignoring for stop):",
+          error,
+        );
       })
       .finally(() => {
         void this.finalizePushToTalkSession();
@@ -395,7 +435,9 @@ export class PushToTalkManager {
     console.log("[PushToTalkManager] Finalizing session...");
     try {
       if (this.dictationFlowManager.isRecording()) {
-        console.log("[PushToTalkManager] Finishing current dictation (skipTransformation=true)");
+        console.log(
+          "[PushToTalkManager] Finishing current dictation (skipTransformation=true)",
+        );
         await this.dictationFlowManager.finishCurrentDictation({
           skipTransformation: true,
         });
@@ -404,7 +446,9 @@ export class PushToTalkManager {
           "[PushToTalkManager] Already in finishing state during release",
         );
       } else {
-        console.log("[PushToTalkManager] Not recording/finishing, cancelling flow");
+        console.log(
+          "[PushToTalkManager] Not recording/finishing, cancelling flow",
+        );
         await this.dictationFlowManager.cancelDictationFlow();
       }
     } catch (error) {

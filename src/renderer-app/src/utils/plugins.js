@@ -31,7 +31,7 @@ export function ensurePluginSettingsObjects(settings, pluginData) {
   if (!settings.plugin) settings.plugin = {};
   if (!pluginData?.plugins || !pluginData?.schemas) {
     console.warn(
-      "Plugin data structure is incomplete, skipping plugin settings initialization"
+      "Plugin data structure is incomplete, skipping plugin settings initialization",
     );
     return;
   }

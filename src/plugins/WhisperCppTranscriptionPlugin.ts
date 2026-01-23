@@ -62,10 +62,13 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.whisperBinaryPath = this.resolveWhisperBinaryPath(); // Keep for backward compatibility
     // Don't set modelPath here - wait for options to be applied
     this.resolvedBinaryPath = this.getBinaryPath(true); // Resolve once and store
-    
+
     // Default to processing segments individually, will be updated when options are set
     const defaultRunOnAll = false;
-    this.setActivationCriteria({ runOnAll: defaultRunOnAll, skipTransformation: false });
+    this.setActivationCriteria({
+      runOnAll: defaultRunOnAll,
+      skipTransformation: false,
+    });
 
     // Load Core ML setting from options with fallback to old config
     this.useCoreML = false; // Will be set properly when options are loaded
@@ -305,9 +308,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       });
 
       // Transcribe with whisper.cpp
-      const rawTranscription = await this.transcribeWithWhisperCpp(
-        tempAudioPath,
-      );
+      const rawTranscription =
+        await this.transcribeWithWhisperCpp(tempAudioPath);
 
       // Clean up temp file
       try {
@@ -401,8 +403,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       console.warn("Failed to clean temp directory:", err);
     }
   }
-
-
 
   /**
    * Update the model path after model switch
@@ -967,9 +967,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       const runOnAll =
         this.options.runOnAll !== undefined
           ? this.options.runOnAll
-          : this.getSchema()
-              .find((opt) => opt.key === "runOnAll")
-              ?.default ?? false;
+          : (this.getSchema().find((opt) => opt.key === "runOnAll")?.default ??
+            false);
       this.setActivationCriteria({
         runOnAll,
         skipTransformation: false,
@@ -991,7 +990,9 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       // Update the model path with the correct model
       this.modelPath = modelPath;
       this.setError(null);
-      console.log(`Whisper.cpp plugin activated with model: ${modelName}, runOnAll: ${runOnAll}`);
+      console.log(
+        `Whisper.cpp plugin activated with model: ${modelName}, runOnAll: ${runOnAll}`,
+      );
 
       // Start warmup loop and run initial warmup
       this.startWarmupLoop();
@@ -1219,14 +1220,17 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.setOptions(options);
 
     // Handle runOnAll setting changes
-    if (options.runOnAll !== undefined && options.runOnAll !== previousRunOnAll) {
+    if (
+      options.runOnAll !== undefined &&
+      options.runOnAll !== previousRunOnAll
+    ) {
       const runOnAll = options.runOnAll;
       this.setActivationCriteria({
         runOnAll,
         skipTransformation: false,
       });
       console.log(`Whisper.cpp plugin runOnAll updated to: ${runOnAll}`);
-      
+
       // The plugin manager needs to be notified to update buffering state
       // This happens automatically when the plugin manager checks getActivationCriteria
     }

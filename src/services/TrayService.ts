@@ -106,9 +106,8 @@ export class TrayService {
   private async activatePlugin(pluginName: string): Promise<void> {
     try {
       console.log(`Attempting to activate plugin: ${pluginName}`);
-      const result = await this.pluginManager.activatePluginWithFallback(
-        pluginName,
-      );
+      const result =
+        await this.pluginManager.activatePluginWithFallback(pluginName);
 
       if (result.success) {
         console.log(`Successfully activated plugin: ${result.activePlugin}`);

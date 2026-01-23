@@ -97,7 +97,7 @@ export class TrayInteractionManager {
           const settings = this.settingsService.getCurrentSettings();
           const isOnboardingComplete = !!settings?.onboardingComplete;
           const settingsVisible = this.settingsService.isWindowVisible();
-          
+
           // Only hide dock if onboarding is complete and settings window is not visible
           if (isOnboardingComplete && !settingsVisible) {
             console.log("Hiding dock icon after onboarding completion");
