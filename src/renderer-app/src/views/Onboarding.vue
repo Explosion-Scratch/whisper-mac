@@ -362,31 +362,30 @@
         </section>
 
         <section class="slide" data-step="hotkey" v-if="idx === 5">
-          <div class="content">
-            <div class="step-header">
-              <span class="step-icn"
+          <div class="content hotkey-content">
+            <div class="step-header compact">
+              <span class="step-icn small"
                 ><i class="ph-duotone ph-keyboard"></i
               ></span>
               <h1>Set your hotkey</h1>
             </div>
             <p class="micro">
-              Choose how you want to trigger dictation. You can change this
-              later in Settings.
+              Choose how you want to trigger dictation.
             </p>
 
-            <!-- Mode Selection Cards -->
-            <div class="hotkey-mode-cards">
+            <!-- Mode Selection Cards - Compact -->
+            <div class="hotkey-mode-cards compact">
               <div
-                class="hotkey-mode-card"
+                class="hotkey-mode-card compact"
                 :class="{ active: hotkeyMode === 'toggle' }"
                 @click="hotkeyMode = 'toggle'"
               >
-                <div class="mode-icon">
+                <div class="mode-icon small">
                   <i class="ph-duotone ph-play-pause"></i>
                 </div>
                 <div class="mode-content">
                   <h3>Start / Stop</h3>
-                  <p>Press once to start, press again to stop</p>
+                  <p>Press once to start, again to stop</p>
                 </div>
                 <div class="mode-check" v-if="hotkeyMode === 'toggle'">
                   <i class="ph-fill ph-check-circle"></i>
@@ -394,11 +393,11 @@
               </div>
 
               <div
-                class="hotkey-mode-card"
+                class="hotkey-mode-card compact"
                 :class="{ active: hotkeyMode === 'push' }"
                 @click="hotkeyMode = 'push'"
               >
-                <div class="mode-icon">
+                <div class="mode-icon small">
                   <i class="ph-duotone ph-hand-pointing"></i>
                 </div>
                 <div class="mode-content">
@@ -411,26 +410,28 @@
               </div>
             </div>
 
-            <!-- Hotkey Input -->
-            <div class="hotkey-config-section">
+            <!-- Hotkey Input - Inline -->
+            <div class="hotkey-config-section compact">
               <div class="hotkey-label">
                 <i class="ph-duotone ph-command"></i>
                 <span>{{
-                  hotkeyMode === "toggle" ? "Toggle Hotkey" : "Push to Talk Key"
+                  hotkeyMode === "toggle" ? "Hotkey" : "Key"
                 }}</span>
               </div>
               <OnboardingHotkeyInput
                 v-model="currentHotkey"
                 :placeholder="
-                  hotkeyMode === 'toggle' ? 'e.g. ⌘ D' : 'e.g. Right ⌘'
+                  hotkeyMode === 'toggle' ? 'e.g. ⌃ D' : 'e.g. ⌥ /'
                 "
               />
-              <div class="hotkey-suggestion" v-if="!currentHotkey">
-                <span class="suggestion-label">Suggestion:</span>
-                <button class="suggestion-btn" @click="applySuggestedHotkey">
-                  {{ hotkeyMode === "toggle" ? "⌃ D" : "Right ⌥" }}
-                </button>
-              </div>
+              <button
+                v-if="!currentHotkey"
+                class="suggestion-btn"
+                @click="applySuggestedHotkey"
+                :title="hotkeyMode === 'toggle' ? 'Use Control+D' : 'Use Alt+/'"
+              >
+                {{ hotkeyMode === "toggle" ? "⌃ D" : "⌥ /" }}
+              </button>
             </div>
           </div>
         </section>

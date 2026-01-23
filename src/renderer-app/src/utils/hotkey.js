@@ -79,6 +79,8 @@ export function normalizeKey(key, code, altKey) {
     } else if (CODE_TO_KEY_MAP[code]) {
       keyToUse = CODE_TO_KEY_MAP[code];
     }
+  } else if (code.startsWith("Key")) {
+    keyToUse = code.replace("Key", "");
   }
 
   return SPECIAL_KEY_MAP[keyToUse] || keyToUse;

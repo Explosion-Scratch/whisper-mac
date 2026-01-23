@@ -454,12 +454,11 @@ export default {
       }
     };
 
-    // Apply suggested hotkey based on mode
     const applySuggestedHotkey = () => {
       if (hotkeyMode.value === "toggle") {
         currentHotkey.value = "Control+D";
       } else {
-        currentHotkey.value = "Alt+Right";
+        currentHotkey.value = "Alt+/";
       }
     };
 

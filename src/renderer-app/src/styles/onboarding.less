@@ -396,12 +396,32 @@
     }
   }
 
+  // Compact styles for hotkey content
+  .hotkey-content {
+    gap: 8px;
+  }
+
+  .step-header.compact {
+    gap: 6px;
+  }
+
+  .step-icn.small {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+  }
+
   // Hotkey Mode Cards
   .hotkey-mode-cards {
     display: flex;
     gap: 12px;
     width: 100%;
     margin-top: 8px;
+
+    &.compact {
+      gap: 8px;
+      margin-top: 4px;
+    }
   }
 
   .hotkey-mode-card {
@@ -417,6 +437,32 @@
     cursor: pointer;
     transition: all 0.2s ease;
     position: relative;
+
+    &.compact {
+      flex-direction: row;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 10px;
+
+      .mode-content {
+        text-align: left;
+        flex: 1;
+
+        h3 {
+          font-size: 13px;
+        }
+
+        p {
+          font-size: 10px;
+          margin-top: 2px;
+        }
+      }
+
+      .mode-check {
+        position: static;
+        font-size: 16px;
+      }
+    }
 
     &:hover {
       border-color: rgba(0, 122, 255, 0.3);
@@ -439,6 +485,12 @@
       color: var(--accent);
       font-size: 28px;
       transition: all 0.2s ease;
+
+      &.small {
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+      }
     }
 
     &.active .mode-icon {
@@ -484,19 +536,53 @@
     background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 12px;
+
+    &.compact {
+      flex-direction: row;
+      justify-content: center;
+      margin-top: 8px;
+      padding: 10px 14px;
+      gap: 10px;
+      border-radius: 10px;
+    }
+  }
+
+  .hotkey-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .hotkey-label {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 13px;
+    gap: 6px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--fg);
+    white-space: nowrap;
 
     i {
-      font-size: 16px;
+      font-size: 14px;
       color: var(--accent);
+    }
+  }
+
+  .suggestion-btn {
+    padding: 6px 12px;
+    background: rgba(0, 122, 255, 0.1);
+    border: 1px solid rgba(0, 122, 255, 0.2);
+    border-radius: 6px;
+    color: var(--accent);
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+
+    &:hover {
+      background: rgba(0, 122, 255, 0.2);
+      border-color: rgba(0, 122, 255, 0.4);
     }
   }
 
@@ -509,23 +595,6 @@
     .suggestion-label {
       font-size: 11px;
       color: var(--muted);
-    }
-
-    .suggestion-btn {
-      padding: 4px 10px;
-      background: rgba(0, 122, 255, 0.1);
-      border: 1px solid rgba(0, 122, 255, 0.2);
-      border-radius: 4px;
-      color: var(--accent);
-      font-family: "SF Mono", Monaco, monospace;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.15s ease;
-
-      &:hover {
-        background: rgba(0, 122, 255, 0.2);
-        border-color: rgba(0, 122, 255, 0.4);
-      }
     }
   }
 
