@@ -486,9 +486,66 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     destPath: string,
     modelName: string,
     onProgress?: (percent: number) => void,
+    abortSignal?: AbortSignal,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Check if already aborted
+      if (abortSignal?.aborted) {
+        const error = new Error("Download aborted");
+        error.name = "AbortError";
+        reject(error);
+        return;
+      }
+
+      let aborted = false;
+      let activeRequest: any = null;
+      let activeFileStream: any = null;
+      let activeResponse: any = null;
+
+      const cleanup = () => {
+        if (activeResponse) {
+          activeResponse.destroy();
+        }
+        if (activeFileStream) {
+          activeFileStream.destroy();
+        }
+        if (activeRequest) {
+          activeRequest.destroy();
+        }
+        // Remove partial file
+        try {
+          if (existsSync(destPath)) {
+            const { unlinkSync } = require("fs");
+            unlinkSync(destPath);
+            console.log(`[WhisperCpp] Removed partial download: ${destPath}`);
+          }
+        } catch (e) {
+          console.error(`[WhisperCpp] Failed to cleanup partial download:`, e);
+        }
+      };
+
+      const abortHandler = () => {
+        if (aborted) return;
+        aborted = true;
+        console.log(`[WhisperCpp] Download aborted for ${modelName}`);
+        cleanup();
+        const error = new Error("Download aborted");
+        error.name = "AbortError";
+        reject(error);
+      };
+
+      if (abortSignal) {
+        abortSignal.addEventListener("abort", abortHandler, { once: true });
+      }
+
       const request = https.get(url, (response) => {
+        activeResponse = response;
+
+        if (aborted) {
+          cleanup();
+          return;
+        }
+
         if (response.statusCode === 302 || response.statusCode === 301) {
           // Handle redirect
           const redirectUrl = response.headers.location;
@@ -498,16 +555,23 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
               destPath,
               modelName,
               onProgress,
+              abortSignal,
             )
               .then(resolve)
               .catch(reject);
           } else {
+            if (abortSignal) {
+              abortSignal.removeEventListener("abort", abortHandler);
+            }
             reject(new Error("Redirect without location header"));
           }
           return;
         }
 
         if (response.statusCode !== 200) {
+          if (abortSignal) {
+            abortSignal.removeEventListener("abort", abortHandler);
+          }
           reject(
             new Error(`Failed to download model: HTTP ${response.statusCode}`),
           );
@@ -520,8 +584,10 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         );
         let downloadedBytes = 0;
         const fileStream = createWriteStream(destPath);
+        activeFileStream = fileStream;
 
         response.on("data", (chunk: Buffer) => {
+          if (aborted) return;
           downloadedBytes += chunk.length;
           const percent =
             totalBytes > 0
@@ -533,6 +599,10 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         response.pipe(fileStream);
 
         fileStream.on("finish", () => {
+          if (aborted) return;
+          if (abortSignal) {
+            abortSignal.removeEventListener("abort", abortHandler);
+          }
           console.log(
             `Model ${modelName} downloaded successfully to ${destPath}`,
           );
@@ -541,17 +611,31 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         });
 
         fileStream.on("error", (error) => {
+          if (aborted) return;
+          if (abortSignal) {
+            abortSignal.removeEventListener("abort", abortHandler);
+          }
           console.error(`File write error: ${error.message}`);
           reject(error);
         });
 
         response.on("error", (error: Error) => {
+          if (aborted) return;
+          if (abortSignal) {
+            abortSignal.removeEventListener("abort", abortHandler);
+          }
           console.error(`Download error: ${error.message}`);
           reject(error);
         });
       });
 
+      activeRequest = request;
+
       request.on("error", (error) => {
+        if (aborted) return;
+        if (abortSignal) {
+          abortSignal.removeEventListener("abort", abortHandler);
+        }
         console.error(`Failed to start download: ${error.message}`);
         reject(error);
       });
@@ -1417,7 +1501,15 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     options: Record<string, any>,
     onProgress?: (progress: any) => void,
     onLog?: (line: string) => void,
+    abortSignal?: AbortSignal,
   ): Promise<boolean> {
+    // Check if already aborted
+    if (abortSignal?.aborted) {
+      const error = new Error("Download aborted");
+      error.name = "AbortError";
+      throw error;
+    }
+
     const modelName =
       options.model ||
       this.getSchema().find((opt) => opt.key === "model")?.default ||
@@ -1432,28 +1524,32 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
 
     try {
-      await this.downloadModel(modelName, {
-        showProgress: (message: string, progress: number) => {
-          onProgress?.({
-            message,
-            percent: progress,
-            status: progress >= 100 ? "complete" : "downloading",
-          });
+      await this.downloadModel(
+        modelName,
+        {
+          showProgress: (message: string, progress: number) => {
+            onProgress?.({
+              message,
+              percent: progress,
+              status: progress >= 100 ? "complete" : "downloading",
+            });
+          },
+          showDownloadProgress: (downloadProgress: any) => {
+            onProgress?.(downloadProgress);
+          },
+          hideProgress: () => {
+            // No-op: Progress hiding handled by caller
+          },
+          showError: (error: string) => {
+            onLog?.(`Error: ${error}`);
+          },
+          showSuccess: (message: string) => {
+            onLog?.(message);
+          },
+          confirmAction: async (message: string) => true,
         },
-        showDownloadProgress: (downloadProgress: any) => {
-          onProgress?.(downloadProgress);
-        },
-        hideProgress: () => {
-          // No-op: Progress hiding handled by caller
-        },
-        showError: (error: string) => {
-          onLog?.(`Error: ${error}`);
-        },
-        showSuccess: (message: string) => {
-          onLog?.(message);
-        },
-        confirmAction: async (message: string) => true,
-      });
+        abortSignal,
+      );
       return true;
     } catch (error: any) {
       onLog?.(`Failed to download model ${modelName}: ${error.message}`);
@@ -1464,6 +1560,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   async downloadModel(
     modelName: string,
     uiFunctions?: PluginUIFunctions,
+    abortSignal?: AbortSignal,
   ): Promise<void> {
     this.setLoadingState(true, `Downloading ${modelName}...`);
 
@@ -1506,6 +1603,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
               modelName,
             });
           },
+          abortSignal,
         );
 
         if (uiFunctions) {

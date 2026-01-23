@@ -706,7 +706,7 @@ export default {
     async cancelImport() {
       await cancelSettingsImport();
       this.importProgress.visible = false;
-      this.showStatus("Import cancelled", "info");
+      this.showStatus("Import cancelled - settings reverted", "info");
     },
 
     onImportDone() {

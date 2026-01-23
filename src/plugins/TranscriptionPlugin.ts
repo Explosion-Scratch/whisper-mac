@@ -240,6 +240,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
     options: Record<string, any>,
     onProgress?: (progress: any) => void,
     onLog?: (line: string) => void,
+    abortSignal?: AbortSignal,
   ): Promise<boolean>;
 
   /** Plugins can override to declare activation criteria */

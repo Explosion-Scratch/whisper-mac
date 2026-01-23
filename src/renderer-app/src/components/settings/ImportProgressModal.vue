@@ -4,7 +4,8 @@
       <div class="import-card">
         <!-- Status Icon -->
         <div class="status-icon" :class="stage">
-          <i :class="stageIconClass"></i>
+          <i v-if="isActiveStage" class="ph ph-circle-notch spinning"></i>
+          <i v-else :class="stageIconClass"></i>
         </div>
 
         <!-- Title -->
@@ -45,6 +46,9 @@
               class="progress-fill"
               :style="{ width: (modelProgress.downloadPercent || 0) + '%' }"
             ></div>
+          </div>
+          <div v-if="downloadSizeText" class="download-size">
+            {{ downloadSizeText }}
           </div>
         </div>
 
@@ -121,6 +125,12 @@ export default {
   emits: ["cancel", "done"],
 
   setup(props, { emit }) {
+    const isActiveStage = computed(() => {
+      return ["validating", "applying", "downloading", "activating"].includes(
+        props.stage,
+      );
+    });
+
     const stageTitle = computed(() => {
       const titles = {
         validating: "Validating",
@@ -135,14 +145,26 @@ export default {
 
     const stageIconClass = computed(() => {
       const icons = {
-        validating: "ph ph-magnifying-glass",
-        applying: "ph ph-gear",
-        downloading: "ph ph-cloud-arrow-down",
-        activating: "ph ph-plug",
         complete: "ph ph-check",
         error: "ph ph-x",
       };
       return icons[props.stage] || "ph ph-circle-notch";
+    });
+
+    const formatBytes = (bytes) => {
+      if (!bytes || bytes === 0) return "0 B";
+      const k = 1024;
+      const sizes = ["B", "KB", "MB", "GB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      const value = bytes / Math.pow(k, i);
+      return `${value.toFixed(1)} ${sizes[i]}`;
+    };
+
+    const downloadSizeText = computed(() => {
+      if (!props.modelProgress) return null;
+      const { downloadedBytes, totalBytes } = props.modelProgress;
+      if (!totalBytes || totalBytes === 0) return null;
+      return `${formatBytes(downloadedBytes || 0)} / ${formatBytes(totalBytes)}`;
     });
 
     function handleCancel() {
@@ -154,8 +176,10 @@ export default {
     }
 
     return {
+      isActiveStage,
       stageTitle,
       stageIconClass,
+      downloadSizeText,
       handleCancel,
       handleDone,
     };
@@ -193,10 +217,7 @@ export default {
   color: #666;
 }
 
-.status-icon.downloading i,
-.status-icon.validating i,
-.status-icon.applying i,
-.status-icon.activating i {
+.status-icon .spinning {
   animation: spin 1s linear infinite;
 }
 
@@ -283,6 +304,14 @@ export default {
   font-size: 11px;
   font-family: "SF Mono", Monaco, monospace;
   color: var(--muted, #86868b);
+}
+
+.download-size {
+  margin-top: 6px;
+  font-size: 10px;
+  font-family: "SF Mono", Monaco, monospace;
+  color: var(--muted, #86868b);
+  text-align: center;
 }
 
 .success-section {

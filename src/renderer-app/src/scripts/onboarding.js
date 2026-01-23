@@ -296,16 +296,21 @@ export default {
 
     const handleComplete = async () => {
       try {
+        console.log("[Onboarding] Calling onboardingAPI.complete()...");
         const result = await window.onboardingAPI.complete();
+        console.log("[Onboarding] onboardingAPI.complete() result:", result);
         if (!result?.success) {
           const pluginLabel = getSelectedPluginDisplayName();
           completionError.value = result?.error
             ? `${pluginLabel}: ${result.error}`
             : `${pluginLabel} can't be activated right now.`;
+          console.error("[Onboarding] Complete failed:", completionError.value);
           return false;
         }
+        console.log("[Onboarding] Complete successful, window should close");
         return true;
       } catch (error) {
+        console.error("[Onboarding] Complete threw error:", error);
         const pluginLabel = getSelectedPluginDisplayName();
         const message =
           error?.message ||
@@ -529,8 +534,15 @@ export default {
       const wasSuccessful = importProgress.value.stage === "complete";
       importProgress.value.visible = false;
       if (wasSuccessful) {
+        console.log("[Onboarding] Import successful, completing onboarding...");
         // Complete onboarding since settings were successfully imported
-        await handleComplete();
+        const result = await handleComplete();
+        console.log("[Onboarding] handleComplete result:", result);
+        if (!result) {
+          console.error(
+            "[Onboarding] Failed to complete onboarding after import",
+          );
+        }
       }
     };
 

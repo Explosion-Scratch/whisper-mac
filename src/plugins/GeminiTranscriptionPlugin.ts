@@ -688,6 +688,7 @@ export class GeminiTranscriptionPlugin extends BaseTranscriptionPlugin {
     options: Record<string, any>,
     onProgress?: (progress: any) => void,
     onLog?: (line: string) => void,
+    abortSignal?: AbortSignal,
   ): Promise<boolean> {
     onLog?.("Gemini plugin doesn't require model downloads");
     onProgress?.({

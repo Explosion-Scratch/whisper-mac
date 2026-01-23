@@ -117,6 +117,7 @@ export class YapTranscriptionPlugin extends BaseTranscriptionPlugin {
     options: Record<string, any>,
     onProgress?: (progress: any) => void,
     onLog?: (line: string) => void,
+    abortSignal?: AbortSignal,
   ): Promise<boolean> {
     if (FAKE_UNAVAIL) {
       return Promise.resolve(false);

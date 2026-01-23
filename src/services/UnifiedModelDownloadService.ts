@@ -15,6 +15,7 @@ export class UnifiedModelDownloadService extends EventEmitter {
   private modelManager: ModelManager;
   private transcriptionPluginManager: TranscriptionPluginManager | null = null;
   private activeDownload: { plugin: string; model: string } | null = null;
+  private activeAbortController: AbortController | null = null;
 
   constructor(config: AppConfig, modelManager: ModelManager) {
     super();
@@ -26,11 +27,25 @@ export class UnifiedModelDownloadService extends EventEmitter {
     this.transcriptionPluginManager = manager;
   }
 
+  /**
+   * Abort any active download
+   */
+  abortDownload(): void {
+    if (this.activeAbortController) {
+      console.log("[UnifiedModelDownload] Aborting active download");
+      this.activeAbortController.abort();
+      this.activeAbortController = null;
+    }
+    this.activeDownload = null;
+    this.modelManager.cancelDownload();
+  }
+
   async ensureModelForPlugin(
     pluginName: string,
     modelName: string,
     onProgress?: (progress: UnifiedModelDownloadProgress) => void,
     onLog?: (line: string) => void,
+    abortSignal?: AbortSignal,
   ): Promise<boolean> {
     if (this.activeDownload) {
       throw new Error(
@@ -53,7 +68,20 @@ export class UnifiedModelDownloadService extends EventEmitter {
       return true;
     }
 
+    // Check if already aborted
+    if (abortSignal?.aborted) {
+      throw new Error("Download aborted");
+    }
+
     this.activeDownload = { plugin: pluginName, model: modelName };
+    this.activeAbortController = new AbortController();
+
+    // Link external abort signal to our controller
+    if (abortSignal) {
+      abortSignal.addEventListener("abort", () => {
+        this.activeAbortController?.abort();
+      });
+    }
 
     console.log(
       `[UnifiedModelDownload] ensureModelForPlugin called: plugin=${pluginName}, model=${modelName}`,
@@ -62,6 +90,13 @@ export class UnifiedModelDownloadService extends EventEmitter {
     try {
       const wrappedProgress = onProgress
         ? (progress: ModelDownloadProgress) => {
+            // Check for abort during progress
+            if (
+              abortSignal?.aborted ||
+              this.activeAbortController?.signal.aborted
+            ) {
+              throw new Error("Download aborted");
+            }
             console.log(
               `[UnifiedModelDownload] Progress update: status=${progress.status}, progress=${progress.progress}`,
             );
@@ -101,6 +136,7 @@ export class UnifiedModelDownloadService extends EventEmitter {
           { model: modelName },
           wrappedProgress,
           onLog,
+          this.activeAbortController?.signal,
         );
         console.log(
           `[UnifiedModelDownload] plugin.ensureModelAvailable completed for ${pluginName}`,
@@ -124,6 +160,7 @@ export class UnifiedModelDownloadService extends EventEmitter {
       return true;
     } finally {
       this.activeDownload = null;
+      this.activeAbortController = null;
     }
   }
 

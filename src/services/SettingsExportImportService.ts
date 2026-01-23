@@ -62,6 +62,8 @@ export interface ImportProgress {
   modelProgress?: {
     modelName: string;
     downloadPercent: number;
+    downloadedBytes?: number;
+    totalBytes?: number;
   };
 }
 
@@ -88,6 +90,8 @@ export class SettingsExportImportService extends EventEmitter {
     null;
   private isImporting = false;
   private importCancelled = false;
+  private originalSettings: Record<string, any> | null = null;
+  private activeAbortController: AbortController | null = null;
 
   constructor(config: AppConfig, settingsManager: SettingsManager) {
     super();
@@ -172,6 +176,12 @@ export class SettingsExportImportService extends EventEmitter {
 
     this.isImporting = true;
     this.importCancelled = false;
+    this.activeAbortController = new AbortController();
+
+    // Save original settings for rollback on cancel
+    this.originalSettings = JSON.parse(
+      JSON.stringify(this.settingsManager.getAll()),
+    );
 
     const warnings: string[] = [];
     const errors: string[] = [];
@@ -249,6 +259,7 @@ export class SettingsExportImportService extends EventEmitter {
       }
 
       if (this.importCancelled) {
+        this.rollbackSettings();
         return { success: false, message: "Import cancelled", warnings };
       }
 
@@ -263,6 +274,7 @@ export class SettingsExportImportService extends EventEmitter {
 
         for (const model of modelsToDownload) {
           if (this.importCancelled) {
+            this.rollbackSettings();
             return { success: false, message: "Import cancelled", warnings };
           }
 
@@ -285,26 +297,40 @@ export class SettingsExportImportService extends EventEmitter {
           });
 
           try {
-            await this.downloadModel(model, (downloadPercent) => {
-              console.log(
-                `[Import] Downloading ${model.displayName}: ${downloadPercent.toFixed(1)}%`,
-              );
-              onProgress?.({
-                stage: "downloading",
-                message: `Downloading ${model.displayName}...`,
-                percent:
-                  basePercent + (downloadPercent / 100) * (50 / totalModels),
-                currentStep: 3,
-                totalSteps: 4,
-                modelProgress: {
-                  modelName: model.displayName,
-                  downloadPercent,
-                },
-              });
-            });
+            await this.downloadModel(
+              model,
+              (progress) => {
+                console.log(
+                  `[Import] Downloading ${model.displayName}: ${progress.percent.toFixed(1)}%`,
+                );
+                onProgress?.({
+                  stage: "downloading",
+                  message: `Downloading ${model.displayName}...`,
+                  percent:
+                    basePercent + (progress.percent / 100) * (50 / totalModels),
+                  currentStep: 3,
+                  totalSteps: 4,
+                  modelProgress: {
+                    modelName: model.displayName,
+                    downloadPercent: progress.percent,
+                    downloadedBytes: progress.downloadedBytes,
+                    totalBytes: progress.totalBytes,
+                  },
+                });
+              },
+              this.activeAbortController?.signal,
+            );
             modelsDownloaded.push(model.modelName);
             downloadedCount++;
           } catch (error: any) {
+            // Check if this was an abort
+            if (
+              error.name === "AbortError" ||
+              error.message?.includes("aborted")
+            ) {
+              this.rollbackSettings();
+              return { success: false, message: "Import cancelled", warnings };
+            }
             warnings.push(
               `Failed to download ${model.displayName}: ${error.message}`,
             );
@@ -314,6 +340,7 @@ export class SettingsExportImportService extends EventEmitter {
       }
 
       if (this.importCancelled) {
+        this.rollbackSettings();
         return { success: false, message: "Import cancelled", warnings };
       }
 
@@ -384,6 +411,11 @@ export class SettingsExportImportService extends EventEmitter {
       };
     } finally {
       this.isImporting = false;
+      this.activeAbortController = null;
+      // Only clear original settings on successful completion
+      if (!this.importCancelled) {
+        this.originalSettings = null;
+      }
     }
   }
 
@@ -413,10 +445,41 @@ export class SettingsExportImportService extends EventEmitter {
   }
 
   /**
-   * Cancel an in-progress import
+   * Cancel an in-progress import and rollback settings
    */
   cancelImport(): void {
     this.importCancelled = true;
+
+    // Abort any active download
+    if (this.activeAbortController) {
+      this.activeAbortController.abort();
+      this.activeAbortController = null;
+    }
+
+    // Abort download in the unified service if active
+    if (this.unifiedModelDownloadService) {
+      this.unifiedModelDownloadService.abortDownload?.();
+    }
+
+    // Rollback settings immediately
+    this.rollbackSettings();
+  }
+
+  /**
+   * Rollback settings to the state before import started
+   */
+  private rollbackSettings(): void {
+    if (this.originalSettings) {
+      console.log("[Import] Rolling back settings to pre-import state");
+      try {
+        this.settingsManager.setAll(this.originalSettings);
+        this.settingsManager.saveSettings();
+        this.settingsManager.applyToConfig();
+      } catch (error) {
+        console.error("[Import] Failed to rollback settings:", error);
+      }
+      this.originalSettings = null;
+    }
   }
 
   /**
@@ -713,10 +776,20 @@ export class SettingsExportImportService extends EventEmitter {
 
   private async downloadModel(
     model: RequiredModel,
-    onProgress: (percent: number) => void,
+    onProgress: (progress: {
+      percent: number;
+      downloadedBytes?: number;
+      totalBytes?: number;
+    }) => void,
+    abortSignal?: AbortSignal,
   ): Promise<void> {
     if (!this.unifiedModelDownloadService) {
       throw new Error("Model download service not available");
+    }
+
+    // Check if already aborted before starting
+    if (abortSignal?.aborted) {
+      throw new Error("Download aborted");
     }
 
     console.log(
@@ -728,14 +801,23 @@ export class SettingsExportImportService extends EventEmitter {
         model.pluginName,
         model.modelName,
         (progress) => {
+          // Check for abort during progress updates
+          if (abortSignal?.aborted) {
+            throw new Error("Download aborted");
+          }
           console.log(
-            `[Import] ensureModelForPlugin progress: status=${progress.status}, progress=${progress.progress}`,
+            `[Import] ensureModelForPlugin progress: status=${progress.status}, progress=${progress.progress}, bytes=${progress.downloadedBytes}/${progress.totalBytes}`,
           );
-          onProgress(progress.progress);
+          onProgress({
+            percent: progress.progress,
+            downloadedBytes: progress.downloadedBytes,
+            totalBytes: progress.totalBytes,
+          });
         },
         (logLine) => {
           console.log(`[Import] ensureModelForPlugin log: ${logLine}`);
         },
+        abortSignal,
       );
       console.log(
         `[Import] downloadModel completed for ${model.pluginName}/${model.modelName}`,

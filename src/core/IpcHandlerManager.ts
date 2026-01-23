@@ -601,8 +601,10 @@ export class IpcHandlerManager {
 
     ipcMain.handle("onboarding:complete", async () => {
       try {
+        console.log("[Onboarding] onboarding:complete handler called");
         // Now activate the plugin after onboarding is complete
         const activePlugin = this.config.get("transcriptionPlugin") || "yap";
+        console.log(`[Onboarding] Activating plugin: ${activePlugin}`);
         const pluginOptions =
           (await this.transcriptionPluginManager.getPluginOptions(
             activePlugin,
@@ -612,6 +614,7 @@ export class IpcHandlerManager {
           activePlugin,
           pluginOptions,
         );
+        console.log("[Onboarding] Plugin activated successfully");
 
         // Mark onboarding complete and continue normal init
         const sm = this.settingsService.getSettingsManager();
@@ -624,12 +627,20 @@ export class IpcHandlerManager {
 
         // Call the onboarding completion handler to continue initialization
         if (this.onOnboardingComplete) {
+          console.log(
+            "[Onboarding] Calling onOnboardingComplete callback to close window",
+          );
           this.onOnboardingComplete();
+        } else {
+          console.warn(
+            "[Onboarding] No onOnboardingComplete callback registered!",
+          );
         }
 
+        console.log("[Onboarding] Returning success");
         return { success: true };
       } catch (error: any) {
-        console.error("Onboarding completion error:", error);
+        console.error("[Onboarding] Completion error:", error);
         return { success: false, error: error.message || "Completion failed" };
       }
     });

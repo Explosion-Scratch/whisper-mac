@@ -670,7 +670,18 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
     options: Record<string, any>,
     onProgress?: (progress: any) => void,
     onLog?: (line: string) => void,
+    abortSignal?: AbortSignal,
   ): Promise<boolean> {
+    // Check if already aborted
+    if (abortSignal?.aborted) {
+      const error = new Error("Download aborted");
+      error.name = "AbortError";
+      throw error;
+    }
+
+    // Store abort signal for use in download methods
+    this.currentAbortSignal = abortSignal;
+
     const modelName = options.model || "parakeet-tdt-0.6b-v2-onnx";
     const modelDir = join(this.config.getModelsDir(), modelName);
 
@@ -729,8 +740,13 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
       console.error(`[parakeet] Download failed: ${error.message}`);
       onLog?.(`Failed to download model ${modelName}: ${error.message}`);
       throw error;
+    } finally {
+      this.currentAbortSignal = undefined;
     }
   }
+
+  // Store current abort signal for download operations
+  private currentAbortSignal?: AbortSignal;
 
   private async downloadFileWithProgress(
     url: string,
@@ -740,7 +756,16 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
   ): Promise<void> {
     console.log(`Downloading ${url} to ${destPath}...`);
 
-    const response = await fetch(url);
+    // Check if already aborted
+    if (this.currentAbortSignal?.aborted) {
+      const error = new Error("Download aborted");
+      error.name = "AbortError";
+      throw error;
+    }
+
+    const response = await fetch(url, {
+      signal: this.currentAbortSignal,
+    });
     if (!response.ok) {
       throw new Error(
         `Failed to download ${fileName}: ${response.statusText} (${response.status})`,
@@ -757,7 +782,37 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
     if (response.body && typeof (response.body as any).pipe === "function") {
       // Node-fetch v2 style (Node stream)
       return new Promise((resolve, reject) => {
+        let aborted = false;
+
+        const abortHandler = () => {
+          if (aborted) return;
+          aborted = true;
+          console.log(`[parakeet] Download aborted for ${fileName}`);
+          (response.body as any).destroy?.();
+          fileStream.destroy();
+          // Clean up partial file
+          try {
+            if (existsSync(destPath)) {
+              const { unlinkSync } = require("fs");
+              unlinkSync(destPath);
+              console.log(`[parakeet] Removed partial download: ${destPath}`);
+            }
+          } catch (e) {
+            console.error(`[parakeet] Failed to cleanup partial download:`, e);
+          }
+          const error = new Error("Download aborted");
+          error.name = "AbortError";
+          reject(error);
+        };
+
+        if (this.currentAbortSignal) {
+          this.currentAbortSignal.addEventListener("abort", abortHandler, {
+            once: true,
+          });
+        }
+
         (response.body as any).on("data", (chunk: Buffer) => {
+          if (aborted) return;
           downloadedBytes += chunk.length;
           const percent =
             totalBytes > 0
@@ -769,20 +824,67 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
         (response.body as any).pipe(fileStream);
 
         fileStream.on("finish", () => {
+          if (aborted) return;
+          if (this.currentAbortSignal) {
+            this.currentAbortSignal.removeEventListener("abort", abortHandler);
+          }
           onProgress?.(100);
           resolve();
         });
 
-        fileStream.on("error", (error: any) => reject(error));
-        (response.body as any).on("error", (error: any) => reject(error));
+        fileStream.on("error", (error: any) => {
+          if (aborted) return;
+          if (this.currentAbortSignal) {
+            this.currentAbortSignal.removeEventListener("abort", abortHandler);
+          }
+          reject(error);
+        });
+        (response.body as any).on("error", (error: any) => {
+          if (aborted) return;
+          if (this.currentAbortSignal) {
+            this.currentAbortSignal.removeEventListener("abort", abortHandler);
+          }
+          reject(error);
+        });
       });
     } else if (response.body) {
       // Web Streams API (standard fetch)
       const reader = response.body.getReader();
 
       return new Promise(async (resolve, reject) => {
+        let aborted = false;
+
+        const abortHandler = () => {
+          if (aborted) return;
+          aborted = true;
+          console.log(`[parakeet] Download aborted for ${fileName}`);
+          reader.cancel();
+          fileStream.destroy();
+          // Clean up partial file
+          try {
+            if (existsSync(destPath)) {
+              const { unlinkSync } = require("fs");
+              unlinkSync(destPath);
+              console.log(`[parakeet] Removed partial download: ${destPath}`);
+            }
+          } catch (e) {
+            console.error(`[parakeet] Failed to cleanup partial download:`, e);
+          }
+          const error = new Error("Download aborted");
+          error.name = "AbortError";
+          reject(error);
+        };
+
+        if (this.currentAbortSignal) {
+          this.currentAbortSignal.addEventListener("abort", abortHandler, {
+            once: true,
+          });
+        }
+
         try {
           while (true) {
+            if (aborted) break;
+
             const { done, value } = await reader.read();
             if (done) break;
 
@@ -797,12 +899,25 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
             }
           }
 
+          if (aborted) return;
+
+          if (this.currentAbortSignal) {
+            this.currentAbortSignal.removeEventListener("abort", abortHandler);
+          }
+
           fileStream.end();
           fileStream.on("finish", () => {
             onProgress?.(100);
             resolve();
           });
-        } catch (error) {
+        } catch (error: any) {
+          if (this.currentAbortSignal) {
+            this.currentAbortSignal.removeEventListener("abort", abortHandler);
+          }
+          if (error.name === "AbortError" || aborted) {
+            // Already handled by abort handler
+            return;
+          }
           reject(error);
         }
       });
