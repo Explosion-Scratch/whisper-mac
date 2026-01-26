@@ -1,5 +1,10 @@
 <div align=center><img src="./assets/icon-upscale.png" width="200" alt="WhisperMac" /></div>
+
+
+https://github.com/user-attachments/assets/a925a78d-1aa4-4698-acfa-8c1343d912c5
+
 <div align=center><h1>WhisperMac</h1></div>
+
 
 Local first, extensible, privacy friendly and fast dictation app for macOS. It supports Parakeet, WhisperCPP, Vosk, mac's native Speech framework (all local) or cloud services like Gemini, or Mistral for transcription. It also has support for custom transcription + transformation rules, and lots of settings!
 
