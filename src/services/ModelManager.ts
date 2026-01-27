@@ -483,4 +483,12 @@ export class ModelManager {
       );
     }
   }
+
+  /**
+   * Cleanup method to stop any active downloads
+   */
+  cleanup(): void {
+    console.log("Cleaning up ModelManager...");
+    this.cleanupActiveDownload();
+  }
 }

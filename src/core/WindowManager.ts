@@ -113,4 +113,11 @@ export class WindowManager {
 
     console.log("=== All windows force closed ===");
   }
+
+  cleanup(): void {
+    console.log("Cleaning up WindowManager...");
+    this.closeOnboardingWindow();
+    this.closeModelManagerWindow();
+    this.forceCloseAllWindows();
+  }
 }

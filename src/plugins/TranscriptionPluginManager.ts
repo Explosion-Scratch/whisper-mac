@@ -1149,6 +1149,8 @@ export class TranscriptionPluginManager extends EventEmitter {
       }
     }
 
+    this.removeAllListeners();
+
     const plugins = this.getPlugins();
     const cleanupId = `plugin:cleanup:all:${Date.now()}`;
     promiseManager.start(cleanupId);

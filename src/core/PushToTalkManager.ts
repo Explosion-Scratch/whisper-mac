@@ -79,7 +79,8 @@ export class PushToTalkManager {
     );
   }
 
-  dispose(): void {
+  cleanup(): void {
+    console.log("Cleaning up PushToTalkManager...");
     this.disposed = true;
 
     if (this.settingsListener) {

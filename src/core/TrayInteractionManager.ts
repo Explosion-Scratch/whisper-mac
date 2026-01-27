@@ -19,13 +19,17 @@ export class TrayInteractionManager {
     this.setupStatusChangeHandler();
   }
 
+  private unsubscribeStatusChange: (() => void) | null = null;
+
   private setupStatusChangeHandler(): void {
-    this.appStateManager.onSetupStatusChange((status) => {
-      if (status === "idle" && this.pendingToggle) {
-        this.pendingToggle = false;
-        this.onToggleRecording();
-      }
-    });
+    this.unsubscribeStatusChange = this.appStateManager.onSetupStatusChange(
+      (status) => {
+        if (status === "idle" && this.pendingToggle) {
+          this.pendingToggle = false;
+          this.onToggleRecording();
+        }
+      },
+    );
   }
 
   public handleTrayClick(): void {
@@ -117,6 +121,14 @@ export class TrayInteractionManager {
       app.dock?.show();
     } catch (error) {
       console.error("Error showing dock after onboarding:", error);
+    }
+  }
+
+  cleanup(): void {
+    console.log("Cleaning up TrayInteractionManager...");
+    if (this.unsubscribeStatusChange) {
+      this.unsubscribeStatusChange();
+      this.unsubscribeStatusChange = null;
     }
   }
 }

@@ -310,4 +310,9 @@ export class ShortcutManager {
   getRegisteredShortcuts(): string[] {
     return [...this.registeredShortcuts];
   }
+
+  cleanup(): void {
+    console.log("Cleaning up ShortcutManager...");
+    this.unregisterAll();
+  }
 }

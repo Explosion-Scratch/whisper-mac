@@ -1,183 +1,67 @@
 import { globalShortcut } from "electron";
 import { TranscriptionPluginManager } from "../plugins";
-import { DictationWindowService } from "../services/DictationWindowService";
-import { SettingsService } from "../services/SettingsService";
-import { TrayService } from "../services/TrayService";
-import { WindowManager } from "./WindowManager";
 import { promiseManager } from "./PromiseManager";
-import { PushToTalkManager } from "./PushToTalkManager";
+
+export interface Cleanable {
+  cleanup(): void | Promise<void>;
+}
 
 export class CleanupManager {
-  private transcriptionPluginManager: TranscriptionPluginManager;
-  private dictationWindowService: DictationWindowService;
-  private settingsService: SettingsService;
-  private trayService: TrayService | null;
-  private windowManager: WindowManager;
   private finishingTimeout: NodeJS.Timeout | null = null;
-  private pushToTalkManager: PushToTalkManager | null = null;
 
-  constructor(
-    transcriptionPluginManager: TranscriptionPluginManager,
-    dictationWindowService: DictationWindowService,
-    settingsService: SettingsService,
-    trayService: TrayService | null,
-    windowManager: WindowManager,
-  ) {
-    this.transcriptionPluginManager = transcriptionPluginManager;
-    this.dictationWindowService = dictationWindowService;
-    this.settingsService = settingsService;
-    this.trayService = trayService;
-    this.windowManager = windowManager;
-  }
-
-  setPushToTalkManager(manager: PushToTalkManager | null): void {
-    this.pushToTalkManager = manager;
-  }
+  constructor(private readonly cleanables: (Cleanable | null)[] = []) {}
 
   setFinishingTimeout(timeout: NodeJS.Timeout | null): void {
     this.finishingTimeout = timeout;
   }
 
   async cleanup(): Promise<void> {
-    console.log("=== Starting app cleanup ===");
+    console.log("=== Starting comprehensive app cleanup ===");
 
     const cleanupId = `app:cleanup:${Date.now()}`;
     promiseManager.start(cleanupId);
 
+    // Safety timeout to ensure app exits even if cleanup hangs
     const cleanupTimeout = setTimeout(() => {
-      console.log("Cleanup timeout reached, forcing app quit...");
-      promiseManager.reject(cleanupId, new Error("Cleanup timeout"));
+      console.log("Cleanup timeout reached, forcing exit...");
       process.exit(0);
-    }, 10000); // Increased timeout to 10 seconds
+    }, 10000);
 
     try {
-      // Coordinate cleanup steps
-      await promiseManager.sequence([
-        async () => {
-          console.log("Step 1: Stopping transcription...");
-          await this.stopTranscription();
-          return { step: "transcription", success: true };
-        },
-        async () => {
-          console.log("Step 2: Disabling push-to-talk hotkey...");
-          this.disposePushToTalkHotkey();
-          return { step: "push-to-talk", success: true };
-        },
-        async () => {
-          console.log("Step 3: Unregistering shortcuts...");
-          this.unregisterShortcuts();
-          return { step: "shortcuts", success: true };
-        },
-        async () => {
-          console.log("Step 4: Clearing timeouts...");
-          this.clearTimeouts();
-          return { step: "timeouts", success: true };
-        },
-        async () => {
-          console.log("Step 5: Cleaning up services...");
-          this.cleanupServices();
-          return { step: "services", success: true };
-        },
-        async () => {
-          console.log("Step 6: Closing windows...");
-          this.closeWindows();
-          return { step: "windows", success: true };
-        },
-        async () => {
-          console.log("Step 7: Waiting for graceful shutdown...");
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          return { step: "graceful-wait", success: true };
-        },
-        async () => {
-          console.log("Step 8: Force closing remaining windows...");
-          this.forceCloseRemainingWindows();
-          return { step: "force-close", success: true };
-        },
-        async () => {
-          console.log("Step 9: Final cleanup...");
-          await this.finalCleanup();
-          return { step: "final", success: true };
-        },
-      ]);
+      // Step 1: Clear application timeouts
+      if (this.finishingTimeout) {
+        clearTimeout(this.finishingTimeout);
+        this.finishingTimeout = null;
+      }
+
+      // Step 2: Cleanup all other registered components and services
+      console.log("Step 1: Cleaning up registered components and services...");
+      for (const component of this.cleanables) {
+        try {
+          if (component) {
+            await component.cleanup();
+          }
+        } catch (err) {
+          console.error("Error cleaning up component:", err);
+        }
+      }
+
+      // Step 3: Final environment cleanup
+      console.log("Step 2: Final environment cleanup...");
+      globalShortcut.unregisterAll();
+
+      // Best-effort GC
+      if (typeof global !== "undefined" && (global as any).gc) {
+        (global as any).gc();
+      }
 
       console.log("=== App cleanup completed successfully ===");
       promiseManager.resolve(cleanupId);
     } catch (error) {
-      console.error("Error during cleanup:", error);
+      console.error("Cleanup failed:", error);
       promiseManager.reject(cleanupId, error);
-      // Continue with cleanup even if there are errors
     } finally {
       clearTimeout(cleanupTimeout);
-    }
-  }
-
-  private unregisterShortcuts(): void {
-    globalShortcut.unregisterAll();
-    console.log("Global shortcuts unregistered");
-  }
-
-  private disposePushToTalkHotkey(): void {
-    if (this.pushToTalkManager) {
-      this.pushToTalkManager.dispose();
-      this.pushToTalkManager = null;
-      console.log("Push-to-talk hotkey unregistered");
-    }
-  }
-
-  private async stopTranscription(): Promise<void> {
-    await this.transcriptionPluginManager.stopTranscription();
-    console.log("Transcription stopped");
-  }
-
-  private closeWindows(): void {
-    this.dictationWindowService.cleanup();
-    this.settingsService.cleanup();
-    this.windowManager.closeModelManagerWindow();
-    console.log("Windows closed");
-  }
-
-  private cleanupServices(): void {
-    // Best-effort async cleanup; don't await here to keep shutdown fast
-    void this.transcriptionPluginManager.cleanup();
-    this.trayService?.destroy();
-    console.log("Services cleaned up");
-  }
-
-  private clearTimeouts(): void {
-    if (this.finishingTimeout) {
-      clearTimeout(this.finishingTimeout);
-      this.finishingTimeout = null;
-    }
-    console.log("Timeouts cleared");
-  }
-
-  private forceCloseRemainingWindows(): void {
-    this.windowManager.forceCloseAllWindows();
-  }
-
-  private async finalCleanup(): Promise<void> {
-    try {
-      // Remove event listeners from services that extend EventEmitter
-      if (this.transcriptionPluginManager?.removeAllListeners) {
-        this.transcriptionPluginManager.removeAllListeners();
-      }
-
-      if (this.dictationWindowService?.removeAllListeners) {
-        this.dictationWindowService.removeAllListeners();
-      }
-
-      // SettingsService doesn't extend EventEmitter, so it doesn't have removeAllListeners
-      // Its cleanup is handled by its own cleanup() method
-
-      // Force garbage collection if available
-      if (typeof global !== "undefined" && global.gc) {
-        global.gc();
-      }
-
-      console.log("All event listeners cleared and final cleanup completed");
-    } catch (error) {
-      console.error("Error in final cleanup:", error);
-      // Don't throw - we want to continue with app shutdown
     }
   }
 }

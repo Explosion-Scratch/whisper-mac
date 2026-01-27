@@ -154,4 +154,8 @@ export class InitializationManager {
       });
     });
   }
+
+  cleanup(): void {
+    console.log("Cleaning up InitializationManager...");
+  }
 }

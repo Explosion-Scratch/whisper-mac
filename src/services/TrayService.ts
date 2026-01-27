@@ -219,7 +219,8 @@ export class TrayService {
     this.setTrayIcon(iconPath);
   }
 
-  destroy() {
+  cleanup() {
+    console.log("Cleaning up TrayService...");
     this.tray?.destroy();
     this.tray = null;
     this.trayMenu = null;

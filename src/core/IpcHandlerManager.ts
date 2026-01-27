@@ -50,7 +50,7 @@ export class IpcHandlerManager {
     this.setupOnboardingSetupHandlers();
   }
 
-  cleanupIpcHandlers(): void {
+  cleanup(): void {
     console.log("=== Cleaning up IPC handlers ===");
 
     // Remove all dictation handlers

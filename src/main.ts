@@ -368,6 +368,25 @@ class WhisperMacApp {
     this.appStateManager.setSetupStatus("preparing-app");
 
     await this.initializationManager.initialize();
+
+    this.cleanupManager = new CleanupManager([
+      this.transcriptionPluginManager,
+      this.dictationWindowService,
+      this.settingsService,
+      this.trayService,
+      this.windowManager,
+      this.appStateManager,
+      this.shortcutManager,
+      this.dictationFlowManager,
+      this.ipcHandlerManager,
+      this.initializationManager,
+      this.trayInteractionManager,
+      this.errorManager,
+      this.modelManager,
+      this.historyService,
+      this.pushToTalkManager,
+      ipcStateBridge,
+    ]);
   }
 
   // ... (rest of methods remain the same)
@@ -385,16 +404,8 @@ class WhisperMacApp {
     );
     this.trayService.createTray();
 
-    this.cleanupManager = new CleanupManager(
-      this.transcriptionPluginManager,
-      this.dictationWindowService,
-      this.settingsService,
-      this.trayService,
-      this.windowManager,
-    );
     this.dictationFlowManager.setTrayService(this.trayService);
     this.shortcutManager.setDictationFlowManager(this.dictationFlowManager);
-    this.cleanupManager.setPushToTalkManager(this.pushToTalkManager);
   }
 
   private handleTrayClick(): void {
@@ -552,9 +563,6 @@ class WhisperMacApp {
   }
 
   async cleanup(): Promise<void> {
-    // Cleanup history service
-    await this.historyService.cleanup();
-
     console.log("=== WhisperMacApp cleanup starting ===");
 
     try {
@@ -562,12 +570,8 @@ class WhisperMacApp {
         this.dictationFlowManager.setFinishingTimeout(null);
       this.cleanupManager.setFinishingTimeout(finishingTimeout);
 
-      console.log("Cleaning up IPC handlers...");
-      this.ipcHandlerManager.cleanupIpcHandlers();
-
-      console.log("Starting comprehensive cleanup...");
+      console.log("Starting comprehensive cleanup via CleanupManager...");
       await this.cleanupManager.cleanup();
-      await this.transcriptionPluginManager.cleanup();
 
       console.log("=== WhisperMacApp cleanup completed ===");
     } catch (error) {

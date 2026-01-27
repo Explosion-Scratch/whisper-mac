@@ -188,7 +188,8 @@ export class IpcStateBridge {
     }
   }
 
-  destroy(): void {
+  cleanup(): void {
+    console.log("Cleaning up IpcStateBridge...");
     for (const [id] of this.subscriptions) {
       this.removeSubscription(id);
     }

@@ -70,7 +70,8 @@ export class AppStateManager {
     return appStore.select((state) => state.app.status) === "service-ready";
   }
 
-  destroy(): void {
+  cleanup(): void {
+    console.log("Cleaning up AppStateManager...");
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;
