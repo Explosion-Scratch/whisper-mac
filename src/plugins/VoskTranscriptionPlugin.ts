@@ -41,18 +41,15 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
   private config: AppConfig;
   private sessionUid: string = "";
   private currentSegments: Segment[] = [];
-  private tempDir: string;
   private modelManager: ModelManager;
   private voskScriptPath: string;
 
   constructor(config: AppConfig) {
     super();
     this.config = config;
-    this.tempDir = mkdtempSync(join(tmpdir(), "vosk-plugin-"));
     this.modelManager = new ModelManager(config);
     this.voskScriptPath = this.resolveVoskScriptPath();
     this.setActivationCriteria({ runOnAll: false, skipTransformation: false });
-    // Initialize schema
     this.schema = this.getSchema();
   }
 
@@ -863,7 +860,7 @@ export class VoskTranscriptionPlugin extends BaseTranscriptionPlugin {
   /**
    * Convert Float32Array audio data to WAV file for Vosk
    */
-  private async saveAudioAsWav(audioData: Float32Array): Promise<string> {
+  protected async saveAudioAsWav(audioData: Float32Array): Promise<string> {
     return WavProcessor.saveAudioAsWav(audioData, this.tempDir, {
       sampleRate: this.options.sampleRate || 16000,
       numChannels: 1,

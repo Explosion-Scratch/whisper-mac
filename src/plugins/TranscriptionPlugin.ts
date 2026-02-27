@@ -2,6 +2,19 @@ import { EventEmitter } from "events";
 import { SegmentUpdate } from "../types/SegmentTypes";
 import { SecureStorageService } from "../services/SecureStorageService";
 import { FileSystemService } from "../services/FileSystemService";
+import { WavProcessor } from "../helpers/WavProcessor";
+import { spawn } from "child_process";
+import * as https from "https";
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  unlinkSync,
+  statSync,
+  createWriteStream,
+} from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 
 export interface TranscriptionSetupProgress {
   status: "starting" | "complete" | "error";
@@ -121,6 +134,7 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   protected currentState: PluginState = { isLoading: false };
   protected options: Record<string, any> = {};
   protected schema: PluginSchemaItem[] = [];
+  protected tempDir: string;
 
   protected activationCriteria: PluginActivationCriteria = {};
   protected onTranscriptionCallback: ((update: SegmentUpdate) => void) | null =
@@ -149,11 +163,10 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   constructor() {
     super();
     this.secureStorage = new SecureStorageService();
-    // Initialize schema in constructor
+    this.tempDir = mkdtempSync(join(tmpdir(), "plugin-"));
     this.schema = this.getSchema();
   }
 
-  // Existing transcription methods
   abstract isAvailable(): Promise<boolean>;
   abstract startTranscription(
     onUpdate: (update: SegmentUpdate) => void,
@@ -162,86 +175,211 @@ export abstract class BaseTranscriptionPlugin extends EventEmitter {
   ): Promise<void>;
   abstract processAudioSegment(audioData: Float32Array): Promise<void>;
   abstract transcribeFile(filePath: string): Promise<string>;
-
-  /**
-   * Optional method for plugins that need to process all buffered audio at once
-   */
   finalizeBufferedAudio?(): Promise<void>;
   abstract stopTranscription(): Promise<void>;
   abstract cleanup(): Promise<void>;
-
-  // Schema methods (for UI)
   abstract getSchema(): PluginSchemaItem[];
 
   getSchemaItems(): PluginSchemaItem[] {
     return [...this.schema];
   }
 
-  // Options methods (for runtime values)
   getOptions(): Record<string, any> {
     return { ...this.options };
   }
 
   setOptions(options: Record<string, any>): void {
-    console.log(`[${this.name}] Setting options:`, options);
     this.options = { ...options };
-    console.log(`[${this.name}] Options set successfully`);
   }
 
-  // Validation
-  abstract validateOptions(
+  async validateOptions(
     options: Record<string, any>,
-  ): Promise<{ valid: boolean; errors: string[] }>;
-  abstract onActivated(uiFunctions?: PluginUIFunctions): Promise<void>;
-  abstract initialize(): Promise<void>;
-  abstract destroy(): Promise<void>;
-  abstract onDeactivate(): Promise<void>;
+  ): Promise<{ valid: boolean; errors: string[] }> {
+    return { valid: true, errors: [] };
+  }
+
+  async onActivated(uiFunctions?: PluginUIFunctions): Promise<void> {
+    this.setActive(true);
+  }
+
+  async initialize(): Promise<void> {
+    this.setInitialized(true);
+  }
+
+  async destroy(): Promise<void> {
+    await this.stopTranscription();
+    this.setInitialized(false);
+    this.setActive(false);
+  }
+
+  async onDeactivate(): Promise<void> {
+    this.setActive(false);
+  }
+
   async getDataSize(): Promise<number> {
     try {
       const items = await this.listData();
-      if (!items) {
-        return 0;
-      }
-      return items.reduce((total, item) => total + (item.size || 0), 0);
-    } catch (error) {
-      console.error(
-        `[${this.name}] Error calculating data size from listData:`,
-        error,
-      );
+      return items ? items.reduce((total, item) => total + (item.size || 0), 0) : 0;
+    } catch {
       return 0;
     }
   }
-  abstract getDataPath(): string;
 
-  // Data management methods
-  abstract listData(): Promise<
+  getDataPath(): string {
+    return this.tempDir;
+  }
+
+  async listData(): Promise<
     Array<{ name: string; description: string; size: number; id: string }>
-  >;
-  abstract deleteDataItem(id: string): Promise<void>;
-  abstract deleteAllData(): Promise<void>;
-  abstract updateOptions(
+  > {
+    const items: Array<{ name: string; description: string; size: number; id: string }> = [];
+    try {
+      if (existsSync(this.tempDir)) {
+        for (const file of readdirSync(this.tempDir)) {
+          try {
+            const s = statSync(join(this.tempDir, file));
+            items.push({ name: file, description: "Temporary file", size: s.size, id: `temp:${file}` });
+          } catch {}
+        }
+      }
+      for (const key of await this.listSecureKeys()) {
+        items.push({ name: key, description: "Secure storage item", size: 0, id: `secure:${key}` });
+      }
+    } catch {}
+    return items;
+  }
+
+  async deleteDataItem(id: string): Promise<void> {
+    const [type, identifier] = id.split(":", 2);
+    if (type === "temp") {
+      const p = join(this.tempDir, identifier);
+      if (existsSync(p)) unlinkSync(p);
+    } else if (type === "secure") {
+      await this.deleteSecureValue(identifier);
+    }
+  }
+
+  async deleteAllData(): Promise<void> {
+    if (existsSync(this.tempDir)) {
+      for (const file of readdirSync(this.tempDir)) {
+        try { unlinkSync(join(this.tempDir, file)); } catch {}
+      }
+    }
+    await this.clearSecureData();
+  }
+
+  async updateOptions(
     options: Record<string, any>,
     uiFunctions?: PluginUIFunctions,
-  ): Promise<void>;
+  ): Promise<void> {
+    this.setOptions(options);
+  }
 
-  /**
-   * Download a model for this plugin. Should handle all plugin-specific download requirements.
-   */
-  abstract downloadModel(
+  async downloadModel(
     modelName: string,
     uiFunctions?: PluginUIFunctions,
-  ): Promise<void>;
+  ): Promise<void> {}
 
-  /**
-   * Ensure a model is available for the plugin (used for onboarding/setup).
-   * Plugins should implement this to handle their own model setup requirements.
-   */
-  abstract ensureModelAvailable(
+  async ensureModelAvailable(
     options: Record<string, any>,
     onProgress?: (progress: any) => void,
     onLog?: (line: string) => void,
     abortSignal?: AbortSignal,
-  ): Promise<boolean>;
+  ): Promise<boolean> {
+    return true;
+  }
+
+  protected async saveAudioAsWav(
+    audioData: Float32Array,
+    opts?: { sampleRate?: number; numChannels?: number; bitsPerSample?: number },
+  ): Promise<string> {
+    return WavProcessor.saveAudioAsWav(audioData, this.tempDir, {
+      sampleRate: opts?.sampleRate ?? 16000,
+      numChannels: opts?.numChannels ?? 1,
+      bitsPerSample: opts?.bitsPerSample ?? 16,
+    });
+  }
+
+  protected clearTempDir(): void {
+    try {
+      if (existsSync(this.tempDir)) {
+        for (const file of readdirSync(this.tempDir)) {
+          try { unlinkSync(join(this.tempDir, file)); } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  protected async downloadFileWithProgress(
+    url: string,
+    destPath: string,
+    label: string,
+    onProgress?: (percent: number) => void,
+    abortSignal?: AbortSignal,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (abortSignal?.aborted) {
+        const e = new Error("Download aborted"); e.name = "AbortError"; reject(e); return;
+      }
+      let aborted = false;
+      let req: any, res: any, fstream: any;
+
+      const cleanup = () => {
+        res?.destroy(); fstream?.destroy(); req?.destroy();
+        try { if (existsSync(destPath)) unlinkSync(destPath); } catch {}
+      };
+      const onAbort = () => {
+        if (aborted) return; aborted = true; cleanup();
+        const e = new Error("Download aborted"); e.name = "AbortError"; reject(e);
+      };
+      abortSignal?.addEventListener("abort", onAbort, { once: true });
+
+      req = https.get(url, (response) => {
+        res = response;
+        if (aborted) { cleanup(); return; }
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          const loc = response.headers.location;
+          if (loc) { this.downloadFileWithProgress(loc, destPath, label, onProgress, abortSignal).then(resolve).catch(reject); }
+          else { abortSignal?.removeEventListener("abort", onAbort); reject(new Error("Redirect without location")); }
+          return;
+        }
+        if (response.statusCode !== 200) {
+          abortSignal?.removeEventListener("abort", onAbort);
+          reject(new Error(`HTTP ${response.statusCode}`)); return;
+        }
+        const total = parseInt(response.headers["content-length"] || "0", 10);
+        let downloaded = 0;
+        fstream = createWriteStream(destPath);
+        response.on("data", (chunk: Buffer) => {
+          if (aborted) return;
+          downloaded += chunk.length;
+          onProgress?.(total > 0 ? Math.round((downloaded / total) * 100) : 0);
+        });
+        response.pipe(fstream);
+        fstream.on("finish", () => {
+          if (aborted) return; abortSignal?.removeEventListener("abort", onAbort);
+          onProgress?.(100); resolve();
+        });
+        fstream.on("error", (e: Error) => {
+          if (aborted) return; abortSignal?.removeEventListener("abort", onAbort); reject(e);
+        });
+        response.on("error", (e: Error) => {
+          if (aborted) return; abortSignal?.removeEventListener("abort", onAbort); reject(e);
+        });
+      });
+      req.on("error", (e: Error) => {
+        if (aborted) return; abortSignal?.removeEventListener("abort", onAbort); reject(e);
+      });
+    });
+  }
+
+  protected async extractZip(zipPath: string, extractDir: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const child = spawn("unzip", ["-o", zipPath, "-d", extractDir], { stdio: "inherit" });
+      child.on("close", (code) => code === 0 ? resolve() : reject(new Error(`Extraction failed (code ${code})`)));
+      child.on("error", (e) => reject(new Error(`Extraction failed: ${e.message}`)));
+    });
+  }
 
   /** Plugins can override to declare activation criteria */
   getActivationCriteria(): PluginActivationCriteria {

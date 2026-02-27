@@ -1,16 +1,13 @@
 import { spawn, ChildProcess } from "child_process";
 import {
   unlinkSync,
-  mkdtempSync,
   existsSync,
   readFileSync,
-  createWriteStream,
   readdirSync,
 } from "fs";
 import { join } from "path";
-import { tmpdir, arch, platform } from "os";
+import { arch, platform } from "os";
 import { v4 as uuidv4 } from "uuid";
-import * as https from "https";
 import { AppConfig } from "../config/AppConfig";
 import { FileSystemService } from "../services/FileSystemService";
 import {
@@ -26,7 +23,6 @@ import {
   PluginUIFunctions,
 } from "./TranscriptionPlugin";
 import { readPrompt } from "../helpers/getPrompt";
-import { WavProcessor } from "../helpers/WavProcessor";
 
 /**
  * Whisper.cpp transcription plugin
@@ -43,7 +39,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   private config: AppConfig;
   private sessionUid: string = "";
   private currentSegments: Segment[] = [];
-  private tempDir: string;
   private whisperBinaryPath: string;
   private modelPath: string = "";
   private isAppleSilicon: boolean;
@@ -57,7 +52,6 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   constructor(config: AppConfig) {
     super();
     this.config = config;
-    this.tempDir = mkdtempSync(join(tmpdir(), "whisper-cpp-plugin-"));
     this.isAppleSilicon = arch() === "arm64" && platform() === "darwin";
     this.whisperBinaryPath = this.resolveWhisperBinaryPath(); // Keep for backward compatibility
     // Don't set modelPath here - wait for options to be applied
@@ -70,11 +64,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       skipTransformation: false,
     });
 
-    // Load Core ML setting from options with fallback to old config
-    this.useCoreML = false; // Will be set properly when options are loaded
-
-    // Initialize schema
-    this.schema = this.getSchema();
+    this.useCoreML = false;
   }
 
   /**
@@ -442,8 +432,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     try {
       console.log(`Downloading Core ML model: ${coreMLModelName}`);
 
-      // Download using curl
-      await this.downloadFile(coreMLUrl, localZipPath);
+      await this.downloadFileWithProgress(coreMLUrl, localZipPath, coreMLModelName);
 
       // Extract the zip
       await this.extractZip(localZipPath, this.config.getModelsDir());
@@ -461,206 +450,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
   }
 
-  private async downloadFile(url: string, destPath: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const child = spawn("curl", ["-L", "-o", destPath, url], {
-        stdio: "inherit",
-      });
 
-      child.on("close", (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`Download failed with code ${code}`));
-        }
-      });
-
-      child.on("error", (error) => {
-        reject(new Error(`Download failed: ${error.message}`));
-      });
-    });
-  }
-
-  private async downloadFileWithProgress(
-    url: string,
-    destPath: string,
-    modelName: string,
-    onProgress?: (percent: number) => void,
-    abortSignal?: AbortSignal,
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // Check if already aborted
-      if (abortSignal?.aborted) {
-        const error = new Error("Download aborted");
-        error.name = "AbortError";
-        reject(error);
-        return;
-      }
-
-      let aborted = false;
-      let activeRequest: any = null;
-      let activeFileStream: any = null;
-      let activeResponse: any = null;
-
-      const cleanup = () => {
-        if (activeResponse) {
-          activeResponse.destroy();
-        }
-        if (activeFileStream) {
-          activeFileStream.destroy();
-        }
-        if (activeRequest) {
-          activeRequest.destroy();
-        }
-        // Remove partial file
-        try {
-          if (existsSync(destPath)) {
-            const { unlinkSync } = require("fs");
-            unlinkSync(destPath);
-            console.log(`[WhisperCpp] Removed partial download: ${destPath}`);
-          }
-        } catch (e) {
-          console.error(`[WhisperCpp] Failed to cleanup partial download:`, e);
-        }
-      };
-
-      const abortHandler = () => {
-        if (aborted) return;
-        aborted = true;
-        console.log(`[WhisperCpp] Download aborted for ${modelName}`);
-        cleanup();
-        const error = new Error("Download aborted");
-        error.name = "AbortError";
-        reject(error);
-      };
-
-      if (abortSignal) {
-        abortSignal.addEventListener("abort", abortHandler, { once: true });
-      }
-
-      const request = https.get(url, (response) => {
-        activeResponse = response;
-
-        if (aborted) {
-          cleanup();
-          return;
-        }
-
-        if (response.statusCode === 302 || response.statusCode === 301) {
-          // Handle redirect
-          const redirectUrl = response.headers.location;
-          if (redirectUrl) {
-            this.downloadFileWithProgress(
-              redirectUrl,
-              destPath,
-              modelName,
-              onProgress,
-              abortSignal,
-            )
-              .then(resolve)
-              .catch(reject);
-          } else {
-            if (abortSignal) {
-              abortSignal.removeEventListener("abort", abortHandler);
-            }
-            reject(new Error("Redirect without location header"));
-          }
-          return;
-        }
-
-        if (response.statusCode !== 200) {
-          if (abortSignal) {
-            abortSignal.removeEventListener("abort", abortHandler);
-          }
-          reject(
-            new Error(`Failed to download model: HTTP ${response.statusCode}`),
-          );
-          return;
-        }
-
-        const totalBytes = parseInt(
-          response.headers["content-length"] || "0",
-          10,
-        );
-        let downloadedBytes = 0;
-        const fileStream = createWriteStream(destPath);
-        activeFileStream = fileStream;
-
-        response.on("data", (chunk: Buffer) => {
-          if (aborted) return;
-          downloadedBytes += chunk.length;
-          const percent =
-            totalBytes > 0
-              ? Math.round((downloadedBytes / totalBytes) * 100)
-              : 0;
-          onProgress?.(percent);
-        });
-
-        response.pipe(fileStream);
-
-        fileStream.on("finish", () => {
-          if (aborted) return;
-          if (abortSignal) {
-            abortSignal.removeEventListener("abort", abortHandler);
-          }
-          console.log(
-            `Model ${modelName} downloaded successfully to ${destPath}`,
-          );
-          onProgress?.(100);
-          resolve();
-        });
-
-        fileStream.on("error", (error) => {
-          if (aborted) return;
-          if (abortSignal) {
-            abortSignal.removeEventListener("abort", abortHandler);
-          }
-          console.error(`File write error: ${error.message}`);
-          reject(error);
-        });
-
-        response.on("error", (error: Error) => {
-          if (aborted) return;
-          if (abortSignal) {
-            abortSignal.removeEventListener("abort", abortHandler);
-          }
-          console.error(`Download error: ${error.message}`);
-          reject(error);
-        });
-      });
-
-      activeRequest = request;
-
-      request.on("error", (error) => {
-        if (aborted) return;
-        if (abortSignal) {
-          abortSignal.removeEventListener("abort", abortHandler);
-        }
-        console.error(`Failed to start download: ${error.message}`);
-        reject(error);
-      });
-    });
-  }
-
-  private async extractZip(zipPath: string, extractDir: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const child = spawn("unzip", ["-o", zipPath, "-d", extractDir], {
-        stdio: "inherit",
-      });
-
-      child.on("close", (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`Extraction failed with code ${code}`));
-        }
-      });
-
-      child.on("error", (error) => {
-        reject(new Error(`Extraction failed: ${error.message}`));
-      });
-    });
-  }
 
   /**
    * Get the appropriate binary path for the current platform
@@ -715,16 +505,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     return existsSync(coreMLModelPath) ? coreMLModelPath : null;
   }
 
-  /**
-   * Convert Float32Array audio data to WAV file for whisper.cpp
-   */
-  private async saveAudioAsWav(audioData: Float32Array): Promise<string> {
-    return WavProcessor.saveAudioAsWav(audioData, this.tempDir, {
-      sampleRate: 16000, // Whisper expects 16kHz
-      numChannels: 1,
-      bitsPerSample: 16,
-    });
-  }
+
 
   /**
    * Transcribe audio file using whisper.cpp CLI
@@ -1107,20 +888,9 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
   }
 
-  async destroy(): Promise<void> {
-    console.log("Whisper.cpp plugin destroyed");
-    this.setInitialized(false);
-    this.setActive(false);
-  }
-
   async onDeactivate(): Promise<void> {
-    this.setActive(false);
-    console.log("Whisper.cpp plugin deactivated");
+    await super.onDeactivate();
     this.stopWarmupLoop();
-  }
-
-  getDataPath(): string {
-    return this.tempDir;
   }
 
   async listData(): Promise<

@@ -5,18 +5,13 @@ import {
   TranscriptionSetupProgress,
 } from "./TranscriptionPlugin";
 import { SegmentUpdate } from "../types/SegmentTypes";
-import { WavProcessor } from "../helpers/WavProcessor";
 import { AppConfig } from "../config/AppConfig";
 import { TransformationService } from "../services/TransformationService";
 import {
   SelectedTextService,
   SelectedTextResult,
 } from "../services/SelectedTextService";
-import * as os from "os";
 import * as fs from "fs";
-import { join } from "path";
-import { mkdtempSync, existsSync, readdirSync } from "fs";
-import { tmpdir } from "os";
 import { v4 as uuidv4 } from "uuid";
 
 const PROCESS_ALL_AUDIO = true;
@@ -33,28 +28,21 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
   private readonly apiBase = "https://api.mistral.ai/v1";
   private apiKey: string | null = null;
   private config: AppConfig;
-  private tempDir: string;
   private sessionUid: string = "";
 
   constructor(config: AppConfig) {
     super();
     this.config = config;
-    this.tempDir = mkdtempSync(join(tmpdir(), "mistral-plugin-"));
-    // Default activation criteria - always process all audio
     this.setActivationCriteria({
       runOnAll: PROCESS_ALL_AUDIO,
       skipTransformation: false,
       overridesTransformationSettings: false,
     });
-    // Set AI plugin capabilities
     this.setAiCapabilities({
       isAiPlugin: true,
       supportsCombinedMode: true,
       processingMode: "transcription_only",
     });
-
-    // Initialize schema
-    this.schema = this.getSchema();
   }
 
   /**
@@ -352,35 +340,9 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
   }
 
-  async saveAudioAsWav(audioData: Float32Array): Promise<string> {
-    return await WavProcessor.saveAudioAsWav(audioData, this.tempDir);
-  }
-
-  async stopTranscription(): Promise<void> {
-    this.isRunning = false;
-    this.onTranscriptionCallback = null;
-  }
-
   async cleanup(): Promise<void> {
     await this.stopTranscription();
-
-    // Clean up temp directory
-    try {
-      if (existsSync(this.tempDir)) {
-        const files = readdirSync(this.tempDir);
-        for (const file of files) {
-          const filePath = join(this.tempDir, file);
-          try {
-            fs.unlinkSync(filePath);
-          } catch (error) {
-            console.warn(`Failed to delete temp file ${file}:`, error);
-          }
-        }
-        fs.rmdirSync(this.tempDir);
-      }
-    } catch (error) {
-      console.warn("Failed to clean up temp directory:", error);
-    }
+    this.clearTempDir();
   }
 
   async transcribeFile(filePath: string): Promise<string> {
@@ -617,201 +579,35 @@ export class MistralTranscriptionPlugin extends BaseTranscriptionPlugin {
     this.setInitialized(true);
   }
 
-  async destroy(): Promise<void> {
-    await this.stopTranscription();
-    this.setInitialized(false);
-    this.setActive(false);
-
-    // Clean up temporary directory
-    try {
-      if (existsSync(this.tempDir)) {
-        const tempFiles = readdirSync(this.tempDir);
-        for (const tempFile of tempFiles) {
-          const tempPath = join(this.tempDir, tempFile);
-          try {
-            fs.unlinkSync(tempPath);
-          } catch (error) {
-            console.warn(`Failed to delete temp file ${tempFile}:`, error);
-          }
-        }
-        // Remove the temp directory itself
-        fs.rmdirSync(this.tempDir);
-        console.log("Cleaned up Mistral temp directory");
-      }
-    } catch (error) {
-      console.warn("Failed to clean up Mistral temp directory:", error);
-    }
-  }
-
-  async onDeactivate(): Promise<void> {
-    this.setActive(false);
-  }
-
-  getDataPath(): string {
-    return "secure_storage"; // Mistral uses secure storage, not file-based
+  async stopTranscription(): Promise<void> {
+    this.isRunning = false;
+    this.onTranscriptionCallback = null;
   }
 
   async updateOptions(
     options: Record<string, any>,
     uiFunctions?: PluginUIFunctions,
   ): Promise<void> {
-    console.log("=== Mistral updateOptions called ===");
-    console.log("Options received:", options);
-    console.log("Current options before update:", this.options);
-
     this.setOptions(options);
-    console.log("Options set, current options after update:", this.options);
 
-    // Store API key securely
     if (options.api_key) {
-      console.log("Storing Mistral API key securely...");
-      try {
-        await this.setSecureValue("api_key", options.api_key);
-        this.apiKey = options.api_key;
-        console.log("✅ Mistral API key stored and set successfully");
-
-        // Verify the key was stored
-        const storedKey = await this.getSecureValue("api_key");
-        console.log(
-          "Verification - stored key matches:",
-          storedKey === options.api_key,
-        );
-      } catch (error) {
-        console.error("❌ Failed to store Mistral API key:", error);
-        throw error;
-      }
-    } else {
-      console.log("No API key in options to store");
+      await this.setSecureValue("api_key", options.api_key);
+      this.apiKey = options.api_key;
     }
 
-    // Update activation criteria and AI capabilities based on processing mode
     const isTranscriptionOnly =
       options.processing_mode !== "transcription_and_transformation";
-    if (isTranscriptionOnly) {
-      this.setActivationCriteria({
-        runOnAll: PROCESS_ALL_AUDIO,
-        skipTransformation: false,
-        overridesTransformationSettings: false,
-      });
-      this.setAiCapabilities({
-        isAiPlugin: true,
-        supportsCombinedMode: true,
-        processingMode: "transcription_only",
-      });
-    } else {
-      this.setActivationCriteria({
-        runOnAll: PROCESS_ALL_AUDIO,
-        skipTransformation: true,
-        overridesTransformationSettings: true,
-      });
-      this.setAiCapabilities({
-        isAiPlugin: true,
-        supportsCombinedMode: true,
-        processingMode: "transcription_and_transformation",
-        transformationSettingsKeys: [
-          "model",
-          "temperature",
-          "maxTokens",
-          "baseUrl",
-        ],
-      });
-    }
-
-    uiFunctions?.showSuccess("Mistral configuration updated");
-    console.log("=== Mistral options update completed ===");
-  }
-
-  /**
-   * Mistral doesn't require model downloads, so this is a no-op that always succeeds
-   */
-  public async ensureModelAvailable(
-    options: Record<string, any>,
-    onProgress?: (progress: any) => void,
-    onLog?: (line: string) => void,
-    abortSignal?: AbortSignal,
-  ): Promise<boolean> {
-    onLog?.("Mistral plugin doesn't require model downloads");
-    onProgress?.({
-      status: "complete",
-      message: "Mistral ready",
-      percent: 100,
+    this.setActivationCriteria({
+      runOnAll: PROCESS_ALL_AUDIO,
+      skipTransformation: !isTranscriptionOnly,
+      overridesTransformationSettings: !isTranscriptionOnly,
     });
-    return true;
-  }
-
-  async downloadModel(
-    modelName: string,
-    uiFunctions?: PluginUIFunctions,
-  ): Promise<void> {
-    // Mistral models are cloud-based, no download needed
-    uiFunctions?.showSuccess(`Mistral model ${modelName} is ready to use`);
-  }
-
-  async listData(): Promise<
-    Array<{ name: string; description: string; size: number; id: string }>
-  > {
-    const dataItems: Array<{
-      name: string;
-      description: string;
-      size: number;
-      id: string;
-    }> = [];
-
-    try {
-      // List temp files (Mistral doesn't store models locally)
-      if (existsSync(this.tempDir)) {
-        const tempFiles = readdirSync(this.tempDir);
-        for (const tempFile of tempFiles) {
-          const tempPath = join(this.tempDir, tempFile);
-          try {
-            const stats = require("fs").statSync(tempPath);
-            dataItems.push({
-              name: tempFile,
-              description: `Temporary audio file`,
-              size: stats.size,
-              id: `temp:${tempFile}`,
-            });
-          } catch (error) {
-            console.warn(`Failed to stat temp file ${tempFile}:`, error);
-          }
-        }
-      }
-    } catch (error) {
-      console.warn("Failed to list Mistral data:", error);
-    }
-
-    return dataItems;
-  }
-
-  async deleteDataItem(dataId: string): Promise<void> {
-    if (dataId.startsWith("temp:")) {
-      const fileName = dataId.substring(5);
-      const filePath = join(this.tempDir, fileName);
-      try {
-        fs.unlinkSync(filePath);
-        console.log(`Deleted temp file: ${fileName}`);
-      } catch (error) {
-        console.warn(`Failed to delete temp file ${fileName}:`, error);
-      }
-    }
-  }
-
-  async deleteAllData(): Promise<void> {
-    try {
-      if (existsSync(this.tempDir)) {
-        const tempFiles = readdirSync(this.tempDir);
-        for (const tempFile of tempFiles) {
-          const tempPath = join(this.tempDir, tempFile);
-          try {
-            fs.unlinkSync(tempPath);
-          } catch (error) {
-            console.warn(`Failed to delete temp file ${tempFile}:`, error);
-          }
-        }
-        console.log("Cleared all Mistral temp files");
-      }
-    } catch (error) {
-      console.warn("Failed to clear Mistral data:", error);
-    }
+    this.setAiCapabilities({
+      isAiPlugin: true,
+      supportsCombinedMode: true,
+      processingMode: isTranscriptionOnly
+        ? "transcription_only"
+        : "transcription_and_transformation",
+    });
   }
 }

@@ -1,8 +1,6 @@
-// import "isomorphic-fetch";
 import { spawn, ChildProcess } from "child_process";
 import {
   unlinkSync,
-  mkdtempSync,
   existsSync,
   createWriteStream,
   mkdirSync,
@@ -10,7 +8,7 @@ import {
   statSync,
 } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
+
 import { v4 as uuidv4 } from "uuid";
 import * as createInterface from "readline";
 import { AppConfig } from "../config/AppConfig";
@@ -44,13 +42,11 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
   private config: AppConfig;
   private sessionUid: string = "";
   private currentSegments: Segment[] = [];
-  private tempDir: string;
   private binaryPath: string;
   private modelPath: string = "";
   private isCurrentlyTranscribing = false;
   private isWindowVisible = false;
 
-  // Server process management
   private serverProcess: ChildProcess | null = null;
   private serverReadline: createInterface.Interface | null = null;
   private requestQueue: Array<{
@@ -59,21 +55,16 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
   }> = [];
   private isServerReady = false;
 
-  // Lifecycle management
   private shutdownTimeout: NodeJS.Timeout | null = null;
   private readyPromise: Promise<void> | null = null;
-  private readonly SHUTDOWN_DELAY_MS = 5 * 60 * 1000; // 5 minutes
+  private readonly SHUTDOWN_DELAY_MS = 5 * 60 * 1000;
 
   constructor(config: AppConfig) {
     super();
     this.config = config;
-    this.tempDir = mkdtempSync(join(tmpdir(), "parakeet-plugin-"));
     this.binaryPath = this.resolveBinaryPath();
 
-    // Initialize schema
     this.schema = this.getSchema();
-
-    // Set default activation criteria based on schema default
     const defaultRunOnAll =
       this.schema.find((opt) => opt.key === "runOnAll")?.default ?? false;
     this.setActivationCriteria({
@@ -472,17 +463,7 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
 
   async cleanup(): Promise<void> {
     await this.stopTranscription();
-    try {
-      const { readdirSync } = require("fs");
-      if (existsSync(this.tempDir)) {
-        const files = readdirSync(this.tempDir);
-        for (const file of files) {
-          unlinkSync(join(this.tempDir, file));
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to clean temp directory:", err);
-    }
+    this.clearTempDir();
   }
 
   // Model configurations mapping model values to their HuggingFace repos
@@ -748,7 +729,7 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
   // Store current abort signal for download operations
   private currentAbortSignal?: AbortSignal;
 
-  private async downloadFileWithProgress(
+  protected async downloadFileWithProgress(
     url: string,
     destPath: string,
     fileName: string,
@@ -926,15 +907,7 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
   }
 
-  // Helpers
 
-  private async saveAudioAsWav(audioData: Float32Array): Promise<string> {
-    return WavProcessor.saveAudioAsWav(audioData, this.tempDir, {
-      sampleRate: 16000,
-      numChannels: 1,
-      bitsPerSample: 16,
-    });
-  }
 
   onDictationWindowShow(): void {
     this.isWindowVisible = true;
@@ -1087,22 +1060,26 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
     }
   }
 
-  async deleteAllData(): Promise<void> {
-    try {
-      if (existsSync(this.tempDir)) {
-        const tempFiles = readdirSync(this.tempDir);
-        for (const file of tempFiles) {
-          try {
-            unlinkSync(join(this.tempDir, file));
-          } catch (error) {
-            console.warn(
-              `[parakeet] Failed to delete temp file ${file}:`,
-              error,
-            );
-          }
+  protected clearTempDir(): void {
+    if (existsSync(this.tempDir)) {
+      const tempFiles = readdirSync(this.tempDir);
+      for (const file of tempFiles) {
+        try {
+          unlinkSync(join(this.tempDir, file));
+        } catch (error) {
+          console.warn(
+            `[parakeet] Failed to delete temp file ${file}:`,
+            error,
+          );
         }
       }
+      console.log(`[parakeet] Cleared temporary directory: ${this.tempDir}`);
+    }
+  }
 
+  async deleteAllData(): Promise<void> {
+    try {
+      this.clearTempDir();
       await this.clearSecureData();
 
       const modelsDir = this.config.getModelsDir();
