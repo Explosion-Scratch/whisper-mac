@@ -742,13 +742,14 @@ export class DictationFlowManager {
   private async waitForCompletedSegments(timeoutMs: number): Promise<boolean> {
     return new Promise((resolve) => {
       const completed = this.segmentManager.getCompletedTranscribedSegments();
-      if (completed.length > 0) {
-        resolve(true);
-        return;
-      }
-
       const inProgress = this.segmentManager.getInProgressTranscribedSegments();
-      if (inProgress.length === 0 && completed.length === 0) {
+
+      if (inProgress.length === 0) {
+        if (completed.length > 0) {
+          resolve(true);
+          return;
+        }
+
         const bufferingEnabled =
           this.transcriptionPluginManager.isBufferingEnabledForActivePlugin();
         const hasBuffered = this.transcriptionPluginManager.hasBufferedAudio();
@@ -769,12 +770,25 @@ export class DictationFlowManager {
       unsubscribe = appStore.subscribe(
         (state) => state.segments.items,
         (segments) => {
-          const nowCompleted = segments.filter(
-            (s) => s.type === "transcribed" && (s as any).completed === true,
+          const currentInProgress = segments.filter(
+            (s) => s.type === "inprogress",
           );
-          if (nowCompleted.length > 0) {
-            cleanup();
-            resolve(true);
+          if (currentInProgress.length === 0) {
+            const nowCompleted = segments.filter(
+              (s) => s.type === "transcribed" && (s as any).completed === true,
+            );
+            if (nowCompleted.length > 0) {
+              cleanup();
+              resolve(true);
+            } else {
+              const bufferingEnabled =
+                this.transcriptionPluginManager.isBufferingEnabledForActivePlugin();
+              const hasBuffered = this.transcriptionPluginManager.hasBufferedAudio();
+              if (!bufferingEnabled || !hasBuffered) {
+                cleanup();
+                resolve(false);
+              }
+            }
           }
         },
       );
@@ -792,9 +806,15 @@ export class DictationFlowManager {
     timeoutMs: number,
   ): Promise<boolean> {
     return new Promise((resolve) => {
+      const inProgress = this.segmentManager.getInProgressTranscribedSegments();
       const completed = this.segmentManager.getCompletedTranscribedSegments();
-      if (completed.length > 0) {
-        resolve(true);
+
+      if (inProgress.length === 0) {
+        if (completed.length > 0) {
+          resolve(true);
+          return;
+        }
+        resolve(false);
         return;
       }
 
@@ -802,14 +822,21 @@ export class DictationFlowManager {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
       const unsubscribe = appStore.subscribe(
-        selectors.completedSegments,
+        (state) => state.segments.items,
         (segments) => {
           if (resolved) return;
-          if (segments.length > 0) {
+          const currentInProgress = segments.filter(
+            (s) => s.type === "inprogress",
+          );
+          
+          if (currentInProgress.length === 0) {
             resolved = true;
             if (timeoutId) clearTimeout(timeoutId);
             unsubscribe();
-            resolve(true);
+            const completed = segments.filter(
+              (s) => s.type === "transcribed" && (s as any).completed === true,
+            );
+            resolve(completed.length > 0);
           }
         },
       );

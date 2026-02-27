@@ -280,10 +280,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       this.isCurrentlyTranscribing = true;
       console.log(`Processing audio segment: ${audioData.length} samples`);
 
-      // Create temporary WAV file for whisper.cpp
-      const tempAudioPath = await this.saveAudioAsWav(audioData);
-
-      // Show in-progress transcription
+      // Show in-progress transcription synchronously before any async operations
       const inProgressSegment: InProgressSegment = {
         id: uuidv4(),
         type: "inprogress",
@@ -292,10 +289,13 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       };
 
       this.currentSegments = [inProgressSegment];
-      this.onTranscriptionCallback({
+      this.onTranscriptionCallback?.({
         segments: [...this.currentSegments],
         sessionUid: this.sessionUid,
       });
+
+      // Create temporary WAV file for whisper.cpp
+      const tempAudioPath = await this.saveAudioAsWav(audioData);
 
       // Transcribe with whisper.cpp
       const rawTranscription =

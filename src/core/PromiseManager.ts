@@ -6,16 +6,8 @@ export interface PromiseData {
   data?: any;
   error?: any;
   timestamp: number;
-  resolveTime?: number;
-  rejectTime?: number;
-  cancelTime?: number;
-  dependencies?: string[];
 }
 
-/**
- * Singleton PromiseManager for coordinating asynchronous operations across the app
- * Allows modules to wait for specific events or operations to complete
- */
 export class PromiseManager extends EventEmitter {
   private static instance: PromiseManager;
   private promises: Map<string, PromiseData> = new Map();
@@ -27,9 +19,6 @@ export class PromiseManager extends EventEmitter {
     this.setMaxListeners(100);
   }
 
-  /**
-   * Get the singleton instance
-   */
   static getInstance(): PromiseManager {
     if (!PromiseManager.instance) {
       PromiseManager.instance = new PromiseManager();
@@ -37,50 +26,22 @@ export class PromiseManager extends EventEmitter {
     return PromiseManager.instance;
   }
 
-  /**
-   * Start a new promise with a given name
-   */
   start(name: string, data?: any): void {
-    if (this.promises.has(name)) {
-      console.warn(`[PromiseManager] Promise '${name}' already exists`);
-      return;
-    }
-
-    const promiseData: PromiseData = {
+    if (this.promises.has(name)) return;
+    this.promises.set(name, {
       id: name,
       status: "pending",
       data,
       timestamp: Date.now(),
-    };
-
-    this.promises.set(name, promiseData);
-    this.emit("promise-started", { name, data });
-
-    console.log(`[PromiseManager] Started promise: ${name}`);
+    });
   }
 
-  /**
-   * Resolve a promise with data
-   */
   resolve(name: string, data?: any): void {
-    const promiseData = this.promises.get(name);
-    if (!promiseData) {
-      console.warn(
-        `[PromiseManager] Cannot resolve non-existent promise: ${name}`,
-      );
-      return;
-    }
+    const p = this.promises.get(name);
+    if (!p || p.status !== "pending") return;
 
-    if (promiseData.status !== "pending") {
-      console.warn(
-        `[PromiseManager] Promise '${name}' is already ${promiseData.status}`,
-      );
-      return;
-    }
-
-    promiseData.status = "resolved";
-    promiseData.data = data;
-    promiseData.resolveTime = Date.now();
+    p.status = "resolved";
+    p.data = data;
 
     const resolver = this.resolvers.get(name);
     if (resolver) {
@@ -88,35 +49,14 @@ export class PromiseManager extends EventEmitter {
       this.resolvers.delete(name);
       this.rejectors.delete(name);
     }
-
-    this.promises.set(name, promiseData);
-    this.emit("promise-resolved", { name, data });
-
-    console.log(`[PromiseManager] Resolved promise: ${name}`, data);
   }
 
-  /**
-   * Reject a promise with error
-   */
   reject(name: string, error?: any): void {
-    const promiseData = this.promises.get(name);
-    if (!promiseData) {
-      console.warn(
-        `[PromiseManager] Cannot reject non-existent promise: ${name}`,
-      );
-      return;
-    }
+    const p = this.promises.get(name);
+    if (!p || p.status !== "pending") return;
 
-    if (promiseData.status !== "pending") {
-      console.warn(
-        `[PromiseManager] Promise '${name}' is already ${promiseData.status}`,
-      );
-      return;
-    }
-
-    promiseData.status = "rejected";
-    promiseData.error = error;
-    promiseData.rejectTime = Date.now();
+    p.status = "rejected";
+    p.error = error;
 
     const rejector = this.rejectors.get(name);
     if (rejector) {
@@ -124,49 +64,19 @@ export class PromiseManager extends EventEmitter {
       this.resolvers.delete(name);
       this.rejectors.delete(name);
     }
-
-    this.promises.set(name, promiseData);
-    this.emit("promise-rejected", { name, error });
-
-    console.error(`[PromiseManager] Rejected promise: ${name}`, error);
   }
 
-  /**
-   * Wait for a promise to resolve or reject
-   */
   waitFor(name: string, timeout?: number): Promise<any> {
     return new Promise((resolve, reject) => {
-      const promiseData = this.promises.get(name);
+      const p = this.promises.get(name);
+      if (!p) return reject(new Error(`Promise '${name}' does not exist`));
+      if (p.status === "resolved") return resolve(p.data);
+      if (p.status === "rejected") return reject(p.error || new Error(`Promise '${name}' was rejected`));
+      if (p.status === "cancelled") return reject(new Error(`Promise '${name}' was cancelled`));
 
-      if (!promiseData) {
-        const error = new Error(`Promise '${name}' does not exist`);
-        console.error(`[PromiseManager] ${error.message}`);
-        reject(error);
-        return;
-      }
-
-      if (promiseData.status === "resolved") {
-        resolve(promiseData.data);
-        return;
-      }
-
-      if (promiseData.status === "rejected") {
-        reject(
-          promiseData.error || new Error(`Promise '${name}' was rejected`),
-        );
-        return;
-      }
-
-      if (promiseData.status === "cancelled") {
-        reject(new Error(`Promise '${name}' was cancelled`));
-        return;
-      }
-
-      // Store resolvers for when the promise completes
       this.resolvers.set(name, resolve);
       this.rejectors.set(name, reject);
 
-      // Set up timeout if specified
       if (timeout) {
         setTimeout(() => {
           if (this.resolvers.has(name)) {
@@ -179,131 +89,11 @@ export class PromiseManager extends EventEmitter {
     });
   }
 
-  /**
-   * Wait for multiple promises to resolve
-   */
-  waitForAll(names: string[], timeout?: number): Promise<any[]> {
-    return Promise.all(names.map((name) => this.waitFor(name, timeout)));
-  }
-
-  /**
-   * Wait for any of the specified promises to resolve
-   */
-  waitForAny(
-    names: string[],
-    timeout?: number,
-  ): Promise<{ name: string; data: any }> {
-    return new Promise((resolve, reject) => {
-      const promises = names.map((name) =>
-        this.waitFor(name, timeout)
-          .then((data) => ({ name, data }))
-          .catch((error) => ({ name, error })),
-      );
-
-      Promise.race(promises).then((result) => {
-        if ("error" in result) {
-          reject(result.error);
-        } else {
-          resolve(result);
-        }
-      });
-    });
-  }
-
-  /**
-   * Execute operations sequentially
-   */
-  async sequence(operations: Array<() => Promise<any>>): Promise<any[]> {
-    const results = [];
-    for (const operation of operations) {
-      try {
-        const result = await operation();
-        results.push(result);
-      } catch (error) {
-        results.push({ error });
-      }
-    }
-    return results;
-  }
-
-  /**
-   * Check if a promise exists
-   */
-  hasPromise(name: string): boolean {
-    return this.promises.has(name);
-  }
-
-  /**
-   * Get the status of a promise
-   */
-  getPromiseStatus(
-    name: string,
-  ): "pending" | "resolved" | "rejected" | "cancelled" | "not-found" {
-    const promiseData = this.promises.get(name);
-    return promiseData ? promiseData.status : "not-found";
-  }
-
-  /**
-   * Get all promise data
-   */
-  getAllPromises(): PromiseData[] {
-    return Array.from(this.promises.values());
-  }
-
-  /**
-   * Get pending promises
-   */
-  getPendingPromises(): PromiseData[] {
-    return Array.from(this.promises.values()).filter(
-      (p) => p.status === "pending",
-    );
-  }
-
-  /**
-   * Get resolved promises
-   */
-  getResolvedPromises(): PromiseData[] {
-    return Array.from(this.promises.values()).filter(
-      (p) => p.status === "resolved",
-    );
-  }
-
-  /**
-   * Get rejected promises
-   */
-  getRejectedPromises(): PromiseData[] {
-    return Array.from(this.promises.values()).filter(
-      (p) => p.status === "rejected",
-    );
-  }
-
-  /**
-   * Clear a specific promise
-   */
-  clearPromise(name: string): boolean {
-    const existed = this.promises.has(name);
-    this.promises.delete(name);
-    this.resolvers.delete(name);
-    this.rejectors.delete(name);
-
-    if (existed) {
-      console.log(`[PromiseManager] Cleared promise: ${name}`);
-    }
-
-    return existed;
-  }
-
-  /**
-   * Cancel a promise
-   */
   cancel(name: string): boolean {
-    const promiseData = this.promises.get(name);
-    if (!promiseData || promiseData.status !== "pending") {
-      return false;
-    }
+    const p = this.promises.get(name);
+    if (!p || p.status !== "pending") return false;
 
-    promiseData.status = "cancelled";
-    promiseData.cancelTime = Date.now();
+    p.status = "cancelled";
 
     const rejector = this.rejectors.get(name);
     if (rejector) {
@@ -311,68 +101,36 @@ export class PromiseManager extends EventEmitter {
       this.resolvers.delete(name);
       this.rejectors.delete(name);
     }
-
-    this.emit("promise-cancelled", { name });
-    console.log(`[PromiseManager] Cancelled promise: ${name}`);
     return true;
   }
 
-  /**
-   * Clear all promises
-   */
-  clearAll(): void {
-    console.log(
-      `[PromiseManager] Clearing all promises (${this.promises.size} total)`,
-    );
-    this.promises.clear();
-    this.resolvers.clear();
-    this.rejectors.clear();
-    this.removeAllListeners();
+  getPromiseStatus(
+    name: string,
+  ): "pending" | "resolved" | "rejected" | "cancelled" | "not-found" {
+    const p = this.promises.get(name);
+    return p ? p.status : "not-found";
   }
 
-  /**
-   * Get statistics about all promises
-   */
-  getStats(): {
-    total: number;
-    pending: number;
-    resolved: number;
-    rejected: number;
-    averageResolveTime: number;
-    averageRejectTime: number;
-  } {
-    const allPromises = Array.from(this.promises.values());
-    const resolved = allPromises.filter((p) => p.status === "resolved");
-    const rejected = allPromises.filter((p) => p.status === "rejected");
-
-    const resolveTimes = resolved
-      .filter((p) => p.resolveTime)
-      .map((p) => p.resolveTime! - p.timestamp);
-
-    const rejectTimes = rejected
-      .filter((p) => p.rejectTime)
-      .map((p) => p.rejectTime! - p.timestamp);
-
-    return {
-      total: allPromises.length,
-      pending: allPromises.filter((p) => p.status === "pending").length,
-      resolved: resolved.length,
-      rejected: rejected.length,
-      averageResolveTime:
-        resolveTimes.length > 0
-          ? resolveTimes.reduce((a, b) => a + b, 0) / resolveTimes.length
-          : 0,
-      averageRejectTime:
-        rejectTimes.length > 0
-          ? rejectTimes.reduce((a, b) => a + b, 0) / rejectTimes.length
-          : 0,
-    };
+  clearPromise(name: string): boolean {
+    const existed = this.promises.has(name);
+    this.promises.delete(name);
+    this.resolvers.delete(name);
+    this.rejectors.delete(name);
+    return existed;
   }
 
-  /**
-   * Execute a function with a named lock (mutex)
-   * Prevents concurrent execution of the same named operation
-   */
+  async sequence(operations: Array<() => Promise<any>>): Promise<any[]> {
+    const results = [];
+    for (const operation of operations) {
+      try {
+        results.push(await operation());
+      } catch (error) {
+        results.push({ error });
+      }
+    }
+    return results;
+  }
+
   async withLock<T>(
     name: string,
     fn: () => Promise<T> | T,
@@ -397,99 +155,6 @@ export class PromiseManager extends EventEmitter {
       throw error;
     }
   }
-
-  /**
-   * Execute a transactional operation that coordinates state updates with promise tracking
-   */
-  async transact<T>(
-    name: string,
-    fn: () => Promise<T> | T,
-    options: { timeout?: number; retries?: number } = {},
-  ): Promise<T> {
-    const { timeout = 30000, retries = 0 } = options;
-    const transactName = `transact:${name}:${Date.now()}`;
-
-    let attempt = 0;
-    let lastError: any;
-
-    while (attempt <= retries) {
-      this.start(transactName);
-      try {
-        const result = await Promise.race([
-          Promise.resolve(fn()),
-          new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error(`Transaction '${name}' timed out`)),
-              timeout,
-            ),
-          ),
-        ]);
-        this.resolve(transactName, result);
-        return result;
-      } catch (error) {
-        lastError = error;
-        attempt++;
-        if (attempt <= retries) {
-          console.log(
-            `[PromiseManager] Retrying transaction '${name}' (attempt ${attempt + 1})`,
-          );
-          this.clearPromise(transactName);
-          await new Promise((r) => setTimeout(r, 100 * attempt));
-        } else {
-          this.reject(transactName, error);
-        }
-      }
-    }
-
-    throw lastError;
-  }
-
-  /**
-   * Create a debounced operation that only executes after a delay since last call
-   */
-  debounce<T extends (...args: any[]) => any>(
-    fn: T,
-    delay: number,
-  ): (...args: Parameters<T>) => void {
-    let timeoutId: NodeJS.Timeout | null = null;
-
-    return (...args: Parameters<T>) => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      timeoutId = setTimeout(() => {
-        fn(...args);
-        timeoutId = null;
-      }, delay);
-    };
-  }
-
-  /**
-   * Wrap an async function to ensure only one instance runs at a time
-   */
-  singleton<T>(name: string, fn: () => Promise<T>): () => Promise<T> {
-    return async () => {
-      const singletonName = `singleton:${name}`;
-
-      if (
-        this.hasPromise(singletonName) &&
-        this.getPromiseStatus(singletonName) === "pending"
-      ) {
-        return this.waitFor(singletonName) as Promise<T>;
-      }
-
-      this.start(singletonName);
-      try {
-        const result = await fn();
-        this.resolve(singletonName, result);
-        return result;
-      } catch (error) {
-        this.reject(singletonName, error);
-        throw error;
-      }
-    };
-  }
 }
 
-// Export singleton instance
 export const promiseManager = PromiseManager.getInstance();

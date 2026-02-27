@@ -97,6 +97,18 @@ export class SettingsService {
     return this.permissionsManager;
   }
 
+  private requirePlugin(pluginName: string) {
+    if (!this.transcriptionPluginManager) throw new Error("Plugin manager not initialized");
+    const plugin = this.transcriptionPluginManager.getPlugin(pluginName);
+    if (!plugin) throw new Error(`Plugin ${pluginName} not found`);
+    return plugin;
+  }
+
+  private requirePluginManager() {
+    if (!this.transcriptionPluginManager) throw new Error("Plugin manager not initialized");
+    return this.transcriptionPluginManager;
+  }
+
   private setupIpcHandlers(): void {
     // Get settings schema
     ipcMain.handle("settings:getSchema", async () => {
@@ -534,25 +546,7 @@ export class SettingsService {
       },
     );
 
-    // Save API key securely from settings
-    ipcMain.handle(
-      "settings:saveApiKey",
-      async (_e, payload: { apiKey: string }) => {
-        const { SecureStorageService } =
-          await import("../services/SecureStorageService");
-        const secure = new SecureStorageService();
-        await secure.setSecureValue("ai_service", "api_key", payload.apiKey);
-        return { success: true };
-      },
-    );
-
-    // Get API key securely from settings
-    ipcMain.handle("settings:getApiKey", async () => {
-      const { SecureStorageService } =
-        await import("../services/SecureStorageService");
-      const secure = new SecureStorageService();
-      return await secure.getSecureValue("ai_service", "api_key");
-    });
+    // API key handlers — using keychain:* (settings:saveApiKey/getApiKey were unused duplicates)
 
     // Keychain handlers (used by settings window)
     ipcMain.handle("keychain:saveApiKey", async (_e, apiKey: string) => {
@@ -635,30 +629,7 @@ export class SettingsService {
       },
     );
 
-    // Unified plugin management handlers
-    ipcMain.handle("plugins:getOptions", () => {
-      if (!this.transcriptionPluginManager) {
-        return { plugins: [], options: {} };
-      }
-
-      const plugins = this.transcriptionPluginManager
-        .getPlugins()
-        .map((plugin) => ({
-          name: plugin.name,
-          displayName: plugin.displayName,
-          description: plugin.description,
-          version: plugin.version,
-          supportsRealtime: plugin.supportsRealtime,
-          supportsBatchProcessing: plugin.supportsBatchProcessing,
-        }));
-
-      const schemas = this.transcriptionPluginManager.getAllPluginSchemas();
-
-      return {
-        plugins,
-        schemas,
-      };
-    });
+    // Note: plugins:getOptions removed — was identical to settings:getPluginSchemas
 
     // Plugin schema and options handlers
     ipcMain.handle("settings:getPluginSchemas", async () => {
@@ -692,19 +663,8 @@ export class SettingsService {
 
     ipcMain.handle(
       "settings:getPluginSchema",
-      async (event, pluginName: string) => {
-        try {
-          if (!this.transcriptionPluginManager) {
-            throw new Error("Plugin manager not initialized");
-          }
-          return this.transcriptionPluginManager.getPluginSchema(pluginName);
-        } catch (error) {
-          console.error(
-            `Error getting schema for plugin ${pluginName}:`,
-            error,
-          );
-          throw error;
-        }
+      async (_event, pluginName: string) => {
+        return this.requirePluginManager().getPluginSchema(pluginName);
       },
     );
 
@@ -790,71 +750,27 @@ export class SettingsService {
 
     ipcMain.handle(
       "settings:setPluginOptions",
-      async (event, pluginName: string, options: Record<string, any>) => {
-        try {
-          if (!this.transcriptionPluginManager) {
-            throw new Error("Plugin manager not initialized");
-          }
-          await this.transcriptionPluginManager.setPluginOptions(
-            pluginName,
-            options,
-          );
-        } catch (error) {
-          console.error(
-            `Error setting options for plugin ${pluginName}:`,
-            error,
-          );
-          throw error;
-        }
+      async (_event, pluginName: string, options: Record<string, any>) => {
+        await this.requirePluginManager().setPluginOptions(pluginName, options);
       },
     );
 
     ipcMain.handle(
       "settings:getPluginOptions",
-      async (event, pluginName: string) => {
-        try {
-          if (!this.transcriptionPluginManager) {
-            throw new Error("Plugin manager not initialized");
-          }
-          return await this.transcriptionPluginManager.getPluginOptions(
-            pluginName,
-          );
-        } catch (error) {
-          console.error(
-            `Error getting options for plugin ${pluginName}:`,
-            error,
-          );
-          throw error;
-        }
+      async (_event, pluginName: string) => {
+        return await this.requirePluginManager().getPluginOptions(pluginName);
       },
     );
 
     ipcMain.handle(
       "settings:verifyPluginOptions",
-      async (event, pluginName: string, options: Record<string, any>) => {
-        try {
-          if (!this.transcriptionPluginManager) {
-            throw new Error("Plugin manager not initialized");
-          }
-          return await this.transcriptionPluginManager.verifyPluginOptions(
-            pluginName,
-            options,
-          );
-        } catch (error) {
-          console.error(
-            `Error verifying options for plugin ${pluginName}:`,
-            error,
-          );
-          throw error;
-        }
+      async (_event, pluginName: string, options: Record<string, any>) => {
+        return await this.requirePluginManager().verifyPluginOptions(pluginName, options);
       },
     );
 
     ipcMain.handle("plugins:getActive", () => {
-      if (!this.transcriptionPluginManager) {
-        return null;
-      }
-      return this.transcriptionPluginManager.getActivePlugin()?.name || null;
+      return this.transcriptionPluginManager?.getActivePlugin()?.name || null;
     });
 
     ipcMain.handle(
@@ -953,153 +869,60 @@ export class SettingsService {
       },
     );
 
-    // Get plugin data information
-    ipcMain.handle(
-      "settings:getPluginDataInfo",
-      async (): Promise<
-        Array<{
-          name: string;
-          displayName: string;
-          isActive: boolean;
-          dataSize: number;
-          dataPath: string;
-        }>
-      > => {
-        try {
-          if (!this.transcriptionPluginManager) {
-            throw new Error("Plugin manager not initialized");
-          }
-          return await this.transcriptionPluginManager.getPluginDataInfo();
-        } catch (error: any) {
-          console.error("Failed to get plugin data info:", error);
-          throw new Error(error.message || "Failed to get plugin data info");
-        }
-      },
-    );
+    ipcMain.handle("settings:getPluginDataInfo", async () => {
+      return await this.requirePluginManager().getPluginDataInfo();
+    });
 
-    // Secure storage management handlers
     ipcMain.handle(
       "plugins:getSecureStorageInfo",
-      async (event, payload: { pluginName: string }) => {
-        if (!this.transcriptionPluginManager) {
-          throw new Error("Plugin manager not initialized");
-        }
-
-        const plugin = this.transcriptionPluginManager.getPlugin(
-          payload.pluginName,
-        );
-        if (!plugin) {
-          throw new Error(`Plugin ${payload.pluginName} not found`);
-        }
-
+      async (_event, payload: { pluginName: string }) => {
+        const plugin = this.requirePlugin(payload.pluginName);
         const keys = await plugin.listSecureKeys();
         const dataSize = await plugin.getDataSize();
-
-        return {
-          keys: keys.map((key) => ({ name: key, type: "secure" })),
-          totalSize: dataSize,
-          hasSecureData: keys.length > 0,
-        };
+        return { keys: keys.map((key) => ({ name: key, type: "secure" })), totalSize: dataSize, hasSecureData: keys.length > 0 };
       },
     );
 
     ipcMain.handle(
       "plugins:clearSecureData",
-      async (event, payload: { pluginName: string }) => {
-        if (!this.transcriptionPluginManager) {
-          throw new Error("Plugin manager not initialized");
-        }
-
-        const plugin = this.transcriptionPluginManager.getPlugin(
-          payload.pluginName,
-        );
-        if (!plugin) {
-          throw new Error(`Plugin ${payload.pluginName} not found`);
-        }
-
-        await plugin.clearSecureData();
+      async (_event, payload: { pluginName: string }) => {
+        await this.requirePlugin(payload.pluginName).clearSecureData();
         return { success: true };
       },
     );
 
-    // New data management handlers
     ipcMain.handle(
       "plugins:listData",
-      async (event, payload: { pluginName: string }) => {
-        if (!this.transcriptionPluginManager) {
-          throw new Error("Plugin manager not initialized");
-        }
-
-        const plugin = this.transcriptionPluginManager.getPlugin(
-          payload.pluginName,
-        );
-        if (!plugin) {
-          throw new Error(`Plugin ${payload.pluginName} not found`);
-        }
-
-        return await plugin.listData();
+      async (_event, payload: { pluginName: string }) => {
+        return await this.requirePlugin(payload.pluginName).listData();
       },
     );
 
     ipcMain.handle(
       "plugins:deleteDataItem",
-      async (event, payload: { pluginName: string; itemId: string }) => {
-        if (!this.transcriptionPluginManager) {
-          throw new Error("Plugin manager not initialized");
-        }
-
-        const plugin = this.transcriptionPluginManager.getPlugin(
-          payload.pluginName,
-        );
-        if (!plugin) {
-          throw new Error(`Plugin ${payload.pluginName} not found`);
-        }
-
-        await plugin.deleteDataItem(payload.itemId);
+      async (_event, payload: { pluginName: string; itemId: string }) => {
+        await this.requirePlugin(payload.pluginName).deleteDataItem(payload.itemId);
         return { success: true };
       },
     );
 
     ipcMain.handle(
       "plugins:deleteAllData",
-      async (event, payload: { pluginName: string }) => {
-        if (!this.transcriptionPluginManager) {
-          throw new Error("Plugin manager not initialized");
-        }
-
-        const plugin = this.transcriptionPluginManager.getPlugin(
-          payload.pluginName,
-        );
-        if (!plugin) {
-          throw new Error(`Plugin ${payload.pluginName} not found`);
-        }
-
-        await plugin.deleteAllData();
+      async (_event, payload: { pluginName: string }) => {
+        await this.requirePlugin(payload.pluginName).deleteAllData();
         return { success: true };
       },
     );
 
     ipcMain.handle(
       "plugins:exportSecureData",
-      async (event, payload: { pluginName: string }) => {
-        if (!this.transcriptionPluginManager) {
-          throw new Error("Plugin manager not initialized");
-        }
-
-        const plugin = this.transcriptionPluginManager.getPlugin(
-          payload.pluginName,
-        );
-        if (!plugin) {
-          throw new Error(`Plugin ${payload.pluginName} not found`);
-        }
-
+      async (_event, payload: { pluginName: string }) => {
+        const plugin = this.requirePlugin(payload.pluginName);
         const keys = await plugin.listSecureKeys();
         const data: Record<string, any> = {};
-
         for (const key of keys) {
           data[key] = await plugin.getSecureData(key);
         }
-
         return { data, timestamp: new Date().toISOString() };
       },
     );
@@ -1711,8 +1534,6 @@ export class SettingsService {
     ipcMain.removeHandler("settings:cancelImport");
     ipcMain.removeHandler("settings:isImportInProgress");
     ipcMain.removeHandler("settings:closeWindow");
-    ipcMain.removeHandler("settings:saveApiKey");
-    ipcMain.removeHandler("settings:getApiKey");
     ipcMain.removeHandler("keychain:saveApiKey");
     ipcMain.removeHandler("keychain:getApiKey");
     ipcMain.removeHandler("keychain:deleteApiKey");
@@ -1733,7 +1554,6 @@ export class SettingsService {
     ipcMain.removeHandler("settings:activePluginOverridesTransformation");
     ipcMain.removeHandler("settings:getPluginAiCapabilities");
 
-    ipcMain.removeHandler("plugins:getOptions");
     ipcMain.removeHandler("plugins:getActive");
     ipcMain.removeHandler("plugins:updateActiveOptions");
     ipcMain.removeHandler("plugins:deleteInactive");

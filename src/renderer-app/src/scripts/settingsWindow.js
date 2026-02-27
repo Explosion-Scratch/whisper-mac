@@ -1,9 +1,12 @@
-import { log, info, warn, error } from "../utils/logger";
+import { info, warn, error } from "../utils/logger";
 import SettingsField from "../components/settings/ui/Field.vue";
 import TranscriptionSection from "../components/settings/transcription/TranscriptionSection.vue";
 import PermissionsSection from "../components/settings/PermissionsSection.vue";
 import HistorySection from "../components/settings/HistorySection.vue";
 import ImportProgressModal from "../components/settings/ImportProgressModal.vue";
+import ActionsEditor from "../components/settings/ActionsEditor.vue";
+import RulesEditor from "../components/settings/RulesEditor.vue";
+import DataManagement from "../components/settings/DataManagement.vue";
 
 import {
   analyzeSettingsFile,
@@ -32,28 +35,16 @@ import {
 
 import {
   ensurePluginSettingsObjects,
-  getPluginDisplayName,
-  testPluginActivation,
-  switchPlugin,
   getActivePlugin,
   getPluginSchemas,
-  updatePluginOption,
 } from "../utils/plugins";
 
 import {
   validateApiKeyAndListModels,
   saveApiKeySecure,
-  loadAiModelsIfConfigured,
-  createDebouncedValidator,
 } from "../utils/ai-provider";
 
 import { captureHotkey } from "../utils/hotkey";
-
-import {
-  showStatus as showStatusUtil,
-  showProgress as showProgressUtil,
-  hideProgress as hideProgressUtil,
-} from "../utils/status-notification";
 
 import {
   formatBytes,
@@ -62,33 +53,6 @@ import {
   openExternalUrl,
 } from "../utils/formatters";
 
-import {
-  addAction,
-  deleteAction as deleteActionUtil,
-  addPattern,
-  deletePattern as deletePatternUtil,
-  addHandler,
-  deleteHandler as deleteHandlerUtil,
-  updateHandlerType as updateHandlerTypeUtil,
-  getHandlerIcon,
-  getHandlerTypeName,
-  getHandlerSummary,
-  getPatternTypeBadge,
-  moveItem,
-  resyncOrder,
-} from "../utils/actions-editor";
-
-import {
-  addRule,
-  deleteRule as deleteRuleUtil,
-  moveRule as moveRuleUtil,
-  addExample,
-  deleteExample as deleteExampleUtil,
-  updateRuleCondition,
-  getConditionIcon,
-  getConditionLabel,
-} from "../utils/rules-editor";
-
 export default {
   components: {
     SettingsField,
@@ -96,6 +60,9 @@ export default {
     PermissionsSection,
     HistorySection,
     ImportProgressModal,
+    ActionsEditor,
+    RulesEditor,
+    DataManagement,
   },
   data() {
     return {
@@ -434,12 +401,6 @@ export default {
       return iconMap[field.key] || iconMap[field.type] || "ph-gear";
     },
 
-    showStatus(message, type = "success", timeout = 3000) {
-      this.status = { visible: true, message, type };
-      setTimeout(() => {
-        this.status.visible = false;
-      }, timeout);
-    },
 
     showProgress(message, percent) {
       this.progress = { visible: true, message, percent };
@@ -1123,7 +1084,7 @@ export default {
       // Note: Other UI elements are automatically updated via Vue's reactive data binding
     },
 
-    // Enhanced status display with longer duration for warnings
+    // --- STATUS DISPLAY ---
     showStatus(message, type = "success", duration = 3000) {
       this.status = { visible: true, message, type };
       setTimeout(() => {
@@ -1135,179 +1096,6 @@ export default {
       return formatBytes(bytes);
     },
 
-    // --- ACTIONS EDITOR METHODS ---
-    addNewAction() {
-      addAction(this.settings);
-    },
-
-    deleteAction(index) {
-      if (confirm("Delete this action?")) {
-        deleteActionUtil(this.settings, index);
-      }
-    },
-
-    moveAction(index, direction) {
-      if (moveItem(this.settings.actions.actions, index, direction)) {
-        resyncOrder(this.settings.actions.actions);
-      }
-    },
-
-    toggleActionCard(actionId) {
-      this.expandedActions[actionId] = !this.expandedActions[actionId];
-    },
-
-    async resetActionsToDefaults() {
-      if (confirm("Reset actions to defaults?")) {
-        const actionsField = this.schema
-          .find((s) => s.id === "actions")
-          ?.fields.find((f) => f.key === "actions");
-        if (actionsField) {
-          this.settings.actions = deepClone(actionsField.defaultValue);
-          this.showStatus("Actions have been reset to default.", "success");
-        }
-      }
-    },
-
-    addNewPattern(actionIndex) {
-      addPattern(this.settings.actions.actions[actionIndex]);
-    },
-
-    deletePattern(actionIndex, patternIndex) {
-      deletePatternUtil(
-        this.settings.actions.actions[actionIndex],
-        patternIndex,
-      );
-    },
-
-    addNewHandler(actionIndex) {
-      addHandler(this.settings.actions.actions[actionIndex]);
-    },
-
-    deleteHandler(actionIndex, handlerIndex) {
-      deleteHandlerUtil(
-        this.settings.actions.actions[actionIndex],
-        handlerIndex,
-      );
-    },
-
-    updateHandlerType(handler) {
-      updateHandlerTypeUtil(handler, handler.type);
-    },
-
-    toggleConfigSection(itemId, sectionName) {
-      const key = `${itemId}_${sectionName}`;
-      if (!this.configSections[key]) {
-        this.configSections[key] = true;
-      } else {
-        this.configSections[key] = !this.configSections[key];
-      }
-    },
-
-    isConfigSectionExpanded(itemId, sectionName) {
-      const key = `${itemId}_${sectionName}`;
-      return this.configSections[key] !== false;
-    },
-
-    editPattern(actionIndex, patternIndex) {
-      if (
-        this.editingPattern &&
-        this.editingPattern.actionIndex === actionIndex &&
-        this.editingPattern.patternIndex === patternIndex
-      ) {
-        this.editingPattern = null;
-      } else {
-        this.editingPattern = { actionIndex, patternIndex };
-      }
-    },
-
-    closePatternEdit() {
-      this.editingPattern = null;
-    },
-
-    isPatternEditing(actionIndex, patternIndex) {
-      return (
-        this.editingPattern &&
-        this.editingPattern.actionIndex === actionIndex &&
-        this.editingPattern.patternIndex === patternIndex
-      );
-    },
-
-    getPatternTypeBadge(type) {
-      return getPatternTypeBadge(type);
-    },
-
-    toggleHandler(actionIndex, handlerIndex) {
-      const key = `${actionIndex}_${handlerIndex}`;
-      this.expandedHandlers[key] = !this.expandedHandlers[key];
-    },
-
-    isHandlerExpanded(actionIndex, handlerIndex) {
-      const key = `${actionIndex}_${handlerIndex}`;
-      return this.expandedHandlers[key] || false;
-    },
-
-    getHandlerIcon(type) {
-      return getHandlerIcon(type);
-    },
-
-    getHandlerTypeName(type) {
-      return getHandlerTypeName(type);
-    },
-
-    getHandlerSummary(handler) {
-      return getHandlerSummary(handler);
-    },
-
-    // --- RULES EDITOR METHODS ---
-    addNewRule() {
-      addRule(this.settings);
-    },
-
-    deleteRule(index) {
-      if (confirm("Delete this rule?")) {
-        deleteRuleUtil(this.settings, index);
-      }
-    },
-
-    moveRule(index, direction) {
-      moveRuleUtil(this.settings.rules, index, direction);
-    },
-
-    toggleRuleCard(ruleId) {
-      this.expandedRules[ruleId] = !this.expandedRules[ruleId];
-    },
-
-    async resetRulesToDefaults() {
-      if (confirm("Reset rules to defaults?")) {
-        const rulesField = this.schema
-          .find((s) => s.id === "ai")
-          ?.fields.find((f) => f.key === "rules");
-        if (rulesField) {
-          this.settings.rules = deepClone(rulesField.defaultValue);
-          this.showStatus("Rules have been reset to default.", "success");
-        }
-      }
-    },
-
-    addNewExample(ruleIndex) {
-      addExample(this.settings.rules[ruleIndex]);
-    },
-
-    deleteExample(ruleIndex, exampleIndex) {
-      deleteExampleUtil(this.settings.rules[ruleIndex], exampleIndex);
-    },
-
-    updateRuleCondition(rule, condition, checked) {
-      updateRuleCondition(rule, condition, checked);
-    },
-
-    getConditionIcon(condition) {
-      return getConditionIcon(condition);
-    },
-
-    getConditionLabel(condition) {
-      return getConditionLabel(condition);
-    },
 
     // --- ABOUT SECTION METHODS ---
     async importAllSettings() {
