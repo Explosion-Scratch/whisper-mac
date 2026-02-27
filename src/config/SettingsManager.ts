@@ -401,7 +401,7 @@ export class SettingsManager extends EventEmitter {
         "ai.baseUrl",
         "https://api.cerebras.ai/v1/chat/completions",
       ),
-      model: this.get("ai.model", "qwen-3-32b"),
+      model: this.get("ai.model", "qwen-3-235b-a22b-instruct"),
       maxTokens: this.get("ai.maxTokens", 16382),
       temperature: this.get("ai.temperature", 0.6),
       topP: this.get("ai.topP", 0.95),

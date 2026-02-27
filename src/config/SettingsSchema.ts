@@ -153,16 +153,7 @@ export const SETTINGS_SCHEMA: SettingsSection[] = [
         type: "select",
         label: "Model Name",
         description: "AI model to use for text enhancement",
-        defaultValue: "qwen-3-32b",
-        options: [
-          { value: "gemini-3-pro-preview", label: "Gemini 3 Pro Preview" },
-          { value: "gemini-3-flash-preview", label: "Gemini 3 Flash Preview" },
-          { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-          { value: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
-          { value: "qwen-3-32b", label: "Qwen 3 32B" },
-          { value: "gpt-4", label: "GPT-4" },
-          { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
-        ],
+        defaultValue: "qwen-3-235b-a22b-instruct",
       },
       {
         key: "ai.maxTokens",

@@ -24,13 +24,24 @@ import {
   setAiProvider,
 } from "../utils/ai-provider";
 
-import OnboardingHotkeyInput from "../components/onboarding/OnboardingHotkeyInput.vue";
 import ImportProgressModal from "../components/settings/ImportProgressModal.vue";
+
+import IntroSlide from "../components/onboarding/slides/IntroSlide.vue";
+import PermissionSlide from "../components/onboarding/slides/PermissionSlide.vue";
+import ModelSlide from "../components/onboarding/slides/ModelSlide.vue";
+import AiSlide from "../components/onboarding/slides/AiSlide.vue";
+import HotkeySlide from "../components/onboarding/slides/HotkeySlide.vue";
+import SetupSlide from "../components/onboarding/slides/SetupSlide.vue";
 
 export default {
   components: {
-    OnboardingHotkeyInput,
     ImportProgressModal,
+    IntroSlide,
+    PermissionSlide,
+    ModelSlide,
+    AiSlide,
+    HotkeySlide,
+    SetupSlide,
   },
 
   setup() {
@@ -258,10 +269,10 @@ export default {
           return false;
         }
       }
-      await setAiEnabled(aiEnabled.value);
       if (aiEnabled.value) {
         await setAiProvider(aiBaseUrl.value, aiModel.value);
       }
+      await setAiEnabled(aiEnabled.value);
       return true;
     };
 
@@ -386,8 +397,10 @@ export default {
           return;
         }
         aiModels.value = result.models || [];
-        if (aiModels.value.length && !aiModel.value) {
-          aiModel.value = aiModels.value[0].id;
+        if (aiModels.value.length > 0) {
+          if (!aiModel.value || !aiModels.value.some((m) => m.id === aiModel.value)) {
+            aiModel.value = aiModels.value[0].id;
+          }
         }
         await saveApiKeySecure(aiApiKey.value);
         keyStatus.value = "Saved to Keychain";

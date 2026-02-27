@@ -94,7 +94,7 @@ export class AppConfig {
       enabled: true,
       writingStyle: readPrompt("writing_style"),
       baseUrl: "https://api.cerebras.ai/v1/chat/completions",
-      model: "qwen-3-32b",
+      model: "qwen-3-235b-a22b-instruct",
       maxTokens: 16382,
       temperature: 0.3,
       topP: 0.95,

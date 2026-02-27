@@ -26,32 +26,12 @@
     </template>
 
     <template v-else-if="type === 'model'">
-      <select v-if="aiModelsState.loading" class="form-control" disabled>
-        <option>Loading models...</option>
-      </select>
-      <select
-        v-else-if="aiModelsState.models.length > 0"
-        class="form-control"
-        :value="modelValue"
-        @change="$emit('update:modelValue', $event.target.value)"
+      <AiModelSelector
+        :modelValue="modelValue"
+        :models="aiModelsState.models"
+        :loading="aiModelsState.loading"
         :disabled="disabled"
-      >
-        <option
-          v-for="model in aiModelsState.models"
-          :key="model.id"
-          :value="model.id"
-        >
-          {{ model.name || model.id }}
-        </option>
-      </select>
-      <input
-        v-else
-        type="text"
-        class="form-control"
-        :value="modelValue"
-        @input="$emit('update:modelValue', $event.target.value)"
-        placeholder="Enter model name or validate API key"
-        :disabled="disabled"
+        @update:modelValue="$emit('update:modelValue', $event)"
       />
     </template>
   </div>
@@ -59,6 +39,7 @@
 
 <script>
 import ApiKeyField from "./ApiKeyField.vue";
+import AiModelSelector from "../../../AiModelSelector.vue";
 
 /**
  * AiField Component
@@ -70,6 +51,7 @@ export default {
 
   components: {
     ApiKeyField,
+    AiModelSelector,
   },
 
   props: {
