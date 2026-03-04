@@ -380,66 +380,74 @@ program
     let tempConvertedFile: string | null = null;
 
     try {
-      const fd = readFileSync(filePath);
-      const view = new DataView(fd.buffer);
+      const { readSync, openSync, closeSync } = require("fs");
+      const buffer = Buffer.alloc(44);
+      let fileDescriptor;
+      let isRightFormat = false;
+      try {
+        fileDescriptor = openSync(filePath, "r");
+        const bytesRead = readSync(fileDescriptor, buffer, 0, 44, 0);
 
-      const isWav =
-        view.getUint32(0, false) === 0x52494646 &&
-        view.getUint32(8, false) === 0x57415645;
+        if (bytesRead >= 44) {
+          const view = new DataView(
+            buffer.buffer,
+            buffer.byteOffset,
+            buffer.byteLength
+          );
+          const isWav =
+            view.getUint32(0, false) === 0x52494646 &&
+            view.getUint32(8, false) === 0x57415645;
 
-      if (isWav) {
-        const bitsPerSample = view.getUint16(34, true);
-        const audioFormat = view.getUint16(20, true);
+          if (isWav) {
+            const audioFormat = view.getUint16(20, true);
+            const numChannels = view.getUint16(22, true);
+            const sampleRate = view.getUint32(24, true);
+            const bitsPerSample = view.getUint16(34, true);
 
-        if (bitsPerSample === 32) {
-          if (options.verbose)
-            originalConsole.log("Detected 32-bit WAV, converting to 16-bit...");
-
-          let offset = 12;
-          while (offset < fd.length) {
-            const chunkId = view.getUint32(offset, false);
-            const chunkSize = view.getUint32(offset + 4, true);
-
-            if (chunkId === 0x64617461) {
-              const dataOffset = offset + 8;
-              const dataLength = chunkSize;
-
-              let audioData: Float32Array;
-
-              if (audioFormat === 3) {
-                audioData = new Float32Array(
-                  fd.buffer.slice(dataOffset, dataOffset + dataLength),
-                );
-              } else if (audioFormat === 1) {
-                const int32Data = new Int32Array(
-                  fd.buffer.slice(dataOffset, dataOffset + dataLength),
-                );
-                audioData = new Float32Array(int32Data.length);
-                for (let i = 0; i < int32Data.length; i++) {
-                  audioData[i] = int32Data[i] / 2147483648.0;
-                }
-              } else {
-                throw new Error(
-                  `Unsupported 32-bit WAV format: ${audioFormat}`,
-                );
-              }
-
-              const { tmpdir } = require("os");
-              tempConvertedFile = await WavProcessor.saveAudioAsWav(
-                audioData,
-                tmpdir(),
-              );
-              fileToTranscribe = tempConvertedFile;
-              break;
+            if (
+              audioFormat === 1 &&
+              numChannels === 1 &&
+              sampleRate === 16000 &&
+              bitsPerSample === 16
+            ) {
+              isRightFormat = true;
             }
-
-            offset += 8 + chunkSize;
           }
+        }
+      } finally {
+        if (fileDescriptor !== undefined) {
+          closeSync(fileDescriptor);
+        }
+      }
+
+      if (!isRightFormat) {
+        if (options.verbose) {
+          originalConsole.log("Audio not in required 16kHz 16-bit mono WAV format. Converting with ffmpeg...");
+        }
+
+        const { execSync } = require("child_process");
+        try {
+          execSync("ffmpeg -version", { stdio: "ignore" });
+        } catch (e) {
+          throw new Error("ffmpeg is required for audio conversion but is not installed or not in PATH.");
+        }
+
+        const { tmpdir } = require("os");
+        const { join } = require("path");
+        tempConvertedFile = join(tmpdir(), `whisper_converted_${Date.now()}.wav`);
+
+        try {
+          execSync(`ffmpeg -y -i "${filePath}" -ar 16000 -ac 1 -c:a pcm_s16le "${tempConvertedFile}"`, {
+            stdio: "ignore",
+          });
+          fileToTranscribe = tempConvertedFile as string;
+        } catch (e: any) {
+          throw new Error(`Failed to convert audio using ffmpeg: ${e.message}`);
         }
       }
     } catch (e: any) {
-      if (options.verbose)
-        originalConsole.warn("Failed to check/convert audio file:", e.message);
+      originalConsole.error("Failed to check/convert audio file:", e.message);
+      process.exit(1);
     }
 
     try {
@@ -483,6 +491,7 @@ program
           // ignore
         }
       }
+      process.exit(0);
     }
   });
 

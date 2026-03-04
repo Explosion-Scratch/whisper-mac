@@ -428,12 +428,13 @@ export class ParakeetTranscriptionPlugin extends BaseTranscriptionPlugin {
   }
 
   async transcribeFile(filePath: string): Promise<string> {
-    // Assuming server is running, or start it temporarily?
-    // For now, let's assume this is called when active.
+    // Wait for any pending backend initialization (like load_model)
+    if (this.readyPromise) {
+      await this.readyPromise;
+    }
+
     if (!this.serverProcess) {
       await this.ensureServerStarted();
-      // And we probably need to load the model if not loaded...
-      // This method might need more robust handling if called outside a session.
       await this.sendRequest({
         command: "load_model",
         path: this.resolveModelPath(),
