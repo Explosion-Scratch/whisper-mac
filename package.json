@@ -41,6 +41,7 @@
   "dependencies": {
     "@ricky0123/vad-node": "^0.0.3",
     "@ricky0123/vad-web": "^0.0.22",
+    "adm-zip": "^0.5.16",
     "commander": "^14.0.2",
     "electron-liquid-glass": "^1.1.1",
     "electron-log": "^5.4.3",
@@ -51,6 +52,7 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
     "@types/isomorphic-fetch": "^0.0.39",
     "@types/node": "^24.2.1",
     "@types/uuid": "^9.0.0",

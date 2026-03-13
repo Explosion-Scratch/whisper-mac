@@ -39,7 +39,9 @@ export class SelectedTextService {
       const text = String(result.text || "");
       const originalFromNative = String(result.originalClipboard || "");
       const hasSelection =
-        text.trim().length > 0 && text !== originalFromNative;
+        typeof result.hasSelection === "boolean"
+          ? result.hasSelection
+          : text.trim().length > 0;
       return {
         text,
         hasSelection,

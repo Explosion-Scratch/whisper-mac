@@ -1,0 +1,10 @@
+Transcript:
+{{TRANSCRIPT}}
+
+User Notes:
+{{USER_NOTES}}
+
+AI Notes:
+{{AI_NOTES}}
+
+Question: {{QUESTION}}

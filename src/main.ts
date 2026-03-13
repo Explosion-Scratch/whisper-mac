@@ -22,6 +22,7 @@ import { LoginItemService } from "./services/LoginItemService";
 import { AudioCaptureService } from "./services/AudioCaptureService";
 import { HistoryService } from "./services/HistoryService";
 import { SoundService } from "./services/SoundService";
+import { RecordingNotesService } from "./services/RecordingNotesService";
 import { DefaultActionsConfig } from "./types/ActionTypes";
 
 import {
@@ -56,6 +57,7 @@ class WhisperMacApp {
   private audioCaptureService!: AudioCaptureService;
   private historyService!: HistoryService;
   private soundService!: SoundService;
+  private recordingNotesService!: RecordingNotesService;
   private trayService: TrayService | null = null;
 
   // Audio accumulation for history
@@ -118,6 +120,11 @@ class WhisperMacApp {
     this.historyService = HistoryService.getInstance(this.config);
     this.soundService = new SoundService(this.settingsManager);
     this.settingsService.setSoundService(this.soundService);
+    this.recordingNotesService = new RecordingNotesService(
+      this.config,
+      this.audioCaptureService,
+      this.transcriptionPluginManager,
+    );
 
     // ConfigurableActionsService is now stateless regarding segments, no setSegmentManager needed
   }
@@ -385,6 +392,7 @@ class WhisperMacApp {
       this.modelManager,
       this.historyService,
       this.pushToTalkManager,
+      this.recordingNotesService,
       ipcStateBridge,
     ]);
   }
@@ -403,6 +411,9 @@ class WhisperMacApp {
       this.settingsManager,
     );
     this.trayService.createTray();
+    this.trayService.setRecordingNotesCallback(() => {
+      this.recordingNotesService.openWindow();
+    });
 
     this.dictationFlowManager.setTrayService(this.trayService);
     this.shortcutManager.setDictationFlowManager(this.dictationFlowManager);
@@ -441,6 +452,14 @@ class WhisperMacApp {
     this.setupErrorManagerCallback();
     this.checkPermissionsOnLaunch();
     this.pushToTalkManager?.initialize();
+    this.setupRecordingNotesIpc();
+  }
+
+  private setupRecordingNotesIpc(): void {
+    const { ipcMain } = require("electron");
+    ipcMain.handle("recording-notes:open-window", async () => {
+      await this.recordingNotesService.openWindow();
+    });
   }
 
   private setupErrorManagerCallback(): void {

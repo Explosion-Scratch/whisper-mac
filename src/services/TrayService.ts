@@ -17,6 +17,7 @@ export { SetupStatus };
 export class TrayService {
   private tray: Tray | null = null;
   private trayMenu: Menu | null = null;
+  private onOpenRecordingNotes: (() => void) | null = null;
 
   private get currentStatus(): SetupStatus {
     return appStore.select((s) => s.app.status);
@@ -33,6 +34,10 @@ export class TrayService {
     private readonly notificationService: NotificationService,
     private readonly settingsManager: SettingsManager,
   ) {}
+
+  setRecordingNotesCallback(cb: () => void): void {
+    this.onOpenRecordingNotes = cb;
+  }
 
   createTray() {
     const initialIconPath = join(__dirname, this.trayIconIdleRelPath);
@@ -184,7 +189,7 @@ export class TrayService {
         (this.settingsManager.get("hotkeys") as Record<string, string>) || {};
       const startStopHotkey = hotkeySettings.startStopDictation || "Control+D";
 
-      const contextMenu = Menu.buildFromTemplate([
+      const menuItems: Electron.MenuItemConstructorOptions[] = [
         {
           label: "Start Dictation",
           click: () => this.onLeftClick(),
@@ -192,13 +197,26 @@ export class TrayService {
         },
         { type: "separator" },
         { label: "Settings", click: () => this.onShowSettings() },
+      ];
+
+      if (this.onOpenRecordingNotes) {
+        const cb = this.onOpenRecordingNotes;
+        menuItems.push({
+          label: "Recording Notes",
+          click: () => cb(),
+        });
+      }
+
+      menuItems.push(
         {
           label: "Select Plugin",
           submenu: pluginSubmenu,
         },
         { type: "separator" },
         { label: "Quit", click: () => app.quit() },
-      ]);
+      );
+
+      const contextMenu = Menu.buildFromTemplate(menuItems);
       this.trayMenu = contextMenu;
       this.tray.setToolTip("WhisperMac - AI Dictation");
     }

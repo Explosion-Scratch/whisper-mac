@@ -432,6 +432,74 @@ const onboardingElectronAPI = {
 };
 
 // ============================================================================
+// RECORDING NOTES API
+// ============================================================================
+
+const recordingNotesActiveListeners: ListenerCleanupFn[] = [];
+
+function createRNListener<T>(
+  channel: string,
+  callback: (data: T) => void,
+): ListenerCleanupFn {
+  const handler = (_event: IpcRendererEvent, data: T) => callback(data);
+  ipcRenderer.on(channel, handler);
+  const cleanup = () => ipcRenderer.removeListener(channel, handler);
+  recordingNotesActiveListeners.push(cleanup);
+  return cleanup;
+}
+
+const recordingNotesAPI = {
+  startRecording: () => ipcRenderer.invoke("recording-notes:start"),
+  stopRecording: () => ipcRenderer.invoke("recording-notes:stop"),
+  pauseRecording: () => ipcRenderer.invoke("recording-notes:pause"),
+  resumeRecording: () => ipcRenderer.invoke("recording-notes:resume"),
+  saveNotes: (notes: any[]) =>
+    ipcRenderer.invoke("recording-notes:save-notes", notes),
+  saveAiNotes: (aiNotes: any[]) =>
+    ipcRenderer.invoke("recording-notes:save-ai-notes", aiNotes),
+  getAudioPath: () => ipcRenderer.invoke("recording-notes:get-audio-path"),
+  getSession: () => ipcRenderer.invoke("recording-notes:get-session"),
+  askQuestion: (question: string) =>
+    ipcRenderer.invoke("recording-notes:ask-question", question),
+  cancelAsk: () => ipcRenderer.invoke("recording-notes:cancel-ask"),
+  generateAiNotes: () =>
+    ipcRenderer.invoke("recording-notes:generate-ai-notes"),
+  openWindow: () => ipcRenderer.invoke("recording-notes:open-window"),
+  resetSession: () => ipcRenderer.invoke("recording-notes:reset-session"),
+  getModelInfo: () => ipcRenderer.invoke("recording-notes:get-model-info"),
+  regenerateAiNotes: () =>
+    ipcRenderer.invoke("recording-notes:regenerate-ai-notes"),
+  exportZip: () => ipcRenderer.invoke("recording-notes:export-zip"),
+  importZip: () => ipcRenderer.invoke("recording-notes:import-zip"),
+  onStatus: (callback: (data: any) => void) =>
+    createRNListener("recording-notes:status", callback),
+  onTranscriptUpdate: (callback: (data: any) => void) =>
+    createRNListener("recording-notes:transcript-update", callback),
+  onTranscriptPartial: (callback: (data: any) => void) =>
+    createRNListener("recording-notes:transcript-partial", callback),
+  onAiNotesChunk: (callback: (data: any) => void) =>
+    createRNListener("recording-notes:ai-notes-chunk", callback),
+  onAskResponseChunk: (callback: (data: any) => void) =>
+    createRNListener("recording-notes:ask-response-chunk", callback),
+  onSessionLoaded: (callback: (data: any) => void) =>
+    createRNListener("recording-notes:session-loaded", callback),
+  onAiStatus: (callback: (data: any) => void) =>
+    createRNListener("recording-notes:ai-status", callback),
+  onAiNotesCleared: (callback: () => void) =>
+    createRNListener("recording-notes:ai-notes-cleared", callback),
+  onSettingsUpdated: (callback: (data: any) => void) =>
+    createRNListener("settings:updated", callback),
+  cleanup: () => {
+    for (const cleanup of recordingNotesActiveListeners) {
+      try {
+        cleanup();
+      } catch {}
+    }
+    recordingNotesActiveListeners.length = 0;
+  },
+};
+
+// ============================================================================
 // EXPOSE TO RENDERER
 // ============================================================================
 
@@ -442,3 +510,4 @@ contextBridge.exposeInMainWorld("electronAPI", {
 });
 
 contextBridge.exposeInMainWorld("onboardingAPI", onboardingAPI);
+contextBridge.exposeInMainWorld("recordingNotesAPI", recordingNotesAPI);

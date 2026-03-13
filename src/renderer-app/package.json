@@ -9,6 +9,10 @@
   },
   "dependencies": {
     "@ricky0123/vad-web": "^0.0.22",
+    "@types/dompurify": "^3.2.0",
+    "@types/marked": "^6.0.0",
+    "dompurify": "^3.3.1",
+    "marked": "^17.0.4",
     "onnxruntime-web": "^1.14.0",
     "vue": "^3.4.0",
     "vue-router": "^4.2.0"

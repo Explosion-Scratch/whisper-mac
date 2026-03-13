@@ -20,6 +20,7 @@ import { appStore, selectors } from "../core/AppStore";
 export class SegmentManager extends EventEmitter {
   private segments: Segment[] = [];
   private initialSelectedText: string | null = null;
+  private initialSelectedTextResult: SelectedTextResult | null = null;
   private transformationService: TransformationService;
   private textInjectionService: TextInjectionService;
   private selectedTextService: SelectedTextService;
@@ -63,6 +64,31 @@ export class SegmentManager extends EventEmitter {
 
   setInitialSelectedText(text: string): void {
     this.initialSelectedText = text.trim();
+  }
+
+  async captureInitialSelectedText(): Promise<void> {
+    const selectedText = await this.selectedTextService.getSelectedText();
+    this.initialSelectedTextResult = selectedText;
+    this.initialSelectedText = selectedText.hasSelection
+      ? selectedText.text.trim()
+      : null;
+    appStore.setState({
+      segments: {
+        ...appStore.getState().segments,
+        initialSelectedText: this.initialSelectedText,
+      },
+    });
+  }
+
+  hasInitialSelectedText(): boolean {
+    return !!this.initialSelectedText;
+  }
+
+  private async getSelectedTextForTransformation(): Promise<SelectedTextResult> {
+    if (this.initialSelectedTextResult) {
+      return this.initialSelectedTextResult;
+    }
+    return this.selectedTextService.getSelectedText();
   }
 
   private deduplicateSegments(): void {
@@ -413,7 +439,7 @@ export class SegmentManager extends EventEmitter {
       const transformResult =
         await this.transformationService.transformSegments(
           segmentsToProcess,
-          await this.selectedTextService.getSelectedText(),
+          await this.getSelectedTextForTransformation(),
         );
 
       if (
@@ -634,7 +660,7 @@ export class SegmentManager extends EventEmitter {
       const transformResult =
         await this.transformationService.transformSegments(
           fullContextSegments,
-          await this.selectedTextService.getSelectedText(),
+          await this.getSelectedTextForTransformation(),
         );
 
       if (
@@ -730,6 +756,7 @@ export class SegmentManager extends EventEmitter {
   clearAllSegments(): void {
     this.segments = [];
     this.initialSelectedText = null;
+    this.initialSelectedTextResult = null;
     this.isAccumulatingMode = false;
     this.queuedHandlers = [];
     this.lastExecutedAction = null;

@@ -1,0 +1,5 @@
+Full transcript so far:
+{{FULL_TRANSCRIPT}}
+
+{{EXISTING_NOTES}}New transcript to summarize:
+{{NEW_TEXT}}

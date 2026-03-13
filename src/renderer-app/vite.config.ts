@@ -36,6 +36,10 @@ export default defineConfig({
           src: "node_modules/onnxruntime-web/dist/ort.min.mjs",
           dest: "./",
         },
+        {
+          src: "node_modules/onnxruntime-web/dist/ort.min.js",
+          dest: "./",
+        },
       ],
     }),
   ],

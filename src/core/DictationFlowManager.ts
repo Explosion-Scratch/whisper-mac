@@ -19,6 +19,8 @@ export class DictationFlowManager {
   private finishingTimeout: NodeJS.Timeout | null = null;
   private eventCleanupFns: Array<() => void> = [];
   private soundService: SoundService | null = null;
+  private activeProcessingTasks = 0;
+  private processingWaiters: Array<() => void> = [];
 
   private get state(): DictationState {
     return appStore.select((s) => s.dictation.state);
@@ -99,41 +101,43 @@ export class DictationFlowManager {
   }
 
   private async handleChunkReady(event: ChunkReadyEvent): Promise<void> {
-    if (this.state !== "recording") return;
+    if (this.state !== "recording" && this.state !== "finishing") return;
 
-    try {
-      console.log(
-        `[DictationFlowManager] Processing chunk for accumulation (${event.audio.length} samples)`,
-      );
-      await this.transcriptionPluginManager.processAudioSegment(event.audio);
-
-      const waitSucceeded = await this.waitForCompletedSegmentsStateOnly(
-        DICTATION_CONFIG.SEGMENT_COMPLETION_TIMEOUT_MS,
-      );
-      if (!waitSucceeded) {
+    await this.runTrackedProcessing(async () => {
+      try {
         console.log(
-          "[DictationFlowManager] Chunk transcription timed out, storing partial",
+          `[DictationFlowManager] Processing chunk for accumulation (${event.audio.length} samples)`,
         );
-      }
+        await this.transcriptionPluginManager.processAudioSegment(event.audio);
 
-      const completedSegments =
-        this.segmentManager.getCompletedTranscribedSegments();
-      if (completedSegments.length > 0) {
-        const chunkText = completedSegments
-          .map((s) => s.text.trim())
-          .filter((t) => t.length)
-          .join(" ");
-        if (chunkText) {
-          appStore.addAccumulatedChunk(chunkText);
+        const waitSucceeded = await this.waitForCompletedSegmentsStateOnly(
+          DICTATION_CONFIG.SEGMENT_COMPLETION_TIMEOUT_MS,
+        );
+        if (!waitSucceeded) {
           console.log(
-            `[DictationFlowManager] Accumulated chunk: "${chunkText.substring(0, 50)}..."`,
+            "[DictationFlowManager] Chunk transcription timed out, storing partial",
           );
         }
-        this.segmentManager.clearCompletedSegmentsOnly();
+
+        const completedSegments =
+          this.segmentManager.getCompletedTranscribedSegments();
+        if (completedSegments.length > 0) {
+          const chunkText = completedSegments
+            .map((s) => s.text.trim())
+            .filter((t) => t.length)
+            .join(" ");
+          if (chunkText) {
+            appStore.addAccumulatedChunk(chunkText);
+            console.log(
+              `[DictationFlowManager] Accumulated chunk: "${chunkText.substring(0, 50)}..."`,
+            );
+          }
+          this.segmentManager.clearCompletedSegmentsOnly();
+        }
+      } catch (error) {
+        console.error("[DictationFlowManager] Failed to process chunk:", error);
       }
-    } catch (error) {
-      console.error("[DictationFlowManager] Failed to process chunk:", error);
-    }
+    });
   }
 
   setTrayService(trayService: TrayService | null): void {
@@ -167,6 +171,7 @@ export class DictationFlowManager {
 
       this.clearState();
       this.setupAccumulatingMode();
+      await this.segmentManager.captureInitialSelectedText();
 
       promiseManager.start(`dictation:transcription:start:${sessionId}`);
       await this.startTranscription();
@@ -277,6 +282,12 @@ export class DictationFlowManager {
       } else {
         await audioStopWait;
       }
+
+      const processingSettled = await this.waitForPendingProcessingTasks(8000);
+      console.log("[DictationFlowManager] Pending processing settled:", {
+        processingSettled,
+        activeProcessingTasks: this.activeProcessingTasks,
+      });
 
       // Re-check buffered audio state after 300ms wait (it may have changed)
       const hasBufferedAudioAfterWait =
@@ -655,17 +666,19 @@ export class DictationFlowManager {
       return;
     }
 
-    try {
-      this.dictationWindowService.setStatus("transcribing");
-      console.log("Processing VAD audio segment:", audioData.length, "samples");
-      await this.transcriptionPluginManager.processAudioSegment(audioData);
-    } catch (error) {
-      console.error("Error processing audio segment:", error);
-    } finally {
-      if (this.state === "recording") {
-        this.dictationWindowService.setStatus("recording");
+    await this.runTrackedProcessing(async () => {
+      try {
+        this.dictationWindowService.setStatus("transcribing");
+        console.log("Processing VAD audio segment:", audioData.length, "samples");
+        await this.transcriptionPluginManager.processAudioSegment(audioData);
+      } catch (error) {
+        console.error("Error processing audio segment:", error);
+      } finally {
+        if (this.state === "recording") {
+          this.dictationWindowService.setStatus("recording");
+        }
       }
-    }
+    });
   }
 
   private async processSegments(update: SegmentUpdate): Promise<void> {
@@ -723,8 +736,21 @@ export class DictationFlowManager {
 
   private hasSegmentsToProcess(): boolean {
     const allSegments = this.segmentManager.getAllSegments();
-    const selectedText = (this.segmentManager as any).initialSelectedText;
-    return !!(selectedText || allSegments.length > 0);
+    return this.segmentManager.hasInitialSelectedText() || allSegments.length > 0;
+  }
+
+  private async runTrackedProcessing(task: () => Promise<void>): Promise<void> {
+    this.activeProcessingTasks += 1;
+    try {
+      await task();
+    } finally {
+      this.activeProcessingTasks = Math.max(0, this.activeProcessingTasks - 1);
+      if (this.activeProcessingTasks === 0) {
+        const waiters = [...this.processingWaiters];
+        this.processingWaiters = [];
+        waiters.forEach((resolve) => resolve());
+      }
+    }
   }
 
   private clearFinishingTimeout(): void {
@@ -879,6 +905,37 @@ export class DictationFlowManager {
         unsubscribe();
         resolve();
       }
+    });
+  }
+
+  private waitForPendingProcessingTasks(timeoutMs: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (this.activeProcessingTasks === 0) {
+        resolve(true);
+        return;
+      }
+
+      let resolved = false;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+      const finish = (success: boolean) => {
+        if (resolved) {
+          return;
+        }
+        resolved = true;
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        this.processingWaiters = this.processingWaiters.filter(
+          (waiter) => waiter !== onSettled,
+        );
+        resolve(success);
+      };
+
+      const onSettled = () => finish(true);
+      this.processingWaiters.push(onSettled);
+
+      timeoutId = setTimeout(() => finish(false), timeoutMs);
     });
   }
 
