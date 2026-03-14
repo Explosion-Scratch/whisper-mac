@@ -1,5 +1,5 @@
-import { BrowserWindow, ipcMain, app, dialog } from "electron";
-import { join } from "path";
+import { BrowserWindow, ipcMain, app, dialog, shell } from "electron";
+import { basename, dirname, join } from "path";
 import { EventEmitter } from "events";
 import { v4 as uuidv4 } from "uuid";
 import { AudioCaptureService } from "./AudioCaptureService";
@@ -7,9 +7,10 @@ import { TranscriptionPluginManager } from "../plugins/TranscriptionPluginManage
 import { AppConfig } from "../config/AppConfig";
 import { SecureStorageService } from "./SecureStorageService";
 import { SegmentUpdate } from "../types/SegmentTypes";
-import { existsSync, mkdirSync, writeFileSync, copyFileSync } from "fs";
-import AdmZip from "adm-zip";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { readPrompt, fillPrompt } from "../helpers/getPrompt";
+import { AiProviderService } from "./AiProviderService";
+import { appStore, selectors } from "../core/AppStore";
 
 export interface AudioTimeMapping {
   wallClockMs: number;
@@ -44,6 +45,8 @@ export type SessionStatus = "idle" | "recording" | "paused" | "ended";
 export interface RecordingNotesSession {
   id: string;
   startedAt: number;
+  title: string;
+  projectPath: string;
   segments: TranscriptSegment[];
   userNotes: UserNote[];
   aiNotes: AiNote[];
@@ -69,12 +72,15 @@ export class RecordingNotesService extends EventEmitter {
   private transcriptionInProgress = false;
   private lastAiNoteSegmentCount = 0;
   private pendingAiWords = 0;
+  private aiNotesInFlight = false;
   private ipcHandlersRegistered = false;
   private askAbortController: AbortController | null = null;
   private recordingStartWallTime = 0;
   private pausedAtMs = 0;
   private accumulatedRecordedMs = 0;
   private currentBatchAudioStartMs = 0;
+  private aiModelOverride: string | null = null;
+  private aiModelOverrideKey: string | null = null;
 
   constructor(
     config: AppConfig,
@@ -103,16 +109,16 @@ export class RecordingNotesService extends EventEmitter {
     }
 
     this.window = new BrowserWindow({
-      width: 960,
-      height: 680,
-      minWidth: 720,
-      minHeight: 480,
+      width: 1100,
+      height: 760,
+      minWidth: 860,
+      minHeight: 560,
       transparent: true,
       backgroundColor: "#00000000",
       vibrancy: "under-window",
       visualEffectState: "followWindow",
       titleBarStyle: "hidden",
-      trafficLightPosition: { x: 10, y: 12 },
+      trafficLightPosition: { x: 14, y: 15 },
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -164,6 +170,21 @@ export class RecordingNotesService extends EventEmitter {
     });
 
     ipcMain.handle(
+      "recording-notes:rename-session",
+      async (_e, title: string) => {
+        if (!this.session) {
+          return { success: false, error: "No active session" };
+        }
+        this.session.title = title.trim();
+        this.saveSession();
+        this.sendToRenderer("recording-notes:session-renamed", {
+          title: this.session.title,
+        });
+        return { success: true, title: this.session.title };
+      },
+    );
+
+    ipcMain.handle(
       "recording-notes:save-notes",
       async (_e, notes: UserNote[]) => {
         if (this.session) {
@@ -188,7 +209,13 @@ export class RecordingNotesService extends EventEmitter {
     });
 
     ipcMain.handle("recording-notes:get-session", async () => {
-      return this.session;
+      if (!this.session) {
+        return null;
+      }
+      return {
+        ...this.session,
+        totalRecordedMs: this.getElapsedRecordingMs(),
+      };
     });
 
     ipcMain.handle(
@@ -232,20 +259,42 @@ export class RecordingNotesService extends EventEmitter {
       return this.getModelInfo();
     });
 
+    ipcMain.handle("recording-notes:get-project-state", async () => {
+      return this.getProjectState();
+    });
+
+    ipcMain.handle("recording-notes:open-project", async (_e, projectPath: string) => {
+      return this.importSessionFolder(projectPath);
+    });
+
+    ipcMain.handle(
+      "recording-notes:reveal-project",
+      async (_e, projectPath?: string) => {
+        return this.revealProject(projectPath);
+      },
+    );
+
+    ipcMain.handle(
+      "recording-notes:delete-project",
+      async (_e, projectPath: string) => {
+        return this.deleteProject(projectPath);
+      },
+    );
+
     ipcMain.handle("recording-notes:export-zip", async () => {
-      return this.exportSessionZip();
+      return this.exportSessionFolder();
     });
 
     ipcMain.handle("recording-notes:import-zip", async () => {
       const result = await dialog.showOpenDialog({
         title: "Import Recording Notes",
-        filters: [{ name: "ZIP", extensions: ["zip"] }],
-        properties: ["openFile"],
+        defaultPath: this.getProjectState().lastDirectory,
+        properties: ["openDirectory", "createDirectory"],
       });
       if (result.canceled || !result.filePaths?.[0]) {
         return { success: false, error: "Cancelled" };
       }
-      return this.importSessionZip(result.filePaths[0]);
+      return this.importSessionFolder(result.filePaths[0]);
     });
   }
 
@@ -253,6 +302,16 @@ export class RecordingNotesService extends EventEmitter {
     success: boolean;
     error?: string;
   }> {
+    if (
+      appStore.select((state) => state.dictation.state) !== "idle" ||
+      (appStore.select(selectors.isCapturing) && this.session?.status !== "recording")
+    ) {
+      return {
+        success: false,
+        error: "Another transcription session is already using the microphone.",
+      };
+    }
+
     const isResume =
       this.session &&
       (this.session.status === "ended" || this.session.status === "paused");
@@ -261,18 +320,17 @@ export class RecordingNotesService extends EventEmitter {
       return { success: false, error: "Already recording" };
     }
 
-    const sessionsDir = join(this.config.dataDir, "recording-notes");
-    if (!existsSync(sessionsDir)) {
-      mkdirSync(sessionsDir, { recursive: true });
-    }
-
     if (!isResume) {
       const sessionId = uuidv4();
-      const audioPath = join(sessionsDir, `${sessionId}.wav`);
+      const startedAt = Date.now();
+      const projectPath = this.createProjectPath(sessionId, startedAt);
+      const audioPath = join(projectPath, "audio.wav");
 
       this.session = {
         id: sessionId,
-        startedAt: Date.now(),
+        startedAt,
+        title: "",
+        projectPath,
         segments: [],
         userNotes: [],
         aiNotes: [],
@@ -290,6 +348,9 @@ export class RecordingNotesService extends EventEmitter {
       this.transcriptionInProgress = false;
       this.accumulatedRecordedMs = 0;
       this.currentBatchAudioStartMs = 0;
+      this.ensureProjectDir(this.session);
+      this.setProjectState(projectPath);
+      this.saveSession();
     } else {
       this.session!.status = "recording";
       this.pendingAudioChunks = [];
@@ -339,6 +400,8 @@ export class RecordingNotesService extends EventEmitter {
         await this.transcribeSegment(pending);
       }
     }
+
+    await this.generateAiNotes(true);
 
     this.session.status = "paused";
     this.session.totalRecordedMs = this.accumulatedRecordedMs;
@@ -393,6 +456,8 @@ export class RecordingNotesService extends EventEmitter {
         }
       }
     }
+
+    await this.generateAiNotes(true);
 
     this.session.status = "ended";
     this.session.totalRecordedMs = this.accumulatedRecordedMs;
@@ -506,6 +571,7 @@ export class RecordingNotesService extends EventEmitter {
           };
 
           this.session.segments.push(transcriptSegment);
+          this.saveSession();
 
           this.sendToRenderer("recording-notes:transcript-update", {
             segment: transcriptSegment,
@@ -542,7 +608,9 @@ export class RecordingNotesService extends EventEmitter {
   }
 
   private async generateAiNotes(force: boolean): Promise<void> {
-    if (!this.session || this.session.segments.length === 0) return;
+    if (!this.session || this.session.segments.length === 0 || this.aiNotesInFlight) {
+      return;
+    }
     if (!force && this.pendingAiWords < AI_WORD_THRESHOLD) return;
 
     const aiConfig = this.config.ai;
@@ -551,19 +619,10 @@ export class RecordingNotesService extends EventEmitter {
       return;
     }
 
-    const apiKey = await this.getApiKey();
-    if (!apiKey) {
-      console.log("[RecordingNotesService] No API key, skipping AI notes");
-      return;
-    }
-
     const newSegments = this.session.segments.slice(
       this.lastAiNoteSegmentCount,
     );
     if (newSegments.length === 0) return;
-
-    this.lastAiNoteSegmentCount = this.session.segments.length;
-    this.pendingAiWords = 0;
 
     const fullTranscript = this.session.segments
       .map((s) => `[${this.formatTimestamp(s.startMs)}] ${s.text}`)
@@ -579,6 +638,7 @@ export class RecordingNotesService extends EventEmitter {
 
     const noteId = uuidv4();
     const timestampMs = newSegments[0]?.startMs ?? 0;
+    const processedSegmentCount = this.lastAiNoteSegmentCount + newSegments.length;
 
     console.log(
       `[RecordingNotesService] Generating AI notes: ${newSegments.length} new segments, timestamp=${timestampMs}ms, model=${aiConfig.model}, url=${aiConfig.baseUrl}`,
@@ -588,6 +648,7 @@ export class RecordingNotesService extends EventEmitter {
       generating: true,
       error: null,
     });
+    this.aiNotesInFlight = true;
 
     try {
       const systemPrompt = readPrompt("recording_notes_system");
@@ -598,77 +659,14 @@ export class RecordingNotesService extends EventEmitter {
           : "",
         NEW_TEXT: newText,
       });
-
-      const response = await fetch(aiConfig.baseUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: aiConfig.model,
-          stream: true,
-          max_tokens: aiConfig.maxTokens,
-          temperature: aiConfig.temperature,
-          top_p: aiConfig.topP,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-        }),
+      const content = await this.streamAiResponse(systemPrompt, userPrompt, undefined, (nextContent) => {
+        this.sendToRenderer("recording-notes:ai-notes-chunk", {
+          noteId,
+          content: nextContent,
+          timestampMs,
+          done: false,
+        });
       });
-
-      if (!response.ok) {
-        const errMsg = `${response.status} ${response.statusText} (model=${aiConfig.model})`;
-        console.error(`[RecordingNotesService] AI error: ${errMsg}, url=${aiConfig.baseUrl}`);
-        this.sendToRenderer("recording-notes:ai-status", {
-          generating: false,
-          error: `AI error: ${errMsg}`,
-        });
-        return;
-      }
-      if (!response.body) {
-        console.error(
-          "[RecordingNotesService] AI notes response has no body",
-        );
-        this.sendToRenderer("recording-notes:ai-status", {
-          generating: false,
-          error: "Empty response from AI",
-        });
-        return;
-      }
-
-      let content = "";
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6).trim();
-          if (data === "[DONE]") break;
-
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              content += delta;
-              this.sendToRenderer("recording-notes:ai-notes-chunk", {
-                noteId,
-                content,
-                timestampMs,
-                done: false,
-              });
-            }
-          } catch {}
-        }
-      }
 
       if (content.trim()) {
         const aiNote: AiNote = {
@@ -689,6 +687,8 @@ export class RecordingNotesService extends EventEmitter {
           `[RecordingNotesService] AI note generated: ${content.trim().length} chars`,
         );
       }
+      this.lastAiNoteSegmentCount = processedSegmentCount;
+      this.pendingAiWords = 0;
       this.sendToRenderer("recording-notes:ai-status", {
         generating: false,
         error: null,
@@ -700,6 +700,8 @@ export class RecordingNotesService extends EventEmitter {
         generating: false,
         error: errMsg,
       });
+    } finally {
+      this.aiNotesInFlight = false;
     }
   }
 
@@ -723,8 +725,7 @@ export class RecordingNotesService extends EventEmitter {
       return;
     }
 
-    const apiKey = await this.getApiKey();
-    if (!apiKey) {
+    if (!(await this.getApiKey())) {
       console.log("[RecordingNotesService] Ask: no API key");
       this.sendToRenderer("recording-notes:ask-response-chunk", {
         content:
@@ -765,77 +766,17 @@ export class RecordingNotesService extends EventEmitter {
       );
 
       console.log("[RecordingNotesService] Ask: sending request...");
-      const response = await fetch(aiConfig.baseUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
+      const content = await this.streamAiResponse(
+        askSystemPrompt,
+        askUserPrompt,
+        this.askAbortController.signal,
+        (nextContent) => {
+          this.sendToRenderer("recording-notes:ask-response-chunk", {
+            content: nextContent,
+            done: false,
+          });
         },
-        signal: this.askAbortController.signal,
-        body: JSON.stringify({
-          model: aiConfig.model,
-          stream: true,
-          max_tokens: aiConfig.maxTokens,
-          temperature: aiConfig.temperature,
-          top_p: aiConfig.topP,
-          messages: [
-            { role: "system", content: askSystemPrompt },
-            { role: "user", content: askUserPrompt },
-          ],
-        }),
-      });
-
-      if (!response.ok) {
-        const errMsg = `${response.status} ${response.statusText} (model=${aiConfig.model})`;
-        console.error(
-          `[RecordingNotesService] Ask API error: ${errMsg}, url=${aiConfig.baseUrl}`,
-        );
-        this.sendToRenderer("recording-notes:ask-response-chunk", {
-          content: `API error: ${errMsg}`,
-          done: true,
-        });
-        return;
-      }
-
-      if (!response.body) {
-        console.error("[RecordingNotesService] Ask: response has no body");
-        this.sendToRenderer("recording-notes:ask-response-chunk", {
-          content: "Empty response from AI.",
-          done: true,
-        });
-        return;
-      }
-
-      let content = "";
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      console.log("[RecordingNotesService] Ask: streaming response...");
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6).trim();
-          if (data === "[DONE]") break;
-
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              content += delta;
-              this.sendToRenderer("recording-notes:ask-response-chunk", {
-                content,
-                done: false,
-              });
-            }
-          } catch {}
-        }
-      }
+      );
 
       console.log(
         `[RecordingNotesService] Ask: complete, ${content.length} chars`,
@@ -871,10 +812,7 @@ export class RecordingNotesService extends EventEmitter {
       offset += chunk.length;
     }
 
-    const sessionsDir = join(this.config.dataDir, "recording-notes");
-    if (!existsSync(sessionsDir)) {
-      mkdirSync(sessionsDir, { recursive: true });
-    }
+    this.ensureRecordingNotesDir();
 
     try {
       const wavPath = this.session.audioPath;
@@ -934,79 +872,62 @@ export class RecordingNotesService extends EventEmitter {
 
   private saveSession(): void {
     if (!this.session) return;
-    const sessionsDir = join(this.config.dataDir, "recording-notes");
-    if (!existsSync(sessionsDir)) {
-      mkdirSync(sessionsDir, { recursive: true });
-    }
-    const sessionPath = join(sessionsDir, `${this.session.id}.json`);
+    const sessionPath = this.getSessionFilePath(this.session);
     writeFileSync(sessionPath, JSON.stringify(this.session, null, 2));
   }
 
-  private async exportSessionZip(): Promise<string | null> {
+  private async exportSessionFolder(): Promise<string | null> {
     if (!this.session) return null;
     this.saveSession();
 
     try {
-      const sessionsDir = join(this.config.dataDir, "recording-notes");
-      const zipPath = join(sessionsDir, `${this.session.id}.zip`);
-      const zip = new AdmZip();
-
-      const sessionPath = join(sessionsDir, `${this.session.id}.json`);
+      const result = await dialog.showOpenDialog({
+        title: "Export Recording Notes",
+        defaultPath: this.getProjectState().lastDirectory,
+        properties: ["openDirectory", "createDirectory"],
+      });
+      if (result.canceled || !result.filePaths?.[0]) {
+        return null;
+      }
+      const exportDir = join(
+        result.filePaths[0],
+        basename(this.session.projectPath || `recording-notes-${this.session.id}`),
+      );
+      mkdirSync(exportDir, { recursive: true });
+      const sessionPath = this.getSessionFilePath(this.session);
       if (existsSync(sessionPath)) {
-        zip.addLocalFile(sessionPath, "", "session.json");
+        copyFileSync(sessionPath, join(exportDir, "session.json"));
       }
       if (existsSync(this.session.audioPath)) {
-        zip.addLocalFile(this.session.audioPath, "", "audio.wav");
+        copyFileSync(this.session.audioPath, join(exportDir, "audio.wav"));
       }
-
-      zip.writeZip(zipPath);
-
-      const result = await dialog.showSaveDialog({
-        title: "Export Recording Notes",
-        defaultPath: `recording-notes-${Date.now()}.zip`,
-        filters: [{ name: "ZIP", extensions: ["zip"] }],
-      });
-
-      if (!result.canceled && result.filePath) {
-        copyFileSync(zipPath, result.filePath);
-        return result.filePath;
-      }
-
-      return zipPath;
+      this.setProjectState(exportDir);
+      return exportDir;
     } catch (error) {
-      console.error("[RecordingNotesService] Export zip error:", error);
+      console.error("[RecordingNotesService] Export folder error:", error);
       return null;
     }
   }
 
-  private async importSessionZip(
-    zipPath: string,
+  private async importSessionFolder(
+    projectPath: string,
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const sessionsDir = join(this.config.dataDir, "recording-notes");
-      if (!existsSync(sessionsDir)) {
-        mkdirSync(sessionsDir, { recursive: true });
+      const sessionFilePath = join(projectPath, "session.json");
+      if (!existsSync(sessionFilePath)) {
+        return { success: false, error: "No session.json found in folder" };
       }
-
-      const zip = new AdmZip(zipPath);
-      const entries = zip.getEntries();
-
-      let sessionData: RecordingNotesSession | null = null;
-
-      const sessionEntry = entries.find((e) => e.entryName === "session.json");
-      if (sessionEntry) {
-        sessionData = JSON.parse(sessionEntry.getData().toString("utf-8"));
-      }
-
+      let sessionData: RecordingNotesSession | null = JSON.parse(
+        readFileSync(sessionFilePath, "utf-8"),
+      );
       if (!sessionData) {
-        return { success: false, error: "No session.json found in zip" };
+        return { success: false, error: "Invalid session.json" };
       }
-
-      const audioEntry = entries.find((e) => e.entryName === "audio.wav");
-      if (audioEntry) {
-        const audioPath = join(sessionsDir, `${sessionData.id}.wav`);
-        writeFileSync(audioPath, audioEntry.getData());
-        sessionData.audioPath = audioPath;
+      const audioFilePath = join(projectPath, "audio.wav");
+      sessionData.title = typeof sessionData.title === "string" ? sessionData.title : "";
+      sessionData.projectPath = projectPath;
+      if (existsSync(audioFilePath)) {
+        sessionData.audioPath = audioFilePath;
       }
 
       this.session = sessionData;
@@ -1014,10 +935,11 @@ export class RecordingNotesService extends EventEmitter {
       this.accumulatedRecordedMs = this.session.totalRecordedMs || 0;
       this.lastAiNoteSegmentCount = this.session.segments.length;
       this.saveSession();
+      this.setProjectState(projectPath);
       this.sendToRenderer("recording-notes:session-loaded", this.session);
       return { success: true };
     } catch (error: any) {
-      console.error("[RecordingNotesService] Import zip error:", error);
+      console.error("[RecordingNotesService] Import folder error:", error);
       return { success: false, error: error.message || String(error) };
     }
   }
@@ -1035,11 +957,319 @@ export class RecordingNotesService extends EventEmitter {
     }
   }
 
+  private ensureRecordingNotesDir(): string {
+    const sessionsDir = join(this.config.dataDir, "recording-notes");
+    if (!existsSync(sessionsDir)) {
+      mkdirSync(sessionsDir, { recursive: true });
+    }
+    return sessionsDir;
+  }
+
+  private ensureRecordingNotesProjectsDir(): string {
+    const projectsDir = join(this.ensureRecordingNotesDir(), "projects");
+    if (!existsSync(projectsDir)) {
+      mkdirSync(projectsDir, { recursive: true });
+    }
+    return projectsDir;
+  }
+
+  private createProjectPath(sessionId: string, startedAt: number): string {
+    const stamp = new Date(startedAt)
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .replace("T", "_")
+      .replace("Z", "");
+    return join(
+      this.ensureRecordingNotesProjectsDir(),
+      `${stamp}_${sessionId.slice(0, 8)}`,
+    );
+  }
+
+  private ensureProjectDir(session: RecordingNotesSession): string {
+    if (!existsSync(session.projectPath)) {
+      mkdirSync(session.projectPath, { recursive: true });
+    }
+    return session.projectPath;
+  }
+
+  private getSessionFilePath(session: RecordingNotesSession | null): string {
+    if (!session) return "";
+    return join(this.ensureProjectDir(session), "session.json");
+  }
+
+  private getProjectState(): {
+    lastDirectory: string;
+    recentProjectPaths: string[];
+    currentProjectPath: string | null;
+  } {
+    const fallback = {
+      lastDirectory: this.ensureRecordingNotesDir(),
+      recentProjectPaths: [] as string[],
+      currentProjectPath: this.session?.projectPath || null,
+    };
+    try {
+      const statePath = join(this.ensureRecordingNotesDir(), "projects.json");
+      if (!existsSync(statePath)) {
+        return fallback;
+      }
+      const parsed = JSON.parse(readFileSync(statePath, "utf-8"));
+      const recentProjectPaths = Array.isArray(parsed?.recentProjectPaths)
+        ? parsed.recentProjectPaths.filter(
+            (projectPath: unknown) =>
+              typeof projectPath === "string" && existsSync(projectPath),
+          )
+        : [];
+      return {
+        lastDirectory: typeof parsed?.lastDirectory === "string" && parsed.lastDirectory ? parsed.lastDirectory : fallback.lastDirectory,
+        recentProjectPaths,
+        currentProjectPath: this.session?.projectPath || null,
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
+  private setProjectState(projectPath: string): void {
+    const current = this.getProjectState();
+    const recentProjectPaths = [
+      projectPath,
+      ...current.recentProjectPaths.filter((value) => value !== projectPath),
+    ].slice(0, 10);
+    writeFileSync(
+      join(this.ensureRecordingNotesDir(), "projects.json"),
+      JSON.stringify(
+        {
+          lastDirectory: dirname(projectPath),
+          recentProjectPaths,
+        },
+        null,
+        2,
+      ),
+    );
+  }
+
+  private async revealProject(
+    projectPath?: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    const targetPath = projectPath || this.session?.projectPath;
+    if (!targetPath || !existsSync(targetPath)) {
+      return { success: false, error: "Project folder not found" };
+    }
+    shell.showItemInFolder(join(targetPath, "session.json"));
+    return { success: true };
+  }
+
+  private async deleteProject(
+    projectPath: string,
+  ): Promise<{ success: boolean; error?: string; currentDeleted?: boolean }> {
+    try {
+      const current = this.getProjectState();
+      const recentProjectPaths = current.recentProjectPaths.filter(
+        (value) => value !== projectPath,
+      );
+      writeFileSync(
+        join(this.ensureRecordingNotesDir(), "projects.json"),
+        JSON.stringify(
+          {
+            lastDirectory: this.ensureRecordingNotesDir(),
+            recentProjectPaths,
+          },
+          null,
+          2,
+        ),
+      );
+      if (existsSync(projectPath)) {
+        rmSync(projectPath, { recursive: true, force: true });
+      }
+      const currentDeleted = this.session?.projectPath === projectPath;
+      if (currentDeleted) {
+        this.session = null;
+        this.sessionAudioChunks = [];
+        this.pendingAudioChunks = [];
+        this.totalSamplesRecorded = 0;
+        this.accumulatedRecordedMs = 0;
+        this.lastAiNoteSegmentCount = 0;
+        this.pendingAiWords = 0;
+      }
+      return { success: true, currentDeleted };
+    } catch (error: any) {
+      return { success: false, error: error.message || String(error) };
+    }
+  }
+
+  private async streamAiResponse(
+    systemPrompt: string,
+    userPrompt: string,
+    signal?: AbortSignal,
+    onChunk?: (content: string) => void,
+    modelOverride?: string,
+  ): Promise<string> {
+    const aiConfig = this.config.ai;
+    const apiKey = await this.getApiKey();
+    if (!apiKey) {
+      throw new Error("No API key configured");
+    }
+    const model = modelOverride || this.getAiRequestModel();
+    const response = await fetch(
+      AiProviderService.getChatCompletionsUrl(aiConfig.baseUrl),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        signal,
+        body: JSON.stringify({
+          model,
+          stream: true,
+          max_tokens: aiConfig.maxTokens,
+          temperature: aiConfig.temperature,
+          top_p: aiConfig.topP,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        }),
+      },
+    );
+    if (!response.ok) {
+      const providerMessage = await this.getAiErrorMessage(response);
+      const fallbackModel =
+        !modelOverride &&
+        (await this.getFallbackAiModel(model, providerMessage, response.status));
+      if (fallbackModel && fallbackModel !== model) {
+        return this.streamAiResponse(
+          systemPrompt,
+          userPrompt,
+          signal,
+          onChunk,
+          fallbackModel,
+        );
+      }
+      const details = providerMessage ? `: ${providerMessage}` : "";
+      throw new Error(
+        `${response.status} ${response.statusText}${details} (model=${model})`,
+      );
+    }
+    if (!response.body) {
+      throw new Error("Empty response from AI");
+    }
+    let content = "";
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      for (const line of chunk.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") return content.trim();
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (!delta) continue;
+          content += delta;
+          onChunk?.(content);
+        } catch {}
+      }
+    }
+    return content.trim();
+  }
+
+  private getAiRequestModel(): string {
+    const key = this.getAiModelOverrideKey();
+    if (this.aiModelOverrideKey === key && this.aiModelOverride) {
+      return this.aiModelOverride;
+    }
+    return this.config.ai.model;
+  }
+
+  private getAiModelOverrideKey(): string {
+    return `${this.config.ai.baseUrl}::${this.config.ai.model}`;
+  }
+
+  private async getAiErrorMessage(response: Response): Promise<string> {
+    try {
+      const body = await response.text();
+      if (!body) {
+        return "";
+      }
+      try {
+        const parsed = JSON.parse(body);
+        return (
+          parsed?.error?.message ||
+          parsed?.message ||
+          parsed?.detail ||
+          body
+        );
+      } catch {
+        return body;
+      }
+    } catch {
+      return "";
+    }
+  }
+
+  private async getFallbackAiModel(
+    requestedModel: string,
+    providerMessage: string,
+    status: number,
+  ): Promise<string | null> {
+    if (!this.shouldRetryWithFallback(requestedModel, providerMessage, status)) {
+      return null;
+    }
+    const apiKey = await this.getApiKey();
+    if (!apiKey) {
+      return null;
+    }
+    const result = await new AiProviderService().validateAndListModels(
+      this.config.ai.baseUrl,
+      apiKey,
+    );
+    if (!result.success || !result.models.length) {
+      return null;
+    }
+    if (result.models.some((modelInfo) => modelInfo.id === requestedModel)) {
+      return null;
+    }
+    const fallbackModel = result.models[0]?.id || null;
+    if (!fallbackModel) {
+      return null;
+    }
+    this.aiModelOverride = fallbackModel;
+    this.aiModelOverrideKey = this.getAiModelOverrideKey();
+    console.warn(
+      `[RecordingNotesService] AI model "${requestedModel}" unavailable, retrying with "${fallbackModel}"`,
+    );
+    return fallbackModel;
+  }
+
+  private shouldRetryWithFallback(
+    requestedModel: string,
+    providerMessage: string,
+    status: number,
+  ): boolean {
+    if (!requestedModel.trim()) {
+      return false;
+    }
+    if (status !== 400 && status !== 404) {
+      return false;
+    }
+    const message = providerMessage.toLowerCase();
+    return (
+      message.includes(requestedModel.toLowerCase()) ||
+      message.includes("model") ||
+      message.includes("not found") ||
+      message.includes("does not exist")
+    );
+  }
+
   private getModelInfo() {
     const plugin = this.transcriptionPluginManager.getActivePlugin();
     return {
       transcriptionPlugin: plugin?.displayName || plugin?.name || "None",
-      aiModel: this.config.ai?.model || "None",
+      aiModel: this.getAiRequestModel() || "None",
       aiEnabled: this.config.ai?.enabled || false,
     };
   }
@@ -1064,5 +1294,9 @@ export class RecordingNotesService extends EventEmitter {
       this.window.close();
     }
     this.removeAllListeners();
+  }
+
+  isRecordingActive(): boolean {
+    return this.session?.status === "recording";
   }
 }

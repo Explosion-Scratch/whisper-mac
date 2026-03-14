@@ -44,15 +44,6 @@ export class MicrophonePermissionService {
   }
 
   /**
-   * Show instructions for enabling microphone permissions
-   * @deprecated UI handling moved to main process
-   */
-  async showMicrophoneInstructions(): Promise<void> {
-    // Deprecated, keeping empty implementation or reusing old logic if needed for fallback
-    // For now, we rely on ensureMicrophonePermissions to trigger system prompt
-  }
-
-  /**
    * Check if microphone permissions are enabled and request them if possible
    */
   async ensureMicrophonePermissions(): Promise<boolean> {

@@ -51,7 +51,10 @@ export class PermissionsManager {
       "PermissionsManager.checkAccessibilityPermissions: Starting accessibility permission check",
     );
     try {
-      const granted = await this.textInjector.checkAccessibilityPermissions();
+      this.textInjector.resetAccessibilityCache();
+      const granted = await this.textInjector.checkAccessibilityPermissions({
+        forceCheck: true,
+      });
       console.log(
         `PermissionsManager.checkAccessibilityPermissions: Accessibility permission ${granted ? "granted" : "denied"}`,
       );
@@ -213,6 +216,7 @@ export class PermissionsManager {
       "PermissionsManager.checkMicrophonePermissions: Starting microphone permission check",
     );
     try {
+      this.microphoneService.resetMicrophoneCache();
       const granted = await this.microphoneService.checkMicrophonePermissions();
       console.log(
         `PermissionsManager.checkMicrophonePermissions: Microphone permission ${granted ? "granted" : "denied"}`,

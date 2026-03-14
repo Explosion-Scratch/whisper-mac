@@ -23,12 +23,7 @@ import {
 import { NonAiTransformationConfig } from "../types/TransformationRuleTypes";
 
 const SETTINGS_REQUIRING_RESTART = new Set([
-  "transcriptionPlugin",
   "dataDir",
-  "plugin.whisper-cpp.model",
-  "plugin.yap.model",
-  "plugin.vosk.model",
-  "plugin.parakeet.model",
 ]);
 
 export class SettingsManager extends EventEmitter {
@@ -291,6 +286,40 @@ export class SettingsManager extends EventEmitter {
       }
     }
     return false;
+  }
+
+  getRestartRequiredChanges(
+    oldSettings: Record<string, any>,
+    newSettings: Record<string, any>,
+    prefix = "",
+  ): string[] {
+    const changedKeys: string[] = [];
+    const allKeys = new Set([
+      ...Object.keys(oldSettings || {}),
+      ...Object.keys(newSettings || {}),
+    ]);
+
+    for (const key of allKeys) {
+      const fullKey = prefix ? `${prefix}.${key}` : key;
+      const oldValue = oldSettings?.[key];
+      const newValue = newSettings?.[key];
+
+      if (this.isObject(oldValue) && this.isObject(newValue)) {
+        changedKeys.push(
+          ...this.getRestartRequiredChanges(oldValue, newValue, fullKey),
+        );
+        continue;
+      }
+
+      if (
+        JSON.stringify(oldValue) !== JSON.stringify(newValue) &&
+        this.doesSettingRequireRestart(fullKey)
+      ) {
+        changedKeys.push(fullKey);
+      }
+    }
+
+    return changedKeys;
   }
 
   getAll(): Record<string, any> {

@@ -178,6 +178,7 @@ class WhisperMacApp {
       this.dictationFlowManager,
       this.transcriptionPluginManager,
       this.settingsManager,
+      () => this.recordingNotesService.isRecordingActive(),
     );
   }
 
@@ -558,6 +559,17 @@ class WhisperMacApp {
     } else {
       console.log("Starting dictation...");
 
+      if (this.recordingNotesService.isRecordingActive()) {
+        await this.recordingNotesService.openWindow();
+        await this.errorManager.showError({
+          title: "AI Notes is recording",
+          description:
+            "Stop or pause the current AI Notes recording before starting dictation.",
+          actions: ["ok"],
+        });
+        return;
+      }
+
       if (options.skipTransformation) {
         const { appStore } = require("./core/AppStore");
         appStore.setState({
@@ -693,22 +705,28 @@ class WhisperMacApp {
     missingPermissions: string[],
   ): Promise<void> {
     const permissionList = missingPermissions.join(" and ");
-    const message = `WhisperMac needs ${permissionList} permission${missingPermissions.length > 1 ? "s" : ""} to work properly.`;
-    const detail = `${permissionList} permission${missingPermissions.length > 1 ? "s are" : " is"} required for full functionality.\n\nClick "Open Settings" to grant the necessary permissions.`;
+    const detail = `${permissionList} permission${missingPermissions.length > 1 ? "s are" : " is"} required for full functionality.\n\nClick "Open System Settings" to grant the necessary permissions.`;
 
     const { response } = await dialog.showMessageBox({
       type: "warning",
       title: "Permissions Required",
       message: "Permissions Required",
       detail: detail,
-      buttons: ["Open Settings", "Later"],
+      buttons: ["Open System Settings", "Later"],
       defaultId: 0,
       cancelId: 1,
       noLink: true,
     });
 
     if (response === 0) {
-      this.settingsService.openSettingsWindow("permissions");
+      const permissionsManager = this.settingsService.getPermissionsManager();
+      if (missingPermissions.length > 1) {
+        await permissionsManager.openSystemPreferences();
+      } else if (missingPermissions[0] === "Accessibility") {
+        await permissionsManager.openAccessibilityPreferences();
+      } else {
+        await permissionsManager.openMicrophonePreferences();
+      }
     }
   }
 }

@@ -554,11 +554,16 @@ export default {
 
         const settingsToSave = JSON.parse(JSON.stringify(this.settings));
 
-        await window.electronAPI.saveSettings(settingsToSave);
+        const result = await window.electronAPI.saveSettings(settingsToSave);
 
         this.originalSettings = settingsToSave;
 
-        if (!pluginChanged) {
+        if (result?.restartRequiredKeys?.length) {
+          this.showStatus(
+            `Settings saved. Restart required for: ${result.restartRequiredKeys.join(", ")}`,
+            "warning",
+          );
+        } else if (!pluginChanged) {
           this.showStatus("Settings saved successfully", "success");
         }
       } catch (error) {
@@ -583,19 +588,31 @@ export default {
           `Reset all settings in the "${this.currentSection.title}" section to defaults?`,
         )
       ) {
-        await window.electronAPI.resetSettingsSection(this.currentSectionId);
-        this.settings = await window.electronAPI.getSettings();
+        const result = await window.electronAPI.resetSettingsSection(
+          this.currentSectionId,
+        );
+        this.settings = result?.settings || (await window.electronAPI.getSettings());
         ensurePluginSettingsObjects(this.settings, this.pluginData);
-        this.showStatus("Section reset to defaults", "success");
+        this.showStatus(
+          result?.restartRequiredKeys?.length
+            ? `Section reset. Restart required for: ${result.restartRequiredKeys.join(", ")}`
+            : "Section reset to defaults",
+          result?.restartRequiredKeys?.length ? "warning" : "success",
+        );
       }
     },
 
     async resetAll() {
       if (confirm("Reset all settings to defaults? This cannot be undone.")) {
-        await window.electronAPI.resetAllSettings();
-        this.settings = await window.electronAPI.getSettings();
+        const result = await window.electronAPI.resetAllSettings();
+        this.settings = result?.settings || (await window.electronAPI.getSettings());
         ensurePluginSettingsObjects(this.settings, this.pluginData);
-        this.showStatus("All settings reset to defaults", "success");
+        this.showStatus(
+          result?.restartRequiredKeys?.length
+            ? `Settings reset. Restart required for: ${result.restartRequiredKeys.join(", ")}`
+            : "All settings reset to defaults",
+          result?.restartRequiredKeys?.length ? "warning" : "success",
+        );
       }
     },
 

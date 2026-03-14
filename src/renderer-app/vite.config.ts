@@ -16,10 +16,6 @@ export default defineConfig({
         //   src: 'node_modules/@ricky0123/vad-web/dist/silero_vad_v5.onnx',
         //   dest: './'
         // },
-        // {
-        //   src: 'node_modules/@ricky0123/vad-web/dist/silero_vad_legacy.onnx',
-        //   dest: './'
-        // },
         {
           src: "node_modules/@ricky0123/vad-web/dist/*",
           dest: "./vad",

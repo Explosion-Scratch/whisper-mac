@@ -2,6 +2,7 @@ import { Segment, TranscribedSegment } from "../types/SegmentTypes";
 import { AppConfig, Rule } from "../config/AppConfig";
 import { SelectedTextResult } from "./SelectedTextService";
 import { AiValidationService } from "./AiValidationService";
+import { AiProviderService } from "./AiProviderService";
 import { SecureStorageService } from "./SecureStorageService";
 import { SelectedTextService } from "./SelectedTextService";
 import { PromptManager } from "./PromptManager";
@@ -505,7 +506,7 @@ export class TransformationService {
     console.log("PROMPT:", systemPrompt);
     console.log("MESSAGE_PROMPT:", messagePrompt);
 
-    const response = await fetch(aiConfig.baseUrl, {
+    const response = await fetch(AiProviderService.getChatCompletionsUrl(aiConfig.baseUrl), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

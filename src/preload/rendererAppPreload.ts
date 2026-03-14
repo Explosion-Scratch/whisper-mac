@@ -142,10 +142,6 @@ const settingsAPI = {
     ipcRenderer.invoke("settings:resetSection", sectionId),
   getLaunchAtLoginStatus: () =>
     ipcRenderer.invoke("settings:getLaunchAtLoginStatus"),
-  importSettings: (filePath: string) =>
-    ipcRenderer.invoke("settings:import", filePath),
-  exportSettings: (filePath: string, settings: Record<string, any>) =>
-    ipcRenderer.invoke("settings:export", filePath, settings),
   // Enhanced Import/Export with progress and model downloading
   exportSettingsEnhanced: (filePath: string) =>
     ipcRenderer.invoke("settings:exportEnhanced", filePath),
@@ -453,6 +449,8 @@ const recordingNotesAPI = {
   stopRecording: () => ipcRenderer.invoke("recording-notes:stop"),
   pauseRecording: () => ipcRenderer.invoke("recording-notes:pause"),
   resumeRecording: () => ipcRenderer.invoke("recording-notes:resume"),
+  renameSession: (title: string) =>
+    ipcRenderer.invoke("recording-notes:rename-session", title),
   saveNotes: (notes: any[]) =>
     ipcRenderer.invoke("recording-notes:save-notes", notes),
   saveAiNotes: (aiNotes: any[]) =>
@@ -467,6 +465,13 @@ const recordingNotesAPI = {
   openWindow: () => ipcRenderer.invoke("recording-notes:open-window"),
   resetSession: () => ipcRenderer.invoke("recording-notes:reset-session"),
   getModelInfo: () => ipcRenderer.invoke("recording-notes:get-model-info"),
+  getProjectState: () => ipcRenderer.invoke("recording-notes:get-project-state"),
+  openProject: (projectPath: string) =>
+    ipcRenderer.invoke("recording-notes:open-project", projectPath),
+  revealProject: (projectPath?: string) =>
+    ipcRenderer.invoke("recording-notes:reveal-project", projectPath),
+  deleteProject: (projectPath: string) =>
+    ipcRenderer.invoke("recording-notes:delete-project", projectPath),
   regenerateAiNotes: () =>
     ipcRenderer.invoke("recording-notes:regenerate-ai-notes"),
   exportZip: () => ipcRenderer.invoke("recording-notes:export-zip"),
@@ -483,6 +488,8 @@ const recordingNotesAPI = {
     createRNListener("recording-notes:ask-response-chunk", callback),
   onSessionLoaded: (callback: (data: any) => void) =>
     createRNListener("recording-notes:session-loaded", callback),
+  onSessionRenamed: (callback: (data: any) => void) =>
+    createRNListener("recording-notes:session-renamed", callback),
   onAiStatus: (callback: (data: any) => void) =>
     createRNListener("recording-notes:ai-status", callback),
   onAiNotesCleared: (callback: () => void) =>

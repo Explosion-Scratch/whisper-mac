@@ -46,7 +46,6 @@ contextBridge.exposeInMainWorld("onboardingAPI", {
     ipcRenderer.invoke("onboarding:getCurrentPluginInfo"),
   setPlugin: (pluginName: string, options?: Record<string, any>) =>
     ipcRenderer.invoke("onboarding:setPlugin", { pluginName, options }),
-  // Legacy methods removed - using unified plugin system
   setAiEnabled: (enabled: boolean) =>
     ipcRenderer.invoke("onboarding:setAiEnabled", enabled),
   setAiProvider: (baseUrl: string, model: string) =>

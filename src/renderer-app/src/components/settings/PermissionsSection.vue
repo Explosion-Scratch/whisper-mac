@@ -191,7 +191,7 @@
           <i class="ph-duotone ph-arrows-clockwise"></i>
           <span
             >If features aren't working after granting permissions, try
-            refreshing or restarting the app.</span
+            refreshing the permission status here.</span
           >
         </div>
         <div class="info-item">

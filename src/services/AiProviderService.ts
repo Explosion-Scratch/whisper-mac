@@ -24,7 +24,7 @@ export class AiProviderService {
         return { success: false, models: [], error: "API key is required" };
       }
 
-      const normalized = this.normalizeBaseUrl(baseUrl);
+      const normalized = AiProviderService.getApiBaseUrl(baseUrl);
       const url = `${normalized}/models`;
       console.log("Validating API key against:", url);
 
@@ -66,9 +66,7 @@ export class AiProviderService {
     }
   }
 
-  private normalizeBaseUrl(baseUrl: string): string {
-    // If the user pasted a full completions URL, trim to the base path
-    // e.g. https://api.example.com/v1/chat/completions -> https://api.example.com/v1
+  static getApiBaseUrl(baseUrl: string): string {
     try {
       const trimmed = baseUrl.replace(/\/$/, "");
       const completionsMatch = /(\/v\d+)(?:\/.*)?$/i.exec(trimmed);
@@ -82,6 +80,14 @@ export class AiProviderService {
     } catch {
       return baseUrl;
     }
+  }
+
+  static getChatCompletionsUrl(baseUrl: string): string {
+    const trimmed = baseUrl.replace(/\/$/, "");
+    if (/\/chat\/completions$/i.test(trimmed)) {
+      return trimmed;
+    }
+    return `${AiProviderService.getApiBaseUrl(trimmed)}/chat/completions`;
   }
 
   private parseModelsResponse(data: any): AiModelInfo[] {

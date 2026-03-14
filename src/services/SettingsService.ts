@@ -210,6 +210,11 @@ export class SettingsService {
       async (_event, settings: Record<string, any>) => {
         try {
           const oldSettings = this.settingsManager.getAll();
+          const restartRequiredKeys =
+            this.settingsManager.getRestartRequiredChanges(
+              oldSettings,
+              settings,
+            );
           this.settingsManager.setAll(settings);
           this.settingsManager.saveSettings();
           this.settingsManager.applyToConfig();
@@ -259,7 +264,7 @@ export class SettingsService {
           // Notify other windows about settings update
           this.broadcastSettingsUpdate();
 
-          return { success: true };
+          return { success: true, restartRequiredKeys };
         } catch (error) {
           console.error("Failed to save settings:", error);
           throw error;
@@ -270,7 +275,13 @@ export class SettingsService {
     // Reset all settings
     ipcMain.handle("settings:resetAll", async () => {
       try {
+        const oldSettings = this.settingsManager.getAll();
         this.settingsManager.reset();
+        const restartRequiredKeys =
+          this.settingsManager.getRestartRequiredChanges(
+            oldSettings,
+            this.settingsManager.getAll(),
+          );
         this.settingsManager.saveSettings();
         this.settingsManager.applyToConfig();
 
@@ -281,7 +292,10 @@ export class SettingsService {
 
         this.broadcastSettingsUpdate();
 
-        return this.settingsManager.getAll();
+        return {
+          settings: this.settingsManager.getAll(),
+          restartRequiredKeys,
+        };
       } catch (error) {
         console.error("Failed to reset settings:", error);
         throw error;
@@ -293,47 +307,24 @@ export class SettingsService {
       "settings:resetSection",
       async (_event, sectionId: string) => {
         try {
+          const oldSettings = this.settingsManager.getAll();
           this.settingsManager.resetSection(sectionId);
+          const restartRequiredKeys =
+            this.settingsManager.getRestartRequiredChanges(
+              oldSettings,
+              this.settingsManager.getAll(),
+            );
           this.settingsManager.saveSettings();
           this.settingsManager.applyToConfig();
 
           this.broadcastSettingsUpdate();
 
-          return this.settingsManager.getAll();
+          return {
+            settings: this.settingsManager.getAll(),
+            restartRequiredKeys,
+          };
         } catch (error) {
           console.error("Failed to reset settings section:", error);
-          throw error;
-        }
-      },
-    );
-
-    // Import settings (legacy - kept for backwards compatibility)
-    ipcMain.handle("settings:import", async (_event, filePath: string) => {
-      try {
-        const data = readFileSync(filePath, "utf8");
-        this.settingsManager.importSettings(data);
-        this.settingsManager.saveSettings();
-        this.settingsManager.applyToConfig();
-
-        this.broadcastSettingsUpdate();
-
-        return this.settingsManager.getAll();
-      } catch (error) {
-        console.error("Failed to import settings:", error);
-        throw error;
-      }
-    });
-
-    // Export settings (legacy - kept for backwards compatibility)
-    ipcMain.handle(
-      "settings:export",
-      async (_event, filePath: string, settings: Record<string, any>) => {
-        try {
-          const data = JSON.stringify(settings, null, 2);
-          writeFileSync(filePath, data);
-          return { success: true };
-        } catch (error) {
-          console.error("Failed to export settings:", error);
           throw error;
         }
       },
@@ -1526,8 +1517,6 @@ export class SettingsService {
     ipcMain.removeHandler("settings:save");
     ipcMain.removeHandler("settings:resetAll");
     ipcMain.removeHandler("settings:resetSection");
-    ipcMain.removeHandler("settings:import");
-    ipcMain.removeHandler("settings:export");
     ipcMain.removeHandler("settings:exportEnhanced");
     ipcMain.removeHandler("settings:analyzeImport");
     ipcMain.removeHandler("settings:importWithProgress");

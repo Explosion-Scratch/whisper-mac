@@ -51,6 +51,7 @@ export class PushToTalkManager {
     private readonly dictationFlowManager: DictationFlowManager,
     private readonly transcriptionPluginManager: TranscriptionPluginManager,
     private readonly settingsManager: SettingsManager,
+    private readonly isPushToTalkBlocked: () => boolean = () => false,
   ) {}
 
   initialize(): void {
@@ -367,6 +368,13 @@ export class PushToTalkManager {
     ) {
       console.log(
         "[PushToTalkManager] Ignoring push-to-talk press; dictation already active/finishing",
+      );
+      return;
+    }
+
+    if (this.isPushToTalkBlocked()) {
+      console.log(
+        "[PushToTalkManager] Ignoring push-to-talk press; blocked by active recording notes session",
       );
       return;
     }

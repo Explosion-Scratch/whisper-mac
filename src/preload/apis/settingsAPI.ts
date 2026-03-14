@@ -10,10 +10,6 @@ export const settingsAPI = {
     ipcRenderer.invoke("settings:resetSection", sectionId),
   getLaunchAtLoginStatus: () =>
     ipcRenderer.invoke("settings:getLaunchAtLoginStatus"),
-  importSettings: (filePath: string) =>
-    ipcRenderer.invoke("settings:import", filePath),
-  exportSettings: (filePath: string, settings: Record<string, any>) =>
-    ipcRenderer.invoke("settings:export", filePath, settings),
   // Enhanced Import/Export with progress and model downloading
   exportSettingsEnhanced: (filePath: string) =>
     ipcRenderer.invoke("settings:exportEnhanced", filePath),

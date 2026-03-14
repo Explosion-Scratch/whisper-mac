@@ -491,8 +491,6 @@ export class IpcHandlerManager {
       },
     );
 
-    // Legacy handlers removed - now using unified plugin system
-
     ipcMain.handle(
       "onboarding:setPlugin",
       async (

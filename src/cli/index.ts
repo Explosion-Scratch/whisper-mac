@@ -19,11 +19,14 @@ if (!process.resourcesPath) {
 }
 
 import { AppConfig } from "../config/AppConfig";
+import { SettingsManager } from "../config/SettingsManager";
 import { CliPluginManager, PluginInfo } from "./CliPluginManager";
 import { WavProcessor } from "../helpers/WavProcessor";
 
 const program = new Command();
 const config = new AppConfig();
+const settingsManager = new SettingsManager(config);
+settingsManager.applyToConfig();
 const pluginManager = new CliPluginManager(config);
 
 const originalConsole = { ...console };
@@ -318,7 +321,11 @@ program
   .command("transcribe")
   .description("Transcribe an audio file")
   .argument("<file>", "Path to audio file")
-  .option("-p, --plugin <plugin>", "Plugin to use", "parakeet")
+  .option(
+    "-p, --plugin <plugin>",
+    "Plugin to use",
+    config.get("transcriptionPlugin") || "parakeet",
+  )
   .option("-m, --model <model>", "Model to use (for local plugins)")
   .option(
     "-k, --api-key <key>",
@@ -351,7 +358,9 @@ program
       originalConsole.log(`Input file: ${filePath}`);
     }
 
-    const pluginOptions: Record<string, any> = {};
+    const pluginOptions: Record<string, any> = {
+      ...(config.getPluginConfig()[pluginName] || {}),
+    };
 
     if (options.model) {
       pluginOptions.model = options.model;

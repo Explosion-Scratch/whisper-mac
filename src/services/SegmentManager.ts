@@ -776,42 +776,6 @@ export class SegmentManager extends EventEmitter {
     );
   }
 
-  // Legacy segment manipulation methods mostly replaced by executeActions logic,
-  // but kept for any direct usage if needed, though executeAction should be preferred.
-  deleteLastSegment(): boolean {
-    if (this.segments.length === 0) return false;
-    const lastSegment = this.segments.pop();
-    this.emit("segment-deleted", lastSegment);
-    return true;
-  }
-
-  replaceLastSegmentContent(newContent: string): boolean {
-    if (this.segments.length === 0) return false;
-    const lastSegment = this.segments[this.segments.length - 1];
-    const oldContent = lastSegment.text;
-    lastSegment.text = newContent.trim();
-    this.emit("segment-content-replaced", {
-      segment: lastSegment,
-      oldContent,
-      newContent,
-    });
-    return true;
-  }
-
-  deleteLastNSegments(count: number): number {
-    if (count <= 0 || this.segments.length === 0) return 0;
-    const actualCount = Math.min(count, this.segments.length);
-    const deletedSegments = this.segments.splice(-actualCount, actualCount);
-    this.emit("segments-deleted", deletedSegments);
-    return actualCount;
-  }
-
-  getLastSegment(): Segment | null {
-    return this.segments.length > 0
-      ? this.segments[this.segments.length - 1]
-      : null;
-  }
-
   getAllSegments(): Segment[] {
     return [...this.segments];
   }
@@ -826,15 +790,6 @@ export class SegmentManager extends EventEmitter {
     return this.segments.filter(
       (s) => s.type === "transcribed" && !s.completed,
     ) as TranscribedSegment[];
-  }
-
-  updateSegment(id: string, updates: Partial<Segment>): boolean {
-    const index = this.segments.findIndex((s) => s.id === id);
-    if (index === -1) return false;
-    const updatedSegment = { ...this.segments[index], ...updates } as Segment;
-    this.segments[index] = updatedSegment;
-    this.emit("segment-updated", updatedSegment);
-    return true;
   }
 
   getStats() {
