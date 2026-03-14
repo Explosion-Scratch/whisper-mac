@@ -279,7 +279,7 @@
   line-height: 1.12;
   letter-spacing: -0.045em;
   font-weight: 650;
-  max-width: 13ch;
+  max-width: 20ch;
   overflow: visible;
 }
 
@@ -301,6 +301,10 @@
   max-width: 46ch;
   font-size: 14px;
   line-height: 1.6;
+}
+
+.rn-home-actions {
+  margin-top: 20px;
 }
 
 .rn-home-sidebar,
@@ -398,6 +402,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 11px;
+}
+
+.rn-project-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--rn-text-tertiary);
+  margin-top: 1px;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  i {
+    font-size: 12px;
+  }
 }
 
 .rn-empty-state {
@@ -861,6 +884,35 @@
     background: rgba(255, 255, 255, 0.04);
   }
 
+  .rn-primary-btn {
+    background: #f1f1ef;
+    color: #111112;
+
+    &:hover:not(:disabled) {
+      background: #ffffff;
+    }
+  }
+
+  .rn-secondary-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #f1f1ef;
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+  }
+
+  .rn-danger-btn {
+    background: rgba(212, 77, 63, 0.14);
+    color: #f07060;
+
+    &:hover:not(:disabled) {
+      background: rgba(212, 77, 63, 0.22);
+    }
+  }
+
   .rn-audio-bar {
     background: rgba(255, 255, 255, 0.1);
   }
@@ -868,5 +920,13 @@
   .rn-ai-note-content code,
   .rn-ask-response code {
     background: rgba(255, 255, 255, 0.08);
+  }
+
+  .rn-md-note-editor__content .ProseMirror code {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .rn-md-note-editor__content .ProseMirror pre {
+    background: rgba(255, 255, 255, 0.05);
   }
 }

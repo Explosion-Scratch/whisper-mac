@@ -1001,11 +1001,13 @@ export class RecordingNotesService extends EventEmitter {
     lastDirectory: string;
     recentProjectPaths: string[];
     currentProjectPath: string | null;
+    projectMetadata: Record<string, { title: string; durationMs: number; wordCount: number }>;
   } {
     const fallback = {
       lastDirectory: this.ensureRecordingNotesDir(),
       recentProjectPaths: [] as string[],
       currentProjectPath: this.session?.projectPath || null,
+      projectMetadata: {} as Record<string, { title: string; durationMs: number; wordCount: number }>,
     };
     try {
       const statePath = join(this.ensureRecordingNotesDir(), "projects.json");
@@ -1019,10 +1021,30 @@ export class RecordingNotesService extends EventEmitter {
               typeof projectPath === "string" && existsSync(projectPath),
           )
         : [];
+      const projectMetadata: Record<string, { title: string; durationMs: number; wordCount: number }> = {};
+      for (const projectPath of recentProjectPaths) {
+        try {
+          const sessionFile = join(projectPath, "session.json");
+          if (!existsSync(sessionFile)) continue;
+          const sessionData = JSON.parse(readFileSync(sessionFile, "utf-8"));
+          const title = typeof sessionData.title === "string" ? sessionData.title : "";
+          const durationMs = typeof sessionData.totalRecordedMs === "number" ? sessionData.totalRecordedMs : 0;
+          let wordCount = 0;
+          if (Array.isArray(sessionData.userNotes)) {
+            for (const note of sessionData.userNotes) {
+              if (typeof note.text === "string" && note.text.trim()) {
+                wordCount += note.text.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
+              }
+            }
+          }
+          projectMetadata[projectPath] = { title, durationMs, wordCount };
+        } catch {}
+      }
       return {
         lastDirectory: typeof parsed?.lastDirectory === "string" && parsed.lastDirectory ? parsed.lastDirectory : fallback.lastDirectory,
         recentProjectPaths,
         currentProjectPath: this.session?.projectPath || null,
+        projectMetadata,
       };
     } catch {
       return fallback;

@@ -10,11 +10,13 @@ import { Editor, EditorContent } from "@tiptap/vue-3";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "@tiptap/markdown";
+import HardBreak from "@tiptap/extension-hard-break";
 import {
   Mathematics,
   createMathMigrateTransaction,
   mathMigrationRegex,
 } from "@tiptap/extension-mathematics";
+import "prosemirror-view/style/prosemirror.css";
 import "katex/dist/katex.min.css";
 
 const props = defineProps<{
@@ -57,13 +59,37 @@ function isAtEnd(currentEditor: Editor): boolean {
   return empty && to >= currentEditor.state.doc.content.size;
 }
 
+function isOnFirstLine(currentEditor: Editor): boolean {
+  const { empty, from } = currentEditor.state.selection;
+  if (!empty) return false;
+  const resolved = currentEditor.state.doc.resolve(from);
+  const startOfDoc = resolved.start(1);
+  const textBefore = currentEditor.state.doc.textBetween(startOfDoc, from, "\n");
+  return !textBefore.includes("\n");
+}
+
+function isOnLastLine(currentEditor: Editor): boolean {
+  const { empty, to } = currentEditor.state.selection;
+  if (!empty) return false;
+  const docSize = currentEditor.state.doc.content.size;
+  const resolved = currentEditor.state.doc.resolve(to);
+  const endOfDoc = resolved.end(1);
+  const textAfter = currentEditor.state.doc.textBetween(to, Math.min(endOfDoc, docSize), "\n");
+  return !textAfter.includes("\n");
+}
+
 function emitMarkdown(currentEditor: Editor) {
   emit("update:modelValue", normalizeMarkdown(currentEditor.getMarkdown()));
 }
 
 editor.value = new Editor({
   extensions: [
-    StarterKit,
+    StarterKit.configure({
+      hardBreak: false,
+    }),
+    HardBreak.configure({
+      keepMarks: false,
+    }),
     Placeholder.configure({
       placeholder: props.placeholder || "Type a note...",
     }),
@@ -104,21 +130,31 @@ editor.value = new Editor({
         emit("indent", event.shiftKey ? -1 : 1);
         return true;
       }
-      if (
-        event.key === "Backspace" &&
-        currentEditor.isEmpty &&
-        currentEditor.getText().trim() === ""
-      ) {
-        event.preventDefault();
-        emit("remove");
-        return true;
+      if (event.key === "Backspace" && isAtStart(currentEditor)) {
+        const hasNoText = currentEditor.getText().trim() === "";
+        if (hasNoText && currentEditor.isEmpty) {
+          event.preventDefault();
+          emit("remove");
+          return true;
+        }
+        if (hasNoText) {
+          const { state } = currentEditor;
+          const firstChild = state.doc.firstChild;
+          const isList = firstChild && (firstChild.type.name === "bulletList" || firstChild.type.name === "orderedList");
+          if (isList) {
+            return false;
+          }
+          event.preventDefault();
+          emit("remove");
+          return true;
+        }
       }
-      if (event.key === "ArrowUp" && isAtStart(currentEditor)) {
+      if (event.key === "ArrowUp" && (isAtStart(currentEditor) || isOnFirstLine(currentEditor))) {
         event.preventDefault();
         emit("navigate", -1);
         return true;
       }
-      if (event.key === "ArrowDown" && isAtEnd(currentEditor)) {
+      if (event.key === "ArrowDown" && (isAtEnd(currentEditor) || isOnLastLine(currentEditor))) {
         event.preventDefault();
         emit("navigate", 1);
         return true;
@@ -200,7 +236,7 @@ onBeforeUnmount(() => {
   font-size: 14px;
   line-height: 1.55;
   color: var(--rn-text);
-  white-space: normal;
+  white-space: pre-wrap;
   word-break: break-word;
 }
 
@@ -222,6 +258,10 @@ onBeforeUnmount(() => {
 
 .rn-md-note-editor__content :deep(.ProseMirror p) {
   margin: 0;
+}
+
+.rn-md-note-editor__content :deep(.ProseMirror > p:last-child:has(> .ProseMirror-trailingBreak:only-child)) {
+  display: none;
 }
 
 .rn-md-note-editor__content :deep(.ProseMirror h1),

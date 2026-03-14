@@ -89,8 +89,18 @@
             :class="{ 'rn-project-row-current': currentProjectPath === projectPath }"
           >
             <button class="rn-project-main" :title="projectPath" @click="openProject(projectPath)">
-              <span class="rn-project-name">{{ formatProjectPath(projectPath) }}</span>
+              <span class="rn-project-name">{{ getProjectDisplayName(projectPath) }}</span>
               <span class="rn-project-path">{{ projectPath }}</span>
+              <span v-if="projectMetadata[projectPath]" class="rn-project-meta">
+                <span v-if="projectMetadata[projectPath].durationMs > 0">
+                  <i class="ph ph-clock"></i>
+                  {{ formatTs(projectMetadata[projectPath].durationMs) }}
+                </span>
+                <span v-if="projectMetadata[projectPath].wordCount > 0">
+                  <i class="ph ph-note-pencil"></i>
+                  {{ projectMetadata[projectPath].wordCount }} words
+                </span>
+              </span>
             </button>
             <div class="rn-project-actions">
               <button class="rn-icon-btn rn-icon-btn-sm" title="Reveal folder" @click="revealProject(projectPath)">
@@ -453,6 +463,7 @@ export default defineComponent({
     const askLoading = ref(false);
     const sessionError = ref("");
     const recentProjects = ref<string[]>([]);
+    const projectMetadata = ref<Record<string, { title: string; durationMs: number; wordCount: number }>>({}); 
     const currentProjectPath = ref<string | null>(null);
     const aiGenerating = ref(false);
     const aiError = ref("");
@@ -537,6 +548,7 @@ export default defineComponent({
     function setProjectState(projectState: ProjectState | null | undefined) {
       recentProjects.value = projectState?.recentProjectPaths || [];
       currentProjectPath.value = projectState?.currentProjectPath || null;
+      projectMetadata.value = (projectState as any)?.projectMetadata || {};
     }
 
     async function refreshProjectState() {
@@ -1009,6 +1021,12 @@ export default defineComponent({
       return normalized[normalized.length - 1] || projectPath;
     }
 
+    function getProjectDisplayName(projectPath: string): string {
+      const meta = projectMetadata.value[projectPath];
+      if (meta?.title) return meta.title;
+      return formatProjectPath(projectPath);
+    }
+
     function loadSession(session: any) {
       startedAt.value = session.startedAt || 0;
       status.value = session.status || "ended";
@@ -1252,6 +1270,8 @@ export default defineComponent({
       revealCurrentProject,
       deleteProject,
       formatProjectPath,
+      projectMetadata,
+      getProjectDisplayName,
     };
   },
 });
