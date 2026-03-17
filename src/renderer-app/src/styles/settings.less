@@ -1,3 +1,5 @@
+@import "./_tokens.less";
+
 [v-cloak] {
   display: none;
 }
@@ -53,9 +55,9 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  --transition-fast: 0.15s ease;
-  --transition-normal: 0.2s ease;
-  --transition-slow: 0.3s ease;
+  --transition-fast: @duration-fast @ease-out-quart;
+  --transition-normal: @duration-normal @ease-out-quart;
+  --transition-slow: @duration-moderate @ease-out-expo;
 }
 
 /* Base Styles */
@@ -67,9 +69,7 @@
 .settings-root {
   margin: 0;
   padding: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "Roboto",
-    sans-serif;
+  font-family: @font-system;
   font-size: var(--font-size-md);
   line-height: 1.4;
   color: var(--color-text-primary);
@@ -138,13 +138,13 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  animation: sidebarFadeIn 0.3s ease-out;
+  animation: sidebarFadeIn @duration-moderate @ease-out-expo;
 }
 
 @keyframes sidebarFadeIn {
   from {
     opacity: 0;
-    transform: translateX(-10px);
+    transform: translateX(-6px);
   }
 
   to {
@@ -394,7 +394,7 @@
 }
 
 .btn:active {
-  transform: translateY(0);
+  transform: scale(0.97);
   box-shadow: none;
 }
 
@@ -424,11 +424,10 @@
 .form-actions {
   display: flex;
   gap: var(--spacing-sm);
-  padding-top: var(--spacing-lg);
   border-top: 1px solid var(--color-border-primary);
-  margin-top: var(--spacing-xl);
   background: rgba(255, 255, 255, 0.06);
   padding: var(--spacing-md);
+  padding-top: var(--spacing-lg);
   border-radius: var(--radius-md);
   margin: var(--spacing-xl) 0 0 0;
 }
@@ -443,8 +442,10 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   opacity: 0;
-  transform: translateY(-10px);
-  transition: all var(--transition-slow);
+  transform: translateY(-10px) scale(0.98);
+  transition:
+    opacity @duration-moderate @ease-out-expo,
+    transform @duration-moderate @ease-out-expo;
   z-index: 1000;
   box-shadow: var(--shadow-lg);
 }
@@ -470,7 +471,7 @@
 
 .status-message.show {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
 }
 
 .status-message.success {
@@ -1950,7 +1951,6 @@
 
 .about-container:hover {
   background: rgba(255, 255, 255, 0.1);
-  transform: translateY(-1px);
 }
 
 .about-header {
@@ -1979,9 +1979,7 @@
   transition: color var(--transition-normal);
 }
 
-.about-app-name:hover {
-  color: var(--color-primary);
-}
+/* removed gimmicky hover color change on static text */
 
 .about-app-version {
   font-size: var(--font-size-lg);
@@ -2009,9 +2007,7 @@
   transition: color var(--transition-normal);
 }
 
-.about-app-description:hover {
-  color: var(--color-text-primary);
-}
+/* removed gimmicky hover color change on static text */
 
 .about-app-author {
   font-size: var(--font-size-sm);
@@ -2062,9 +2058,7 @@
   transition: border-color var(--transition-normal);
 }
 
-.about-footer:hover {
-  border-top-color: var(--color-primary);
-}
+/* removed gimmicky hover border color on footer */
 
 .about-footer-text {
   font-size: var(--font-size-sm);
@@ -2074,9 +2068,7 @@
   transition: color var(--transition-normal);
 }
 
-.about-footer:hover .about-footer-text {
-  color: var(--color-text-secondary);
-}
+/* removed gimmicky hover text reveal on footer */
 
 .about-footer-details {
   margin-top: var(--spacing-sm);

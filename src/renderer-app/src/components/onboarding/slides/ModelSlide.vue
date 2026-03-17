@@ -4,7 +4,7 @@
       <span class="step-icn"><i class="ph-duotone ph-download-simple"></i></span>
       <h1>Choose transcription engine</h1>
     </div>
-    <div class="card" style="width: 100%">
+    <div class="card model-card">
       <div class="field">
         <div class="label">Plugin</div>
         <select
@@ -26,8 +26,7 @@
       <div
         v-for="option in currentPluginOptions"
         :key="option.key"
-        class="field"
-        style="margin-top: 10px"
+        class="field field-spaced"
       >
         <div class="label">{{ option.label }}</div>
 
@@ -93,7 +92,7 @@
           @input="$emit('update-option', option.key, $event.target.value)"
         />
 
-        <div v-if="option.description" class="hint" style="margin-top: 6px">
+        <div v-if="option.description" class="hint hint-spaced">
           {{ option.description }}
         </div>
       </div>

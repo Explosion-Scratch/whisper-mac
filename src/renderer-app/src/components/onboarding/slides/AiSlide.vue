@@ -15,8 +15,7 @@
     </div>
     <div
       v-if="aiValidationError"
-      class="error-message"
-      style="color: #ef4444; font-size: 14px; margin-top: 8px"
+      class="error-banner"
     >
       {{ aiValidationError }}
     </div>
@@ -40,11 +39,8 @@
           />
         </div>
       </div>
-      <div
-        class="form-row"
-        style="margin-top: 8px; display: flex; gap: 10px; align-items: center;"
-      >
-        <div class="field" style="flex: 1">
+      <div class="form-row api-key-row">
+        <div class="field field-grow">
           <div class="label">API Key</div>
           <input
             class="input"
@@ -54,15 +50,14 @@
           />
         </div>
         <button
-          class="btn btn-primary"
+          class="btn btn-primary api-key-save-btn"
           @click="$emit('save-key')"
-          style="margin-top: 24px"
         >
           <span v-if="savingKey" class="spinner" aria-hidden="true"></span>
           <span v-else>Save Key</span>
         </button>
       </div>
-      <div class="hint" style="margin-top: 6px">{{ keyStatus }}</div>
+      <div class="hint key-status-hint">{{ keyStatus }}</div>
     </div>
   </div>
 </template>

@@ -1,3 +1,5 @@
+@import "./_tokens.less";
+
 .onboarding-root {
   height: 100vh;
   display: flex;
@@ -12,8 +14,8 @@
   --fg: #222222;
   --muted: #666666;
   --primary: #111111;
-  --accent: #007aff;
-  --accent-hover: #2795ff;
+  --accent: @accent-blue;
+  --accent-hover: @accent-blue-hover;
   --border: #e6e6e6;
   --panel-bg: rgba(255, 255, 255, 0.38);
   --card-bg: rgba(255, 255, 255, 0.82);
@@ -26,9 +28,7 @@
   }
 
   color: var(--fg);
-  font-family:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
-    sans-serif;
+  font-family: @font-system;
 
   .container,
   .onboarding-container {
@@ -47,6 +47,14 @@
     border-bottom: 1px solid rgba(0, 0, 0, 0.06);
     -webkit-app-region: drag;
     position: relative;
+
+    .title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--fg);
+      opacity: 0.85;
+    }
   }
 
   .import-btn {
@@ -62,10 +70,13 @@
     padding: 0;
     background: transparent;
     border: none;
-    border-radius: 3px;
+    border-radius: 5px;
     color: var(--muted);
     cursor: pointer;
-    transition: all 0.12s ease;
+    transition:
+      background @duration-fast @ease-out-quart,
+      color @duration-fast @ease-out-quart,
+      transform @duration-fast @ease-out-quart;
     -webkit-app-region: no-drag;
 
     i {
@@ -78,7 +89,7 @@
     }
 
     &:active {
-      transform: translateY(-50%) scale(0.95);
+      transform: translateY(-50%) scale(0.92);
     }
   }
 
@@ -101,6 +112,7 @@
     display: grid;
     place-items: center;
     overflow: auto;
+    animation: slide-fade-in @duration-moderate @ease-out-expo both;
   }
 
   .content {
@@ -116,12 +128,16 @@
 
   h1 {
     font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
     margin: 0;
   }
 
   p {
     color: var(--muted);
     margin: 0;
+    line-height: 1.5;
+    font-size: 13px;
   }
 
   .step-header {
@@ -135,15 +151,19 @@
   .step-icn {
     width: 72px;
     height: 72px;
-    border-radius: 12px;
+    border-radius: 16px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
-    border: none;
+    background: rgba(0, 122, 255, 0.06);
+    border: 1px solid rgba(0, 122, 255, 0.1);
     box-shadow: none;
     color: var(--accent);
     font-size: 32px;
+    transition:
+      background @duration-normal @ease-out-quart,
+      border-color @duration-normal @ease-out-quart,
+      transform @duration-moderate @ease-out-expo;
 
     .icn {
       font-size: 32px;
@@ -154,47 +174,85 @@
   .controls {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     padding: 12px 16px;
     border-top: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(12px);
+  }
+
+  .step-dots {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .step-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.12);
+    transition: background @duration-normal @ease-out-quart, transform @duration-normal @ease-out-expo;
+  }
+
+  .step-dot-active {
+    background: var(--accent);
+    transform: scale(1.35);
+  }
+
+  .step-dot-done {
+    background: rgba(0, 122, 255, 0.35);
   }
 
   .btn {
-    padding: 6px 10px;
+    padding: 7px 14px;
     border: 1px solid var(--border);
     border-radius: 6px;
     background: rgba(255, 255, 255, 0.9);
     font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
     transition:
-      background 0.15s ease,
-      transform 0.1s ease,
-      box-shadow 0.15s ease;
+      background @duration-fast @ease-out-quart,
+      transform @duration-instant @ease-out-quart,
+      box-shadow @duration-fast @ease-out-quart,
+      opacity @duration-fast ease,
+      border-color @duration-fast ease;
+    color: var(--fg);
 
     &[disabled] {
-      opacity: 0.5;
+      opacity: 0.4;
       cursor: default;
       box-shadow: none;
       transform: none;
+      pointer-events: none;
     }
 
-    &:hover {
+    &:hover:not([disabled]) {
       background: #ffffff;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      border-color: rgba(0, 0, 0, 0.12);
     }
 
-    &:active {
-      transform: translateY(1px);
+    &:active:not([disabled]) {
+      transform: scale(0.97);
+      box-shadow: none;
     }
 
     &.btn-primary {
       background: var(--accent);
       color: #fff;
       border-color: var(--accent);
+      font-weight: 500;
 
-      &:hover {
+      &:hover:not([disabled]) {
         background: var(--accent-hover);
         border-color: var(--accent-hover);
-        box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
+        box-shadow: 0 2px 10px rgba(0, 122, 255, 0.22);
+      }
+
+      &:active:not([disabled]) {
+        box-shadow: 0 1px 4px rgba(0, 122, 255, 0.15);
       }
     }
   }
@@ -208,14 +266,21 @@
 
   .card {
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 16px;
     background: var(--card-bg);
-    transition: border-color 0.15s ease;
+    transition:
+      border-color @duration-fast @ease-out-quart,
+      box-shadow @duration-fast @ease-out-quart;
 
     &:hover {
       border-color: rgba(0, 0, 0, 0.12);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
     }
+  }
+
+  .model-card {
+    width: 100%;
   }
 
   .select,
@@ -226,6 +291,15 @@
     border-radius: 8px;
     font-size: 13px;
     background: #fff;
+    transition:
+      border-color @duration-fast @ease-out-quart,
+      box-shadow @duration-fast @ease-out-quart;
+
+    &:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.12);
+    }
   }
 
   .form-grid {
@@ -250,9 +324,18 @@
     text-align: left;
   }
 
+  .field-spaced {
+    margin-top: 10px;
+  }
+
+  .field-grow {
+    flex: 1;
+  }
+
   .label {
     font-size: 12px;
     color: var(--muted);
+    font-weight: 500;
   }
 
   .hint {
@@ -260,17 +343,61 @@
     color: var(--muted);
   }
 
+  .hint-spaced {
+    margin-top: 6px;
+  }
+
+  .permission-status {
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .permission-status-ok {
+    color: #28a745;
+  }
+
+  .permission-status-fail {
+    color: #dc3545;
+  }
+
+  .perm-help-actions {
+    margin-top: 12px;
+    gap: 8px;
+
+    .btn {
+      font-size: 11px;
+    }
+  }
+
+  .api-key-row {
+    margin-top: 8px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .api-key-save-btn {
+    margin-top: 24px;
+  }
+
+  .key-status-hint {
+    margin-top: 6px;
+  }
+
   .error-banner {
     width: 100%;
     margin-top: 8px;
-    padding: 6px 10px;
-    border-radius: 6px;
-    border: 1px solid rgba(220, 53, 69, 0.18);
-    background: rgba(220, 53, 69, 0.09);
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(220, 53, 69, 0.15);
+    background: rgba(220, 53, 69, 0.06);
     color: #b02a37;
     text-align: left;
     font-size: 13px;
-    line-height: 1.4;
+    line-height: 1.5;
+    animation: slide-fade-in @duration-moderate @ease-out-expo both;
 
     strong {
       display: block;
@@ -291,7 +418,8 @@
     height: 100%;
     width: 0%;
     background: var(--accent);
-    transition: width 0.2s ease;
+    transition: width @duration-moderate @ease-out-quart;
+    border-radius: inherit;
   }
 
   .toggle {
@@ -302,7 +430,7 @@
 
   .micro {
     opacity: 0.9;
-    transition: opacity 0.2s ease;
+    transition: opacity @duration-normal ease;
 
     &:hover {
       opacity: 1;
@@ -312,11 +440,16 @@
   .hero-logo {
     width: 56px;
     height: 56px;
-    border-radius: 12px;
+    border-radius: 14px;
     box-shadow:
       0 10px 30px rgba(0, 0, 0, 0.05),
       0 2px 10px rgba(0, 0, 0, 0.06) inset;
     user-select: none;
+    transition: transform @duration-moderate @ease-out-expo;
+
+    &:hover {
+      transform: scale(1.04);
+    }
   }
 
   .spinner {
@@ -337,9 +470,7 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--log-bg);
-    font-family:
-      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-      monospace;
+    font-family: @font-mono;
     font-size: 11px;
     line-height: 1.4;
     color: #444;
@@ -359,8 +490,11 @@
     margin-top: 12px;
     padding: 12px;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 10px;
     background: rgba(255, 255, 255, 0.5);
+    transition:
+      border-color @duration-fast @ease-out-quart,
+      background @duration-fast @ease-out-quart;
   }
 
   .plugin-header {
@@ -383,20 +517,27 @@
   }
 
   .plugin-delete-btn {
-    background: #dc3545;
+    background: @accent-red;
     color: white;
     border: none;
-    border-radius: 4px;
-    padding: 4px 8px;
+    border-radius: 6px;
+    padding: 5px 10px;
     font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
+    transition:
+      background @duration-fast @ease-out-quart,
+      transform @duration-instant @ease-out-quart;
 
     &:hover {
-      background: #c82333;
+      background: #d92d20;
+    }
+
+    &:active {
+      transform: scale(0.96);
     }
   }
 
-  // Compact styles for hotkey content
   .hotkey-content {
     gap: 8px;
   }
@@ -411,7 +552,6 @@
     font-size: 22px;
   }
 
-  // Hotkey Mode Cards
   .hotkey-mode-cards {
     display: flex;
     gap: 12px;
@@ -435,7 +575,11 @@
     border: 2px solid var(--border);
     border-radius: 12px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition:
+      border-color @duration-normal @ease-out-quart,
+      background @duration-normal @ease-out-quart,
+      transform @duration-fast @ease-out-quart,
+      box-shadow @duration-normal @ease-out-quart;
     position: relative;
 
     &.compact {
@@ -467,11 +611,14 @@
     &:hover {
       border-color: rgba(0, 122, 255, 0.3);
       background: rgba(0, 122, 255, 0.04);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     }
 
     &.active {
       border-color: var(--accent);
       background: rgba(0, 122, 255, 0.08);
+      box-shadow: 0 0 0 1px var(--accent);
     }
 
     .mode-icon {
@@ -480,11 +627,14 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 122, 255, 0.1);
+      background: rgba(0, 122, 255, 0.08);
       border-radius: 50%;
       color: var(--accent);
       font-size: 28px;
-      transition: all 0.2s ease;
+      transition:
+        background @duration-normal @ease-out-quart,
+        color @duration-normal @ease-out-quart,
+        transform @duration-moderate @ease-out-expo;
 
       &.small {
         width: 36px;
@@ -496,6 +646,7 @@
     &.active .mode-icon {
       background: var(--accent);
       color: #fff;
+      transform: scale(1.05);
     }
 
     .mode-content {
@@ -521,10 +672,10 @@
       right: 10px;
       color: var(--accent);
       font-size: 20px;
+      animation: check-enter @duration-moderate @ease-out-expo both;
     }
   }
 
-  // Hotkey Configuration Section
   .hotkey-config-section {
     display: flex;
     flex-direction: column;
@@ -570,19 +721,26 @@
 
   .suggestion-btn {
     padding: 6px 12px;
-    background: rgba(0, 122, 255, 0.1);
-    border: 1px solid rgba(0, 122, 255, 0.2);
+    background: rgba(0, 122, 255, 0.08);
+    border: 1px solid rgba(0, 122, 255, 0.15);
     border-radius: 6px;
     color: var(--accent);
-    font-family: "SF Mono", Monaco, monospace;
+    font-family: @font-mono;
     font-size: 12px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition:
+      background @duration-fast @ease-out-quart,
+      border-color @duration-fast @ease-out-quart,
+      transform @duration-instant @ease-out-quart;
     white-space: nowrap;
 
     &:hover {
-      background: rgba(0, 122, 255, 0.2);
-      border-color: rgba(0, 122, 255, 0.4);
+      background: rgba(0, 122, 255, 0.15);
+      border-color: rgba(0, 122, 255, 0.3);
+    }
+
+    &:active {
+      transform: scale(0.96);
     }
   }
 
@@ -612,11 +770,15 @@
     color: var(--fg);
     border: 1px solid rgba(255, 255, 255, 0.08);
 
+    header .title {
+      color: var(--fg);
+    }
+
     .btn {
       background: rgba(255, 255, 255, 0.06);
       color: var(--fg);
 
-      &:hover {
+      &:hover:not([disabled]) {
         background: rgba(255, 255, 255, 0.12);
       }
     }
@@ -626,6 +788,11 @@
       background: rgba(255, 255, 255, 0.06);
       color: var(--fg);
       border-color: var(--border);
+
+      &:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+      }
     }
 
     .progress {
@@ -644,6 +811,22 @@
         background: rgba(255, 255, 255, 0.08);
         color: var(--fg);
       }
+    }
+
+    .step-icn {
+      background: rgba(0, 122, 255, 0.1);
+      border-color: rgba(0, 122, 255, 0.15);
+    }
+
+    .controls {
+      background: rgba(255, 255, 255, 0.03);
+      border-top-color: var(--border);
+    }
+
+    .error-banner {
+      background: rgba(220, 53, 69, 0.1);
+      border-color: rgba(220, 53, 69, 0.2);
+      color: #f07068;
     }
 
     .hotkey-mode-card {
@@ -672,11 +855,55 @@
         background: rgba(0, 122, 255, 0.25);
       }
     }
+
+    .logs {
+      color: #aaa;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slide {
+      animation: none;
+    }
+
+    .hero-logo:hover {
+      transform: none;
+    }
+
+    .hotkey-mode-card:hover {
+      transform: none;
+    }
+
+    .hotkey-mode-card .mode-check {
+      animation: none;
+    }
   }
 }
 
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes slide-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes check-enter {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
   }
 }

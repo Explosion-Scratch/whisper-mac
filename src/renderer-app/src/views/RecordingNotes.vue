@@ -24,7 +24,7 @@
         </button>
       </div>
       <div class="rn-toolbar-actions">
-        <button class="rn-icon-btn" title="Import project folder" @click="importSession">
+        <button v-if="status === 'idle'" class="rn-icon-btn" title="Import project folder" @click="importSession">
           <i class="ph ph-upload-simple"></i>
         </button>
         <button
@@ -44,7 +44,7 @@
           <i class="ph ph-download-simple"></i>
         </button>
         <button
-          v-if="status !== 'recording'"
+          v-if="status === 'idle' || status === 'ended'"
           class="rn-icon-btn"
           title="New session"
           @click="resetSession"
@@ -148,7 +148,7 @@
             <i class="ph ph-microphone"></i>
             <span>Continue</span>
           </button>
-          <button v-if="status !== 'ended'" class="rn-danger-btn rn-compact-btn" @click="stopRecording">
+          <button v-if="status !== 'ended'" class="rn-danger-btn rn-compact-btn" @click="confirmStopRecording">
             <i class="ph ph-stop"></i>
             <span>End</span>
           </button>
@@ -226,6 +226,9 @@
               <div class="rn-audio-progress" :style="{ width: `${audioProgress}%` }"></div>
             </div>
             <span class="rn-audio-time">{{ formatTs(Math.round(duration * 1000)) }}</span>
+            <button class="rn-speed-btn" @click="cyclePlaybackSpeed" :title="`Playback speed: ${playbackSpeed}x`">
+              {{ playbackSpeed }}×
+            </button>
           </div>
         </section>
 
@@ -233,16 +236,16 @@
           <div class="rn-panel rn-transcript-panel">
             <div class="rn-panel-head">
               <div>
-                <div class="rn-section-title">Transcript</div>
+                <div class="rn-section-title">Transcript <span v-if="transcriptWordCount > 0" class="rn-section-badge">{{ transcriptWordCount }} words</span></div>
                 <div class="rn-section-subtitle">
-                  {{ status === 'recording' ? 'Live as you speak' : 'Click any line to jump' }}
+                  {{ status === 'recording' ? 'Live as you speak' : transcriptSegments.length > 0 ? 'Click any line to jump' : '' }}
                 </div>
               </div>
             </div>
             <div class="rn-transcript-live" v-if="status === 'recording'">
               {{ partialTranscript || latestTranscriptText || 'Listening…' }}
             </div>
-            <div v-else class="rn-transcript-list">
+            <div v-else-if="transcriptSegments.length > 0" class="rn-transcript-list" ref="transcriptList">
               <button
                 v-for="seg in transcriptSegments"
                 :key="seg.id"
@@ -254,12 +257,16 @@
                 <span>{{ seg.text }}</span>
               </button>
             </div>
+            <div v-else class="rn-empty-state rn-empty-state-centered">
+              <i class="ph ph-waveform rn-empty-state-icon"></i>
+              <span>Transcript segments will appear here after recording.</span>
+            </div>
           </div>
 
           <div class="rn-panel rn-ai-panel">
             <div class="rn-panel-head">
               <div>
-                <div class="rn-section-title">AI Notes</div>
+                <div class="rn-section-title">AI Notes <span v-if="aiNotes.length > 0" class="rn-section-badge">{{ aiNotes.length }}</span></div>
                 <div class="rn-section-subtitle">Summaries stay linked to the timeline</div>
               </div>
               <div class="rn-panel-tools">
@@ -323,17 +330,17 @@
               <input
                 class="rn-ask-input"
                 v-model="askInput"
-                placeholder="Ask a question about this session..."
+                placeholder="Ask about this session… (Enter to send)"
                 @keydown.enter="submitQuestion"
                 :disabled="askLoading"
               />
               <button
-                class="rn-primary-btn rn-compact-btn"
+                class="rn-primary-btn rn-compact-btn rn-send-btn"
                 :disabled="!askInput.trim() || askLoading"
                 @click="submitQuestion"
               >
                 <span v-if="askLoading" class="rn-ask-spinner"></span>
-                <span v-else>Ask</span>
+                <i v-else class="ph ph-paper-plane-right"></i>
               </button>
             </div>
             <div
@@ -488,7 +495,9 @@ export default defineComponent({
     const audioTimeMappings = ref<AudioTimeMapping[]>([]);
     const activeWallClockMs = ref<number | null>(null);
     const notesList = ref<HTMLElement | null>(null);
+    const transcriptList = ref<HTMLElement | null>(null);
     const audioEl = ref<HTMLAudioElement | null>(null);
+    const playbackSpeed = ref(1);
     const noteRefs: Record<number, NoteEditorRef | null> = {};
     const audioSrc = computed(() => (audioPath.value ? `file://${audioPath.value}` : ""));
     const audioProgress = computed(() =>
@@ -507,6 +516,12 @@ export default defineComponent({
     );
     const canRenameSession = computed(
       () => !!currentProjectPath.value && status.value !== "idle",
+    );
+    const transcriptWordCount = computed(() =>
+      transcriptSegments.value.reduce(
+        (count, seg) => count + (seg.text ? seg.text.trim().split(/\s+/).length : 0),
+        0,
+      ),
     );
     const currentProjectName = computed(() =>
       sessionTitle.value.trim() ||
@@ -724,6 +739,18 @@ export default defineComponent({
 
     async function stopRecording() {
       await api.stopRecording();
+    }
+
+    function confirmStopRecording() {
+      if (elapsed.value > 5000 && !confirm("End this recording session?")) return;
+      stopRecording();
+    }
+
+    function cyclePlaybackSpeed() {
+      const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+      const idx = speeds.indexOf(playbackSpeed.value);
+      playbackSpeed.value = speeds[(idx + 1) % speeds.length];
+      if (audioEl.value) audioEl.value.playbackRate = playbackSpeed.value;
     }
 
     async function resetSession() {
@@ -1229,7 +1256,9 @@ export default defineComponent({
       canPlayAudio,
       statusLabel,
       notesList,
+      transcriptList,
       audioEl,
+      playbackSpeed,
       setNoteRef,
       formatTs,
       renderMd,
@@ -1240,6 +1269,8 @@ export default defineComponent({
       pauseRecording,
       resumeRecording,
       stopRecording,
+      confirmStopRecording,
+      cyclePlaybackSpeed,
       resetSession,
       updateNote,
       handleNoteSplit,
@@ -1272,6 +1303,7 @@ export default defineComponent({
       formatProjectPath,
       projectMetadata,
       getProjectDisplayName,
+      transcriptWordCount,
     };
   },
 });

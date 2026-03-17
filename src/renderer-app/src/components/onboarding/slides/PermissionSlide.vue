@@ -13,9 +13,13 @@
       </button>
       <div v-if="isChecking" class="spinner" aria-hidden="true"></div>
       <span
-        class="hint"
-        :style="{ color: status === 'Enabled' ? '#28a745' : '#dc3545' }"
+        class="hint permission-status"
+        :class="{
+          'permission-status-ok': status === 'Enabled',
+          'permission-status-fail': status !== 'Enabled' && status !== 'Not checked yet' && status !== 'Checking...',
+        }"
       >
+        <i v-if="status === 'Enabled'" class="ph-fill ph-check-circle"></i>
         {{ status }}
       </span>
     </div>
@@ -23,11 +27,10 @@
       <div class="hint">
         <strong>Required:</strong> {{ requiredMessage }}
       </div>
-      <div v-if="showHelp" class="row" style="margin-top: 12px; gap: 8px">
+      <div v-if="showHelp" class="row perm-help-actions">
         <button
           class="btn"
           @click="$emit('open-settings')"
-          style="font-size: 11px"
         >
           Open System Settings
         </button>

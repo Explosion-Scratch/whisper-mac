@@ -12,7 +12,7 @@
       </button>
     </header>
     <main>
-      <div id="slides" class="slides">
+      <div id="slides" class="slides" :key="idx">
         <section class="slide" data-step="intro" v-if="idx === 0">
           <IntroSlide />
         </section>
@@ -99,6 +99,17 @@
         >
           Back
         </button>
+        <div class="step-dots">
+          <span
+            v-for="dot in 7"
+            :key="dot"
+            class="step-dot"
+            :class="{
+              'step-dot-active': idx === dot - 1,
+              'step-dot-done': idx > dot - 1,
+            }"
+          ></span>
+        </div>
         <div class="row">
           <button
             id="nextBtn"
