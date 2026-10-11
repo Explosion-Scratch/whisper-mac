@@ -589,10 +589,7 @@ export class SettingsService {
             onLog,
           );
 
-          // Save the active plugin setting
-          this.settingsManager.set("transcriptionPlugin", pluginName);
-          this.settingsManager.saveSettings();
-
+          // Selection is session-only. settings:save persists the user's draft.
           return { success: true };
         } catch (error: any) {
           throw new Error(error.message || "Plugin switch failed");
@@ -1378,6 +1375,14 @@ export class SettingsService {
       } catch (error) {
         console.error("Failed to check audio existence:", error);
         return { exists: false, error: String(error) };
+      }
+    });
+  }
+
+  public broadcastActivePluginUpdate(pluginName: string): void {
+    BrowserWindow.getAllWindows().forEach((window) => {
+      if (!window.isDestroyed()) {
+        window.webContents.send("settings:activePluginUpdated", pluginName);
       }
     });
   }

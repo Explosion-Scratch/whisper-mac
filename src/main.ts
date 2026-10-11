@@ -297,10 +297,11 @@ class WhisperMacApp {
       ) {
         this.trayService.refreshTrayMenu();
       }
-      if (key === "transcriptionPlugin") {
-        this.settingsService.broadcastSettingsUpdate();
-      }
+    });
 
+    this.transcriptionPluginManager.on("active-plugin-changed", (plugin) => {
+      this.trayService?.refreshTrayMenu();
+      this.settingsService.broadcastActivePluginUpdate(plugin.name);
     });
 
     this.settingsManager.on("shortcuts-resume", () => {
