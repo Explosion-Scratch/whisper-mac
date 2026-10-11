@@ -41,9 +41,17 @@ export function ensurePluginSettingsObjects(settings, pluginData) {
       settings.plugin[plugin.name] = {};
     }
     const options = pluginData.schemas[plugin.name] || [];
+
     for (const option of options) {
       if (settings.plugin[plugin.name][option.key] === undefined) {
-        settings.plugin[plugin.name][option.key] = option.default;
+        const flattenedKey = `plugin.${plugin.name}.${option.key}`;
+
+        if (settings[flattenedKey] !== undefined) {
+          settings.plugin[plugin.name][option.key] =
+            settings[flattenedKey];
+        } else {
+          settings.plugin[plugin.name][option.key] = option.default;
+        }
       }
     }
   }

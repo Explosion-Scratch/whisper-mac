@@ -45,8 +45,8 @@ export class TrayService {
     this.setTrayIcon(this.trayIconIdleRelPath);
     // Dock icon is now handled by the .icns file in electron-builder config
     this.tray.setIgnoreDoubleClickEvents(true);
-    this.tray.on("click", () => {
-      if (this.currentStatus !== "idle") {
+    this.tray.on("click", (event) => {
+      if (event.ctrlKey || this.currentStatus !== "idle") {
         try {
           if (this.trayMenu) this.tray?.popUpContextMenu(this.trayMenu);
         } catch (e) {}
@@ -116,12 +116,6 @@ export class TrayService {
 
       if (result.success) {
         console.log(`Successfully activated plugin: ${result.activePlugin}`);
-
-        // Persist the plugin selection to settings so it survives restarts
-        if (result.activePlugin) {
-          this.settingsManager.set("transcriptionPlugin", result.activePlugin);
-          this.settingsManager.saveSettings();
-        }
 
         // Show notification about plugin switch
         const targetPlugin = this.pluginManager.getPlugin(result.activePlugin!);

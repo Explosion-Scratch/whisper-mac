@@ -273,6 +273,12 @@ const settingsAPI = {
       callback(payload),
     );
   },
+  onActivePluginUpdated: (callback: (pluginName: string) => void) => {
+    const listener = (_event: IpcRendererEvent, pluginName: string) =>
+      callback(pluginName);
+    ipcRenderer.on("settings:activePluginUpdated", listener);
+    return () => ipcRenderer.removeListener("settings:activePluginUpdated", listener);
+  },
   onSettingsUpdated: (callback: (settings: Record<string, any>) => void) => {
     ipcRenderer.on("settings:updated", (_event, settings) =>
       callback(settings),

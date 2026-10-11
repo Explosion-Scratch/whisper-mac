@@ -74,6 +74,7 @@ export default {
       validationErrors: {},
       pluginData: { plugins: [], schemas: {} },
       activePlugin: null,
+      removeActivePluginListener: null,
       pluginDataInfo: [],
       pluginDataItems: {},
       expandedActions: {},
@@ -193,8 +194,7 @@ export default {
 
         this.schema = deepClone(await window.electronAPI.getSettingsSchema());
         this.settings = deepClone(await window.electronAPI.getSettings());
-        this.originalSettings = deepClone(this.settings);
-        window.log("this.settings", this.originalSettings);
+        window.log("this.settings", this.settings);
 
         try {
           const microphones = await enumerateMicrophones();
@@ -212,12 +212,10 @@ export default {
           this.pluginData = { plugins: [], schemas: {} };
         }
 
-        const pluginManagerActive = await getActivePlugin();
-        this.activePlugin =
-          pluginManagerActive || this.settings.transcriptionPlugin || "yap";
-        window.log("this.activePlugin", this.activePlugin);
         ensurePluginSettingsObjects(this.settings, this.pluginData);
-
+        this.originalSettings = deepClone(this.settings);
+        // Keep the saved baseline separate from the current session selection.
+        await this.refreshSessionPlugin();
         // Fetch AI capabilities of active plugin
         await this.fetchActivePluginAiCapabilities();
 
@@ -238,7 +236,7 @@ export default {
           this.showSection(this.schema[0].id);
         }
       } catch (error) {
-        window.error("Failed to initialize settings window:", error);
+        window.error("Failed to initialize settings window:", error?.stack || String(error));
         this.showStatus("Failed to load settings", "error");
       }
     },
@@ -290,41 +288,36 @@ export default {
         }
       });
 
+      // Tray plugin changes must also update an already open or hidden window.
+      // Keep both the saved baseline and unrelated unsaved edits intact.
+      this.removeActivePluginListener?.();
+      this.removeActivePluginListener = window.electronAPI.onActivePluginUpdated(
+        (pluginName) => {
+          this.activePlugin = pluginName;
+          this.settings.transcriptionPlugin = pluginName;
+          this.pendingPluginSwitch = false;
+          this.fetchActivePluginAiCapabilities();
+        },
+      );
+
       // Listen for settings updates from main process (e.g., when hotkeys change)
-      window.electronAPI.onSettingsUpdated((newSettings) => {
+      window.electronAPI.onSettingsUpdated(async (newSettings) => {
         // Update local settings to stay in sync with backend
         this.settings = deepClone(newSettings);
-        this.originalSettings = deepClone(newSettings);
         ensurePluginSettingsObjects(this.settings, this.pluginData);
+        this.originalSettings = deepClone(this.settings);
+        await this.refreshSessionPlugin();
+        await this.fetchActivePluginAiCapabilities();
       });
     },
 
-    ensurePluginSettingsObjects() {
-      if (!this.settings.plugin) this.settings.plugin = {};
-      if (
-        !this.pluginData ||
-        !this.pluginData.plugins ||
-        !this.pluginData.schemas
-      ) {
-        window.warn(
-          "Plugin data structure is incomplete, skipping plugin settings initialization",
-        );
-        return;
-      }
-
-      for (const plugin of this.pluginData.plugins) {
-        if (!this.settings.plugin[plugin.name]) {
-          this.settings.plugin[plugin.name] = {};
-        }
-        // Ensure all options from schema have a default value if not present
-        const options = this.pluginData.schemas[plugin.name] || [];
-        for (const option of options) {
-          if (this.settings.plugin[plugin.name][option.key] === undefined) {
-            this.settings.plugin[plugin.name][option.key] = option.default;
-          }
-        }
-      }
+    async refreshSessionPlugin() {
+      const pluginName = await getActivePlugin();
+      this.activePlugin = pluginName || this.settings.transcriptionPlugin || "yap";
+      this.settings.transcriptionPlugin = this.activePlugin;
+      this.pendingPluginSwitch = false;
     },
+
 
     // --- UI & NAVIGATION ---
     showSection(sectionId) {
@@ -574,9 +567,18 @@ export default {
       }
     },
 
-    cancelChanges() {
+    async cancelChanges() {
+      const savedPlugin = this.originalSettings.transcriptionPlugin || "yap";
+      try {
+        if ((await getActivePlugin()) !== savedPlugin) {
+          await window.electronAPI.switchPlugin(savedPlugin);
+        }
+      } catch (error) {
+        this.showStatus(`Failed to restore saved plugin: ${error.message}`, "error");
+        return;
+      }
       this.settings = deepClone(this.originalSettings);
-      this.activePlugin = this.originalSettings.transcriptionPlugin || "yap";
+      this.activePlugin = savedPlugin;
       this.pendingPluginSwitch = false;
       this.showStatus("Changes cancelled", "info");
     },
@@ -1138,6 +1140,10 @@ export default {
       }
     },
   },
+  beforeUnmount() {
+    this.removeActivePluginListener?.();
+  },
+
   mounted() {
     this.init();
 

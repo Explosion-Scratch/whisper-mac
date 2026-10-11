@@ -177,6 +177,9 @@ export class ShortcutManager {
       );
 
       await this.transcriptionPluginManager.setActivePlugin(nextPluginName);
+
+
+
       console.log(`Successfully cycled to plugin: ${nextPluginName}`);
     } catch (error) {
       console.error("Failed to cycle plugin:", error);

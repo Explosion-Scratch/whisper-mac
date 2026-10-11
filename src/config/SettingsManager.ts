@@ -330,7 +330,8 @@ export class SettingsManager extends EventEmitter {
     const oldDataDir = this.get<string>("dataDir");
     const oldSettings = { ...this.settings };
 
-    this.settings = this.mergeDeep(getDefaultSettings(), newSettings);
+    const normalizedSettings = this.normalizePluginSettings(newSettings);
+    this.settings = this.mergeDeep(getDefaultSettings(), normalizedSettings);
 
     // Emit setting-changed events for any changed values
     this.emitChangedSettings(oldSettings, this.settings);

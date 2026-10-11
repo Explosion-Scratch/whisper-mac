@@ -48,6 +48,9 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   private isWindowVisible = false;
   private isCurrentlyTranscribing = false;
   private useCoreML = false;
+  private static readonly TRANSCRIPTION_TIMEOUT_MS = 180_000;
+  private static readonly WARMUP_TIMEOUT_MS = 600_000;
+  private whisperProcessQueue: Promise<void> = Promise.resolve();
 
   constructor(config: AppConfig) {
     super();
@@ -276,6 +279,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       return;
     }
 
+    let tempAudioPath: string | null = null;
     try {
       this.isCurrentlyTranscribing = true;
       console.log(`Processing audio segment: ${audioData.length} samples`);
@@ -295,18 +299,11 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
       });
 
       // Create temporary WAV file for whisper.cpp
-      const tempAudioPath = await this.saveAudioAsWav(audioData);
+      tempAudioPath = await this.saveAudioAsWav(audioData);
 
       // Transcribe with whisper.cpp
       const rawTranscription =
         await this.transcribeWithWhisperCpp(tempAudioPath);
-
-      // Clean up temp file
-      try {
-        unlinkSync(tempAudioPath);
-      } catch (err) {
-        console.warn("Failed to delete temp audio file:", err);
-      }
 
       // Use uniform post-processing API
       const postProcessed = this.postProcessTranscription(rawTranscription, {
@@ -354,6 +351,14 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         });
       }
     } finally {
+      if (tempAudioPath !== null) {
+        // Clean up temp file
+        try {
+          unlinkSync(tempAudioPath);
+        } catch (err) {
+          console.warn("Failed to delete temp audio file:", err);
+        }
+      }
       this.isCurrentlyTranscribing = false;
     }
   }
@@ -415,7 +420,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     // Strip quantization suffix if present (e.g., "ggml-base.en-q4_0.bin" -> "ggml-base.en")
     const baseModelName = modelName
-      .replace(/-\w+\.bin$/, "")
+      .replace(/-q[0-9A-Za-z_]+\.bin$/i, "")
       .replace(/\.bin$/, "");
     const coreMLModelName = `${baseModelName}-encoder.mlmodelc`;
     const coreMLZipName = `${coreMLModelName}.zip`;
@@ -497,7 +502,7 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
     // Strip quantization suffix if present (e.g., "ggml-base.en-q4_0.bin" -> "ggml-base.en")
     const baseModelName = modelName
-      .replace(/-\w+\.bin$/, "")
+      .replace(/-q[0-9A-Za-z_]+\.bin$/i, "")
       .replace(/\.bin$/, "");
     const coreMLModelName = `${baseModelName}-encoder.mlmodelc`;
     const coreMLModelPath = join(this.config.getModelsDir(), coreMLModelName);
@@ -510,8 +515,20 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
   /**
    * Transcribe audio file using whisper.cpp CLI
    */
-  private async transcribeWithWhisperCpp(audioPath: string): Promise<string> {
-    return new Promise((resolve, reject) => {
+  private async transcribeWithWhisperCpp(audioPath: string, timeoutMs = WhisperCppTranscriptionPlugin.TRANSCRIPTION_TIMEOUT_MS): Promise<string> {
+  // Only allow one whisper.cpp process at a time. In particular, don't let
+  // a real transcription race with the Core ML warm-up/initialization.
+  const previousProcess = this.whisperProcessQueue;
+
+  let releaseLock!: () => void;
+  this.whisperProcessQueue = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+
+  await previousProcess;
+
+  try {
+    return await new Promise((resolve, reject) => {
       const args = [
         "--file",
         audioPath,
@@ -528,9 +545,8 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
 
       // Add configuration options
       const language = this.options.language || "auto";
-      if (language && language !== "auto") {
-        args.push("--language", language);
-      }
+      args.push("--language", language);
+
 
       const threads = this.options.threads || 4;
       if (threads) {
@@ -556,49 +572,97 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
         stderr += data.toString();
       });
 
-      whisperProcess.on("close", (code) => {
+
+
+      // Set timeout to prevent hanging
+      const timeoutSeconds = Math.round(timeoutMs / 1000);
+      let timedOut = false;
+
+      let processError: Error | null = null;
+      let forceKillTimeout: NodeJS.Timeout | null = null;
+
+      function isChildRunning() {
+        return (
+          whisperProcess.exitCode === null &&
+          whisperProcess.signalCode === null
+        );
+      }
+      const timeout = setTimeout(() => {
+        if (isChildRunning()) {
+          timedOut = true;
+
+          console.error(
+            `Whisper.cpp transcription timeout after ${timeoutSeconds} seconds`
+          );
+
+          whisperProcess.kill("SIGTERM");
+
+          forceKillTimeout = setTimeout(() => {
+            if (isChildRunning()) {
+              console.error("Whisper.cpp did not terminate after SIGTERM; sending SIGKILL");
+              whisperProcess.kill("SIGKILL");
+            }
+          }, 5000);
+        }
+      }, timeoutMs);
+
+      const clearAll = () => {
+        clearTimeout(timeout);
+
+        if (forceKillTimeout !== null) {
+          clearTimeout(forceKillTimeout);
+        }
+      };
+
+      whisperProcess.on("close", (code: number | null) => {
+        if (timedOut) {
+          reject(new Error(`Whisper.cpp transcription timeout after ${timeoutSeconds} seconds`));
+          return;
+        }
+
+        if (processError !== null) {
+          reject(processError);
+          return;
+        }
+
         if (code === 0) {
-          // Try to read the output txt file
           const txtOutputPath = audioPath.replace(/\.[^/.]+$/, ".txt");
+
           try {
             const rawTranscription = readFileSync(txtOutputPath, "utf8").trim();
-            unlinkSync(txtOutputPath); // Clean up output file
-
+            unlinkSync(txtOutputPath);
             resolve(rawTranscription || "[No speech detected]");
           } catch (fileError) {
-            // If we can't read the file, try to get output from stdout
             const rawTranscription = stdout.trim();
-
             resolve(rawTranscription || "[No speech detected]");
           }
         } else {
-          const error = new Error(
-            `Whisper.cpp failed with code ${code}: ${stderr}`,
-          );
+          const error = new Error(`Whisper.cpp failed with code ${code}: ${stderr}`);
           console.error("Whisper.cpp error:", error.message);
           reject(error);
         }
       });
 
-      whisperProcess.on("error", (error) => {
-        console.error("Whisper.cpp spawn error:", error);
-        reject(error);
+      whisperProcess.on("error", (error: Error) => {
+        console.error("Whisper.cpp process error:", error);
+        processError = error;
+
+        // If spawn itself failed, there is no child process whose "close"
+        // event we need to wait for.
+        if (whisperProcess.pid === undefined) {
+          clearAll();
+          reject(error);
+        }
       });
 
-      // Set timeout to prevent hanging (3 minutes) with cleanup
-      const timeout = setTimeout(() => {
-        if (!whisperProcess.killed) {
-          console.error("Whisper.cpp transcription timeout after 3 minutes");
-          whisperProcess.kill();
-          reject(new Error("Whisper.cpp transcription timeout"));
-        }
-      }, 180000);
-
-      const clearAll = () => clearTimeout(timeout);
+      // only cleaning up on close now.
       whisperProcess.on("close", clearAll);
-      whisperProcess.on("error", clearAll);
     });
+
+  } finally {
+    releaseLock();
   }
+}
 
   // New unified plugin system methods
   getSchema(): PluginSchemaItem[] {
@@ -1242,24 +1306,31 @@ export class WhisperCppTranscriptionPlugin extends BaseTranscriptionPlugin {
     if (this.isWindowVisible) return; // Don't run warmup during active dictation
 
     this.isWarmupRunning = true;
+    let tempAudioPath: string | null = null;
     try {
       // Warmup: Running dummy audio (log removed for production)
 
       // Run a tiny silent segment to keep binary/model hot
       // Bypass transcription state management and call whisper.cpp directly
       const dummy = new Float32Array(16000);
-      const tempAudioPath = await this.saveAudioAsWav(dummy);
+      tempAudioPath = await this.saveAudioAsWav(dummy);
 
       try {
-        await this.transcribeWithWhisperCpp(tempAudioPath);
-        // Clean up temp file
-        unlinkSync(tempAudioPath);
+        await this.transcribeWithWhisperCpp(tempAudioPath, WhisperCppTranscriptionPlugin.WARMUP_TIMEOUT_MS);
       } catch (e) {
         console.warn("Whisper.cpp warmup transcription failed:", e);
       }
     } catch (e) {
       console.warn("Whisper.cpp warmup failed:", e);
     } finally {
+      if (tempAudioPath !== null) {
+        // Clean up temp file
+        try {
+          unlinkSync(tempAudioPath);
+        } catch (err) {
+          console.warn("Failed to delete warmup audio file:", err);
+        }
+      }
       this.isWarmupRunning = false;
     }
   }
