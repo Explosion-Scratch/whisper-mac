@@ -593,7 +593,6 @@ export class SettingsService {
           this.settingsManager.set("transcriptionPlugin", pluginName);
           this.settingsManager.saveSettings();
 
-          this.broadcastSettingsUpdate();
           return { success: true };
         } catch (error: any) {
           throw new Error(error.message || "Plugin switch failed");
@@ -1383,7 +1382,7 @@ export class SettingsService {
     });
   }
 
-  private broadcastSettingsUpdate(): void {
+  public broadcastSettingsUpdate(): void {
     const settings = this.settingsManager.getAll();
 
     // Send to all windows (if any other windows exist)

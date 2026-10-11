@@ -193,8 +193,7 @@ export default {
 
         this.schema = deepClone(await window.electronAPI.getSettingsSchema());
         this.settings = deepClone(await window.electronAPI.getSettings());
-        this.originalSettings = deepClone(this.settings);
-        window.log("this.settings", this.originalSettings);
+        window.log("this.settings", this.settings);
 
         try {
           const microphones = await enumerateMicrophones();
@@ -217,7 +216,7 @@ export default {
           pluginManagerActive || this.settings.transcriptionPlugin || "yap";
         window.log("this.activePlugin", this.activePlugin);
         ensurePluginSettingsObjects(this.settings, this.pluginData);
-
+        this.originalSettings = deepClone(this.settings);
         // Fetch AI capabilities of active plugin
         await this.fetchActivePluginAiCapabilities();
 
@@ -294,37 +293,12 @@ export default {
       window.electronAPI.onSettingsUpdated((newSettings) => {
         // Update local settings to stay in sync with backend
         this.settings = deepClone(newSettings);
-        this.originalSettings = deepClone(newSettings);
         ensurePluginSettingsObjects(this.settings, this.pluginData);
+        this.originalSettings = deepClone(this.settings);
       });
     },
 
-    ensurePluginSettingsObjects() {
-      if (!this.settings.plugin) this.settings.plugin = {};
-      if (
-        !this.pluginData ||
-        !this.pluginData.plugins ||
-        !this.pluginData.schemas
-      ) {
-        window.warn(
-          "Plugin data structure is incomplete, skipping plugin settings initialization",
-        );
-        return;
-      }
 
-      for (const plugin of this.pluginData.plugins) {
-        if (!this.settings.plugin[plugin.name]) {
-          this.settings.plugin[plugin.name] = {};
-        }
-        // Ensure all options from schema have a default value if not present
-        const options = this.pluginData.schemas[plugin.name] || [];
-        for (const option of options) {
-          if (this.settings.plugin[plugin.name][option.key] === undefined) {
-            this.settings.plugin[plugin.name][option.key] = option.default;
-          }
-        }
-      }
-    },
 
     // --- UI & NAVIGATION ---
     showSection(sectionId) {

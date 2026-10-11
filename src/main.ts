@@ -282,6 +282,31 @@ class WhisperMacApp {
       }
     });
 
+
+
+    this.settingsManager.on("setting-changed", (key: string, value: any) => {
+      if (key.startsWith("hotkeys.")) {
+        console.log(`Hotkey setting changed: ${key} = ${value}`);
+        this.registerHotkeys();
+      }
+
+      if (
+        this.trayService &&
+        (key === "hotkeys.startStopDictation" ||
+          key === "transcriptionPlugin")
+      ) {
+        this.trayService.refreshTrayMenu();
+      }
+      if (key === "transcriptionPlugin") {
+        this.settingsService.broadcastSettingsUpdate();
+      }
+
+    });
+
+    this.settingsManager.on("shortcuts-resume", () => {
+      console.log("Shortcuts resume requested, re-registering hotkeys...");
+      this.registerHotkeys();
+    });
     this.segmentManager.on(
       "transformed",
       async (result: { transformedText: string }) => {
@@ -486,22 +511,6 @@ class WhisperMacApp {
 
     this.shortcutManager.registerShortcuts(hotkeySettings, actions);
 
-    this.settingsManager.on("setting-changed", (key: string, value: any) => {
-      if (key.startsWith("hotkeys.")) {
-        console.log(`Hotkey setting changed: ${key} = ${value}`);
-        this.registerHotkeys();
-
-        if (this.trayService && key === "hotkeys.startStopDictation") {
-          this.trayService.refreshTrayMenu();
-        }
-      }
-    });
-
-    // Listen for shortcuts-resume event to re-register shortcuts after they were suspended
-    this.settingsManager.on("shortcuts-resume", () => {
-      console.log("Shortcuts resume requested, re-registering hotkeys...");
-      this.shortcutManager.registerShortcuts(hotkeySettings, actions);
-    });
   }
 
   private handleOnboardingComplete(): void {

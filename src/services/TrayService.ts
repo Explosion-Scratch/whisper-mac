@@ -45,8 +45,8 @@ export class TrayService {
     this.setTrayIcon(this.trayIconIdleRelPath);
     // Dock icon is now handled by the .icns file in electron-builder config
     this.tray.setIgnoreDoubleClickEvents(true);
-    this.tray.on("click", () => {
-      if (this.currentStatus !== "idle") {
+    this.tray.on("click", (event) => {
+      if (event.ctrlKey || this.currentStatus !== "idle") {
         try {
           if (this.trayMenu) this.tray?.popUpContextMenu(this.trayMenu);
         } catch (e) {}
